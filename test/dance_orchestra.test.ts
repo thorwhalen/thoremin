@@ -51,13 +51,14 @@ interface Run {
   leads: boolean[];
   level: number[];
   pulse: PulseState[];
+  dance: unknown[];
 }
 
 async function dance(frames: BodyFrame[], conductor = DANCER): Promise<Run> {
   const controls = { ...useControls.getState(), conductor, scoreDoc: DEMO_44 };
   const engine = new Engine(loopSpec(frames, conductor), REGISTRY, { nominalDt: 1 / HZ, resources: { controls: () => controls, audioContext: {}, masterGain: {} } });
   await engine.init();
-  const out: Run = { time: [], bpm: [], leads: [], level: [], pulse: [] };
+  const out: Run = { time: [], bpm: [], leads: [], level: [], pulse: [], dance: [] };
   for (let i = 0; i < frames.length; i++) {
     engine.tick(i / HZ);
     out.time.push(engine.getOutput('conductor', 'time') as MusicalTime);
@@ -65,6 +66,7 @@ async function dance(frames: BodyFrame[], conductor = DANCER): Promise<Run> {
     out.leads.push(engine.getOutput('conductor', 'leadsScore') as boolean);
     out.level.push(engine.getOutput('conductor', 'level') as number);
     out.pulse.push(engine.getOutput('bodyPulse', 'pulse') as PulseState);
+    out.dance.push(engine.getOutput('conductor', 'dance'));
   }
   return out;
 }
@@ -105,6 +107,9 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     for (let i = start + 1; i < run.time.length; i++) expect(run.time[i].beat).toBeGreaterThan(run.time[i - 1].beat);
     // One cycle is a bar.
     expect(new Set(run.level.slice(start))).toEqual(new Set([4]));
+    // The lead's mode: silent modes before the start, then following (or holding at a seam).
+    expect(new Set(run.dance.slice(0, start)).has('following')).toBe(false);
+    expect(new Set(run.dance.slice(start))).toEqual(new Set(['following', 'holding']));
     // The dancer's tempo, not the marked one: the cycles settle near 1.94 s (four beats
     // at about 121 to 124 bpm).
     const late = run.bpm.slice(15 * HZ);

@@ -13,7 +13,7 @@
  * merely crept.
  */
 import { create } from 'zustand';
-import type { MusicalTime, ServoMode, ServoState } from '@thoremin/ictus';
+import { type DanceLeadMode, type MusicalTime, type ServoMode, type ServoState } from '@thoremin/ictus';
 import type { ConductorTransportReading } from '@/nodes/features/conductor';
 
 export interface ConductorLive {
@@ -36,6 +36,8 @@ export interface ConductorLive {
   recording?: { mode: ServoMode; rate: number; error: number } | null;
   /** The body's transport (#377): what the pose rules say (`off` reading the hands). */
   transport?: ConductorTransportReading;
+  /** A dancer leading (#380): what the dance lead is doing (absent otherwise). */
+  dance?: DanceLeadMode;
 }
 
 export const ABSENT_CONDUCTOR_LIVE: ConductorLive = {
@@ -77,7 +79,7 @@ export interface OutputReader {
 
 /** Quantise what the panel shows, so the change gate compares what a player sees. */
 export function conductorLiveKey(l: ConductorLive): string {
-  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.recording ? `${l.recording.mode}:${Math.round(l.recording.rate * 100)}:${Math.round(l.recording.error * 20)}` : '-'}|${l.transport ?? 'off'}`;
+  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.recording ? `${l.recording.mode}:${Math.round(l.recording.rate * 100)}:${Math.round(l.recording.error * 20)}` : '-'}|${l.transport ?? 'off'}|${l.dance ?? '-'}`;
 }
 
 /**
@@ -108,12 +110,19 @@ export function makeConductorReporter(
       anchors: time.anchors,
       recording: recordingOf(engine.getOutput(SONG_LEAD_NODE_ID, 'servo')),
       transport: transportOf(engine.getOutput(nodeId, 'transport')),
+      dance: danceOf(engine.getOutput(nodeId, 'dance')),
     };
     const key = conductorLiveKey(live);
     if (key === lastKey) return;
     lastKey = key;
     store.report(live);
   };
+}
+
+const DANCE_MODES: readonly DanceLeadMode[] = ['waiting', 'locking', 'armed', 'following', 'switching', 'holding'];
+/** The dance lead's mode (absent when no dancer leads, or unknown). */
+function danceOf(raw: unknown): DanceLeadMode | undefined {
+  return DANCE_MODES.find((m) => m === raw);
 }
 
 const TRANSPORT_READINGS: readonly ConductorTransportReading[] = ['idle', 'armed', 'prepared', 'running', 'holding', 'stopped', 'off'];

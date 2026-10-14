@@ -29,6 +29,7 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { OrchestraControls } from './orchestra';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
+import { useConductorStatus } from '../../conductorStatus';
 import { ARTICULATION_SOURCES, CONDUCTOR_BODY_POINTS, CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
@@ -107,7 +108,13 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const expression = c.expression ?? 'same';
   const articulationFrom = c.articulationFrom ?? 'sharpness';
   // Articulation has a choice only while the body shapes the expression (#378).
-  const bodyShapes = expression === 'body' || (expression === 'same' && body);
+  // A dancer's articulation is always the body's flow (#380): no choice to offer.
+  const bodyShapes = !dancer && (expression === 'body' || (expression === 'same' && body));
+  // The dancer's controls shape the SCORE's lead; leading a recording, the Song tool's
+  // follow range does (the pace law), so they are not shown then.
+  const dancerLeadsScore = dancer && c.conducts !== 'recording';
+  // Where the step can land: a beat of the bar in force (the piece's meter, live).
+  const beatsPerBar = useConductorStatus((st) => st.live.beatsPerBar);
   const transportRules = c.transport?.rules ?? true;
   const servo = c.servoBeats ?? 1;
   const prior = (c.prior ?? DEFAULT_RHYTHM_PRIOR) as RhythmPriorKind;
@@ -283,7 +290,10 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           </label>
         </>
       )}
-      {dancer && (
+      {dancer && !dancerLeadsScore && (
+        <p className="text-[10px] leading-relaxed text-white/40">The song follows your dance through the Song tool's follow range.</p>
+      )}
+      {dancerLeadsScore && (
         <>
           <label className="flex items-center justify-between gap-2 text-xs">
             <span>
@@ -309,7 +319,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
               data-testid="conductor-dancer-phase"
               onChange={(e) => dispatchDialSetIn('conductor.dancer.phaseOffset', Number(e.target.value))}
             >
-              {[0, 1, 2, 3].map((b) => (
+              {Array.from({ length: Math.max(1, Math.min(12, beatsPerBar || 4)) }, (_, b) => b).map((b) => (
                 <option key={b} value={b}>
                   {b === 0 ? 'the first beat (default)' : `beat ${b + 1}`}
                 </option>
@@ -322,8 +332,8 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
             </span>
             <input
               type="range"
-              min={60}
-              max={180}
+              min={30}
+              max={240}
               step={1}
               value={danceBpm}
               disabled={!enabled}

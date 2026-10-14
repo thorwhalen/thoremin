@@ -59,9 +59,19 @@ const SOURCE_BUTTON: Record<ConductorSettings['source'], string> = {
 };
 
 /** What to tell the player, per follower state (and what they conduct with, #375). */
-export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands'): string {
+export function describeLive(live: ConductorLive, source: ConductorSettings['source'] = 'hands', recording = false): string {
   if (source === 'dancer') {
+    // Leading a recording, the song's pace law follows the dancer (the Song tool's range).
+    if (recording) return live.enabled ? "The song follows your dance (within the Song tool's follow range)." : 'Off. Press Start, then dance: the song follows your steps.';
     if (!live.enabled) return 'Off. Press Start, then dance: the piece starts on your step.';
+    switch (live.dance) {
+      case 'armed':
+        return 'Got your rhythm: the piece starts on your next step.';
+      case 'holding':
+        return `Holding ${Math.round(live.tempo)} bpm until your rhythm is clear again.`;
+      case 'switching':
+        return 'Your step changed: following it once it holds.';
+    }
     if (live.state !== 'running') return 'Dance: the piece starts on your step once your rhythm holds for a few seconds.';
     return `Following your dance at ${Math.round(live.tempo)} bpm.`;
   }
@@ -134,12 +144,12 @@ function RecordingChooser({ live }: { live: ConductorLive }) {
   );
 }
 
-function LiveReadout({ live, source }: { live: ConductorLive; source: ConductorSettings['source'] }) {
+function LiveReadout({ live, source, recording }: { live: ConductorLive; source: ConductorSettings['source']; recording: boolean }) {
   const beat = live.beatInBar + 1;
   return (
     <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs" data-testid="conductor-live" data-state={live.enabled ? live.state : 'off'}>
       <div className="flex items-center justify-between">
-        <span className="text-white/80">{describeLive(live, source)}</span>
+        <span className="text-white/80">{describeLive(live, source, recording)}</span>
         {live.enabled && live.state === 'running' && (
           <span className="font-mono text-emerald-300">
             {beat}/{live.beatsPerBar}
@@ -253,7 +263,7 @@ export default function ConductorPanel() {
             Teach my conducting poses (ready, fermata, cut-off)...
           </button>
         )}
-        <LiveReadout live={live} source={source} />
+        <LiveReadout live={live} source={source} recording={recording} />
         <p className="text-[10px] leading-relaxed text-white/50">
           {source === 'dancer'
             ? 'Stand back so the camera sees all of you, feet included, and dance. The score finds what your steps repeat at (a beat, a bar), starts on your next step, and follows your tempo within a few percent of its own; your movement sets the loudness. It keeps playing when you stop.'

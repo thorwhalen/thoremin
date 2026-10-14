@@ -1116,6 +1116,11 @@
         "name": "transport",
         "kind": "transport-phase",
         "description": "The body's transport (#377): idle, armed, prepared, running, holding, stopped on a cut-off's frame, or off (reading the hands, or the rules off)"
+      },
+      {
+        "name": "dance",
+        "kind": "dance-mode",
+        "description": "A dancer leading (#380): waiting, locking, armed, following, switching or holding (absent otherwise)"
       }
     ],
     "params": [

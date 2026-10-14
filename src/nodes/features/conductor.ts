@@ -76,9 +76,11 @@
  * cycles), and an untrusted pulse HOLDS the tempo: the piece never stops because the
  * dancer paused. No transport rules, no fermata holds (a dancer has no release gesture),
  * `markLevel` unused (the relation finds the level). Expression `same` is the body's
- * motion and reach, read once per pulse cycle. One leader per consumer (#387 B2): this
- * dial picks the score's; a dancer "conducting the recording" is the song's pace law on
- * the pulse (the derivation's `songDanced`), so `recordingTime` stays empty.
+ * motion and reach, read once per pulse cycle, its articulation the body's flow (a fitted
+ * cycle has no braking sharpness). The `dance` output is the lead's mode. One leader per
+ * consumer (#387 B2): this dial picks the score's; a dancer "conducting the recording" is
+ * the song's pace law on the pulse (the derivation's `songDanced`), so `recordingTime`
+ * stays empty.
  *
  * The dial. {@link ConductorDialSchema} IS this node's params (the `faceControls`
  * pattern): the `conductor` dial re-exports it, the `config` input overrides the
@@ -421,6 +423,7 @@ export const conductorNode = defineNode<Params>({
     { name: 'recordingTime', kind: 'musical-time', description: "`time`, only while the conductor leads the recording (#187 PR 7): the song's pace controller follows it" },
     { name: 'level', kind: 'number', description: "The piece's beats per stroke (#376): 1 marking beats, 2 every other beat, the bar's beats marking bars" },
     { name: 'transport', kind: 'transport-phase', description: "The body's transport (#377): idle, armed, prepared, running, holding, stopped on a cut-off's frame, or off (reading the hands, or the rules off)" },
+    { name: 'dance', kind: 'dance-mode', description: 'A dancer leading (#380): waiting, locking, armed, following, switching or holding (absent otherwise)' },
   ],
   params: Params,
   make(p) {
@@ -687,8 +690,10 @@ export const conductorNode = defineNode<Params>({
         strokes = shaped();
       } else {
         exprMeter ??= createBodyExpressionMeter();
-        blend ??= createExpressionBlend({ articulation: c.articulationFrom });
-        blend.setArticulation(c.articulationFrom);
+        // A dancer's cycle has no braking sharpness: its articulation is the body's flow.
+        const articulation = ownBody ? 'flow' : c.articulationFrom;
+        blend ??= createExpressionBlend({ articulation });
+        blend.setArticulation(articulation);
         const body = inputs.body as BodyFrame | undefined;
         const fresh = isFresh(body, lastExprBody);
         lastExprBody = body;
@@ -759,7 +764,7 @@ export const conductorNode = defineNode<Params>({
         anchors: d.cycles,
         ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
       };
-      return emit(time, bpm, expression.dynamics, expression.articulation, true, c, Number.isFinite(d.ratio) ? d.ratio : 1, d.started);
+      return { ...emit(time, bpm, expression.dynamics, expression.articulation, true, c, Number.isFinite(d.ratio) ? d.ratio : 1, d.started), dance: d.mode };
     };
 
     return {

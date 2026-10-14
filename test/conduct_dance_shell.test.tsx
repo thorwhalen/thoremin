@@ -79,5 +79,23 @@ describe('Dance the orchestra', () => {
     const live = { enabled: true, state: 'ready', tempo: 0, beat: 0, beatInBar: 0, beatsPerBar: 4, confidence: 0, dynamics: 0.5, anchors: 0 } as const;
     expect(describeLive(live, 'dancer')).toMatch(/starts on your step once your rhythm holds/);
     expect(describeLive({ ...live, state: 'running', tempo: 123.6 }, 'dancer')).toBe('Following your dance at 124 bpm.');
+    // The lead's mode (the conductor's `dance` output): a paused dancer is held, not followed.
+    expect(describeLive({ ...live, state: 'running', tempo: 121.2, dance: 'holding' }, 'dancer')).toBe('Holding 121 bpm until your rhythm is clear again.');
+    expect(describeLive({ ...live, dance: 'armed' }, 'dancer')).toMatch(/starts on your next step/);
+    // Leading a recording, the song follows the dancer (the pace law).
+    expect(describeLive({ ...live, state: 'running' }, 'dancer', true)).toMatch(/The song follows your dance/);
+  });
+
+  it('leading a recording, the score-lead controls give way to a note (the Song tool owns the range)', async () => {
+    await dispatchDialSetIn('conductor.source', 'dancer');
+    await dispatchDialSetIn('conductor.conducts', 'recording');
+    try {
+      render(<ConductorPanel />);
+      useTools.setState({ open: 'conductor' });
+      await waitFor(() => expect(screen.getByText("The song follows your dance through the Song tool's follow range.")).toBeTruthy());
+      expect(screen.queryByTestId('conductor-dancer-range')).toBeNull();
+    } finally {
+      await dispatchDialSetIn('conductor.conducts', 'score');
+    }
   });
 });
