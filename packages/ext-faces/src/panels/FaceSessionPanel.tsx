@@ -48,6 +48,7 @@ import { chooseCategorizerChordsWrites, chooseCategorizerWrites } from '../schem
 import { useCategorizerPlay } from '../app/categorizerPlay';
 import { usePosePlay } from '../app/posePlay';
 import { useCategorizerChords } from '../app/categorizerChords';
+import { onVocabularyImporters, vocabularyImporters, type VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -269,6 +270,41 @@ function ChordsPlayButton({ id, name, unsaved }: { id: string; name: string; uns
   );
 }
 
+/** The vocabularies that take this modality's categorizers (#451), kept fresh as they come. */
+function useVocabularyImporters(modality: string): VocabularyImporter[] {
+  const [list, setList] = useState(() => vocabularyImporters(modality));
+  useEffect(() => {
+    setList(vocabularyImporters(modality));
+    return onVocabularyImporters(() => setList(vocabularyImporters(modality)));
+  }, [modality]);
+  return list;
+}
+
+/**
+ * "Use as air guitar chords" (#451): copy the saved categorizer's categories named as chords into
+ * the air guitar's vocabulary (one button per vocabulary that takes this modality's categorizers;
+ * none in a build without the air extension). What it imported and skipped is said as a notice.
+ */
+function ImportButtons({ s, id, name }: { s: FaceSessionState; id: string; name: string }) {
+  const importers = useVocabularyImporters(s.modality.id);
+  return (
+    <>
+      {importers.map((importer) => (
+        <button
+          key={importer.id}
+          type="button"
+          className={btn}
+          aria-label={`Use ${name} as ${importer.label}`}
+          title={`Copy its categories named as ${importer.label} into them (the saved version)`}
+          onClick={() => void s.importSaved(id, importer, (q) => window.confirm(q))}
+        >
+          {`Use as ${importer.label}`}
+        </button>
+      ))}
+    </>
+  );
+}
+
 function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard: () => boolean }) {
   if (s.saved.length === 0) return <p className={hint}>No saved categorizers yet.</p>;
   return (
@@ -286,6 +322,7 @@ function SavedList({ s, confirmDiscard }: { s: FaceSessionState; confirmDiscard:
             <>
               {s.modality.id === 'body' && <PosePlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />}
               <ChordsPlayButton id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
+              <ImportButtons s={s} id={m.id} name={m.name} />
               <BindButton s={s} id={m.id} name={m.name} unsaved={s.openId === m.id && s.dirty} />
             </>
           )}

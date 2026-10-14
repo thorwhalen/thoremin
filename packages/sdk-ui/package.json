@@ -12,6 +12,7 @@
     "./enroll/capture": "./src/enroll/capture.ts",
     "./enroll/categorizers": "./src/enroll/categorizers.ts",
     "./enroll/carveRequest": "./src/enroll/carveRequest.ts",
+    "./enroll/vocabularyImport": "./src/enroll/vocabularyImport.ts",
     "./enroll/click": "./src/enroll/click.ts",
     "./enroll/guidance": "./src/enroll/guidance.ts",
     "./enroll/liveVector": "./src/enroll/liveVector.ts",

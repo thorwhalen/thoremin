@@ -87,6 +87,8 @@ import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import type { CategorizerChecks, FaceModelRecord, SavedFaceModel } from './models';
 import type { FaceSource } from './sources';
 import { holdId, type FrameOpener, type LiveFrames, type ThumbStore } from './thumbnails';
+import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
+import { categoryEntries } from '../lib/vocabularyEntries';
 import { MAX_CATEGORY_SLOTS } from '../schema';
 
 export type FacePhase =
@@ -338,6 +340,11 @@ export interface FaceSessionState {
    *  category), by id (#371): the host plays it from its record, tuning and all, so a later edit
    *  needs no re-bind. Returns whether it was bound. */
   bindSaved(id: string, binder: CategoryBinder): Promise<boolean>;
+  /** Copy the SAVED categorizer `id`'s categories into another extension's vocabulary (#451: a
+   *  hand-shape categorizer named as chords becomes the air guitar's chords), through the importer
+   *  that vocabulary provides. `confirm` is asked before entries of the same name are replaced.
+   *  Says what was imported and skipped; returns whether anything was. */
+  importSaved(id: string, importer: VocabularyImporter, confirm: (question: string) => boolean): Promise<boolean>;
 }
 
 export const FACE_SESSION_DEFAULTS = {
@@ -1486,6 +1493,31 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return null;
         }
         return { name: record.name, text: exportCategorizer({ ...record.model.categorizer, name: record.name }) };
+      },
+
+      async importSaved(id, importer, confirm) {
+        const record = await deps.models.load(id).catch(() => null);
+        if (!record) {
+          set({ notice: 'That categorizer could not be read.' });
+          return false;
+        }
+        const entries = categoryEntries(record.model.categorizer);
+        const taken = entries.filter((e) => importer.accepts(e.label));
+        if (taken.length === 0) {
+          set({ notice: `None of the categories of "${record.name}" is named as one of the ${importer.label} (${entries.map((e) => `"${e.label}"`).join(', ')}). Rename them first.` });
+          return false;
+        }
+        const replaced = taken.filter((e) => importer.has(e.label)).map((e) => e.label);
+        if (replaced.length > 0 && !confirm(`The ${importer.label} already have ${replaced.join(', ')}. Replace ${replaced.length === 1 ? 'it' : 'them'} with "${record.name}"'s?`)) return false;
+        try {
+          const r = await importer.import(entries);
+          const skipped = r.skipped.length > 0 ? ` Skipped ${r.skipped.map((l) => `"${l}"`).join(', ')} (not a name the ${importer.label} take, or too few samples).` : '';
+          set({ notice: r.imported.length > 0 ? `Now in the ${importer.label}: ${r.imported.join(', ')}.${skipped}` : `Nothing was imported.${skipped}` });
+          return r.imported.length > 0;
+        } catch (err) {
+          set({ notice: `Could not import: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
+          return false;
+        }
       },
 
       async bindSaved(id, binder) {
