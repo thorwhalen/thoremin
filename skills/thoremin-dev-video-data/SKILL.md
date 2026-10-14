@@ -26,7 +26,7 @@ This applies to every purpose: training, testing, measuring, fixtures, demos. Ex
    - body: `scripts/video_to_pose.py` (`BodyFrame`: 33 pixel landmarks, world landmarks, visibility),
    - hands: `scripts/video_to_landmarks.py` (`HandsFrame`: pixel keypoints with the RAW `z`, `worldKeypoints`, `handedness` as the model reported it),
    - face: `scripts/video_to_face.py` with `--landmarks-out` (blendshapes, all 478 landmarks with `z`, the transform matrix).
-   Never drop `z`, world coordinates, visibility or the raw handedness label: each has been needed later (the palm's sign in #457 was measured from kept ASL landmarks). Keep the extractors' rounding; do not round further.
+   Name each output `.ndjson.gz`: all three scripts gzip by that suffix. Never drop `z`, world coordinates, visibility or the raw handedness label (where the model gives none the hands script writes `Right`; say so in the meta if it matters): each has been needed later (the palm's sign in #457 was measured from kept ASL landmarks). Keep the extractors' rounding; do not round further.
 2. **`<clip>.meta.json`** beside the streams:
    - `sourceUrl` (the page) and `mediaUrl` (the file, if different); the platform id;
    - `title`, `author`, `licence` (as stated at the source, with its URL), `description` (the source's own text, verbatim);
@@ -38,7 +38,7 @@ This applies to every purpose: training, testing, measuring, fixtures, demos. Ex
 
 ## Where it goes
 
-Under the app-data root, never in the repository: `~/.local/share/thoremin/<kind>/<corpus>/` (override with `THOREMIN_DATA_DIR`), with `videos/` (deletable), `landmarks/` (the streams and the meta) and whatever the corpus derives (`labels/`, `datasets/`, `results/`). `scripts/air/` is the worked pattern (fetch, extract, label, join; `scripts/air/README.md`); the body corpus of #373 is under `~/.local/share/thoremin/body/`. The ASL corpus lives with its own repository (`thoremin-asl`, `~/.local/share/thoremin-asl/landmarks/`, one JSONL record per clip with source, id, label and frames).
+Under the app-data root, never in the repository: `<root>/<kind>/<corpus>/`, where `<root>` is `THOREMIN_DATA_DIR` or `~/.local/share/thoremin` and `<kind>` is `videos` (deletable), `landmarks` (the streams and the meta) or what the corpus derives (`labels`, `datasets`, `models`, `results`); for example `<root>/landmarks/air/guitar/`. `scripts/air/` shows the layout and the steps (fetch, extract, label, join; `scripts/air/README.md`), but its extract step does not yet keep the streams as this skill says (#513). The body corpus of #373 predates the layout (`<root>/body/`; its backfill is #510). To merge provenance into a fixture's meta, `scripts/body/excerpt.ts --provenance` exists; no extractor writes `meta.json` itself yet, so write it. The ASL corpus lives with its own repository (`thoremin-asl`, `~/.local/share/thoremin-asl/landmarks/`, one JSONL record per clip with source, id, label and frames).
 
 ## What may be committed
 

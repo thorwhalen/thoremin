@@ -16,6 +16,7 @@ Requires: mediapipe (Tasks API), opencv-python. Run from the isolated media/.ven
 so it doesn't perturb the shared pyenv env.
 """
 import argparse
+import gzip
 import json
 import os
 import sys
@@ -55,7 +56,7 @@ def ensure_model() -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
-    ap.add_argument("out")
+    ap.add_argument("out", help="output .ndjson (or .ndjson.gz to gzip)")
     ap.add_argument("--max-hands", type=int, default=2)
     ap.add_argument("--min-confidence", type=float, default=0.4)
     args = ap.parse_args()
@@ -127,9 +128,16 @@ def main() -> int:
     cap.release()
     landmarker.close()
 
-    with open(args.out, "w") as f:
-        for r in records:
-            f.write(json.dumps(r) + "\n")
+    # A `.gz` path gzips with mtime=0 (byte-identical on a rerun), like video_to_pose.py
+    # and video_to_face.py: the kept form of a stream (the thoremin-dev-video-data skill).
+    payload = "".join(json.dumps(r) + "\n" for r in records).encode()
+    if args.out.endswith(".gz"):
+        with open(args.out, "wb") as f:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=f, mtime=0) as gz:
+                gz.write(payload)
+    else:
+        with open(args.out, "wb") as f:
+            f.write(payload)
 
     rate = (detected / tick * 100) if tick else 0
     print(f"frames={tick} fps={fps:.1f} {width}x{height} hand-detected={detected} ({rate:.0f}%) -> {args.out}")
