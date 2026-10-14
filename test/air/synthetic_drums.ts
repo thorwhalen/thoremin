@@ -27,6 +27,9 @@ export interface DrumStroke {
   pad: PadId;
   where: 'centre' | 'rim';
   force: 'soft' | 'hard';
+  /** How far the stick is raised (radians), in place of the force's own lift: a player
+   *  whose stroke heights vary (#533). The fall's duration stays the force's. */
+  lift?: number;
 }
 
 /** A scripted stroke with the frame time its tip reaches the bottom. */
@@ -132,7 +135,7 @@ export function drumTake(pads: Pads, options: DrumTakeOptions = {}): DrumTake {
   // Rest first, so the tracker sees a still hand.
   phase(LEAD_IN_S, () => {});
   for (const s of strokes) {
-    const f = FORCE[s.force];
+    const f = { ...FORCE[s.force], ...(s.lift !== undefined ? { lift: s.lift } : {}) };
     const from = { ...pivot };
     const to = pivotFor(target(s));
     const a0 = angle;
