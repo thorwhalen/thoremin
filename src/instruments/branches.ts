@@ -311,6 +311,8 @@ export const conductor = defineBranch({
     to({ node: 'conductor', port: 'leadsScore' }, { node: 'score', port: 'enabled' }),
     to(ui('scoreDoc'), { node: 'score', port: 'doc' }),
     to(ui('scoreDoc'), { node: 'conductor', port: 'doc' }),
+    // The player's lead offsets (#427, a per-device pref): read only on the body's path.
+    to(ui('conductorLeadOffsets'), { node: 'conductor', port: 'leadOffsets' }),
     to({ node: 'conductor', port: 'time' }, overlay('conductorTime')),
     to({ node: 'conductor', port: 'enabled' }, overlay('conductorEnabled')),
     to({ node: 'conductor', port: 'time' }, { node: ORCHESTRA_NODE_ID, port: 'time' }),

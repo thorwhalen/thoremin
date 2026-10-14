@@ -41,6 +41,7 @@ import { loadSongFile } from './song/host';
 import { useControls } from './store';
 import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
 import { ConductorControls } from './dials/panels/conductor';
+import ConductorTiming from './ConductorTiming';
 import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
@@ -291,6 +292,7 @@ export default function ConductorPanel() {
             Your poses start and stop the music only while the body transport is on and the conductor reads the beating arm (the conductor section's transport settings).
           </p>
         )}
+        {source === 'body' && <ConductorTiming dial={conductorDial} />}
         <LiveReadout live={live} source={source} recording={recording} />
         <p className="text-[10px] leading-relaxed text-white/50">
           {source === 'dancer'

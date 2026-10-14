@@ -23,7 +23,7 @@ import { SteerConfigSchema, defaultSteerConfig } from '@/nodes/mapping/indirect_
 // validate against the node's own contract without reaching into `src/nodes`.
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map';
-import { ConductorDialSchema } from '@/nodes/features/conductor';
+import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor';
 import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orchestra';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration
@@ -249,6 +249,18 @@ export const SongSettingsSchema = z.object({
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
 export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1 };
+/**
+ * The body conductor's per-device prefs (#427): the player's lead offset per joint,
+ * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like
+ * {@link SongSettingsSchema}, not an instrument field: the lag is how this player's body
+ * rides a stroke, the same under every instrument. Empty by default: no joint is
+ * corrected, which is what every conductor played before.
+ */
+export const ConductorPrefsSchema = z.object({
+  leadOffsets: LeadOffsetsSchema.default({}),
+});
+export type ConductorPrefs = z.infer<typeof ConductorPrefsSchema>;
+export const DEFAULT_CONDUCTOR_PREFS: ConductorPrefs = { leadOffsets: {} };
 /**
  * The generative layer (#141 / #188): gesture features steering a cloud generative
  * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:

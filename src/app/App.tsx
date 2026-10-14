@@ -37,6 +37,7 @@ import SongPanel from './SongPanel';
 // Installs the song commands' host (#186 PR G), so `song.play` works from the palette
 // before the Song tool was ever opened.
 import './song/host';
+import './conductorLeadHost';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ScoreLoader from './ScoreLoader';
