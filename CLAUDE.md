@@ -99,6 +99,10 @@ fallback only, tracked for migration.
 preset-collection* layer. Load preset → hydrate zustand; edit → debounce → save
 via the provider. Never `await` a provider in the tick/audio loop.
 
+## Dev skills (`skills/`, linked from `.claude/skills/`)
+
+- **`thoremin-dev-video-data`** — every video downloaded to train, test, measure or build a fixture keeps ALL its landmark streams (pose, hands, face; gzipped NDJSON) with a `meta.json` (source URL, licence, description, on-screen labels, subtitles, where each label came from, extractor and model); the video itself is deletable. Read it before fetching any footage.
+
 ## Verification gates (every change)
 
 - `npm run typecheck` — strict DAG typecheck (`tsconfig.dag.json`; covers
