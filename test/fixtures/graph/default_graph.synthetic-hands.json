@@ -1028,6 +1028,16 @@
   {
    "from": {
     "node": "ui",
+    "port": "conductor"
+   },
+   "to": {
+    "node": "score",
+    "port": "config"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
     "port": "scoreDoc"
    },
    "to": {
