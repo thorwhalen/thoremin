@@ -63,8 +63,10 @@ export function lazyPanel(
   const part = (key: 'Controls' | 'Readout'): ComponentType => {
     const resolve = () =>
       load().then((ui) => {
-        const panel = ui.panels.find((p) => p.instrumentId === decl.instrumentId);
-        if (!panel) throw new Error(`the extension's UI has no panel for "${decl.instrumentId}"`);
+        // By id AND section: one extension may give one instrument several sections (the faces
+        // extension's face and pose categorizers), and by id alone each showed the first's.
+        const panel = ui.panels.find((p) => p.instrumentId === decl.instrumentId && p.section === decl.section);
+        if (!panel) throw new Error(`the extension's UI has no panel "${decl.section}" for "${decl.instrumentId}"`);
         return panel[key];
       });
     let loaded: ComponentType | null = null;
@@ -130,7 +132,7 @@ export function lazyPanel(
     LazyExtensionPart.displayName = `Lazy${key}(${decl.instrumentId})`;
     return LazyExtensionPart;
   };
-  return { instrumentId: decl.instrumentId, section: decl.section, Controls: part('Controls'), Readout: part('Readout') };
+  return { instrumentId: decl.instrumentId, section: decl.section, readoutOn: decl.readoutOn, Controls: part('Controls'), Readout: part('Readout') };
 }
 
 /**

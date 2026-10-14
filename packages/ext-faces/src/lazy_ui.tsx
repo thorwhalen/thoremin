@@ -13,7 +13,7 @@ import CategorizerSection from './panels/CategorizerSection';
 import { startCategorizerPlay, useCategorizerPlay } from './app/categorizerPlay';
 import { startPosePlay } from './app/posePlay';
 import PoseCategorizerSection, { PoseCategorizerReadout } from './panels/PoseCategorizerSection';
-import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from './ui';
+import { FACES_TOOL, HANDS_TOOL, POSES_TOOL, faceReadoutOn, poseReadoutOn } from './ui';
 
 /** One line: which categorizer the face chords read right now. */
 function CategorizerReadout() {
@@ -24,9 +24,8 @@ function CategorizerReadout() {
   return <span className="text-[10px] text-white/50" data-faces-readout>{text}</span>;
 }
 
-/** The section, with the readout under it: the host renders an extension's `Readout` only under
- *  an air or sign instrument's row (`AIR_INSTRUMENTS`), which a categorizer is not, so the
- *  section is where the player sees what the face chords read with (#359). */
+/** The section, with the readout under it (#359): the editor is a view of its own, so the line
+ *  the chosen row shows while a personal categorizer plays (`readoutOn`, #367) is here too. */
 function CategorizerControls() {
   return (
     <div className="space-y-1">
@@ -39,8 +38,8 @@ function CategorizerControls() {
 export const FACES_UI: ExtensionUi = {
   id: 'faces',
   panels: [
-    { instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout },
-    { instrumentId: 'faces', section: 'Pose categorizer', Controls: PoseCategorizerSection, Readout: PoseCategorizerReadout },
+    { instrumentId: 'faces', section: 'Face categorizer', Controls: CategorizerControls, Readout: CategorizerReadout, readoutOn: faceReadoutOn },
+    { instrumentId: 'faces', section: 'Pose categorizer', Controls: PoseCategorizerSection, Readout: PoseCategorizerReadout, readoutOn: poseReadoutOn },
   ],
   statusHooks: [],
   // Resolve the categorizer the instrument names and hand it to the DAG, for the app's lifetime.

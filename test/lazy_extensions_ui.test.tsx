@@ -50,6 +50,30 @@ describe('the panel placeholder of a lazy extension (src/app/extensions/lazyPane
     await waitFor(() => expect(screen.getByText('real controls')).toBeTruthy());
   });
 
+  it('two sections of one extension each resolve to their own panel, matched by section (#367)', async () => {
+    // The faces extension has two sections for one instrument id (Face categorizer, Pose
+    // categorizer): matched by id alone, the second showed the first one's controls.
+    const two: ExtensionUi = {
+      id: 'x',
+      panels: [
+        { instrumentId: 'x', section: 'First', Controls: () => <p>first controls</p>, Readout: () => <p>first readout</p> },
+        { instrumentId: 'x', section: 'Second', Controls: () => <p>second controls</p>, Readout: () => <p>second readout</p> },
+      ],
+      statusHooks: [],
+      onMount: [],
+    };
+    const second = lazyPanel({ instrumentId: 'x', section: 'Second' }, async () => two);
+    render(
+      <>
+        <second.Controls />
+        <second.Readout />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByText('second controls')).toBeTruthy());
+    expect(screen.getByText('second readout')).toBeTruthy();
+    expect(screen.queryByText('first controls')).toBeNull();
+  });
+
   it('a failed load says so and offers a Reload, never throwing into the shell', async () => {
     let reloads = 0;
     const panel = lazyPanel(
