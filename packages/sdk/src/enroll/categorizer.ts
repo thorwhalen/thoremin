@@ -83,11 +83,15 @@ export const NO_REJECT_RADIUS = Number.MAX_VALUE;
 
 /**
  * The most samples an IMPORTED file may carry, and the most a correction may grow a
- * categorizer to. An import is untrusted, and exemplar selection is quadratic per category
- * on the main thread, so a size bound is a responsiveness bound: measured, the saved view of
- * a reject-mode categorizer whose samples are mostly "none of these" takes about 2 s at 1000
- * samples, 7 s at 2000 and 40 s at 5000. Generous for any real take, which holds tens to a
- * few hundred still-points, so many merged takes still fit.
+ * categorizer to. An import is untrusted and its stages run on the main thread, so a size
+ * bound is a responsiveness bound. Exemplar selection is no longer the limit (the medoid is
+ * estimated past 300 members, #398); `scripts/bench_categorizer_size.ts` times what remains,
+ * at 52 features (ms at 2000 / 3000 samples on one server core; 5000 was timed at 40 features
+ * and is only a scale): model 113 / 129 / 163, quality chips 118 / 152 / 212, merging a take of
+ * 40 holds 241 / 317 / 363, and the re-cut's forest (quadratic; offered only to `recutUpTo`
+ * holds out of the bins) 315 / 867 / 1664. The merge is already past the ~200 ms a click may take at 2000, so the
+ * bound stays; raising it waits for the merge and the forest to move off the main thread (#587).
+ * Generous for any real take, which holds tens to a few hundred still-points.
  *
  * The bound is enforced at the untrusted door ({@link importCategorizer}) and by the edits
  * that grow a categorizer, NOT by {@link PersonalCategorizerSchema}: that schema also
