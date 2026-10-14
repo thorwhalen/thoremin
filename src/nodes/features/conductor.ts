@@ -397,6 +397,21 @@ const START_EPS = 1e-3;
 const TRANSPORT_POINTS: ReadonlySet<string> = new Set(['impact', 'wrist']);
 
 /** The transport phases in which the score sounds (#377). */
+/** What one tick's output is built from (`emit`): the time, the tempo it advanced at, the
+ *  expression, and the few facts that decide `leadsScore` / `recordingTime` / `level`. */
+interface EmitArgs {
+  time: MusicalTime;
+  bpm: number;
+  dynamics: number;
+  articulation: number;
+  enabled: boolean;
+  c: Params;
+  /** The piece's beats per stroke (a dancer's: its cycle ratio). */
+  level?: number;
+  /** False before a dancer's piece has started: the score stays silent. */
+  sounding?: boolean;
+}
+
 const TRANSPORT_SOUNDING: ReadonlySet<TransportPhase> = new Set(['running', 'holding']);
 
 /**
@@ -697,14 +712,14 @@ export const conductorNode = defineNode<Params>({
       anchors: 0,
     });
 
-    const emit = (time: MusicalTime, bpm: number, dyn: number, art: number, enabled: boolean, c: Params, level = 1, sounding = true) => ({
+    const emit = ({ time, bpm, dynamics, articulation, enabled, c, level = 1, sounding = true }: EmitArgs) => ({
       time,
       beat: beatOut,
       bpm,
-      velocityScale: enabled ? c.dynMin + (c.dynMax - c.dynMin) * clamp01(dyn) : 0,
+      velocityScale: enabled ? c.dynMin + (c.dynMax - c.dynMin) * clamp01(dynamics) : 0,
       phase: time.phase,
-      dynamics: dyn,
-      articulation: art,
+      dynamics,
+      articulation,
       confidence: time.confidence,
       enabled,
       // Before the body's transport has started, and after a cut-off, the score is silent.
@@ -761,108 +776,126 @@ export const conductorNode = defineNode<Params>({
     const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: Pick<IctusState, 'dynamics' | 'articulation' | 'anchor'>): DynamicsEstimate => {
       const source = c.expression === 'same' ? (c.source === 'dancer' ? 'body' : c.source) : c.expression;
       const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
-      let strokes = beat;
       const ownBody = c.source === 'dancer' && source === 'body';
       // The hand conductor's other hand, named to shape (#457): the hands alone split the role.
       const beatingHand = c.hand === 'auto' ? 'right' : c.hand;
       const otherHand = source === 'hands' && c.source === 'hands' && c.expressionHand !== 'auto' && c.expressionHand !== beatingHand;
-      let now = ctx.time;
-      if ((source === c.source && !otherHand) || ownBody) exprIctus = null;
-      else {
-        // The other source's follower: its prior only paces its detector.
-        const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.expressionHand}:${c.handGesture.minStroke}:${c.mirrorX}:${c.mirrorHandedness}`;
-        if (!exprIctus || key !== exprKey) {
-          exprIctus = createIctus({
-            // A shaping hand's stroke is at least `minStroke` frame heights: a hand held
-            // still is quiet (its tremor is no stroke), so its gesture shapes (#457).
-            detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX, minAmplitude: c.handGesture.minStroke },
-            prior: c.prior,
-          });
-          exprKey = key;
-          lastExprPtT = -Infinity;
-          lastShapeStrokeT = -Infinity;
-          prevShapeStrokeT = -Infinity;
-          gesture = null;
-          resetFade();
-        }
-        if (source === 'hands') {
-          const frame = inputs.hands as HandsFrame | undefined;
-          const fresh = isFresh(frame, lastExprHands);
-          lastExprHands = frame;
-          const hand = frame && fresh ? shapingHand(frame, c) : undefined;
-          const t = captureTime(frame, ctx);
-          now = t;
-          if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
-            if (exprIctus.feed(handPoint(hand, frame, c, t)).anchor) {
-              prevShapeStrokeT = lastShapeStrokeT;
-              lastShapeStrokeT = t;
-            }
-            gesture ??= createHandGesture();
-            gesture.push(handGestureFrame(hand, frame, inputs.body as BodyFrame | undefined, t));
-            lastExprPtT = t;
-          }
-        }
-      }
+      const now = followOtherSource(inputs, ctx, c, source, (source === c.source && !otherHand) || ownBody);
       // The shaping source's strokes, once it has shown one; until then (the pose model
       // loading, nobody's other hand in frame) the beat's own.
       const shaped = (): DynamicsEstimate => {
         const e = exprIctus?.state();
         return e && e.anchors > 0 ? e : beat;
       };
-      if (source !== 'body') {
-        exprMeter = null;
-        blend = null;
-        strokes = shaped();
-        // A shaping hand that makes no stroke (#457): its height and palm say the loudness,
-        // continuously; its strokes' articulation (or the beat's) stands. A hand not seen for
-        // a moment reads as before.
-        // Stroking is two strokes in a row, each within `quietS` of the next (and of now):
-        // one turn, a hand lowered to hush and stopping, is not a beat.
-        const stroking = lastShapeStrokeT - prevShapeStrokeT <= c.handGesture.quietS && now - lastShapeStrokeT <= c.handGesture.quietS;
-        if (exprIctus) {
-          let mode: 'strokes' | 'gesture' = 'strokes';
-          if (gesture && !stroking) {
-            gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
-            const g = gesture.read(now);
-            if (Number.isFinite(g)) {
-              strokes = { dynamics: g, articulation: strokes.articulation };
-              mode = 'gesture';
-            }
+      return source !== 'body' ? shapeFromHands(c, shaped(), now) : shapeFromBody(inputs, ctx, c, s, ownBody, shaped);
+    };
+
+    /** The follower of the OTHER source (`own`: the beat's own source shapes, so there is
+     *  none): built when the source or its settings change, fed the hands' frame here (the
+     *  body's is fed by {@link shapeFromBody}). Returns the time the shaping reads at. */
+    const followOtherSource = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, source: string, own: boolean): number => {
+      let now = ctx.time;
+      if (own) {
+        exprIctus = null;
+        return now;
+      }
+      // The other source's follower: its prior only paces its detector.
+      const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.expressionHand}:${c.handGesture.minStroke}:${c.mirrorX}:${c.mirrorHandedness}`;
+      if (!exprIctus || key !== exprKey) {
+        exprIctus = createIctus({
+          // A shaping hand's stroke is at least `minStroke` frame heights: a hand held
+          // still is quiet (its tremor is no stroke), so its gesture shapes (#457).
+          detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX, minAmplitude: c.handGesture.minStroke },
+          prior: c.prior,
+        });
+        exprKey = key;
+        lastExprPtT = -Infinity;
+        lastShapeStrokeT = -Infinity;
+        prevShapeStrokeT = -Infinity;
+        gesture = null;
+        resetFade();
+      }
+      if (source === 'hands') {
+        const frame = inputs.hands as HandsFrame | undefined;
+        const fresh = isFresh(frame, lastExprHands);
+        lastExprHands = frame;
+        const hand = frame && fresh ? shapingHand(frame, c) : undefined;
+        const t = captureTime(frame, ctx);
+        now = t;
+        if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
+          if (exprIctus.feed(handPoint(hand, frame, c, t)).anchor) {
+            prevShapeStrokeT = lastShapeStrokeT;
+            lastShapeStrokeT = t;
           }
-          // A change of reading crossfades from where the dynamics were (no step in CC11).
-          if (shapeMode !== null && mode !== shapeMode) {
-            fadeFrom = lastShapedDyn;
-            fadeT0 = now;
-          }
-          shapeMode = mode;
-          const u = c.handGesture.fadeS > 0 ? Math.min(1, Math.max(0, (now - fadeT0) / c.handGesture.fadeS)) : 1;
-          if (Number.isFinite(fadeFrom) && u < 1) strokes = { dynamics: fadeFrom + (strokes.dynamics - fadeFrom) * u, articulation: strokes.articulation };
-          lastShapedDyn = strokes.dynamics;
+          gesture ??= createHandGesture();
+          gesture.push(handGestureFrame(hand, frame, inputs.body as BodyFrame | undefined, t));
+          lastExprPtT = t;
         }
-      } else {
-        exprMeter ??= createBodyExpressionMeter();
-        // A dancer's cycle has no braking sharpness: its articulation is the body's flow.
-        const articulation = ownBody ? 'flow' : c.articulationFrom;
-        blend ??= createExpressionBlend({ articulation });
-        blend.setArticulation(articulation);
-        const body = inputs.body as BodyFrame | undefined;
-        const fresh = isFresh(body, lastExprBody);
-        lastExprBody = body;
-        const t = captureTime(body, ctx);
-        if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
-          lastExprBodyT = t;
-          // The channels are read per stroke (a hold or a fermata changes nothing).
-          blend.push(exprMeter.push(body, t, c.hand));
-          if (exprIctus) {
-            const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
-            if (a) blend.pushStroke(a);
+      }
+      return now;
+    };
+
+    /** Shaping read from the hands (#457): the shaping source's strokes, or, while its hand
+     *  makes no stroke, the gesture (its height and palm), continuously; a change of reading
+     *  crossfades from where the dynamics were (no step in CC11). `shapedNow` is the
+     *  strokes the shaping source has shown (the beat's own until it shows one). */
+    const shapeFromHands = (c: Params, shapedNow: DynamicsEstimate, now: number): DynamicsEstimate => {
+      exprMeter = null;
+      blend = null;
+      let strokes = shapedNow;
+      // A shaping hand that makes no stroke (#457): its height and palm say the loudness,
+      // continuously; its strokes' articulation (or the beat's) stands. A hand not seen for
+      // a moment reads as before.
+      // Stroking is two strokes in a row, each within `quietS` of the next (and of now):
+      // one turn, a hand lowered to hush and stopping, is not a beat.
+      const stroking = lastShapeStrokeT - prevShapeStrokeT <= c.handGesture.quietS && now - lastShapeStrokeT <= c.handGesture.quietS;
+      if (exprIctus) {
+        let mode: 'strokes' | 'gesture' = 'strokes';
+        if (gesture && !stroking) {
+          gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
+          const g = gesture.read(now);
+          if (Number.isFinite(g)) {
+            strokes = { dynamics: g, articulation: strokes.articulation };
+            mode = 'gesture';
           }
         }
-        // The beat's own stroke this tick, when the body both beats and shapes.
-        if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
-        strokes = blend.read(ownBody ? null : shaped());
+        // A change of reading crossfades from where the dynamics were (no step in CC11).
+        if (shapeMode !== null && mode !== shapeMode) {
+          fadeFrom = lastShapedDyn;
+          fadeT0 = now;
+        }
+        shapeMode = mode;
+        const u = c.handGesture.fadeS > 0 ? Math.min(1, Math.max(0, (now - fadeT0) / c.handGesture.fadeS)) : 1;
+        if (Number.isFinite(fadeFrom) && u < 1) strokes = { dynamics: fadeFrom + (strokes.dynamics - fadeFrom) * u, articulation: strokes.articulation };
+        lastShapedDyn = strokes.dynamics;
       }
       return strokes;
+    };
+
+    /** Shaping read from the body: the strokes' dynamics blended with its motion and its
+     *  arm's reach, each per player (`shaped` is read at the end, after this tick's frame). */
+    const shapeFromBody = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: Pick<IctusState, 'anchor'>, ownBody: boolean, shaped: () => DynamicsEstimate): DynamicsEstimate => {
+      exprMeter ??= createBodyExpressionMeter();
+      // A dancer's cycle has no braking sharpness: its articulation is the body's flow.
+      const articulation = ownBody ? 'flow' : c.articulationFrom;
+      blend ??= createExpressionBlend({ articulation });
+      blend.setArticulation(articulation);
+      const body = inputs.body as BodyFrame | undefined;
+      const fresh = isFresh(body, lastExprBody);
+      lastExprBody = body;
+      const t = captureTime(body, ctx);
+      if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
+        lastExprBodyT = t;
+        // The channels are read per stroke (a hold or a fermata changes nothing).
+        blend.push(exprMeter.push(body, t, c.hand));
+        if (exprIctus) {
+          const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
+          if (a) blend.pushStroke(a);
+        }
+      }
+      // The beat's own stroke this tick, when the body both beats and shapes.
+      if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
+      return blend.read(ownBody ? null : shaped());
     };
 
     /** A dancer leads (#380): ictus's dance lead owns the beat (the loose law: it starts on
@@ -930,7 +963,7 @@ export const conductorNode = defineNode<Params>({
         anchors: d.cycles,
         ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
       };
-      return { ...emit(time, bpm, expression.dynamics, expression.articulation, true, c, Number.isFinite(d.ratio) ? d.ratio : 1, d.started), dance: d.mode };
+      return { ...emit({ time, bpm, dynamics: expression.dynamics, articulation: expression.articulation, enabled: true, c, level: Number.isFinite(d.ratio) ? d.ratio : 1, sounding: d.started }), dance: d.mode };
     };
 
     return {
@@ -955,7 +988,7 @@ export const conductorNode = defineNode<Params>({
           transportReading = 'off';
           afterStop = false;
           startBeat = null;
-          return emit(idleTime(ctx.time, beatsPerBar), 0, 0, 0.5, false, c);
+          return emit({ time: idleTime(ctx.time, beatsPerBar), bpm: 0, dynamics: 0, articulation: 0.5, enabled: false, c });
         }
         if (c.source === 'dancer') return danceTick(inputs, ctx, c);
         leaveDance();
@@ -1253,7 +1286,7 @@ export const conductorNode = defineNode<Params>({
           lastAnchorAt: s.lastAnchorAt,
           leadOffset: s.leadOffset,
         };
-        return emit(time, bpm, expression.dynamics, expression.articulation, true, c, k);
+        return emit({ time, bpm, dynamics: expression.dynamics, articulation: expression.articulation, enabled: true, c, level: k });
       },
       dispose() {
         ictus = null;
