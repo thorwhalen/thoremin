@@ -7,7 +7,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { copyFramesOnCpu, createFrameCopier, type CopyCanvas } from '../src/nodes/sources/model_input';
+import { copyFramesOnCpu, createFrameCopier, isRescaledCamera, type CopyCanvas } from '../src/nodes/sources/model_input';
 
 function fakeCanvas() {
   const draws: Array<{ image: unknown; w: number; h: number }> = [];
@@ -22,10 +22,29 @@ function fakeCanvas() {
   return canvas;
 }
 
-const video = (w: number, h: number) => ({ videoWidth: w, videoHeight: h });
+/** A camera video; `resizeMode` as the track reports it (`undefined`: not reported). */
+const camera = (w: number, h: number, resizeMode: string | undefined = 'crop-and-scale') => ({
+  videoWidth: w,
+  videoHeight: h,
+  srcObject: { getVideoTracks: () => [{ getSettings: () => (resizeMode === undefined ? {} : { resizeMode }) }] },
+});
+const video = camera;
+
+describe('isRescaledCamera', () => {
+  it('is a camera frame rescaled from its native mode, or one whose mode is not reported', () => {
+    expect(isRescaledCamera(camera(640, 360, 'crop-and-scale'))).toBe(true);
+    expect(isRescaledCamera(camera(1280, 720, 'none'))).toBe(false);
+    expect(isRescaledCamera(camera(1280, 720, undefined))).toBe(true);
+  });
+
+  it('is not a video with no stream (a file) or a stream with no video track', () => {
+    expect(isRescaledCamera({ videoWidth: 640, videoHeight: 360, srcObject: null })).toBe(false);
+    expect(isRescaledCamera({ videoWidth: 640, videoHeight: 360, srcObject: { getVideoTracks: () => [] } })).toBe(false);
+  });
+});
 
 describe('createFrameCopier', () => {
-  it('draws a video frame into one canvas at the frame size and returns the canvas', () => {
+  it('draws a rescaled camera frame into one canvas at the frame size and returns the canvas', () => {
     const canvas = fakeCanvas();
     let made = 0;
     const copy = createFrameCopier(() => (made++, canvas));
@@ -47,6 +66,9 @@ describe('createFrameCopier', () => {
     expect(copy(bitmap)).toBe(bitmap);
     const empty = video(0, 0);
     expect(copy(empty)).toBe(empty);
+    // A camera at its native size reads correctly from the element: no copy to pay for.
+    const native = camera(1280, 720, 'none');
+    expect(copy(native)).toBe(native);
     expect(canvas.draws).toHaveLength(0);
     const v = video(640, 360);
     expect(createFrameCopier(() => null)(v)).toBe(v);
