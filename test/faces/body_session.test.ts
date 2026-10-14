@@ -25,6 +25,7 @@ import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { exportCategorizer, importCategorizer, modelFromCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { classify } from '@thoremin/sdk/enroll/classify';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
+import { loadStream } from '../helpers/fixtures';
 
 let clock = 0;
 let grabs = 0;
@@ -250,5 +251,40 @@ describe('Your poses: the scripted body through the session store', () => {
     const svg = poseFigureSvg(skeleton);
     expect(svg.startsWith('<svg')).toBe(true);
     expect((svg.match(/<polyline/g) ?? []).length).toBe(8);
+  });
+});
+
+describe('Your poses: the Que Calor dancer through the session store', () => {
+  it("the dancer's still moments are carved, each with its figure, and the categorizer reads its own holds back", async () => {
+    // The real clip (20 s at 30 fps, full body), as the live node wrote it. The dancer never
+    // stands still for the setup, so the nuisance steps are skipped, as a player may.
+    const clip = loadStream('video_body_que_calor', 'bodyVec.vector') as FeatureVector[];
+    const fixture = (): FaceSource => {
+      const start = clock;
+      return { kind: 'live', read: () => ({ vector: clip[Math.min(clip.length - 1, Math.floor((clock - start) / (1000 / 30)))], t: clock }), video: () => null, dispose: () => {} };
+    };
+    const store = createFaceSessionStore(deps(fixture));
+    store.getState().start();
+    await run(3100);
+    for (let i = 0; i < 3; i++) store.getState().skipSetup();
+    await run(33);
+    expect(store.getState().phase).toBe('faces');
+    await run(clip.length * (1000 / 30) - 3200);
+    await store.getState().stop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().phase).toBe('carved');
+    const c = store.getState().working!;
+    const held = c.categories.flatMap((x) => x.members);
+    expect(held.length).toBeGreaterThanOrEqual(3);
+    expect(c.categories.length).toBeGreaterThanOrEqual(2);
+    expect(c.samples.every((x) => x.skeleton !== undefined)).toBe(true);
+    const model = { ...modelFromCategorizer(c), rejectRadius: Number.POSITIVE_INFINITY, neutral: undefined };
+    const live = liveModel(c, {}, { modality: bodyModality });
+    for (const cat of c.categories)
+      for (const id of cat.members) {
+        const v = c.samples.find((x) => x.id === id)!.vector;
+        expect(live.inView(v)).toBe(true);
+        expect(classify(model, v).categoryId).toBe(cat.id);
+      }
   });
 });
