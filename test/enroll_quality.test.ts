@@ -45,6 +45,24 @@ describe('carve quality: the acceptance (two overlapping faces)', () => {
     expect(back.movements[0]).toMatchObject({ movement: 'mouth-open', instruction: 'close your mouth more' });
   });
 
+  it('a category of identical holds reads by its frames: supporting-frame jitter widens the spread (#436)', () => {
+    const vectors = c.samples.map((s) => s.vector);
+    const plain = carveQuality(model, vectors);
+    // No frames: the same chips as before.
+    expect(carveQuality(model, vectors, { supports: vectors.map(() => undefined) }).categories).toEqual(plain.categories);
+    // Frames of surprise (cat-3) scattered around its holds by a few noise units: its spread grows
+    // to the frames', its ratio falls, and the grade follows.
+    const jitter = (v: Record<string, number>, d: number) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x + d]));
+    const cat3 = model.categories.find((x) => x.id === 'cat-3')!;
+    const supports = vectors.map((v, i) => (cat3.members.includes(i) ? [jitter(v, 0.3), jitter(v, -0.3)] : undefined));
+    const wide = carveQuality(model, vectors, { supports }).categories.find((x) => x.id === 'cat-3')!;
+    const was = plain.categories.find((x) => x.id === 'cat-3')!;
+    expect(wide.spread).toBeGreaterThan(was.spread);
+    expect(wide.ratio).toBeLessThan(was.ratio);
+    // Another category's frames change only its own chip.
+    expect(carveQuality(model, vectors, { supports }).categories.find((x) => x.id === 'cat-1')).toEqual(plain.categories.find((x) => x.id === 'cat-1'));
+  });
+
   it('the same carve gives the same chips (pure, ordered)', () => {
     const again = carveQuality(modelFromCategorizer(scripted()), scripted().samples.map((s) => s.vector));
     expect(again).toEqual(q);
