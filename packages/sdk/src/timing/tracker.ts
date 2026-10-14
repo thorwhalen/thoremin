@@ -49,7 +49,7 @@
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import { ewUpdate, quantile, quantileSorted } from '@thoremin/stats';
-import { frameTime, type FrameTiming } from '../nodes/domain';
+import { frameTime, isClockDerived, type FrameTiming } from '../nodes/domain';
 import { GlitchCounter, type GlitchCounterOptions, type GlitchReading } from './glitches';
 import { deriveOutputStage, knownOutputLatency, pairScheduleToSpeaker, OUTPUT_STAGE_PRIOR_S, type OutputStage, type OutputStageAudioLike } from './output_stage';
 
@@ -282,8 +282,6 @@ interface FrameRecord {
   skipped: number;
 }
 
-const CLOCK_DERIVED = new Set(['clock', 'estimated']);
-
 /** The running estimates; see the module header. */
 export class TimingTracker implements Tap {
   private readonly sourceKey: string;
@@ -458,7 +456,7 @@ export class TimingTracker implements Tap {
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
     const skippedAfterFirst = (rs: readonly FrameRecord[]) => rs.slice(1).reduce((a, r) => a + r.skipped, 0);
     const deliveredFps = span > 0 ? (captured.length - 1 + skippedAfterFirst(captured)) / span : NaN;
-    const derived = this.recent.filter((r) => CLOCK_DERIVED.has(r.source));
+    const derived = this.recent.filter((r) => isClockDerived(r.source));
     const cameraPeriod = this.camera?.frameRate && this.camera.frameRate > 0 ? 1 / this.camera.frameRate : NaN;
     let noise = NaN;
     if (derived.length >= MIN_FRAMES_FOR_NOISE) {

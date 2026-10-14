@@ -66,7 +66,7 @@
  * it again with a later clock reading, which would otherwise be a second frame).
  */
 import { olsLine, quantile } from '@thoremin/stats';
-import type { FrameTiming } from '../nodes/domain';
+import { CLOCK_DERIVED_SOURCES, type FrameTiming } from '../nodes/domain';
 
 export type DejitterStampSource = NonNullable<FrameTiming['tSource']>;
 
@@ -142,7 +142,7 @@ export const DEJITTER_OUTLIERS_TO_RESTART = 3;
 /** The sources the de-jitter may engage on: clock readings, not the camera's time. A
  *  `presentation` stamp is the compositor's own time for that frame (a measurement,
  *  jittered or not), so it passes through like a capture stamp. */
-export const DEJITTERED_SOURCES: readonly DejitterStampSource[] = ['clock', 'estimated'];
+export const DEJITTERED_SOURCES: readonly DejitterStampSource[] = CLOCK_DERIVED_SOURCES;
 
 export interface StampDejitterOptions {
   /** See {@link DEJITTER_WINDOW_FRAMES}. */
