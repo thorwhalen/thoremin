@@ -50,6 +50,7 @@ import { createCategorizerIndex, onCategorizersChanged, type CategorizerIndex, t
 import { TRAINED_KIND, isTrainedRecord, recordBindings, trainedId, type AnyCategorizerRecord } from '@thoremin/sdk/enroll/record';
 import { liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
 import { useTools } from '../toolsStore';
+import { useToasts } from '../toasts';
 import {
   CATEGORY_EDGE_DEFAULTS,
   carryBindings,
@@ -138,6 +139,9 @@ function tryPlayable(record: AnyCategorizerRecord | null): SavedCategories | nul
     return null;
   }
 }
+
+/** How long a binding that could not be saved is announced (ms). */
+const BINDING_ERROR_TOAST_MS = 5000;
 
 /** The tool whose panel holds the bindings (the readout runs while it is open). */
 export const CATEGORY_PANEL_TOOL = 'gestures';
@@ -306,7 +310,15 @@ export const useCategoryBinding = create<CategoryBindingState>()(
           else delete bindings[categoryId];
           // Same `model` object: the dispatcher's tracker survives a binding edit.
           set({ active: { ...active, categories: { ...active.categories, bindings } } });
-          await getCollection().setBindings(active.id, bindings);
+          const saved = await getCollection().setBindings(active.id, bindings).catch((e: unknown) => {
+            console.warn('category bindings: the binding was not saved:', e);
+            return null;
+          });
+          if (saved) return;
+          // Not kept (the record was deleted, or a newer build wrote it): show what is stored, and say so.
+          const now = get().active;
+          if (now?.id === active.id) set({ active: { ...now, categories: { ...now.categories, bindings: active.categories.bindings } } });
+          useToasts.getState().push(`"${active.name}" could not be saved: the binding was not kept`, BINDING_ERROR_TOAST_MS, 'error');
         },
 
         setEnabled(on) {

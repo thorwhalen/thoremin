@@ -272,3 +272,35 @@ describe('#371 the Gestures tool lists every categorizer', () => {
     expect(within(section).queryByRole('button', { name: /Delete the saved categories/ })).toBeNull();
   });
 });
+
+describe('#371 review: what a binding write touches', () => {
+  it('setBindings patches only the bindings, sends no notice, and refuses a record that is gone; a Trainer save sends none either', async () => {
+    const { onCategorizersChanged } = await import('@thoremin/sdk-ui/enroll/categorizers');
+    const provider = createInMemoryProvider<CategorizerRecord>([]);
+    const index = createCategorizerIndex({ provider });
+    const rec = await createCategorizerStore(faceModality, { provider }).save('Smiles', { categorizer: demo() });
+    // A field a newer build added to the record survives a binding write.
+    await provider.update(rec.id, { ...rec, model: { ...rec.model, future: 1 } } as never);
+    let notices = 0;
+    const off = onCategorizersChanged(() => notices++);
+    await index.setBindings(rec.id, { 'cat-1': { command: 'transport.toggle' } });
+    await index.saveTrained('Mine', { trained: trainerModel(), bindings: {} });
+    await index.remove('trained:mine');
+    off();
+    expect(notices).toBe(0);
+    const raw = (await provider.getList({})).data.find((r) => r.id === rec.id) as unknown as { model: Record<string, unknown> };
+    expect(raw.model.future).toBe(1);
+    expect(raw.model.bindings).toEqual({ 'cat-1': { command: 'transport.toggle' } });
+    expect(await index.setBindings('gone', {})).toBeNull();
+  });
+
+  it('a binding that cannot be saved is taken back, with a notice', async () => {
+    const { useToasts } = await import('@/app/toasts');
+    await useCategoryBinding.getState().saveModel('Mine', trainerModel());
+    await createCategorizerIndex().remove('trained:mine'); // deleted elsewhere
+    await useCategoryBinding.getState().setBinding('cat-1', { command: 'transport.toggle' });
+    expect(useCategoryBinding.getState().active!.categories.bindings).toEqual({});
+    expect(JSON.stringify(useToasts.getState())).toContain('could not be saved');
+  });
+});
+

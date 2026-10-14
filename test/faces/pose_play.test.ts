@@ -311,6 +311,27 @@ describe('the host resolves the pose dial off the tick', () => {
     stop();
   });
 
+  it('a binding edit on the playing record does not republish it (the reading is not reset, #371)', async () => {
+    let rec = ({ id: 'A', name: 'A', createdAt: 0, model: { categorizer: scriptedPoseCategorizer(['ready', 'fermata']) } }) as FaceModelRecord;
+    let changed: (() => void) | null = null;
+    const published: unknown[] = [];
+    const stop = startPosePlay({
+      load: async () => rec,
+      dial: () => ({ id: 'A' }),
+      subscribe: () => () => {},
+      onModelsChanged: (l) => ((changed = l), () => {}),
+      publish: (p) => published.push(p),
+      claim: () => {},
+    });
+    await settle();
+    expect(published.filter((p) => p !== null)).toHaveLength(1);
+    rec = { ...rec, model: { ...rec.model, bindings: { 'cat-1': { command: 'transport.toggle' } } } };
+    changed!();
+    await settle();
+    expect(published.filter((p) => p !== null)).toHaveLength(1);
+    stop();
+  });
+
   /** A record whose categorizer is of `modality` (the resolver reads nothing else of a refused one). */
   const record = (id: string, modality: string): FaceModelRecord => ({ id, name: id.toUpperCase(), createdAt: 0, model: { categorizer: { modality } } }) as unknown as FaceModelRecord;
 

@@ -280,9 +280,11 @@ export interface CategorizerIndex {
   list(): Promise<CategorizerSummary[]>;
   /** A record of any kind, validated (null when absent or invalid). */
   load(id: string): Promise<AnyCategorizerRecord | null>;
-  /** Keep a trained model under `name` (`trained:<slug>`; a record of that id is replaced). */
+  /** Keep a trained model under `name` (`trained:<slug>`; a record of that id is replaced). Sends
+   *  no change notice (no instrument plays a trained model). */
   saveTrained(name: string, payload: TrainedPayload, now?: number): Promise<TrainedRecord>;
-  /** Replace one record's bindings, and nothing else on it (null when there is no such record). */
+  /** Replace one record's bindings, and nothing else on it (null when there is no such record, or
+   *  it does not validate: nothing is written then). No change notice. */
   setBindings(id: string, bindings: RecordBindings): Promise<AnyCategorizerRecord | null>;
   remove(id: string): Promise<void>;
 }
@@ -302,22 +304,26 @@ export function createCategorizerIndex(options: CategorizerStoreOptions = {}): C
       await ready();
       const id = trainedId(name);
       const record = TrainedRecordSchema.parse({ id, name: name.trim() || id, createdAt: now ?? Date.now(), model: payload });
-      const out = await put(provider, record);
-      notifyChanged();
-      return out;
+      // No change notice: a trained model is played by no instrument, and the host that saves it
+      // updates itself (a notice re-resolves every playing categorizer).
+      return put(provider, record);
     },
     async setBindings(id, bindings) {
       await ready();
-      const previous = await stored(provider, id);
-      if (!previous) return null;
-      const next = parseRecord({ ...previous, model: { ...previous.model, bindings } });
-      if (!next) return null;
-      return put(provider, next);
+      const raw = (await provider.getList({})).data.find((r) => r.id === id);
+      if (!raw || !parseRecord(raw)) return null;
+      // Only `model.bindings` changes: the stored record is patched as read, never rebuilt from a
+      // parse (which would drop what a newer build added to it).
+      const patched = { ...raw, model: { ...raw.model, bindings } } as CategorizerRecord;
+      return parseRecord(await provider.update(id, patched));
     },
     async remove(id) {
       await ready();
-      if ((await provider.getList({})).data.some((r) => r.id === id)) await provider.delete(id);
-      notifyChanged();
+      const raw = (await provider.getList({})).data.find((r) => r.id === id);
+      if (!raw) return;
+      await provider.delete(id);
+      // A carved categorizer may be playing in an instrument; a trained model never is.
+      if (recordKind(raw) !== TRAINED_KIND) notifyChanged();
     },
   };
 }
