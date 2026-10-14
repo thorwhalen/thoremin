@@ -102,6 +102,20 @@ export interface PulseOptions {
   anchorTrustAt?: number;
   /** The rhythm prior by name or as an instance; the package default otherwise. */
   prior?: RhythmPrior | RhythmPriorKind;
+  /** The step detector (#339): a second estimate over only the last this-many seconds
+   *  (the full window is half the old tempo for several seconds after a tempo step, so
+   *  its ACF keeps voting for the old level). It sees periods up to a third of its span
+   *  (so it acts only while the level is that short: a bar of 1.9 s is the full
+   *  window's alone), and it changes the level only when it is STRONG
+   *  (`fastMinStrength`), the current level is no longer among its peaks, and it has
+   *  persisted for `fastSwitchAfterS`. It also finds a level again that a step made the
+   *  full window lose. 0 turns it off. */
+  fastWindowS?: number;
+  fastMinStrength?: number;
+  fastSwitchAfterS?: number;
+  /** The least relative change of period the step detector acts on: a smaller change
+   *  is the prior's to follow, and a switch costs it its lock for a moment. */
+  fastMinChange?: number;
 }
 
 export const PULSE_DEFAULTS = {
@@ -120,6 +134,10 @@ export const PULSE_DEFAULTS = {
   levelGain: 0.5,
   settle: 0.25,
   anchorTrustAt: 0.5,
+  fastWindowS: 4.5,
+  fastMinStrength: 0.6,
+  fastSwitchAfterS: 1,
+  fastMinChange: 0.06,
 } as const;
 
 /** The confidence from which a consumer should act on the pulse (follow it, gate on
@@ -338,8 +356,13 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   const o = { ...PULSE_DEFAULTS, detrendS: rest.maxPeriodS ?? PULSE_DEFAULTS.maxPeriodS, ...rest };
   if (!(o.minPeriodS > 0 && o.minPeriodS < o.maxPeriodS)) throw new Error(`pulse: need 0 < minPeriodS < maxPeriodS, got ${o.minPeriodS}..${o.maxPeriodS}`);
   const bounds = { minPeriod: o.minPeriodS, maxPeriod: o.maxPeriodS, beatsPerBar: 1 };
-  const makePrior = (): RhythmPrior =>
-    typeof priorOpt === 'object' ? priorOpt : createRhythmPrior(priorOpt ?? DEFAULT_RHYTHM_PRIOR, { oscillator: bounds, trend: bounds });
+  // A prior built for a known level starts at that period, not at its own default tempo:
+  // after a switch the new lock is then a refinement, not a search.
+  const makePrior = (period?: number): RhythmPrior => {
+    if (typeof priorOpt === 'object') return priorOpt;
+    const osc = period === undefined ? bounds : { ...bounds, initialTempo: 60 / period };
+    return createRhythmPrior(priorOpt ?? DEFAULT_RHYTHM_PRIOR, { oscillator: osc, trend: bounds });
+  };
   let prior = makePrior();
 
   let samples: Sample[] = [];
@@ -351,6 +374,8 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   let strength = 0;
   let candidates: PulseLevel[] = [];
   let challenger: { period: number; since: number } | null = null;
+  let fastChallenger: { period: number; since: number } | null = null;
+  let switchedAt = -Infinity; // when the level last changed (the phase fit then ignores older samples)
   let phi = NaN; // the fundamental's phase angle at the level, from the last estimate
   let lastAnchorT = NaN;
   let priorT = -Infinity; // how far the prior has been advanced (a delayed clock)
@@ -368,16 +393,17 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     return peaks.filter((p) => p.r >= floor).reduce((a, b) => (b.period < a.period ? b : a));
   };
 
-  const forgetLevel = () => {
+  const forgetLevel = (nextPeriod?: number) => {
     level = NaN;
     strength = 0;
     challenger = null;
+    fastChallenger = null;
     phi = NaN;
     lastAnchorT = NaN;
     priorT = -Infinity;
     lastBeat = -Infinity;
     if (typeof priorOpt === 'object') prior.reset();
-    else prior = makePrior();
+    else prior = makePrior(nextPeriod);
   };
 
   const reset = () => {
@@ -387,6 +413,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     lastValidT = NaN;
     lastEstimateT = -Infinity;
     candidates = [];
+    switchedAt = -Infinity;
     forgetLevel();
     current = UNKNOWN_PULSE;
   };
@@ -401,44 +428,117 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     candidates = peaks.slice(0, o.topK);
     // Only the levels in play are measured by the sine fit (the costly part).
     const measure = (p: PulseLevel): PulseLevel => ({ period: refinePeriod(x, p.period, { t0, hz: o.gridHz }), r: p.r });
-    const found = fundamental(peaks);
-    const top = found && measure(found);
-    if (!top || top.r < o.minStrength) {
-      if (Number.isFinite(level)) forgetLevel();
-      strength = top?.r ?? 0;
-      return;
-    }
-    if (!Number.isFinite(level)) {
-      level = top.period;
-      strength = top.r;
-    } else {
-      // The same level is a peak within tolerance of it: never a multiple of it.
-      const near = peaks.find((c) => Math.abs(c.period / level - 1) < o.levelTolerance);
-      const same = near && (near === found ? top : measure(near));
-      const other = near === found ? undefined : top;
-      // A challenger is the fundamental of this estimate when it is not the current
-      // level: either a shorter near-top lag (the lock sat on a multiple) or a clearly
-      // stronger peak. It takes over only by persisting.
-      if (other && (!same || other.period < same.period || other.r > same.r + o.switchMargin)) {
-        if (!challenger || Math.abs(other.period / challenger.period - 1) >= o.levelTolerance) challenger = { period: other.period, since: t };
-        else challenger.period = other.period;
-      } else challenger = null;
-      if (challenger && t - challenger.since >= o.switchAfterS) {
-        // A different level has won for long enough: a new pulse, a new lock.
-        const next = challenger.period;
-        forgetLevel();
-        level = next;
+    // Just after a level change the full window is half the old tempo: its peaks and
+    // its strength are a mixture, so the new level is followed from the recent past
+    // alone until the window has flushed (the step detector's job, below).
+    const fastReach = o.fastWindowS / 3;
+    const recent = o.fastWindowS > 0 && Number.isFinite(level) && level <= fastReach && t - switchedAt < o.windowS;
+    const slowPath = (): boolean => {
+      const found = fundamental(peaks);
+      const top = found && measure(found);
+      if (!top || top.r < o.minStrength) {
+        if (Number.isFinite(level)) forgetLevel();
+        strength = top?.r ?? 0;
+        // A lock lost to a tempo step is found again from the recent past, not after
+        // the window has flushed.
+        if (o.fastWindowS > 0) fastStep(t, false);
+        return false;
+      }
+      if (!Number.isFinite(level)) {
+        level = top.period;
         strength = top.r;
-      } else if (same) {
-        level += (same.period - level) * o.levelGain;
-        strength = same.r;
-      } else strength = 0;
+        fastChallenger = null;
+      } else {
+        // The same level is a peak within tolerance of it: never a multiple of it.
+        const near = peaks.find((c) => Math.abs(c.period / level - 1) < o.levelTolerance);
+        const same = near && (near === found ? top : measure(near));
+        const other = near === found ? undefined : top;
+        // A challenger is the fundamental of this estimate when it is not the current
+        // level: either a shorter near-top lag (the lock sat on a multiple) or a clearly
+        // stronger peak. It takes over only by persisting.
+        if (other && (!same || other.period < same.period || other.r > same.r + o.switchMargin)) {
+          if (!challenger || Math.abs(other.period / challenger.period - 1) >= o.levelTolerance) challenger = { period: other.period, since: t };
+          else challenger.period = other.period;
+        } else challenger = null;
+        if (challenger && t - challenger.since >= o.switchAfterS) {
+          // A different level has won for long enough: a new pulse, a new lock.
+          const next = challenger.period;
+          forgetLevel(next);
+          level = next;
+          strength = top.r;
+          switchedAt = t;
+        } else if (same) {
+          level += (same.period - level) * o.levelGain;
+          strength = same.r;
+        } else strength = 0;
+      }
+      return true;
+    };
+    if (recent) {
+      // The tail alone, unless it does not see the level: then the full window decides.
+      if (!fastStep(t, true) && !slowPath()) return;
+    } else {
+      if (!slowPath()) return;
+      if (Number.isFinite(level) && level <= fastReach) fastStep(t, false);
     }
     if (strength < o.minStrength) {
       phi = NaN;
       return;
     }
-    phi = fitSine(x, level, { t0, hz: o.gridHz }).phi;
+    // After a level change the older samples are the old tempo: fit the new level's
+    // phase on what came since (at least three of its cycles).
+    const sinceSwitch = Math.max(3 * level, t - switchedAt);
+    const fitFrom = sinceSwitch >= o.windowS ? 0 : Math.max(0, n - Math.ceil(sinceSwitch * o.gridHz));
+    phi = fitSine(x.slice(fitFrom), level, { t0: t0 + fitFrom / o.gridHz, hz: o.gridHz }).phi;
+  };
+
+  /** The step detector: the last `fastWindowS` seconds alone (see {@link PulseOptions.fastWindowS}). */
+  const fastStep = (t: number, recent: boolean): boolean => {
+    const last = samples[samples.length - 1].t;
+    const tail = samples.filter((q) => q.t >= last - o.fastWindowS);
+    if (tail[tail.length - 1].t - tail[0].t < 0.9 * o.fastWindowS) return false;
+    const n = Math.floor(o.fastWindowS * o.gridHz);
+    const { t0, x } = resample(tail, o.gridHz, n);
+    const maxLag = Math.min(o.maxPeriodS, o.fastWindowS / 3); // the span holds three cycles of the longest period seen
+    if (maxLag <= o.minPeriodS) return false;
+    const d = detrend(x, Math.min(o.detrendS, o.fastWindowS / 2) * o.gridHz);
+    const peaks = acfPeaks(d, { minLag: Math.round(o.minPeriodS * o.gridHz), maxLag: Math.round(maxLag * o.gridHz) }).map((p) => ({ period: p.lag / o.gridHz, r: p.r }));
+    const found = fundamental(peaks);
+    const locked = Number.isFinite(level);
+    const near = locked ? peaks.find((q) => Math.abs(q.period / level - 1) < o.levelTolerance) : undefined;
+    // A SHORTER fundamental is the lock sitting on a multiple (the slow path's rule, and
+    // how a wrong octave is corrected). A LONGER one is a new level only if it is not a
+    // multiple of the current one, which noise raises to within `nearTop` of the level's
+    // own peak, and it beats the level's peak outright: the current level must be gone
+    // from the recent past, not merely tied by its own multiple.
+    const longer = locked && found !== undefined && found.period > level;
+    const multiple = longer && [2, 3, 4].some((k) => Math.abs(found.period / (k * level) - 1) < o.levelTolerance);
+    const here = found && found.r >= o.fastMinStrength && (!locked || (Math.abs(found.period / level - 1) >= o.fastMinChange && !multiple));
+    const stillThere = longer && near !== undefined && near.r + o.switchMargin >= found.r;
+    if (!here || stillThere) {
+      fastChallenger = null;
+      if (recent) {
+        // Following the new level from the tail alone: refine it.
+        if (near && near.r >= o.minStrength) {
+          level += (refinePeriod(x, near.period, { t0, hz: o.gridHz }) - level) * o.levelGain;
+          strength = near.r;
+          challenger = null;
+          return true;
+        }
+      }
+      return false;
+    }
+    const next = refinePeriod(x, found.period, { t0, hz: o.gridHz });
+    if (!fastChallenger || Math.abs(next / fastChallenger.period - 1) >= o.levelTolerance) fastChallenger = { period: next, since: t };
+    else fastChallenger.period = next;
+    if (t - fastChallenger.since >= o.fastSwitchAfterS) {
+      forgetLevel(next);
+      level = next;
+      strength = found.r;
+      switchedAt = t;
+      return true;
+    }
+    return false;
   };
 
   /** The latest fitted maximum that has settled, or NaN. */
