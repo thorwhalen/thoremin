@@ -44,6 +44,7 @@ export interface FermataMark {
   released: number | null;
 }
 
+/** The `transportPose` input as a {@link TransportPose}: booleans only, anything else unstated. */
 function readTransportPose(raw: unknown): TransportPose | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as Record<string, unknown>;

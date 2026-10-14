@@ -392,7 +392,6 @@ export function readLeadOffsets(raw: unknown): LeadOffsets | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-/** The `transportPose` input as a {@link TransportPose}: booleans only, anything else unstated. */
 export const conductorNode = defineNode<Params>({
   type: 'conductor',
   roles: ['feature', 'mapping'],
