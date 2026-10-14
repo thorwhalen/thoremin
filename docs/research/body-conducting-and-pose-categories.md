@@ -430,6 +430,17 @@ What it says:
 
 So the issue's check (the trunk alone within ±20 ms of the grid after calibration) is met only in-sample, by the subtraction. A take does not reach it, because the take refuses the trunk. Whether a real player's trunk holds a lag from one take to the next, and whether a longer take would measure it, is a live check (#146) and its own follow-up issue.
 
+### 5.3 `body-pulse` `channel: auto` (#416)
+
+`auto` runs a pulse follower per channel (stride, sway over the ankles, shoulder yaw, trunk-centroid height) and publishes the one whose ACF strength is highest while its state is trusted; a challenger must beat the leader by 0.05 for 3 s without a break (`createPulseSelector`, the pace controller's persistence). The stride stays the default channel, so nothing changes for a player who does not choose `auto`. Measured with the shipped follower defaults, ticks after the first 6 s (`test/body_pulse.test.ts`):
+
+| clip | stride | sway (over feet) | yaw | trunk height | `auto` |
+|---|---|---|---|---|---|
+| Que Calor | trusted 98 %, strength 0.76, bar | trusted 77 %, 0.67, bar | 14 %, 0.58 | 0 % (ACF 0.35) | the stride, no switch |
+| Budots | never (ankles out of frame) | never | 5 % (a level at the 3 s edge: noise) | 0 % (ACF 0.26 at the bar, 1.66 s) | no pulse reported |
+
+What this says: the issue's premise that sway and yaw carry the pulse for a player with the feet out of frame is NOT borne out by the ACF follower. The anchor-based measurement of §3 (a beat-locked event rate over a whole clip) finds structure that an 8 s causal ACF window does not trust, and on a 13 s clip with three dancers it cannot. The trunk's camera-x alone (no feet) was tried for sway and reached 0.46 at the beat on Que Calor and nothing on Budots, so it was dropped. Sway over the feet is the useful addition: a second feet channel that agrees with the stride on Que Calor. A real no-feet verdict needs a longer, single-dancer clip with the feet out of frame (#415).
+
 ## 6. Reproducing
 
 ```

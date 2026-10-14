@@ -622,13 +622,22 @@
       {
         "name": "pulse",
         "kind": "pulse-state"
+      },
+      {
+        "name": "channel",
+        "kind": "string"
       }
     ],
     "params": [
       {
         "name": "channel",
-        "type": "enum(stride | head | hip)",
+        "type": "enum(stride | head | hip | sway | yaw | trunk | auto)",
         "default": "stride"
+      },
+      {
+        "name": "autoSwitchAfterS",
+        "type": "number",
+        "default": 3
       },
       {
         "name": "windowS",
