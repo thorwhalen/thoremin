@@ -19,7 +19,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Engine, type GraphSpec } from '@thoremin/dag';
-import type { MusicalTime, PulseState } from '@thoremin/ictus';
+import { createDanceLead, type MusicalTime, type PulseState } from '@thoremin/ictus';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
@@ -148,6 +148,41 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     expect(whole.on).toBeGreaterThan(0.7);
     expect(whole.on).toBeGreaterThan(whole.off + 0.4);
     expect(passes[2].on).toBeGreaterThan(0.9);
+  });
+
+  it('the first pass (#464): the score lands on the dancer\'s steps from its first cycles, not after the pulse settles', async () => {
+    // The follower's first period here is 1.75 s at confidence 0.3; it settles to 1.95 s
+    // two cycles after the start. The score's distance from each fitted cycle start, in
+    // beats (modulo the bar), over the first pass: the lead plays the marked tempo until the
+    // pulse is sure of its period (rule 3 of ictus's dance lead), against the same lead
+    // following the first estimate at once (the law before #464, replayed on the same pulse).
+    // Measured: mean 0.38 beat (up to 0.59) before, 0.20 (up to 0.33) after; the start is not
+    // moved.
+    const run = await dance(frames.slice(0, Math.round(PASS * HZ)));
+    const start = run.leads.findIndex(Boolean);
+    expect(start / HZ).toBeLessThan(12);
+    const cycles = cycleStarts(run, start / HZ + 0.01);
+    const offBy = (beatAt: (t: number) => number) =>
+      cycles.map((t) => {
+        const x = beatAt(t) / 4;
+        return Math.abs(x - Math.round(x)) * 4;
+      });
+    const mean = (xs: number[]) => xs.reduce((a, x) => a + x, 0) / xs.length;
+    const node = offBy((t) => {
+      const m = run.time[Math.min(run.time.length - 1, Math.max(0, Math.floor(t * HZ)))];
+      return m.beat + (t - m.t) * (m.tempo / 60);
+    });
+    const old = createDanceLead({ tempoConfidence: 0, tempoAfterCycles: 0 });
+    const oldBeats = run.pulse.map((p, i) => old.step({ t: i / HZ, pulse: p, marked: MARKED }));
+    const before = offBy((t) => {
+      const s = oldBeats[Math.min(oldBeats.length - 1, Math.floor(t * HZ))];
+      return s.beat + (t - s.t) * (s.tempo / 60);
+    });
+    console.info(`[#464] first pass, beats off the dancer's cycle starts (n ${cycles.length}): ${node.map((x) => x.toFixed(2)).join(' ')} (mean ${mean(node).toFixed(2)}); before ${before.map((x) => x.toFixed(2)).join(' ')} (mean ${mean(before).toFixed(2)})`);
+    expect(cycles.length).toBeGreaterThanOrEqual(5);
+    expect(mean(before)).toBeGreaterThan(0.33);
+    expect(mean(node)).toBeLessThan(0.25);
+    expect(Math.max(...node)).toBeLessThan(0.4);
   });
 
   it('a narrower clamp holds the score inside it', async () => {

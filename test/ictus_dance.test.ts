@@ -162,3 +162,52 @@ describe('createDanceLead', () => {
     expect(first.beat).toBeLessThan(8.1);
   });
 });
+
+describe('the tempo follows a settled period only (#464)', () => {
+  // A dancer stepping a bar every 2.06 s against 120 bpm (2 s bars): 3 % slow, inside what
+  // the phase law alone can follow.
+  const P = 2.06;
+  const tempoAt = (states: DanceLeadState[], t: number) => states.find((s) => s.t >= t - 1e-9)!.tempo;
+
+  it('a sure pulse: the tempo follows the dancer from the start (as before)', () => {
+    const states = run(20, (t) => pulseAt(t, P, 0.3, 0.8));
+    const start = states.find((s) => s.started)!;
+    expect(start.tempo).toBeLessThan(120 * 0.99);
+    expect(tempoAt(states, 18)).toBeCloseTo((4 * 60) / P, 0);
+  });
+
+  it('a trusted but unsure pulse: the marked tempo, bent by the phase law only, until three cycles are followed', () => {
+    const states = run(30, (t) => pulseAt(t, P, 0.3, 0.3));
+    const start = states.findIndex((s) => s.started);
+    const t0 = states[start].t;
+    // Until the fourth cycle start, the tempo is the marked one times the phase correction
+    // (at most 5 %), never the smoothed dancer's rate on its own.
+    const early = states.filter((s) => s.started && s.t < t0 + 3 * P - 0.1);
+    expect(early.every((s) => Math.abs(s.rate - 1) < 1e-9)).toBe(true);
+    // ...and then it follows the dancer.
+    expect(tempoAt(states, 28)).toBeCloseTo((4 * 60) / P, 0);
+  });
+
+  it.each([0.08, 0.1, -0.1])('an unsure dancer %s off the marked tempo stays within 0.25 beat of the grid (the phase-error handover)', (off) => {
+    // A step the marked tempo does not suit, at a confidence that never reaches 0.4: the
+    // lead hands the tempo over once the cycle is 0.2 beat off, so the error never builds
+    // up through the three cycles (at the clamp's edge, 10 %, it would stay).
+    const period = 2 / (1 - off);
+    const states = run(90, (t) => pulseAt(t, period, 0.3, 0.3));
+    const starts = Array.from({ length: 45 }, (_, j) => 0.3 + j * period).filter((t) => t < 89 && states[Math.floor(t * HZ)].started);
+    expect(starts.length).toBeGreaterThan(20);
+    for (const t of starts) {
+      const s = states[Math.floor(t * HZ)];
+      const x = (s.beat + ((t - s.t) * s.tempo) / 60) / 4;
+      expect(Math.abs(x - Math.round(x)) * 4).toBeLessThan(0.25);
+    }
+  });
+
+  it('the confidence reaching the threshold hands the tempo to the dancer at once', () => {
+    const states = run(20, (t) => pulseAt(t, P, 0.3, t < 9 ? 0.3 : 0.5));
+    const at = states.filter((s) => s.started && s.t > 9);
+    expect(at.some((s) => s.rate < 0.99)).toBe(true);
+    const before = states.filter((s) => s.started && s.t < 9);
+    expect(before.every((s) => s.rate === 1)).toBe(true);
+  });
+});
