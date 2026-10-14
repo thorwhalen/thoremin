@@ -78,11 +78,11 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { median } from '@thoremin/stats';
+import { clamp01, median } from '@thoremin/stats';
 import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactConfirmation, type ImpactEvent, type ImpactPrediction, type ImpactPredictor, type LagGate, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
-import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isClockDerived, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S, type TimingView } from '@thoremin/sdk/timing/tracker';
@@ -281,13 +281,12 @@ export const SUBFRAME_RESUME_STAMP_NOISE_S = 0.003;
 export const SUBFRAME_DWELL_FRAMES = 15;
 /** The status reports the stamp noise to this step (seconds), so it is not rebuilt per frame. */
 const STAMP_NOISE_STEP_S = 0.0001;
-const CLOCK_DERIVED_SOURCES = new Set(['clock', 'estimated']);
 
 /** The sub-frame standing after this frame: `off-stamps` once the dominant stamps are
  *  clock-derived and noisier than the bound, `on` again once they are not, unchanged
  *  while the noise is unknown or between the two bounds. */
 export function subframeStanding(prev: SubframeStanding, dominantSource: string | null, stampNoise: number): SubframeStanding {
-  const derived = dominantSource !== null && CLOCK_DERIVED_SOURCES.has(dominantSource);
+  const derived = isClockDerived(dominantSource);
   if (!derived) return dominantSource === null ? prev : 'on';
   if (!Number.isFinite(stampNoise)) return prev;
   if (stampNoise > SUBFRAME_MAX_STAMP_NOISE_S) return 'off-stamps';
@@ -375,8 +374,6 @@ function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness
   if (!mirrorHandedness) return raw;
   return raw === 'Right' ? 'Left' : 'Right';
 }
-
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /** One sample of the tracked point in the displayed frame's fractions. */
 export interface TrackSample {

@@ -84,7 +84,7 @@
  * a replayed recording. The sources put all of it on the frame, so the recorder
  * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
-import type { FrameTiming } from '@thoremin/sdk/nodes/domain';
+import { isClockDerived, type FrameTiming } from '@thoremin/sdk/nodes/domain';
 import { createStampDejitter } from '@thoremin/sdk/timing/stamp_dejitter';
 
 /** The subset of `VideoFrameCallbackMetadata` this module reads. */
@@ -341,7 +341,7 @@ export function createFramePump(
     // byte. A capture or presentation stamp is never touched; it ends the run.
     let tMs = picked.tMs;
     if (dejitter) {
-      const clockDerived = picked.source === 'clock' || picked.source === 'estimated';
+      const clockDerived = isClockDerived(picked.source);
       const smoothed = dejitter.push(clockDerived ? nowMs : picked.tMs, picked.source);
       // The run's offset is one constant (the learned lag for `estimated`, none for
       // `clock`), never this frame's own `nowMs - picked.tMs`: a stamp the picker pushed
