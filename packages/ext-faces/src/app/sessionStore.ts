@@ -74,14 +74,15 @@ import {
   type SortResult,
 } from '@thoremin/sdk/enroll/sorting';
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
-import { carveTake, generalContextOf, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
+import { carveTake, fullMean, generalContextOf, nameCarve, sortingView, type NameSources, type SortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '@thoremin/sdk/enroll/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
 import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
-import { createLiveBars, liveStrip, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
+import { createLiveBars, liveStrip, type BarMark, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
+import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
 import type { CarveModalityUi } from '@thoremin/sdk-ui/enroll/modality';
 import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
@@ -118,6 +119,15 @@ export type FacePhase =
  *  `samples`, more of the same player; `centroids`, only the categories (a model made by
  *  someone else, retrained on this face). */
 export type MergeSeed = 'samples' | 'centroids';
+
+/** What "Show me on the bars" shows (#435): a category's distinguishing features and the two
+ *  centres, the category's and its neighbour's (raw vectors). */
+export interface BarFocus {
+  category: string;
+  label: string;
+  features: readonly string[];
+  marks: readonly BarMark[];
+}
 
 /** Whether a phase is a recording in progress (closing the tool must end it). */
 export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'paused' || phase === 'stopping';
@@ -245,6 +255,12 @@ export interface FaceSessionState {
   dirty: boolean;
   /** The take being recorded is merged into the open categorizer, with this seed. */
   merging: MergeSeed | null;
+  /** A hint shown on the bars (#435, design C.4.8): the features that tell `label` from its
+   *  neighbour, shown first, and the two centres marked; the take drops into Paused after the rest
+   *  so the player rehearses the bigger version, and its holds go to `label`. Null otherwise. */
+  focus: BarFocus | null;
+  /** The category every hold of the take under way goes to (#435: "Record more"), or null. */
+  holdsAs: string | null;
   /** The name the next burst's hold is given (#385 E7): '' for none (the carve decides). */
   burstName: string;
   /** The burst under way (its name and frames so far, coarsely), or null. */
@@ -331,8 +347,17 @@ export interface FaceSessionState {
   redo(): void;
   /** Record a new take and merge it into the working categorizer (P1's `mergeSession`): the open
    *  one, or a fresh carve before it is saved (#421); `burstName` names its bursts ("Record more
-   *  frown"); `name` is the Save field's text, there again when the take returns. */
-  startMerge(seed: MergeSeed, options?: { burstName?: string; name?: string }): void;
+   *  frown"); `name` is the Save field's text, there again when the take returns; `holdsIn`
+   *  (a category id) takes every hold the take makes that is not named otherwise, pinned (#435:
+   *  "Record more" for one category; by id, so a category named like a bin is still that category). */
+  startMerge(seed: MergeSeed, options?: { burstName?: string; name?: string; holdsIn?: string }): void;
+  /** A hint's "Record more" (#435): a take whose every hold goes to category `id` (pinned, so
+   *  it stays there at every k), its bursts named for it too. False when it cannot start. */
+  recordMore(id: string): boolean;
+  /** A hint's "Show me on the bars" (#435): the take of {@link recordMore}, its bars showing the
+   *  features the hint names first with the category's and its neighbour's centres marked, paused
+   *  after the rest. False when the category has no hint. */
+  showOnBars(id: string): boolean;
   /** Open a categorizer from a file's text (validated, older versions migrated); not saved yet. */
   importFile(text: string): boolean;
   /** The categorizer shown, as a file's text (P1's versioned format): an open one, or a fresh
@@ -459,6 +484,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let lastWasK = false;
   let openRecord: FaceModelRecord | null = null;
   /** The categorizer a recording is being merged into, and what to restore if it is empty. */
+  /** Pause the take as soon as its rest is done (#435: "Show me on the bars"). */
+  let pauseOnCapture = false;
   let mergeBase: {
     seed: MergeSeed;
     /** Where the take returns: a fresh carve (#421: "Add more" before it is saved) or the open one. */
@@ -472,6 +499,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     tuning: Tuning;
     checks: CategorizerChecks;
     dirty: boolean;
+    /** Every hold of the take not named otherwise goes to this category (#435), pinned. */
+    holdsIn?: string;
     /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
     edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined; fresh: FreshTake | null };
   } | null = null;
@@ -616,7 +645,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = grabStill(live.vector);
           stillNewHolds(live.vector);
         }
-        const tp = take.phase();
+        let tp = take.phase();
+        // "Show me on the bars" (#435): the rest done, the take waits paused for the rehearsal.
+        if (tp === 'faces' && pauseOnCapture) {
+          pauseOnCapture = false;
+          take.pause(deps.now());
+          tp = take.phase();
+        }
         const phaseNow: FacePhase = tp === 'explore' || tp === 'rest' || tp === 'faces' || tp === 'paused' ? tp : get().phase;
         const elapsed = phaseNow === 'explore' ? 0 : Math.floor((deps.now() - t0) / 250) / 4;
         const points = take.pointCount();
@@ -809,11 +844,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null }));
 
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
-    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
-      const by = new Map<string, { label: string; ids: string[] }>();
+    /** The take's holds by name: a burst's, or one given in the strip. */
+    const holdNamesOf = (t: FaceTake): Map<number, string> => {
       // A name given in the strip (#404) is a burst's name given afterwards: it wins over one.
       const names = new Map(t.labels());
       for (const [i, name] of holdNames) names.set(i, name);
+      return names;
+    };
+    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
+      const by = new Map<string, { label: string; ids: string[] }>();
+      const names = holdNamesOf(t);
       for (const [i, raw] of names) {
         const label = raw.trim();
         if (!label || dropped.has(i)) continue;
@@ -823,6 +863,21 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         by.set(key, g);
       }
       return [...by.values()];
+    };
+    /** `labelled` with every hold of the take that has no name of its own (and was not deleted in
+     *  the strip) moved to category `id` and pinned there (#435). A failure is said and nothing
+     *  moves. */
+    const holdAllIn = (labelled: { categorizer: PersonalCategorizer; named: string[]; error: string | null }, t: FaceTake, tid: string, id: string) => {
+      const names = holdNamesOf(t);
+      const present = new Set(labelled.categorizer.samples.map((x) => x.id));
+      const ids: string[] = [];
+      for (let i = 0; i < t.pointCount(); i++) {
+        const hid = holdId(tid, i);
+        if (!dropped.has(i) && !names.get(i)?.trim() && present.has(hid)) ids.push(hid);
+      }
+      if (ids.length === 0 || !labelled.categorizer.categories.some((c) => c.id === id)) return labelled;
+      const r = moveHoldsIn(labelled.categorizer, ids, id);
+      return r.ok ? { ...labelled, categorizer: r.categorizer } : { ...labelled, error: labelled.error ?? r.error };
     };
     /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). A
      *  failure is said, and the holds are carved like any other. */
@@ -983,6 +1038,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       tuning: DEFAULT_TUNING,
       dirty: false,
       merging: null,
+      focus: null,
+      holdsAs: null,
       burstName: '',
       burst: null,
       checks: {},
@@ -996,7 +1053,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         deps.claim(true);
         claimed = true;
         take.explore(deps.now());
-        set({ phase: 'explore', points: 0, elapsed: 0, hold: 'open', notice: null, view: null, thumbs: {}, openId: null, name: '', merging: null });
+        set({ phase: 'explore', points: 0, elapsed: 0, hold: 'open', notice: null, view: null, thumbs: {}, openId: null, name: '', merging: null, focus: null, holdsAs: null });
         provideCapture();
         poll(deps.now());
       },
@@ -1094,8 +1151,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         });
       },
 
-      live(options) {
-        return bars && isLive(get().phase) && get().phase !== 'stopping' ? bars.snapshot(options) : null;
+      live(options = {}) {
+        if (!bars || !isLive(get().phase) || get().phase === 'stopping') return null;
+        const focus = get().focus;
+        if (!focus) return bars.snapshot(options);
+        // The hint's features first, then the player's own pins; the two centres marked.
+        const pinned = [...focus.features, ...(options.pinned ?? []).filter((id) => !focus.features.includes(id))];
+        return bars.snapshot({ ...options, pinned, marks: focus.marks });
       },
 
       async stop() {
@@ -1123,7 +1185,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (merge) {
           openRecord = merge.record;
           // The name a "Record more X" gave the bursts belongs to that take only.
-          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, burst: null, burstName: '' };
+          const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
           restoreEdits(merge.edits);
           // A fresh carve has pictures when either take took them (an open one finds its own).
@@ -1160,7 +1222,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           }
           // Bursts recorded under a name go to the category of that name (or a new one), pinned
           // (#385 E7): "Record more frown" lands in frown, whatever is nearest.
-          const labelled = withLabels(result.categorizer, labelledHolds(myTake, takeId!));
+          const named = withLabels(result.categorizer, labelledHolds(myTake, takeId!));
+          // "Record more" (#435): every hold not named otherwise goes to its category, by id.
+          const labelled = merge.holdsIn ? holdAllIn(named, myTake, takeId!, merge.holdsIn) : named;
           for (const id of labelled.named) if (!sources.has(id)) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
           // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
           // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
@@ -1444,6 +1508,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       reset() {
         generation++;
+        pauseOnCapture = false;
         release();
         take = null;
         takeId = null;
@@ -1464,7 +1529,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         pending.clear();
         dropUrls();
         clearStrip();
-        set({ phase: 'idle', restProgress: null, restMoving: false, mirror: chosenMirror, vocabulary: chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
+        set({ phase: 'idle', restProgress: null, restMoving: false, mirror: chosenMirror, vocabulary: chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {
@@ -1518,10 +1583,46 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A fresh carve too (#421): the same document, so the new holds are added to it, its
         // pins kept, and its first take's rest kept for the reject radius.
         if ((phase !== 'saved' && phase !== 'carved') || !working) return;
-        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
+        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, ...(options.holdsIn ? { holdsIn: options.holdsIn } : {}), edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
+        pauseOnCapture = false;
         get().start();
         // After the start (which resets): the take's bursts carry this name.
-        set({ burstName: options.burstName ?? '' });
+        const into = options.holdsIn ? working.categories.find((c) => c.id === options.holdsIn) : undefined;
+        set({ burstName: options.burstName ?? '', holdsAs: into ? into.label || into.id : null });
+      },
+
+      recordMore(id) {
+        const { working, phase } = get();
+        const cat = working?.categories.find((c) => c.id === id);
+        if (!cat || !cat.label.trim() || (phase !== 'saved' && phase !== 'carved')) return false;
+        get().startMerge('samples', { burstName: cat.label, holdsIn: cat.id });
+        return isRecording(get().phase);
+      },
+
+      showOnBars(id) {
+        const { working, view } = get();
+        const hint = view?.hints.get(id);
+        const cat = working?.categories.find((c) => c.id === id);
+        if (!working || !hint || !cat) return false;
+        const vectors = working.samples.map((x) => x.vector);
+        const at = new Map(working.samples.map((x, i) => [x.id, i]));
+        const centre = (ids: readonly string[]) => fullMean(vectors, ids.flatMap((x) => (at.has(x) ? [at.get(x)!] : [])));
+        const other = hint.other === NEUTRAL_TARGET ? null : working.categories.find((c) => c.id === hint.other);
+        const otherIds = other ? other.members : working.neutral;
+        const otherLabel = other ? other.label || other.id : modality.words.neutral;
+        const focus: BarFocus = {
+          category: id,
+          label: cat.label || cat.id,
+          features: [...new Set(hint.movements.map((m) => m.feature))],
+          marks: [
+            { label: cat.label || cat.id, vector: centre(cat.members) },
+            ...(otherIds.length > 0 ? [{ label: otherLabel, vector: centre(otherIds) }] : []),
+          ],
+        };
+        if (!get().recordMore(id)) return false;
+        pauseOnCapture = true;
+        set({ focus });
+        return true;
       },
 
       importFile(text) {

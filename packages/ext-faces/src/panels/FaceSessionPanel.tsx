@@ -490,7 +490,20 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
         : cue.instruction;
   return (
     <div className="space-y-2" data-faces-recording={phase}>
-      {s.merging && <p className="text-[11px] font-semibold text-emerald-200">{`Adding to ${s.name ? `"${s.name}"` : 'this carve'}: ${s.merging === 'samples' ? `new ${many} join its categories` : 'its categories are learned again from this take'}.`}</p>}
+      {s.merging && (
+        <p className="text-[11px] font-semibold text-emerald-200" data-faces-merging>
+          {`Adding to ${s.name ? `"${s.name}"` : 'this carve'}: ${
+            s.holdsAs ? `every ${one} you hold goes to "${s.holdsAs}"` : s.merging === 'samples' ? `new ${many} join its categories` : 'its categories are learned again from this take'
+          }.`}
+        </p>
+      )}
+      {s.focus && (
+        <p className="text-[11px] text-amber-100" data-faces-focus={s.focus.category}>
+          {`What tells "${s.focus.label}" apart is pinned first on the bars, its centre and its neighbour's marked. ${
+            phase === 'paused' ? `Rehearse a bigger "${s.focus.label}" until its bars reach past the marks, then Resume and hold it.` : ''
+          }`}
+        </p>
+      )}
       <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-white/70" role="status" aria-live="polite">
         <span className={`font-bold uppercase tracking-widest ${phase === 'faces' ? 'text-rose-300' : phase === 'paused' ? 'text-amber-200' : 'text-white/60'}`} data-faces-state>
           {phase === 'faces' ? '● ' : ''}

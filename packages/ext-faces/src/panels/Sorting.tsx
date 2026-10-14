@@ -310,6 +310,17 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
               {`Merge with ${placeName(grid.view, hint.other)}`}
             </button>
           )}
+          {grid.s.working !== null && c.label.trim() !== '' && (
+            // Design C.4.8 (#435): see what tells them apart, rehearse it, then record more of it.
+            <button type="button" className={btn} data-face-hint-bars={c.id} onClick={() => grid.s.showOnBars(c.id)}>
+              Show me on the bars
+            </button>
+          )}
+          {grid.s.working !== null && c.label.trim() !== '' && (
+            <button type="button" className={btn} data-face-hint-more={c.id} onClick={() => grid.s.recordMore(c.id)}>
+              {`Record more ${c.label}`}
+            </button>
+          )}
         </div>
       )}
       <Strip holds={c.exemplars.map((e) => e.index)} label={c.label} place={c.id} grid={grid} />
