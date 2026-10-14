@@ -10,7 +10,8 @@
  *     closure inside its package, which stays in the root of its `src/` (no sub-directory). A package is owned when every module of it that the build
  *     reaches is reached only through the extension (its package, and e.g. a recogniser it
  *     alone depends on, with that recogniser's weights); a package core imports too (the SDK,
- *     zod) is shared, not owned;
+ *     zod) is shared, not owned, and so is a library whose only importer is a shared module core
+ *     reaches by itself even when the extension imports that module too (#342);
  *  3. what the stubs leave in the initial chunks stays under {@link STUB_BUDGET_BYTES};
  *  4. no node the deferred half defines is in the initial chunks, found by its own text (its
  *     description). Rule 2 cannot see a node a stub imports statically (that node is then in
@@ -29,6 +30,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { readExtensionEntries } from '../vite.extensions';
+import { closureOf, ownedPackages } from './lazy_ownership';
 
 /** What a lazy extension's eager stubs may add to the initial chunks (rendered bytes): its
  *  dial schema, branches as data, instrument seeds and section labels. */
@@ -82,7 +84,7 @@ interface Graph {
   imported: Map<string, string[]>;
   dynamic: Map<string, string[]>;
   /** chunk file -> { isEntry, imports (static), modules with rendered bytes } */
-  chunks: { file: string; isEntry: boolean; imports: string[]; modules: Record<string, number> }[];
+  chunks: { file: string; isEntry: boolean; facade: string | null; imports: string[]; modules: Record<string, number> }[];
 }
 
 const graph: Graph = { importers: new Map(), imported: new Map(), dynamic: new Map(), chunks: [] };
@@ -101,6 +103,7 @@ const capture: Plugin = {
       graph.chunks.push({
         file: chunk.fileName,
         isEntry: chunk.isEntry,
+        facade: chunk.facadeModuleId ?? null,
         imports: chunk.imports,
         modules: Object.fromEntries(Object.entries(chunk.modules).map(([id, m]) => [id, m.renderedLength])),
       });
@@ -124,17 +127,8 @@ try {
   }
   const initialModules = new Map<string, number>();
   for (const f of initial) for (const [id, bytes] of Object.entries(byFile.get(f)!.modules)) initialModules.set(id, bytes);
-  const closure = (roots: Iterable<string>, edges: (id: string) => string[], within: (id: string) => boolean = () => true): Set<string> => {
-    const seen = new Set<string>();
-    const todo = [...roots];
-    while (todo.length) {
-      const id = todo.pop()!;
-      if (seen.has(id) || !within(id)) continue;
-      seen.add(id);
-      todo.push(...edges(id));
-    }
-    return seen;
-  };
+  const closure = closureOf;
+  const entryModules = graph.chunks.filter((c) => c.isEntry && c.facade).map((c) => c.facade!);
   const allEdges = (id: string) => [...(graph.imported.get(id) ?? []), ...(graph.dynamic.get(id) ?? [])];
   const rel = (id: string) => relative(ROOT, id).split(sep).join('/');
 
@@ -154,13 +148,19 @@ try {
     for (const h of halves) if (initialModules.has(h)) failures.push(`${entry.id}: the deferred half ${rel(h)} is in an initial chunk`);
 
     // 2. Owned packages: every module of the package the build reaches is reached through the
-    //    extension (its deferred halves, transitively, or its stubs).
+    //    extension (its deferred halves, transitively, or its stubs) and not reached by core on
+    //    its own: a shared module the extension merely imports does not make its libraries the
+    //    extension's (#342; scripts/lazy_ownership.ts).
     const viaExt = closure([...halves, ...stubs], allEdges);
+    const coreReach = closure(entryModules, allEdges, (id) => !inExt(id));
     const packages = new Set([...viaExt].map(owningPackage).filter((d): d is string => d !== null));
-    const owned = [...packages].filter((dir) => {
-      if (dir === ROOT) return false;
-      const mods = [...graph.imported.keys()].filter(under(dir));
-      return mods.every((m) => (graph.importers.get(m) ?? []).every((i) => viaExt.has(i) || under(dir)(i)));
+    const owned = ownedPackages({
+      candidates: packages,
+      importersOf: graph.importers,
+      viaExt,
+      coreReach,
+      inPackage: (dir, id) => under(dir)(id),
+      root: ROOT,
     });
     if (!owned.includes(extDir)) owned.push(extDir);
     // A stub's closure stays in the root of the extension's `src/` (the manifest, the dial, its
