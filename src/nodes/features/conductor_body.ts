@@ -141,24 +141,10 @@ export function bodyQuantityOfMotion(prev: BodyFrame, cur: BodyFrame, dtS: numbe
  *   is quiet; an exponential average kept such a start several times too large
  *   for seconds, and the upbeat unseen (the review of #377). A still body reads about 1;
  *   a stroke reads tens.
- * - `travel`: the same arm's VECTOR displacement over `travelLagS` (#461), over the LAG's
- *   own noise (the median displacement over every seen landmark across the lag, its median
- *   over the window, like the jitter; a tracker's noise is correlated in time, so the step
- *   jitter would read a still arm at 3 to 4 on real footage), smoothed like `motion`; and
- *   `speed`, that displacement in torso lengths per second. The transport reads the upbeat
- *   from them. A smoothed per-frame magnitude cannot average the noise away (a still arm's
- *   step has a mean of about 1.8 sigma however long it is averaged), so `motion` is a
- *   signal-to-noise ratio that falls with a noisier camera: at 1 px of jitter on a 150 px
- *   torso a moderate upbeat read 5 where the rule wants 9, and the piece never started.
- *   Over a lag a sustained movement adds up while the noise does not. Stillness stays on
- *   `motion` (a lag reads a slow settle as movement), and the speed keeps a slow adjustment
- *   of the ready arm, far above the noise on a clean camera, from reading as an upbeat.
  */
 export interface BodyTransportCues {
   raise?: number;
   motion?: number;
-  travel?: number;
-  speed?: number;
 }
 
 export interface BodyMotionMeterOptions {
@@ -166,8 +152,6 @@ export interface BodyMotionMeterOptions {
   minVisibility?: number;
   /** Smoothing of the arms' motion, seconds. */
   motionTauS?: number;
-  /** The lag the arm's `travel` and `speed` are read over, seconds (#461). */
-  travelLagS?: number;
   /** The window the jitter is read over, seconds. */
   jitterWindowS?: number;
   /** The jitter is this quantile of the per-frame values in the window. */
@@ -179,7 +163,6 @@ export interface BodyMotionMeterOptions {
 export const BODY_MOTION_DEFAULTS: Required<BodyMotionMeterOptions> = {
   minVisibility: 0.5,
   motionTauS: 0.15,
-  travelLagS: 0.15,
   jitterWindowS: 4,
   jitterQuantile: 0.5,
   minJitter: 5e-4,
@@ -220,31 +203,17 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
   const o = { ...BODY_MOTION_DEFAULTS, ...options };
   let prev: { t: number; f: BodyFrame } | null = null;
   let prev2: BodyFrame | null = null;
-  /** The recent frames, oldest first, back to `travelLagS` (the lag's reference). */
-  let history: { t: number; f: BodyFrame }[] = [];
   let jitter = NaN;
   /** The per-frame jitter values in the window, with their times. */
   let steps: { t: number; v: number }[] = [];
   /** The smoothed motion per arm (noise units). */
   let motion: Record<'left' | 'right', number | undefined> = { left: undefined, right: undefined };
-  /** The smoothed travel per arm (noise units of the lag) and its speed (torso lengths per
-   *  second). */
-  let travel: Record<'left' | 'right', number | undefined> = { left: undefined, right: undefined };
-  let speed: Record<'left' | 'right', number | undefined> = { left: undefined, right: undefined };
-  /** The lag's noise: its per-frame values in the window and their quantile. */
-  let lagSteps: { t: number; v: number }[] = [];
-  let lagJitter = NaN;
   const reset = () => {
     prev = null;
     prev2 = null;
-    history = [];
     jitter = NaN;
     steps = [];
     motion = { left: undefined, right: undefined };
-    travel = { left: undefined, right: undefined };
-    speed = { left: undefined, right: undefined };
-    lagSteps = [];
-    lagJitter = NaN;
   };
   return {
     jitter: () => jitter,
@@ -253,7 +222,6 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
       if (!f.present) {
         prev = null;
         prev2 = null;
-        history = [];
         return {};
       }
       // The beating arm: the named side, or with `auto` the higher wrist (its height and its
@@ -264,13 +232,12 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
       let beating: 'left' | 'right' = side === 'auto' ? 'right' : side;
       if (side === 'auto' && (raiseOf.right === undefined || (raiseOf.left !== undefined && raiseOf.left > raiseOf.right))) beating = 'left';
       const raise = raiseOf[beating];
-      const cues = (): BodyTransportCues => ({ raise, motion: motion[beating], travel: travel[beating], speed: speed[beating] });
+      const cues = (): BodyTransportCues => ({ raise, motion: motion[beating] });
       const torso = torsoPx(f);
       const dt = prev ? t - prev.t : 0;
       if (!prev || !torso || !(dt > 0)) {
         prev2 = null;
         prev = { t, f };
-        history = [prev];
         return cues();
       }
       const p = prev.f;
@@ -296,58 +263,23 @@ export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): Bod
           jitter = w[Math.min(w.length - 1, Math.floor(o.jitterQuantile * w.length))];
         }
       }
-      /** An arm's mean displacement from `from` (its wrist and elbow, the seen ones), torso
-       *  lengths; undefined when none is seen in both. */
-      const moved = (sd: 'left' | 'right', from: BodyFrame): number | undefined => {
+      // Each arm's displacement this step (its wrist and elbow, the seen ones), in noise units.
+      for (const sd of sides) {
         let sum = 0;
         let count = 0;
         for (const j of ARM_JOINTS[sd]) {
-          if (!seen(f, j) || !seen(from, j)) continue;
-          sum += Math.hypot(f.landmarks[j].x - from.landmarks[j].x, f.landmarks[j].y - from.landmarks[j].y) / torso;
+          if (!seen(f, j) || !seen(p, j)) continue;
+          sum += Math.hypot(f.landmarks[j].x - p.landmarks[j].x, f.landmarks[j].y - p.landmarks[j].y) / torso;
           count++;
         }
-        return count ? sum / count : undefined;
-      };
-      const a = 1 - Math.exp(-dt / o.motionTauS);
-      const smooth = (m: number | undefined, x: number) => (m === undefined ? x : m + a * (x - m));
-      // Each arm's displacement this step, in noise units.
-      for (const sd of sides) {
-        const step = Number.isFinite(jitter) ? moved(sd, p) : undefined;
-        if (step !== undefined) motion[sd] = smooth(motion[sd], step / Math.max(jitter, o.minJitter));
-      }
-      // Over the lag: the reference is the latest kept frame at least `travelLagS` old; until
-      // the history reaches that far back there is no travel.
-      while (history.length > 1 && history[1].t <= t - o.travelLagS) history.shift();
-      const ref = history[0];
-      const lag = t - ref.t;
-      if (lag >= o.travelLagS - 1e-6) {
-        // The lag's own noise: the median displacement over every landmark seen in both
-        // frames (most of a conductor is near still), its median over the window. On white
-        // noise that is the step jitter; a tracker's noise is correlated in time, and this
-        // is what makes a still arm read about 1 on real footage too.
-        const d: number[] = [];
-        const n = Math.min(f.landmarks.length, ref.f.landmarks.length);
-        for (let j = 0; j < n; j++) {
-          if (!seen(f, j) || !seen(ref.f, j)) continue;
-          d.push(Math.hypot(f.landmarks[j].x - ref.f.landmarks[j].x, f.landmarks[j].y - ref.f.landmarks[j].y) / torso);
-        }
-        if (d.length) {
-          d.sort((x, y) => x - y);
-          lagSteps.push({ t, v: d[d.length >> 1] });
-          while (lagSteps.length && lagSteps[0].t < t - o.jitterWindowS) lagSteps.shift();
-          const w = lagSteps.map((x) => x.v).sort((x, y) => x - y);
-          lagJitter = w[Math.min(w.length - 1, Math.floor(o.jitterQuantile * w.length))];
-        }
-        for (const sd of sides) {
-          const m = Number.isFinite(lagJitter) ? moved(sd, ref.f) : undefined;
-          if (m === undefined) continue;
-          travel[sd] = smooth(travel[sd], m / Math.max(lagJitter, o.minJitter));
-          speed[sd] = smooth(speed[sd], m / lag);
-        }
+        if (!count || !Number.isFinite(jitter)) continue;
+        const nu = sum / count / Math.max(jitter, o.minJitter);
+        const a = 1 - Math.exp(-dt / o.motionTauS);
+        const m = motion[sd];
+        motion[sd] = m === undefined ? nu : m + a * (nu - m);
       }
       prev2 = p;
       prev = { t, f };
-      history.push(prev);
       return cues();
     },
   };
