@@ -47,7 +47,7 @@ import {
   type TrainedModel,
   type FeatureVector,
 } from '@thoremin/sdk/enroll';
-import { projectVector } from '@thoremin/sdk/enroll/modality';
+import { createReader } from '@thoremin/sdk/enroll/modality';
 
 export const SavedCategoriesSchema = z.object({
   id: z.string(),
@@ -270,12 +270,19 @@ export function installCategoryDemand(): () => void {
   };
 }
 
-/** The live vector as `read` says (#385 E8: a carved hand categorizer's one hand, side-relative);
- *  as is without one, or for a modality this build does not know. */
-export function readFor(read: CategoryRead | undefined): (vector: FeatureVector) => FeatureVector {
+/** The live vector as `read` says (#385 E8: a carved hand categorizer's one hand, side-relative;
+ *  #382: a mirrored pose set reads each frame on the side nearer `model`'s categories); as is
+ *  without one, or for a modality this build does not know. */
+export function readFor(read: CategoryRead | undefined, model?: TrainedModel): (vector: FeatureVector) => FeatureVector {
   const modality = read ? modalityById(read.modality) : undefined;
   if (!modality) return (v) => v;
-  return (v) => projectVector(modality, v, { hand: read!.hand ?? 'either', mirror: read!.mirror === true });
+  return createReader(modality, { hand: read!.hand ?? 'either', mirror: read!.mirror === true }, model);
+}
+
+/** The share of a bound set's features a reading needs to count (#382): the modality's own bar
+ *  (a body's `minCoverage`, the bar its live test reads with), else the edge's default. */
+export function presenceFor(read: CategoryRead | undefined): number | undefined {
+  return read ? modalityById(read.modality)?.minCoverage : undefined;
 }
 
 // The host's binder (#385 E8): an extension's carve tool binds its categorizer here, and the

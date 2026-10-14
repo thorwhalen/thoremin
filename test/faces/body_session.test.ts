@@ -212,6 +212,26 @@ describe('Your poses: the scripted body through the session store', () => {
     expect(classify(m, live.project(left)).categoryId).not.toBeNull();
   });
 
+  it("an opened mirrored categorizer shows its mirror, and closing it returns to the player's choice", async () => {
+    const d = deps(scriptedBody);
+    const first = await record(d, (s) => s.getState().setMirror(true));
+    expect(await first.getState().save('Mirrored')).toBe(true);
+    const store = createFaceSessionStore(d);
+    expect(store.getState().mirror).toBe(false);
+    const [saved] = await d.models.list();
+    await store.getState().open(saved.id);
+    expect(store.getState().mirror).toBe(true);
+    store.getState().reset();
+    expect(store.getState().mirror).toBe(false);
+  });
+
+  it('a bound pose set needs the modality's own share of its features (the live test's bar)', async () => {
+    const { presenceFor } = await import('@/app/enroll/categoryBinding');
+    expect(presenceFor({ modality: 'body' })).toBe(bodyModality.minCoverage);
+    expect(presenceFor({ modality: 'hand' })).toBeUndefined();
+    expect(presenceFor(undefined)).toBeUndefined();
+  });
+
   it('camera stills are opt-in, and the setup steps can be skipped', async () => {
     const d = deps(scriptedBody);
     const store = createFaceSessionStore(d);

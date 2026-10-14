@@ -43,7 +43,7 @@ import { createCategoryTracker, trainModel, type CategoryTracker } from '@thorem
 import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { liveMargin, type LiveMargin } from '@thoremin/sdk/enroll/quality';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
-import { inView, isNeutralLabel, projectVector, type CarveModality } from '@thoremin/sdk/enroll/modality';
+import { createReader, inView, isNeutralLabel, type CarveModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 /** The face's proxies of camera distance, in order of preference (both bigger when closer). */
@@ -291,7 +291,8 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
     rest: restOf(categorizer, derived.features, options),
     distance: fitDistance(categorizer, derived.features, options),
     temperature: Math.max(LIVE_DEFAULTS.minRadius, LIVE_DEFAULTS.softness * meanRadius),
-    project: (merged) => projectVector(options.modality ?? faceModality, merged, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }),
+    // A mirrored categorizer reads each frame on the side nearer its categories (#382).
+    project: createReader(options.modality ?? faceModality, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }, derived),
     inView: (vector) => inView(options.modality ?? faceModality, vector, derived.features),
   };
 }

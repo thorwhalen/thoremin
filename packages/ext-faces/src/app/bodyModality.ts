@@ -50,7 +50,9 @@ export function poseFigureSvg(skeleton: Skeleton, style: typeof POSE_FIGURE_STYL
 }
 
 /** The figure as a data URL (no object URL to revoke; an `<img>` shows it like a still). */
-export function poseFigureUrl(skeleton: Skeleton): string {
+export function poseFigureUrl(skeleton: Skeleton): string | null {
+  // A figure with no drawable joint is no picture (the grid then has none for it).
+  if (!Object.values(skeleton).some(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) return null;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(poseFigureSvg(skeleton))}`;
 }
 

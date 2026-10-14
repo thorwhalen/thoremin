@@ -42,6 +42,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import {
   MAX_CATEGORIZER_SAMPLES,
   categorizerFromModel,
+  modelFromCategorizer,
   exportCategorizer,
   importCategorizer,
   type CategorizerStrangers,
@@ -76,7 +77,7 @@ import { carveTake, nameCarve, sortingView, type NameSources, type SortingView }
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, liveModel, sameTuning, type Tuning } from '../lib/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
-import { foreignModality, keepOnly, projectVector, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
+import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
@@ -399,6 +400,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let generation = 0;
   /** Object URLs of the stills in hand, by hold id. */
   const urls = new Map<string, string>();
+  /** The mirror the player chose for the next take (#382): the state shows an open categorizer's,
+   *  and a reset returns to this. */
+  let chosenMirror = false;
   /** The shown samples' stick-figure pictures, by hold id (#382): where a hold has no still. */
   const figureUrls = new Map<string, string>();
   /** The stills taken this session, by hold id: in memory until a save files them in
@@ -483,11 +487,13 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     const poll = (t0: number) => {
       stopPolling();
       let lastShown = -1;
+      // The vector the carve works in (#385 E8): one hand made side-relative; the face as is. A
+      // mirrored body take holds its side (#382), a merge chooses the side nearer its base.
+      const readLive = createReader(modality, readOptions(), mergeBase?.working.mirror ? modelFromCategorizer(mergeBase.working) : undefined);
       timer = setInterval(() => {
         if (!take || !source) return;
         const read = source.read();
-        // The vector the carve works in (#385 E8): one hand made side-relative; the face as is.
-        const live = read ? { ...read, vector: projectVector(modality, read.vector, readOptions()) } : null;
+        const live = read ? { ...read, vector: readLive(read.vector) } : null;
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
@@ -790,7 +796,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           else get().reset();
           mergeBase = merge;
           source = deps.source();
-          take = createFaceTake({ modality });
+          // A merge keeps its base's features and weights, so it has no use for the nuisances.
+          take = createFaceTake({ modality, nuisance: !merge });
           bars = barsFor(take);
           deps.claim(true);
           claimed = true;
@@ -986,7 +993,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       setMirror(on) {
         const { phase } = get();
-        if (phase === 'idle' || phase === 'empty') set({ mirror: on });
+        if (phase !== 'idle' && phase !== 'empty') return;
+        chosenMirror = on;
+        set({ mirror: on });
       },
 
       setKeepStills(on) {
@@ -1177,7 +1186,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         stills.clear();
         pending.clear();
         dropUrls();
-        set({ phase: 'idle', view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
+        set({ phase: 'idle', mirror: chosenMirror, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {

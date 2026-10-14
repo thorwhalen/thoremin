@@ -15,8 +15,9 @@
  * `@thoremin/sdk-ui/enroll/modality`.
  */
 import type { Invariance } from '../features/types';
+import { weightedDistance } from './cluster';
 import type { LabelMatchOptions } from './match';
-import type { FeatureVector } from './types';
+import type { FeatureVector, TrainedModel } from './types';
 
 /** The words a modality's tool uses, so copy is written once with the noun filled in. */
 export interface ModalityWords {
@@ -156,6 +157,68 @@ export interface CarveModality {
   readonly nuisanceCues?: readonly NuisanceCueSpec[];
   /** A stick figure of a vector (#382), kept with each sample; absent: the modality has none. */
   skeleton?(vector: FeatureVector): Skeleton | null;
+  /** The vector of the part's mirror image (#382: left and right swapped), for a modality that can
+   *  read a pose and its mirror image as one ({@link ModalityOptions.mirror}). Absent: the option
+   *  does nothing. */
+  mirrorImage?(vector: FeatureVector): FeatureVector;
+  /** Which side a vector leans to, signed, in the modality's own units: the mirror image has the
+   *  opposite sign, and a symmetric vector reads 0. What a stream with no model yet picks its side
+   *  by ({@link createReader}). */
+  mirrorSide?(vector: FeatureVector): number;
+}
+
+/** How a stream with no model yet holds its mirror side (#382): it changes side only once the
+ *  vector leans past `band` the other way (in `mirrorSide`'s units), so a pose near the line
+ *  between the two sides keeps one side frame after frame instead of flickering. */
+export const MIRROR_DEFAULTS = { band: 0.25 } as const;
+
+/** What a mirrored reading is compared with to choose its side: a model's categories (and its
+ *  taught Neutral), under its features and weights. */
+export type MirrorReference = Pick<TrainedModel, 'features' | 'weights' | 'categories' | 'neutral'>;
+
+/**
+ * A reader of a stream of merged live vectors as the carve works in them: the modality's
+ * projection with `options`, and, when `options.mirror` is on and the modality has a mirror image,
+ * the SIDE (#382). A single global rule ("the side whose left is higher") cannot do that: any pose
+ * whose two sides balance sits on its line, and frame noise would send it from one side to the
+ * other. So the side is chosen:
+ *
+ * - against a model when there is one (the live test, a bound set, a take merged into a saved
+ *   categorizer): the vector or its mirror image, whichever is nearer a category or the taught
+ *   Neutral. Stateless, and as good a reading either way when the two are equally near;
+ * - with hysteresis otherwise (a fresh take): the first frame's side by `mirrorSide`, then a change
+ *   only past `band` the other way.
+ *
+ * Without the mirror it is the plain projection, stateless.
+ */
+export function createReader(
+  modality: Pick<CarveModality, 'project' | 'mirrorImage' | 'mirrorSide'>,
+  options: ModalityOptions = {},
+  reference?: MirrorReference,
+  { band = MIRROR_DEFAULTS.band }: { band?: number } = {},
+): (merged: FeatureVector) => FeatureVector {
+  const plain = (v: FeatureVector) => projectVector(modality, v, options);
+  const image = modality.mirrorImage;
+  if (!options.mirror || !image) return plain;
+  if (reference) {
+    const targets = [...reference.categories, ...(reference.neutral ?? [])].map((c) => c.centroid);
+    const nearest = (v: FeatureVector) => Math.min(...targets.map((c) => weightedDistance(v, c, reference.features, reference.weights)));
+    return (merged) => {
+      const v = plain(merged);
+      const m = image(v);
+      return nearest(m) < nearest(v) ? m : v;
+    };
+  }
+  const side = modality.mirrorSide ?? (() => 0);
+  let mirrored: boolean | null = null;
+  return (merged) => {
+    const v = plain(merged);
+    const a = side(v);
+    if (mirrored === null) mirrored = a < 0;
+    else if (mirrored && a > band) mirrored = false;
+    else if (!mirrored && a < -band) mirrored = true;
+    return mirrored ? image(v) : v;
+  };
 }
 
 /** Whether `vector` shows the part well enough to read it with `features` (a categorizer's): its

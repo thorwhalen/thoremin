@@ -109,9 +109,13 @@ const VectorSchema = z.record(z.string(), z.number());
 export const MAX_SKELETON_POINTS = 64;
 
 /** A hold's stick figure (#382): named `[x, y]` joints in torso lengths (`Skeleton`). */
+/** The largest joint coordinate, in torso lengths (a figure spans a few). */
+export const MAX_SKELETON_COORD = 100;
+
+const SkeletonCoord = z.number().min(-MAX_SKELETON_COORD).max(MAX_SKELETON_COORD);
 const SkeletonSchema = z
-  .record(z.string().min(1), z.tuple([z.number(), z.number()]))
-  .refine((s) => Object.keys(s).length <= MAX_SKELETON_POINTS, { message: `a skeleton names at most ${MAX_SKELETON_POINTS} joints` });
+  .record(z.string().min(1), z.tuple([SkeletonCoord, SkeletonCoord]))
+  .refine((s) => Object.keys(s).length >= 1 && Object.keys(s).length <= MAX_SKELETON_POINTS, { message: `a skeleton names between 1 and ${MAX_SKELETON_POINTS} joints` });
 
 const SampleSchema = z.object({
   /** Stable id (#385 E3): what a category, a bin, a pin and a still refer to. A hold's id is

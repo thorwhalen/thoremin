@@ -9,7 +9,7 @@ import { bodyWords } from '@thoremin/sdk/features/modalities/body_words';
 import { modalityById } from '@thoremin/sdk/features/modalities';
 import { BODY_POSE_FEATURE_IDS, BODY_POSE_MIN_COVERAGE } from '@thoremin/sdk/features/body_groups';
 import { mirrorBodyVector } from '@thoremin/sdk/features/body_mirror';
-import { inView } from '@thoremin/sdk/enroll/modality';
+import { createReader, inView } from '@thoremin/sdk/enroll/modality';
 import { CATEGORIZER_VERSION, categorizerFromModel, exportCategorizer, importCategorizer, MAX_SKELETON_POINTS, PersonalCategorizerSchema } from '@thoremin/sdk/enroll/categorizer';
 import { syntheticBodyFrame, SYNTHETIC_BODY_TIMELINE as T } from '@thoremin/ext-faces/lib/synthetic_body';
 import { CategoryReadSchema } from '@thoremin/sdk/enroll/bind';
@@ -38,9 +38,46 @@ describe('the body modality', () => {
     const b = canonicalPose(mirrorBodyVector(leftOut));
     for (const k of BODY_POSE_FEATURE_IDS) if (Number.isFinite(a[k])) expect(b[k]).toBeCloseTo(a[k], 9);
     expect(canonicalPose(a)).toBe(a);
-    // Off by default: `project` without the option is the identity.
-    expect(bodyModality.project!(rightOut)).toBe(rightOut);
-    expect(mirrorAsymmetry(bodyModality.project!(rightOut, { mirror: true }))).toBeGreaterThan(0);
+    // Off by default: a reader without the option reads the vector as it is.
+    expect(createReader(bodyModality)(rightOut)).toBe(rightOut);
+  });
+
+  it('a mirrored stream holds its side through a pose whose two sides balance (no flicker on the line)', () => {
+    // The left arm out, with the right hand's height pushed until the two sides balance: on the line.
+    const K = 'body.pos.wrist.right.rise';
+    const balanced = { ...leftOut };
+    let lo = -20;
+    let hi = 20;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      balanced[K] = mid;
+      if (mirrorAsymmetry(balanced) > 0) lo = mid;
+      else hi = mid;
+    }
+    expect(Math.abs(mirrorAsymmetry(balanced))).toBeLessThan(1e-6);
+    // Frame noise either side of the line.
+    const frames = Array.from({ length: 200 }, (_, i) => ({ ...balanced, [K]: balanced[K] + 0.05 * Math.sin(i) }));
+    const signs = frames.map((v) => Math.sign(mirrorAsymmetry(v)));
+    expect(new Set(signs.filter((x) => x !== 0)).size).toBe(2); // the stateless rule would flip
+    const read = createReader(bodyModality, { mirror: true });
+    const out = frames.map(read);
+    const sides = out.map((v, i) => (v === frames[i] ? 'raw' : 'mirrored'));
+    expect(new Set(sides).size).toBe(1);
+    // It does change side once the pose clearly leans the other way, and back.
+    expect(mirrorAsymmetry(read(rightOut))).toBeGreaterThan(0);
+    expect(mirrorAsymmetry(read(leftOut))).toBeGreaterThan(0);
+  });
+
+  it('against a model, a mirrored reading takes the side nearer a category: a pose and its mirror image read the same', () => {
+    const features = BODY_POSE_FEATURE_IDS.filter((f) => Number.isFinite(rest[f]));
+    const weights = Object.fromEntries(features.map((f) => [f, 1]));
+    const cat = (id: string, v: Record<string, number>) => ({ id, label: id, members: [], centroid: v, radius: 1, cues: {} });
+    const model = { features, weights, categories: [cat('out', leftOut), cat('up', armsUp)] };
+    const read = createReader(bodyModality, { mirror: true }, model);
+    expect(read(rightOut)).toEqual(mirrorBodyVector(rightOut));
+    expect(read(leftOut)).toBe(leftOut);
+    // Without the mirror the model plays no part.
+    expect(createReader(bodyModality, {}, model)(rightOut)).toBe(rightOut);
   });
 
   it('draws the stick figure from the segment directions: the raised arm is drawn up, the one held out drawn out', () => {
@@ -112,6 +149,11 @@ describe('the categorizer file carries skeletons and the mirror (additive, no ve
     const big = Object.fromEntries(Array.from({ length: MAX_SKELETON_POINTS + 1 }, (_, i) => [`j${i}`, [0, 0]]));
     const bad = { ...c, samples: c.samples.map((s, i) => (i === 0 ? { ...s, skeleton: big } : s)) };
     expect(PersonalCategorizerSchema.safeParse(bad).success).toBe(false);
+    // Nor an empty one, nor one far off the figure (a crafted file must not draw a broken picture).
+    for (const skeleton of [{}, { wrist: [1e300, 0] }]) {
+      const odd = { ...c, samples: c.samples.map((s, i) => (i === 0 ? { ...s, skeleton } : s)) };
+      expect(PersonalCategorizerSchema.safeParse(odd).success).toBe(false);
+    }
   });
 
   it('a bound set may say it reads mirrored', () => {

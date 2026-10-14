@@ -13,16 +13,16 @@
  *   most of what the categories were taught on "cannot see you" instead of guessing.
  * - **Nuisances** are demonstrated after the rest (design §4.3): closer and further, a step to
  *   each side, a slight turn. What still moves meanwhile is down-weighted.
- * - **The mirror** (#387 B10: off by default, chosen per categorizer) is a canonical side: with
- *   it on, `project` turns every vector into the one of {itself, its mirror image} whose left side
- *   is the more raised and outward (`mirrorAsymmetry`), so "left arm up" and "right arm up" are
- *   the same vector everywhere after the read: the take, the carve, the live test, the bindings.
+ * - **The mirror** (#387 B10: off by default, chosen per categorizer): `mirrorImage` and
+ *   `mirrorSide` let the seam's `createReader` read every vector on one side, so "left arm up" and
+ *   "right arm up" are the same vector after the read: the take (a side held with hysteresis), the
+ *   live test and the bindings (the side nearer the model).
  * - **The picture** is a stick figure drawn from the segment directions ({@link poseSkeleton}),
  *   kept per sample in the file (#387 C7: a stick figure by default, camera stills opt-in).
  * - **No general model** yet: default names by context (#387 B9) are B3 (#383); until then a
  *   category is `pose n`.
  */
-import type { CarveModality, ModalityOptions, ModalityWords, NuisanceCueSpec, Skeleton } from '../../enroll/modality';
+import type { CarveModality, ModalityWords, NuisanceCueSpec, Skeleton } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
 import { BODY_FEATURES } from '../body_catalog';
 import { BODY_POSE_FEATURE_IDS, BODY_POSE_GROUPS, BODY_POSE_MIN_COVERAGE, bodyPoseCollects } from '../body_groups';
@@ -99,14 +99,11 @@ export function mirrorAsymmetry(vector: FeatureVector): number {
   return a;
 }
 
-/** The vector or its mirror image, whichever has the left side the more raised (idempotent: a
- *  canonical vector is its own canonical form). */
+/** The vector or its mirror image, whichever has the left side the more raised (idempotent). A
+ *  stateless rule, so a pose whose sides balance flips with noise: streams read through the seam's
+ *  `createReader` instead, which holds a side. */
 export function canonicalPose(vector: FeatureVector): FeatureVector {
   return mirrorAsymmetry(vector) < 0 ? mirrorBodyVector(vector) : vector;
-}
-
-function project(merged: FeatureVector, options?: ModalityOptions): FeatureVector {
-  return options?.mirror ? canonicalPose(merged) : merged;
 }
 
 /** The stick figure's proportions, in torso lengths (the synthetic body's, close to an adult's). */
@@ -195,13 +192,11 @@ export const bodyModality: CarveModality = {
   words: BODY_WORDS,
   groups: BODY_POSE_GROUPS,
   collects: () => bodyPoseCollects(),
-  project,
   /** The pose keys, or null when none is finite (no body in view). */
-  read(vector: FeatureVector, options?: ModalityOptions): FeatureVector | null {
-    const p = project(vector, options);
+  read(vector: FeatureVector): FeatureVector | null {
     let seen = false;
     const out: FeatureVector = {};
-    for (const [k, x] of Object.entries(p)) {
+    for (const [k, x] of Object.entries(vector)) {
       if (!keep(k)) continue;
       out[k] = x;
       if (Number.isFinite(x)) seen = true;
@@ -215,6 +210,8 @@ export const bodyModality: CarveModality = {
   minCoverage: BODY_POSE_MIN_COVERAGE,
   nuisanceCues: BODY_NUISANCE_CUES,
   skeleton: (vector) => poseSkeleton(vector),
+  mirrorImage: mirrorBodyVector,
+  mirrorSide: mirrorAsymmetry,
 };
 
 /** Options for {@link bodyFrameVector}: as the live `body-feature-vector` node reads a frame. */
