@@ -19,6 +19,8 @@ import { loadAirVocabularies, startFlutePriorSync } from './app/vocabularyStore'
 import { startAirFluteDemand } from './app/airFluteDemand';
 import { makeHitsTap, clearHits } from './app/hitsTap';
 import { startPatternPlaySync } from './app/patternPlaySync';
+import { guitarVocabularyImporter } from './app/guitarImport';
+import { provideVocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 
 /** A live shape tap as a status hook: the enrolment UI reads the latest shape; absent when the node leaves. */
 function shapeHook(nodeId: string, port: 'shape' | 'mouth' = 'shape'): StatusHook {
@@ -81,6 +83,9 @@ export const AIR_UI: ExtensionUi = {
     // #269: the air drum plays the trained pattern the dial names; resolved to the pattern and
     // its model here, off the tick.
     () => startPatternPlaySync(),
+    // #451: a carved hand-shape categorizer named as chords can become the air guitar's chords
+    // (a copy into its vocabulary, offered by the carve tool through sdk-ui's importer seam).
+    () => provideVocabularyImporter(guitarVocabularyImporter()),
   ],
 };
 

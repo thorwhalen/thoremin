@@ -6,6 +6,7 @@
   "description": "thoremin's air instruments (drum, bass, guitar, flute) as an extension: the first one, and the proof of the manifest. Imports only the SDK packages. TypeScript source, consumed through the workspace.",
   "exports": {
     ".": "./src/index.ts",
+    "./app/guitarImport": "./src/app/guitarImport.ts",
     "./app/FingeringGuide": "./src/app/FingeringGuide.tsx",
     "./app/PatternStrip": "./src/app/PatternStrip.tsx",
     "./app/PatternTrainer": "./src/app/PatternTrainer.tsx",

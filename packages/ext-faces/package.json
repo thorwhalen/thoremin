@@ -37,6 +37,7 @@
     "./nodes/pose_categorizer": "./src/nodes/pose_categorizer.ts",
     "./nodes/categorizer_chord": "./src/nodes/categorizer_chord.ts",
     "./lib/categorizerChord": "./src/lib/categorizerChord.ts",
+    "./lib/vocabularyEntries": "./src/lib/vocabularyEntries.ts",
     "./app/categorizerChords": "./src/app/categorizerChords.ts",
     "./panels/CategorizerSection": "./src/panels/CategorizerSection.tsx",
     "./panels/PoseCategorizerSection": "./src/panels/PoseCategorizerSection.tsx",
