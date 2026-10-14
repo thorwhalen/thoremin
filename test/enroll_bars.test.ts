@@ -84,7 +84,7 @@ describe('the live bars model', () => {
     const ctx: LiveBarsContext = { ids: ['a', 'b'], sigma: () => 0.5, rest: { a: 1, b: 0 }, restSpread: null, holds: [] };
     const bars = createLiveBars(() => ctx);
     bars.push({ a: 1, b: 0 }, 0);
-    const marks = [
+    const marks: { label: string; vector: FeatureVector }[] = [
       { label: 'open smile', vector: { a: 3, b: 1 } },
       { label: 'smile', vector: { a: 2 } },
     ];
