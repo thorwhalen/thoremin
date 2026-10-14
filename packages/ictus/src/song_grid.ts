@@ -35,6 +35,7 @@
  *
  * Pure: a `Float32Array` of mono samples in, a {@link SongGrid} out.
  */
+import { clamp01 } from '@thoremin/stats';
 import type { MusicalTime } from './types';
 
 /** The song's ruler (the paces `Grid`): a line, the beats it was fitted to, and how
@@ -294,7 +295,7 @@ export function trackSongGrid(x: Float32Array, opts: SongGridOptions): SongGrid 
     phaseS,
     beats,
     downbeats: [],
-    confidence: Math.max(0, Math.min(1, r[bestLag])),
+    confidence: clamp01(r[bestLag]),
     meter: 0,
     source: SONG_GRID_SOURCE,
   };

@@ -28,6 +28,8 @@
  * rule.
  */
 
+import type { AudioView } from './audio';
+
 export type OutputStageSource = 'measured' | 'pair' | 'prior' | 'strike';
 
 export interface OutputStage {
@@ -97,14 +99,7 @@ export function deriveOutputStage({ pairS, outputLatencyS, baseLatencyS, sampleR
 }
 
 /** The slice of an `AudioContext` the rule reads. */
-export interface OutputStageAudioLike {
-  readonly state?: string;
-  readonly currentTime: number;
-  readonly sampleRate?: number;
-  readonly baseLatency?: number;
-  readonly outputLatency?: number;
-  getOutputTimestamp?(): { contextTime?: number; performanceTime?: number };
-}
+export type OutputStageAudioLike = AudioView<'currentTime' | 'baseLatency' | 'outputLatency' | 'getOutputTimestamp', 'state' | 'sampleRate'>;
 
 /**
  * One reading of the pair as schedule-to-speaker, seconds: a context time written now

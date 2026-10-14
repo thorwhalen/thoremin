@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
+import { clamp01 } from '@thoremin/stats';
 import { LM, frameTime, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 
@@ -104,7 +105,6 @@ export function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['han
 }
 
 const dist = (a: Keypoint, b: Keypoint) => Math.hypot(a.x - b.x, a.y - b.y);
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * Where the fretting hand is along the neck, 0 (the lowest note, `far`) to 1 (the

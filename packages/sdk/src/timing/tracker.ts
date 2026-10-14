@@ -49,8 +49,8 @@
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import { ewUpdate, quantile, quantileSorted } from '@thoremin/stats';
-import { frameTime, type FrameTiming } from '../nodes/domain';
-import { GlitchCounter, type GlitchReading } from './glitches';
+import { frameTime, isClockDerived, type FrameTiming } from '../nodes/domain';
+import { GlitchCounter, type GlitchCounterOptions, type GlitchReading } from './glitches';
 import { deriveOutputStage, knownOutputLatency, pairScheduleToSpeaker, OUTPUT_STAGE_PRIOR_S, type OutputStage, type OutputStageAudioLike } from './output_stage';
 
 /** The granted camera settings the host reports (`track.getSettings()`, ids removed). */
@@ -115,8 +115,14 @@ export interface TimingReading {
   /** The page's timer, from the host: `crossOriginIsolated` (null when unknown) and the
    *  measured resolution of `performance.now()`, seconds (NaN when not measured). */
   runtime: RuntimeChecks;
-  /** `frameAge.p95 + outputStage.value`, seconds (the output stage's prior when unknown;
-   *  the age alone before a stamped frame counts as 0). */
+  /**
+   * The lead a prediction would need to sound on time, seconds: `frameAge.p95 +
+   * outputStage.value` (a stroke seen in a p95-old frame, scheduled through the output
+   * stage). The output stage is never unknown (its prior stands in); before a stamped
+   * frame the age term is 0, so it is the output stage alone. A REPORT, not an input:
+   * no node reads it (each instrument times its own onsets from `outputStage` and its
+   * frame's stamp); the latency probe's panel prints it (`src/app/latencyProbe.ts`).
+   */
   leadBudget: number;
 }
 
@@ -260,7 +266,10 @@ export interface TimingTrackerOptions {
   runtime?: RuntimeChecks;
   /** The capture lag assumed for a `clock` stamp before one is measured. */
   captureLagPriorS?: number;
+  /** Frames in the recent window the ages, sources and rate are read over. */
   windowFrames?: number;
+  /** The output's glitch counter's thresholds (`glitches.ts`); its defaults otherwise. */
+  glitches?: GlitchCounterOptions;
 }
 
 interface FrameRecord {
@@ -272,8 +281,6 @@ interface FrameRecord {
   /** Camera frames presented since the previous processed frame and never processed. */
   skipped: number;
 }
-
-const CLOCK_DERIVED = new Set(['clock', 'estimated']);
 
 /** The running estimates; see the module header. */
 export class TimingTracker implements Tap {
@@ -298,7 +305,7 @@ export class TimingTracker implements Tap {
   private camera: CameraSettings | null = null;
   private strikeS = NaN;
   private cached: TimingReading | null = null;
-  private readonly glitches = new GlitchCounter();
+  private readonly glitches: GlitchCounter;
   private readonly runtime: RuntimeChecks;
   private readonly captureLagPriorS: number;
   private captureLagEw = NaN;
@@ -317,6 +324,7 @@ export class TimingTracker implements Tap {
     this.windowFrames = options.windowFrames ?? TIMING_WINDOW_FRAMES;
     this.runtime = options.runtime ?? { crossOriginIsolated: null, timerResolution: NaN };
     this.captureLagPriorS = options.captureLagPriorS ?? CAPTURE_LAG_PRIOR_S;
+    this.glitches = new GlitchCounter(options.glitches);
   }
 
   onValue(key: string, value: unknown, ctx: NodeContext): void {
@@ -448,7 +456,7 @@ export class TimingTracker implements Tap {
     const span = captured.length >= MIN_FRAMES_FOR_RATE ? captured[captured.length - 1].t - captured[0].t : 0;
     const skippedAfterFirst = (rs: readonly FrameRecord[]) => rs.slice(1).reduce((a, r) => a + r.skipped, 0);
     const deliveredFps = span > 0 ? (captured.length - 1 + skippedAfterFirst(captured)) / span : NaN;
-    const derived = this.recent.filter((r) => CLOCK_DERIVED.has(r.source));
+    const derived = this.recent.filter((r) => isClockDerived(r.source));
     const cameraPeriod = this.camera?.frameRate && this.camera.frameRate > 0 ? 1 / this.camera.frameRate : NaN;
     let noise = NaN;
     if (derived.length >= MIN_FRAMES_FOR_NOISE) {
@@ -487,7 +495,9 @@ export class TimingTracker implements Tap {
 /** The resource key the host installs the reader under. */
 export const TIMING_RESOURCE_KEY = 'timing';
 
-/** The slice of the reading a node reads through `ctx.resources`. */
+/** The slice of the reading a node reads through `ctx.resources`. `leadBudget` rides
+ *  along for a node that wants the one-number summary; today none does (see
+ *  {@link TimingReading.leadBudget}). */
 export type TimingView = Pick<TimingReading, 'outputStage' | 'audioEpoch' | 'leadBudget' | 'captureLag' | 'stampNoise' | 'dominantSource'>;
 
 /** What a node gets when no host installed the resource: the stated prior, flagged. */

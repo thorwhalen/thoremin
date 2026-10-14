@@ -48,6 +48,7 @@ import { createScheduler, type MusicalTime, type ScheduleCommand, type Scheduler
 import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import { pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '../music/score';
 import { allocateChannels, DEFAULT_PROGRAM, SECTIONS, type Section } from './orchestra_map';
@@ -161,7 +162,6 @@ const FALLBACK_TICK_S = 1 / 60;
 const MIN_TICK_S = 1 / 240;
 const MAX_TICK_S = 0.1;
 
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const to7bit = (v: number) => Math.round(clamp01(v) * 127);
 
 /** The note-length factor for an articulation (0 legato .. 1 staccato). */

@@ -18,6 +18,7 @@
  * and answers are found in the probe tone's own frequency band, where a slap has
  * little energy. Then each answer is paired with the latest strike before it.
  */
+import { median } from '@thoremin/stats';
 
 export interface OnsetOptions {
   /** Hop for the envelopes, ms. */
@@ -40,11 +41,10 @@ export const ONSET_DEFAULTS: Required<OnsetOptions> = {
   refractoryMs: 60,
 };
 
-/** Median of a copy (the noise floor of a mostly-silent recording). */
-function median(xs: readonly number[]): number {
-  if (xs.length === 0) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+/** The noise floor of a mostly-silent recording: the upper median (a real sample), 0
+ *  for an empty one. */
+function noiseFloor(xs: readonly number[]): number {
+  return xs.length === 0 ? 0 : median(xs, { even: 'upper' });
 }
 
 /**
@@ -79,7 +79,7 @@ export function strikeOnsets(pcm: Float32Array, sampleRate: number, options: Ons
     for (let j = i; j < Math.min(pcm.length, i + hop); j++) p = Math.max(p, Math.abs(pcm[j]));
     peaks.push(p);
   }
-  const threshold = Math.max(o.minAmplitude, o.noiseFactor * median(peaks));
+  const threshold = Math.max(o.minAmplitude, o.noiseFactor * noiseFloor(peaks));
   const refractory = (o.refractoryMs / 1000) * sampleRate;
   const out: number[] = [];
   let armed = true;
@@ -155,7 +155,7 @@ export function toneOnsets(pcm: Float32Array, sampleRate: number, options: ToneO
     amps.push(a);
     purity.push(ms > 0 ? (a * a) / 2 / ms : 0);
   }
-  const threshold = Math.max(o.minAmplitude, o.noiseFactor * median(amps));
+  const threshold = Math.max(o.minAmplitude, o.noiseFactor * noiseFloor(amps));
   const refractoryHops = Math.round(o.refractoryMs / o.hopMs);
   const out: number[] = [];
   let k = 0;

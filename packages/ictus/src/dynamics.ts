@@ -20,6 +20,7 @@
  * and articulation selection. A NaN sharpness (an unmeasurable stroke) leaves the
  * articulation estimate untouched rather than poisoning it.
  */
+import { clamp01 } from '@thoremin/stats';
 import type { Anchor } from './types';
 
 export interface DynamicsOptions {
@@ -52,13 +53,13 @@ export function createDynamicsEstimator(options: DynamicsOptions = {}): Dynamics
 
   return {
     update(a) {
-      const s = Math.max(0, Math.min(1, a.strength));
+      const s = clamp01(a.strength);
       dynamics += o.dynamicsGain * (s - dynamics);
       if (Number.isFinite(a.sharpness) && a.sharpness > 0) {
         if (!Number.isFinite(sharpnessRef)) sharpnessRef = a.sharpness;
         else sharpnessRef += o.sharpnessGain * (a.sharpness - sharpnessRef);
         const ratio = Math.log2(a.sharpness / sharpnessRef);
-        articulation = Math.max(0, Math.min(1, 0.5 + ratio / (2 * o.sharpnessSpan)));
+        articulation = clamp01(0.5 + ratio / (2 * o.sharpnessSpan));
       }
       return { dynamics, articulation };
     },

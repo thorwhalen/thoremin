@@ -209,4 +209,23 @@ describe('the timing tracker carries the count', () => {
     tick(2);
     expect(tracker.reading().audio.glitches.total).toBe(2);
   });
+
+  it('passes its glitches options to the counter it owns (#392): a shorter recent window forgets sooner', () => {
+    const run = (glitches?: { recentWindowS: number }) => {
+      const stats = { underrunEvents: 0, underrunDuration: 0 };
+      let now = 0;
+      const ac = { state: 'running', currentTime: 0, sampleRate: 48000, playbackStats: stats };
+      const tracker = new TimingTracker({ audio: () => ac, now: () => now, glitches });
+      const tick = (n: number) => tracker.onValue('other', null, { tick: n, time: now / 1000 } as unknown as NodeContext);
+      tick(0);
+      stats.underrunEvents = 2;
+      now = 16;
+      tick(1);
+      now = 5000;
+      tick(2);
+      return tracker.reading().audio.glitches;
+    };
+    expect(run()).toMatchObject({ total: 2, recent: 2 });
+    expect(run({ recentWindowS: 1 })).toMatchObject({ total: 2, recent: 0 });
+  });
 });

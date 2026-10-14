@@ -71,7 +71,7 @@
  * the caller's: every gate is relative to the player's own recent strokes and to the
  * online jitter estimate, as in `detector.ts`. Pure, causal, no clock.
  */
-import { clamp01, median, median3, olsLine, quantile } from '@thoremin/stats';
+import { clamp01, ewUpdate, median, median3, olsLine, quantile } from '@thoremin/stats';
 import type { Sample } from './types';
 
 export type ImpactMode = 'surface' | 'air' | 'auto';
@@ -559,7 +559,7 @@ export function createImpactPredictor(options: ImpactPredictorOptions = {}): Imp
   };
   const learnLevel = (observed: number) => {
     if (levelKnown || !Number.isFinite(observed)) return;
-    level = Number.isFinite(level) ? level + o.levelGain * (observed - level) : observed;
+    level = ewUpdate(level, observed, o.levelGain);
     unlearned = 0;
   };
 

@@ -63,6 +63,16 @@ export interface FrameTiming {
 
 export const FRAME_TIME_SOURCES = ['capture', 'presentation', 'estimated', 'clock'] as const;
 
+/** The stamp sources read off a clock rather than the camera's time (`clock`, and
+ *  `estimated` = the clock minus a lag): the stamps that jitter with the page's delivery.
+ *  One set for every reader (the timing tracker's share, the de-jitter). */
+export const CLOCK_DERIVED_SOURCES = ['clock', 'estimated'] as const satisfies readonly (typeof FRAME_TIME_SOURCES)[number][];
+
+/** Whether a stamp source is one of {@link CLOCK_DERIVED_SOURCES}. */
+export function isClockDerived(source: string | null | undefined): boolean {
+  return (CLOCK_DERIVED_SOURCES as readonly string[]).includes(source as string);
+}
+
 /**
  * The sample time a consumer should use for a frame: the frame's own stamp when the
  * engine runs in real time at speed 1 (the one case where the stamp and `ctx.time`

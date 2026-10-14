@@ -17,10 +17,10 @@
  * event is given so it is never behind the render quantum.
  */
 
+import type { AudioView } from './audio';
+
 /** The slice of an `AudioContext` the map reads. */
-export interface ClockMapAudioLike {
-  readonly currentTime: number;
-}
+export type ClockMapAudioLike = AudioView<'currentTime'>;
 
 /** A sound is never scheduled closer than this to the context's clock, seconds. */
 export const MIN_SCHEDULE_AHEAD_S = 0.001;

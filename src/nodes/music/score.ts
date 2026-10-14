@@ -38,6 +38,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
+import { clamp01 } from '@thoremin/sdk/features/math';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
 import type { ScoreNote } from '@thoremin/sdk/score/schema';
@@ -165,7 +166,7 @@ export const scoreNode = defineNode<Params>({
               id: SCORE_VOICE_ID_BASE + i,
               present: true,
               freq: midiToFreq(n.midi),
-              gain: Math.max(0, Math.min(1, n.velocity * vScale)) * p.baseGain,
+              gain: clamp01(n.velocity * vScale) * p.baseGain,
               sound: p.sound,
             });
           }

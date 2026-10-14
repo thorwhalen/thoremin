@@ -29,6 +29,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
+import { clamp01 } from '@thoremin/stats';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
 import { guitarVoicing, parseChordName } from '../lib/guitar';
@@ -103,7 +104,6 @@ export const IDLE_AIR_GUITAR_STATUS: AirGuitarStatus = {
 const LATE_VELOCITY = 0.6;
 /** Two samples closer than this are not two camera frames (the air drum's rule). */
 const MIN_SAMPLE_SPACING = 0.004;
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * The notes of one strum of `chordName` at time `t`: the chord's guitar voicing, low

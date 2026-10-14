@@ -42,19 +42,13 @@
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FrameTiming, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import type { AudioView } from '@thoremin/sdk/timing/audio';
 import { pairScheduleToSpeaker } from '@thoremin/sdk/timing/output_stage';
 import type { TimingReading } from '@thoremin/sdk/timing/tracker';
 import { RingSamples, type Summary } from './stats';
 
 /** The slice of an `AudioContext` the probe reads. */
-export interface AudioLike {
-  readonly state: string;
-  readonly currentTime: number;
-  readonly sampleRate: number;
-  readonly baseLatency?: number;
-  readonly outputLatency?: number;
-  getOutputTimestamp?(): { contextTime?: number; performanceTime?: number };
-}
+export type AudioLike = AudioView<'state' | 'currentTime' | 'sampleRate' | 'baseLatency' | 'outputLatency' | 'getOutputTimestamp'>;
 
 export type StageName =
   | 'framePeriod'
