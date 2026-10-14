@@ -5,8 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
-import { mirrorOn } from '@thoremin/sdk/enroll/sorting';
-import { modelFromCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { mirrorOff, mirrorOffable, mirrorOn } from '@thoremin/sdk/enroll/sorting';
+import { exportCategorizer, importCategorizer, modelFromCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { classify } from '@thoremin/sdk/enroll/classify';
 import { POSES, poseVector } from '../helpers/body_poses';
 import { namesByPose, resetPoseClock, take } from '../helpers/pose_take';
@@ -52,12 +52,60 @@ describe('the mirror after the take (#459)', () => {
     const read = classify(model, bodyModality.mirrorSide!(live) < 0 ? bodyModality.mirrorImage!(live) : live);
     expect(after.categories.find((c) => c.id === read.categoryId)?.label).toBe(merged.label);
 
-    // Turning it off is refused (no hold kept its side); Undo puts the exact document back.
+    // Every hold kept its side (#529): off again splits them at the suggested k; Undo twice puts
+    // the exact document back.
+    for (const s of after.samples) expect(typeof s.mirrored).toBe('boolean');
     store.getState().setMirror(false);
-    expect(store.getState().working).toBe(after);
+    expect(store.getState().working!.mirror).not.toBe(true);
+    expect(store.getState().working!.categories).toHaveLength(3);
+    store.getState().undo();
+    expect(store.getState().working).toEqual(after);
     store.getState().undo();
     expect(store.getState().working).toEqual(before);
     expect(store.getState().mirror).toBe(false);
+  });
+
+  it('#529: a take recorded with the mirror on keeps each hold\'s side; off splits left and right arm out at the suggested k; Undo restores the exact document', async () => {
+    const store = await take(NAMES, { mirror: true, k: 2 });
+    const before = store.getState().working!;
+    expect(before.mirror).toBe(true);
+    expect(before.categories).toHaveLength(2);
+    // Every hold kept its side; the right arm's were read as their mirror image, the left's not.
+    for (const s of before.samples) expect(typeof s.mirrored).toBe('boolean');
+    expect(before.samples.some((s) => s.mirrored === true)).toBe(true);
+    expect(before.samples.some((s) => s.mirrored === false)).toBe(true);
+    // ...and the file keeps it.
+    const back = importCategorizer(exportCategorizer(before));
+    expect(back.ok && back.categorizer.samples).toEqual(before.samples);
+
+    store.getState().setMirror(false);
+    const off = store.getState().working!;
+    expect(off.mirror).not.toBe(true);
+    expect(store.getState().mirror).toBe(false);
+    expect(off.categories).toHaveLength(3);
+    expect(namesByPose(store, NAMES).map((x) => x.pose).sort()).toEqual([...NAMES].sort());
+    // Each flagged hold is back on its own side, the flags gone.
+    for (const s of off.samples) {
+      expect(s.mirrored).toBeUndefined();
+      const was = before.samples.find((x) => x.id === s.id)!;
+      expect(s.vector).toEqual(was.mirrored ? bodyModality.mirrorImage!(was.vector) : was.vector);
+    }
+    store.getState().undo();
+    expect(store.getState().working).toEqual(before);
+    expect(store.getState().mirror).toBe(true);
+  });
+
+  it('#529: off is refused when a hold did not keep its side, and for a categorizer without the mirror', async () => {
+    const store = await take(NAMES, { mirror: true, k: 2 });
+    const c = store.getState().working!;
+    const { mirrored: _m, ...unsided } = c.samples[0];
+    void _m;
+    const old = { ...c, samples: [unsided, ...c.samples.slice(1)] };
+    expect(mirrorOffable(old)).toBe(false);
+    expect(mirrorOff(old, tools)).toEqual({ ok: false, error: 'some holds did not keep the side they were read on, so they cannot be put back' });
+    const { mirror: _x, ...plain } = c;
+    void _x;
+    expect(mirrorOff(plain, tools)).toEqual({ ok: false, error: 'left and right are already apart' });
   });
 
   it('a named category that survives keeps its name and id; turning the mirror on twice is refused', async () => {

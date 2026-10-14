@@ -122,7 +122,27 @@ describe.runIf(FACES)('"Your poses" is reachable from the shell', () => {
     expect(bodySessionStore().getState().working!.categories).toHaveLength(2);
     const after = document.querySelector<HTMLInputElement>('[data-poses-mirror-after]')!;
     expect(after.checked).toBe(true);
-    expect(after.disabled).toBe(true);
+    // #529: every hold kept its side, so the same click turns it off again, the sides apart.
+    expect(after.disabled).toBe(false);
+    fireEvent.click(after);
+    await waitFor(() => expect(bodySessionStore().getState().working!.mirror).not.toBe(true));
+    expect(bodySessionStore().getState().working!.categories).toHaveLength(3);
+    expect(document.querySelector<HTMLInputElement>('[data-poses-mirror-after]')!.checked).toBe(false);
+    setSavedCategoriesStore(null);
+  });
+
+  it('a mirrored pose categorizer whose holds did not keep their side cannot turn the mirror off (#529)', async () => {
+    setSavedCategoriesStore(null);
+    const file = scriptedPoseCategorizer(['rest', 'left arm out', 'right arm out']);
+    await createCategorizerStore(bodyModality).save('Old', { categorizer: { ...file, mirror: true } });
+    render(<Shell />);
+    act(() => useTools.getState().toggleTool('poses'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Old' }));
+    await waitFor(() => expect(bodySessionStore().getState().phase).toBe('saved'));
+    const mirror = document.querySelector<HTMLInputElement>('[data-poses-mirror-after]')!;
+    expect(mirror.checked).toBe(true);
+    expect(mirror.disabled).toBe(true);
+    expect(document.querySelector('[data-poses-mirror]')!.textContent).toContain('did not keep the side');
     setSavedCategoriesStore(null);
   });
 });

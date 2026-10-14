@@ -62,6 +62,8 @@ import {
   placeLabelled,
   type LabelledHolds,
   consistentPins,
+  mirrorOff,
+  mirrorOffable,
   mirrorOn,
   recut,
   recutBounds,
@@ -460,6 +462,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   const dropped = new Set<number>();
   /** Names given to holds in the strip (#404), by index ('' takes a burst's name off). */
   const holdNames = new Map<number, string>();
+  /** The side each hold of a mirrored take was read on (#529), by index; the last frame's side. */
+  const holdSides = new Map<number, boolean>();
+  let lastMirrored: boolean | null = null;
   /** The take's indices of the holds the bars carve (the ones not deleted), by position. */
   let keptIdx: readonly number[] = [];
   /** The strip as last shown (a key), and the stick figures drawn for it, by hold id. */
@@ -637,6 +642,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (!take || !source) return;
         const read = source.read();
         const live = read ? { ...read, vector: readLive(read.vector) } : null;
+        if (live) lastMirrored = readLive.mirrored();
         if (live) {
           take.push(live.vector, live.t);
           bars?.push(modality.read(live.vector), live.t);
@@ -677,6 +683,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     const clearStrip = () => {
       dropped.clear();
       holdNames.clear();
+      holdSides.clear();
+      lastMirrored = null;
       keptIdx = [];
       stripKey = '';
       stripFigures.clear();
@@ -788,6 +796,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const tid = takeId;
       for (; stilled < n; stilled++) {
         const id = holdId(tid, stilled);
+        // The side it was read on (#529), from the frame showing as it was taken.
+        if (lastMirrored !== null) holdSides.set(stilled, lastMirrored);
         if (!frames) continue;
         const gen = generation;
         // A burst's hold has its still already (taken mid-burst); any other is taken now.
@@ -842,7 +852,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       t
         .session()
         .points()
-        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null }));
+        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null, mirrored: holdSides.get(i) }));
 
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
     /** The take's holds by name: a burst's, or one given in the strip. */
@@ -1307,25 +1317,34 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const { phase, working } = get();
         if (working && (phase === 'carved' || phase === 'saved')) {
           // After the take (#459): ON is one undoable edit (every hold on one side, re-cut at the
-          // suggested k); OFF cannot be undone that way, since no hold kept its side.
-          if (!on || working.mirror || !modality.mirrorImage || !modality.mirrorSide) return;
+          // suggested k); OFF too (#529), where every hold kept the side it was read on.
+          if (on === (working.mirror === true) || !modality.mirrorImage || !modality.mirrorSide) return;
+          if (!on && !mirrorOffable(working)) {
+            set({ notice: `Not changed: some ${modality.words.many} did not keep the side they were read on (recorded before this was kept, or added from Trying), so left and right cannot be told apart again.` });
+            return;
+          }
           if (!get().view?.recutable) {
             set({ notice: `Not changed: ${working.samples.length} ${modality.words.many} are too many to sort again here; merge categories or delete some first.` });
             return;
           }
           const image = modality.mirrorImage;
           const side = modality.mirrorSide;
-          // A name carries when it is the player's, and never a SIDED default name ("right arm up":
-          // the general model's without the mirror and not with it), which a reopened categorizer
-          // cannot tell from a typed one: the mirror's words name that category afresh.
+          // A name carries when it is the player's, and never a default name of the side it leaves
+          // ("right arm up", the general model's without the mirror and not with it; or the
+          // reverse when the mirror goes off), which a reopened categorizer cannot tell from a
+          // typed one: the new side's words name that category afresh.
           const labelsOf = (c: PersonalCategorizer) => new Set((modality.general?.(generalContextOf(c))?.labels ?? []).map((l) => l.toLowerCase()));
-          const unsided = labelsOf({ ...working, mirror: true });
           const { mirror: _mirror, ...unmirrored } = working;
           void _mirror;
-          const sided = [...labelsOf(unmirrored)].filter((l) => !unsided.has(l));
+          const mirroredLabels = labelsOf({ ...working, mirror: true });
+          const plainLabels = labelsOf(unmirrored);
+          const [leaving, arriving] = on ? [plainLabels, mirroredLabels] : [mirroredLabels, plainLabels];
+          const stale = [...leaving].filter((l) => !arriving.has(l));
           const carry = (cat: PersonalCategorizer['categories'][number]) =>
-            ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '' && !sided.includes(cat.label.trim().toLowerCase());
-          edit((w) => mirrorOn(w, { image, side, skeleton: modality.skeleton ? (v) => modality.skeleton!(v) : undefined }, { ...recutOptions(), carry, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }));
+            ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '' && !stale.includes(cat.label.trim().toLowerCase());
+          const tools = { image, side, skeleton: modality.skeleton ? (v: FeatureVector) => modality.skeleton!(v) : undefined };
+          const turn = on ? mirrorOn : mirrorOff;
+          edit((w) => turn(w, tools, { ...recutOptions(), carry, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }));
           return;
         }
         if (phase !== 'idle' && phase !== 'empty') return;

@@ -584,14 +584,15 @@ function supportVectors(s: CategorizerSample, features: readonly string[]): Feat
   });
 }
 
-/** A hold over the mirrored feature list `features`, read on the other side when `flip`: its
- *  vector, its supporting frames (rows over `features`) and its stick figure. */
-function remappedSample(c: PersonalCategorizer, s: CategorizerSample, tools: MirrorTools, features: readonly string[], flip: boolean): CategorizerSample {
+/** A hold over the feature list `features`, read on the other side when `flip`: its vector, its
+ *  supporting frames (rows over `features`) and its stick figure; `mirrored` its side flag (#529:
+ *  left out when undefined). */
+function remappedSample(c: PersonalCategorizer, s: CategorizerSample, tools: MirrorTools, features: readonly string[], flip: boolean, mirrored: boolean | undefined): CategorizerSample {
   const rows = supportVectors(s, c.features);
-  if (!flip) return toSample({ id: s.id, vector: s.vector, t: s.t, cue: s.cue, support: rows, skeleton: s.skeleton ?? null }, features);
+  if (!flip) return toSample({ id: s.id, vector: s.vector, t: s.t, cue: s.cue, support: rows, skeleton: s.skeleton ?? null, mirrored }, features);
   const vector = tools.image(s.vector);
   const skeleton = s.skeleton ? tools.skeleton?.(vector) ?? null : null;
-  return toSample({ id: s.id, vector, t: s.t, cue: s.cue, support: rows?.map((r) => tools.image(r)), skeleton }, features);
+  return toSample({ id: s.id, vector, t: s.t, cue: s.cue, support: rows?.map((r) => tools.image(r)), skeleton, mirrored }, features);
 }
 
 /**
@@ -604,11 +605,10 @@ function remappedSample(c: PersonalCategorizer, s: CategorizerSample, tools: Mir
  * comes along only where it is unambiguous: a new category takes the name of the one named
  * category (`carry`) most of whose holds it now holds and that is most of it; a merged pair's
  * category is left unnamed, for the host to name (its general model then speaks of one side).
- * Turning it back off is not offered: which side each hold was on is not kept.
+ * Each hold keeps the side it was read on (`mirrored`, #529), so {@link mirrorOff} can undo it.
  */
 export function mirrorOn(c: PersonalCategorizer, tools: MirrorTools, options: MirrorOnOptions = {}): SortResult {
   if (c.mirror) return fail('left and right are already the same pose');
-  const { carry = (x) => x.label.trim() !== '', maxCategories = Infinity, ...recutOptions } = options;
   // The feature list gains each feature's twin: a feature picked on one
   // side (the moving arm's) would otherwise see only the still arm once its holds are mirrored,
   // and the categories would collapse onto each other (#459 review). Rows are kept over it.
@@ -621,13 +621,54 @@ export function mirrorOn(c: PersonalCategorizer, tools: MirrorTools, options: Mi
     // Its own noise weight when the take measured one, else its partner's.
     if (!Object.hasOwn(c.weights, t) && Object.hasOwn(c.weights, f)) weights[t] = c.weights[f];
   }
-  const samples = c.samples.map((s) => remappedSample(c, s, tools, features, tools.side(s.vector) < 0));
+  const samples = c.samples.map((s) => {
+    const flip = tools.side(s.vector) < 0;
+    return remappedSample(c, s, tools, features, flip, flip);
+  });
+  return remirrored(c, { features, weights, samples, mirror: true }, options);
+}
+
+/** Whether every hold of `c` kept the side it was read on (#529), so the mirror can go off. */
+export function mirrorOffable(c: PersonalCategorizer): boolean {
+  return c.mirror === true && c.samples.every((s) => typeof s.mirrored === 'boolean');
+}
+
+/**
+ * Turn the mirror off again (#529): each hold read as its mirror image (`mirrored`) is put back on
+ * its own side (vector, supporting frames, stick figure), the side flags go, and the categorizer is
+ * re-cut at the suggested k with the names carried as {@link mirrorOn} carries them, so "left arm
+ * out" and "right arm out" fall apart again. The feature list keeps the twins the mirror added (a
+ * feature of either side reads both). Refused when a hold did not keep its side (a file from
+ * before #529, a face added from the live test): which side it was on is not known.
+ */
+export function mirrorOff(c: PersonalCategorizer, tools: MirrorTools, options: MirrorOnOptions = {}): SortResult {
+  if (!c.mirror) return fail('left and right are already apart');
+  if (!mirrorOffable(c)) return fail('some holds did not keep the side they were read on, so they cannot be put back');
+  const samples = c.samples.map((s) => remappedSample(c, s, tools, c.features, s.mirrored === true, undefined));
+  return remirrored(c, { features: c.features, weights: c.weights, samples, mirror: false }, options);
+}
+
+/** `c` with its holds remapped (`next`), re-cut at the suggested k, the names carried (#459, #529). */
+function remirrored(
+  c: PersonalCategorizer,
+  next: Pick<PersonalCategorizer, 'features' | 'weights' | 'samples'> & { mirror: boolean },
+  options: MirrorOnOptions,
+): SortResult {
+  const { carry = (x) => x.label.trim() !== '', maxCategories = Infinity, ...recutOptions } = options;
   const binPins = Object.fromEntries(Object.entries(c.pins ?? {}).filter(([, to]) => isBin(to)));
-  const { pins: _p, ...rest } = c;
+  const { pins: _p, mirror: _m, ...rest } = c;
   void _p;
+  void _m;
   let base: PersonalCategorizer;
   try {
-    base = PersonalCategorizerSchema.parse({ ...rest, features, weights, samples, mirror: true, ...(Object.keys(binPins).length > 0 ? { pins: binPins } : {}) });
+    base = PersonalCategorizerSchema.parse({
+      ...rest,
+      features: next.features,
+      weights: next.weights,
+      samples: next.samples,
+      ...(next.mirror ? { mirror: true } : {}),
+      ...(Object.keys(binPins).length > 0 ? { pins: binPins } : {}),
+    });
   } catch (e) {
     return fail(e instanceof Error ? e.message.split('\n')[0] : String(e));
   }

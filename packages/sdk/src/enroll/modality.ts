@@ -224,30 +224,40 @@ export function createReader(
   options: ModalityOptions = {},
   reference?: MirrorReference,
   { band = MIRROR_DEFAULTS.band }: { band?: number } = {},
-): (merged: FeatureVector) => FeatureVector {
+): Reader {
   const plain = (v: FeatureVector) => projectVector(modality, v, options);
   const image = modality.mirrorImage;
-  if (!options.mirror || !image) return plain;
+  // Whether the last vector read was its mirror image (#529: the side a hold keeps); null when
+  // the reader does not mirror.
+  let last: boolean | null = null;
+  const reader = (read: (merged: FeatureVector) => FeatureVector): Reader => Object.assign(read, { mirrored: () => last });
+  if (!options.mirror || !image) return reader(plain);
   if (reference) {
     const targets = [...reference.categories, ...(reference.neutral ?? [])].map((c) => c.centroid);
     const nearest = (v: FeatureVector) => Math.min(...targets.map((c) => modelDistance(reference, v, c)));
-    return (merged) => {
+    return reader((merged) => {
       const v = plain(merged);
       const m = image(v);
-      return nearest(m) < nearest(v) ? m : v;
-    };
+      last = nearest(m) < nearest(v);
+      return last ? m : v;
+    });
   }
   const side = modality.mirrorSide ?? (() => 0);
   let mirrored: boolean | null = null;
-  return (merged) => {
+  return reader((merged) => {
     const v = plain(merged);
     const a = side(v);
     if (mirrored === null) mirrored = a < 0;
     else if (mirrored && a > band) mirrored = false;
     else if (!mirrored && a < -band) mirrored = true;
+    last = mirrored;
     return mirrored ? image(v) : v;
-  };
+  });
 }
+
+/** A reader of live vectors ({@link createReader}): a function, and whether the last vector it read
+ *  was its mirror image (null when it does not mirror). */
+export type Reader = ((merged: FeatureVector) => FeatureVector) & { mirrored(): boolean | null };
 
 /** Whether `vector` shows the part well enough to read it with `features` (a categorizer's): its
  *  `minCoverage` of them finite, or any one of them when it states none. */
