@@ -45,6 +45,7 @@ import { createSession, type Session } from '@thoremin/sdk/enroll/session';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { keepOnly, sessionSpace, type CarveModality, type NuisanceCueSpec } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { median } from '@thoremin/stats';
 
 /** The rest: the baseline and the noise warm-up. */
 export function restCue(modality: CarveModality): Cue {
@@ -162,6 +163,15 @@ export interface FaceTake {
   /** End the setup step under way (a nuisance, never the rest, which sets the units), on to the
    *  next or to the capture. */
   skipSetup(tMs: number): void;
+  /** The rest's progress toward its end (#403), 0..1: the lesser of its time over `restMs` and
+   *  its frames in view over `minRestFrames` (both must be met), at the last frame pushed; null
+   *  outside the rest (setup step 0). */
+  restProgress(): number | null;
+  /** How far the last frame of the rest is from the rest so far (#403: "stay relaxed"): its
+   *  largest feature off the rest frames' median, in noise units, any sign; null outside the rest
+   *  (setup step 0), with no frame in view, or before any feature has a unit. The median, not a
+   *  running mean, so a brief movement does not move the rest it is measured from. */
+  restMotion(): number | null;
   /** Capture segments begun so far (0 before the faces). */
   segments(): number;
   /** The hold indicator's state now: the capture's sampler while collecting, a watching
@@ -218,6 +228,8 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   let facesAt: number | null = null;
   let segment = 0;
   const rest: FeatureVector[] = [];
+  /** When the last rest frame (one in view) was pushed. */
+  let restAt = Number.NEGATIVE_INFINITY;
   /** Exploring or paused: what WOULD be held, judged as the capture judges it (the vocabulary
    *  cue's features, the session's shared noise), never collected. */
   let watch: StillPointSampler | null = null;
@@ -278,6 +290,26 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   return {
     phase: () => phase,
     setupStep: () => (phase === 'rest' ? step : 0),
+    restProgress() {
+      if (phase !== 'rest' || step !== 0) return null;
+      const time = Number.isFinite(lastT) ? Math.max(0, lastT - t0) / restMs : 0;
+      return Math.min(1, time, rest.length / minRestFrames);
+    },
+    restMotion() {
+      if (phase !== 'rest' || step !== 0 || rest.length === 0) return null;
+      const last = rest[rest.length - 1];
+      if (lastT !== restAt) return null; // the last frame had no face in it
+      const noise = session.noise();
+      let most: number | null = null;
+      for (const [id, x] of Object.entries(keepOnly(modality, last))) {
+        if (!Number.isFinite(x) || !noise.isWarm(id)) continue;
+        const sigma = noise.sigma(id);
+        if (!(sigma > 0)) continue;
+        const m = median(rest.map((v) => v[id]).filter(Number.isFinite));
+        most = Math.max(most ?? 0, Math.abs(x - m) / sigma);
+      }
+      return most;
+    },
     skipSetup(tMs) {
       if (phase === 'rest' && step > 0) nextStep(tMs);
     },
@@ -350,7 +382,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if (points.length > before) justTaken = true;
       if (phase === 'rest') {
         if (step === 0) {
-          if (modality.read(vector) !== null) rest.push(vector);
+          if (modality.read(vector) !== null) {
+            rest.push(vector);
+            restAt = tMs;
+          }
           if (tMs - t0 >= restMs && rest.length >= minRestFrames) nextStep(tMs);
         } else if (tMs - stepAt >= nuisances[step - 1].ms) nextStep(tMs);
       }

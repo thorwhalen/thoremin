@@ -73,7 +73,8 @@ describe.runIf(FACES)('"Your hand shapes" is reachable from the shell', () => {
     expect(appFeatureDemand.owners()).toContain('hand-shapes');
     expect(appFeatureDemand.owners()).not.toContain('faces');
     for (const g of HAND_CLAIM_GROUPS) expect(appFeatureDemand.groups()).toContain(g);
-    expect(screen.getByText(/Try your hand shapes/)).toBeTruthy();
+    // The Explore screen renders after the store flips (a flake on CI under load, read it once it is there).
+    expect(await screen.findByText(/Try your hand shapes/)).toBeTruthy();
     act(() => useTools.getState().close());
     expect(handSessionStore().getState().phase).toBe('idle');
     expect(appFeatureDemand.owners()).not.toContain('hand-shapes');

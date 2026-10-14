@@ -9,6 +9,7 @@
     "./enroll/FeatureBars": "./src/enroll/FeatureBars.tsx",
     "./enroll/barPins": "./src/enroll/barPins.ts",
     "./enroll/HoldRing": "./src/enroll/HoldRing.tsx",
+    "./enroll/ProgressRing": "./src/enroll/ProgressRing.tsx",
     "./enroll/binder": "./src/enroll/binder.ts",
     "./enroll/capture": "./src/enroll/capture.ts",
     "./enroll/categorizers": "./src/enroll/categorizers.ts",
