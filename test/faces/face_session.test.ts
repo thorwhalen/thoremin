@@ -116,6 +116,26 @@ describe('carving the synthetic take', () => {
     expect(view.model.rejectRadius).toBeLessThan(NO_REJECT_RADIUS);
   });
 
+  it('every hold inside the rest cloud: the mostly-resting category goes to Neutral, pinned, and the rest is carved (#429)', () => {
+    const wide = points.map((pt) => pt.vector);
+    const samples = points.map((pt, i) => ({ ...pt, id: `take:${i}` }));
+    const base = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers: 'neutral' });
+    const cloud = new Set(neutralIndices(wide, wide, session.features(), session.weights())!.map((i) => samples[i].id));
+    expect(cloud.size).toBe(samples.length);
+    const r = carveTake(base, { cloud, rest: wide, maxCategories: 8 }, { neutralLabel: faceModality.words.neutral });
+    expect(r.allNearRest).toBe(true);
+    if (!r.result.ok) throw new Error(r.result.error);
+    const c = r.result.categorizer;
+    expect(r.movedToNeutral).toBeGreaterThan(0);
+    expect(c.categories.length).toBeGreaterThanOrEqual(1);
+    expect(c.neutral).toHaveLength(r.movedToNeutral);
+    for (const id of c.neutral) expect(c.pins?.[id]).toBe('neutral');
+    // Without a neutral label to move to, the old behaviour: all carved, nothing moved.
+    const old = carveTake(base, { cloud, rest: wide, maxCategories: 8 });
+    expect(old.movedToNeutral).toBe(0);
+    if (old.result.ok) expect(old.result.categorizer.neutral).toHaveLength(0);
+  });
+
   it('re-cutting k keeps the names the player gave (pins, #385 E4), never gives a name twice, and cannot go below the named categories', () => {
     // The document path the tool edits: the take as one working categorizer, carved with the
     // rest cloud in Neutral, named; a name pins its category's medoid, so a re-cut keeps it.

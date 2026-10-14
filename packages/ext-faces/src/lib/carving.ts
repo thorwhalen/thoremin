@@ -26,7 +26,7 @@
 import { applyLabels, matchLabels, type LabelMatch } from '@thoremin/sdk/enroll/match';
 import { createCarver, neutralIndices, type Carver } from '@thoremin/sdk/enroll/carve';
 import { categorizerMode, modelFromCategorizer, type CategorizerMode, type CategorizerStrangers, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
-import { recut, recutRange, type SortResult } from '@thoremin/sdk/enroll/sorting';
+import { placeLabelled, recut, recutRange, type SortResult } from '@thoremin/sdk/enroll/sorting';
 import { weightedDistance } from '@thoremin/sdk/enroll/cluster';
 import { carveQuality, qualityHint, type CarveQuality, type QualityHint } from '@thoremin/sdk/enroll/quality';
 import { exemplarsByCategory, selectExemplars, type Exemplar } from '@thoremin/sdk/enroll/exemplars';
@@ -200,6 +200,31 @@ export interface NameCarveInput {
   restCloud?: ReadonlySet<string>;
 }
 
+/** The share of a category's holds that are in the rest cloud, at least this, makes it the resting one. */
+const REST_CATEGORY_MIN_SHARE = 0.5;
+
+/**
+ * The category that is mostly rest-cloud holds (the highest share, at least
+ * {@link REST_CATEGORY_MIN_SHARE}), or null. A tie goes to the nearest to the rest by `distance`
+ * (lower is nearer), else to the first. `eligible` narrows the candidates (nameCarve looks only at
+ * unnamed ones).
+ */
+export function restCategory(
+  c: PersonalCategorizer,
+  cloud: ReadonlySet<string>,
+  { eligible = () => true, distance }: { eligible?: (cat: PersonalCategorizer['categories'][number]) => boolean; distance?: (cat: PersonalCategorizer['categories'][number]) => number } = {},
+): { id: string; share: number } | null {
+  let best: { id: string; share: number; d: number } | null = null;
+  for (const cat of c.categories) {
+    if (!eligible(cat) || cat.members.length === 0) continue;
+    const share = cat.members.filter((m) => cloud.has(m)).length / cat.members.length;
+    if (share < REST_CATEGORY_MIN_SHARE) continue;
+    const d = distance ? distance(cat) : 0;
+    if (!best || share > best.share || (share === best.share && d < best.d)) best = { id: cat.id, share, d };
+  }
+  return best && { id: best.id, share: best.share };
+}
+
 /**
  * Name the UNNAMED categories of a working categorizer (#385 E4: a re-cut, a split or a new
  * category leaves its new categories with an empty label): the neutral rule, then the modality's
@@ -216,12 +241,7 @@ export function nameCarve(c: PersonalCategorizer, input: NameCarveInput = {}): {
   const at = new Map(c.samples.map((s, i) => [s.id, i]));
   const labels = new Map(c.categories.map((cat) => [cat.id, cat.label]));
   if (c.strangers === 'nearest' && input.restCloud && input.restCloud.size > 0 && !c.categories.some((cat) => isNeutralLabel(modality, cat.label))) {
-    let best: { id: string; share: number } | null = null;
-    for (const cat of c.categories) {
-      if (cat.label.trim()) continue;
-      const share = cat.members.filter((m) => input.restCloud!.has(m)).length / cat.members.length;
-      if (share >= 0.5 && (!best || share > best.share)) best = { id: cat.id, share };
-    }
+    const best = restCategory(c, input.restCloud, { eligible: (cat) => !cat.label.trim() });
     if (best) {
       labels.set(best.id, modality.words.neutral);
       sources.set(best.id, { source: 'neutral', matched: null });
@@ -358,12 +378,31 @@ export interface CarveTakeInput {
  * there is nothing else to carve: then every hold is carved (`allNearRest`), for the player to
  * move their resting faces to Neutral, rather than an empty grid.
  */
-export function carveTake(base: PersonalCategorizer, input: CarveTakeInput): { result: SortResult; allNearRest: boolean } {
+export function carveTake(
+  base: PersonalCategorizer,
+  input: CarveTakeInput,
+  options: { neutralLabel?: string } = {},
+): { result: SortResult; allNearRest: boolean; movedToNeutral: number } {
   const carve = (neutral: ReadonlySet<string>): SortResult => {
     const options = { rest: input.rest, baseRejectRadius: input.baseRejectRadius, neutral };
     return recut(base, Math.min(recutRange(base, options).suggestedK, input.maxCategories), options);
   };
   const seeded = carve(input.cloud ?? new Set<string>());
-  if (seeded.ok || !input.cloud || input.cloud.size === 0) return { result: seeded, allNearRest: false };
-  return { result: carve(new Set<string>()), allNearRest: true };
+  if (seeded.ok || !input.cloud || input.cloud.size === 0) return { result: seeded, allNearRest: false, movedToNeutral: 0 };
+  const all = carve(new Set<string>());
+  if (!all.ok) return { result: all, allNearRest: true, movedToNeutral: 0 };
+  // The category that is mostly resting faces goes to Neutral, pinned there (#429), when another
+  // category is left to carve; otherwise the player is asked to do it.
+  const restMean = input.rest.length > 0 ? fullMean(input.rest, input.rest.map((_, i) => i)) : null;
+  const vectors = all.ok ? all.categorizer.samples.map((x) => x.vector) : [];
+  const at = new Map(all.categorizer.samples.map((x, i) => [x.id, i]));
+  const { features, weights } = all.categorizer;
+  // Every hold is in the cloud, so the shares tie: the category nearest the rest is the resting one.
+  const distance = (cat: PersonalCategorizer['categories'][number]): number =>
+    restMean ? weightedDistance(fullMean(vectors, cat.members.map((m) => at.get(m)!)), restMean, features, weights) : 0;
+  const resting = options.neutralLabel ? restCategory(all.categorizer, input.cloud, { distance }) : null;
+  const members = resting ? (all.categorizer.categories.find((cat) => cat.id === resting.id)?.members ?? []) : [];
+  const moved = resting ? placeLabelled(all.categorizer, [{ label: options.neutralLabel!, ids: members }], { neutralLabel: options.neutralLabel }) : null;
+  if (moved?.ok) return { result: moved, allNearRest: true, movedToNeutral: members.length };
+  return { result: all, allNearRest: true, movedToNeutral: 0 };
 }
