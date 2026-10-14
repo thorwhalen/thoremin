@@ -352,8 +352,9 @@ export interface FaceSessionState {
 export const FACE_SESSION_DEFAULTS = {
   /** How often the paused ghost card (#404) carves the forming hold again, ms. */
   ghostMs: 250,
-  /** The most holds the ghost re-carves with (the carve is cubic); past it there is no ghost. */
-  ghostUpTo: 150,
+  /** The most holds the ghost re-carves with, four times a second (about 17 ms at 300 over 52
+   *  features since #420); past it there is no ghost. */
+  ghostUpTo: 300,
   /** The name a fresh face carve is exported under when it has none yet (another modality's:
    *  "My <many>"). */
   exportName: 'My faces',
@@ -361,11 +362,12 @@ export const FACE_SESSION_DEFAULTS = {
   exemplars: 4,
   /** How many edits undo keeps. */
   undoDepth: 100,
-  /** The most holds a suggested k is computed over on every edit (the forest is cubic: about
-   *  0.15 s at 250 holds over 52 features). */
-  suggestUpTo: 250,
-  /** The most holds a re-cut carves at once on the main thread (about 1.5 s at 600). */
-  recutUpTo: 600,
+  /** The most holds a suggested k is computed over on every edit (the forest, quadratic since
+   *  #420: about 0.13 s at 800 holds over 52 features, 0.75 s at 2000). */
+  suggestUpTo: 800,
+  /** The most holds a re-cut carves at once on the main thread: the file's bound (about 0.8 s
+   *  at 2000 since #420). Only a record saved before the bound existed can be larger. */
+  recutUpTo: MAX_CATEGORIZER_SAMPLES,
   /** The most categories a carve makes: one per chord slot an instrument has. */
   maxCategories: MAX_CATEGORY_SLOTS,
   /** A burst's frame count is shown in steps of this many. */

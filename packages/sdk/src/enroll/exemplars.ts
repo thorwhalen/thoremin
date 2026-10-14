@@ -22,7 +22,7 @@
  *
  * Pure, over indices: the host maps an index to a still-point's time and grabs the frame.
  */
-import { weightedDistance } from './cluster';
+import { pointDistance, weightedDistance } from './cluster';
 import type { Category, FeatureVector, TrainedModel } from './types';
 
 export interface ExemplarOptions {
@@ -62,12 +62,24 @@ export function selectExemplars(
   const dist = (a: FeatureVector, b: FeatureVector) => weightedDistance(a, b, model.features, model.weights);
   const fromCentre = new Map(members.map((j) => [j, dist(vectors[j], category.centroid)]));
 
-  // Medoid: smallest total distance to the other members; ties to the lower index.
+  // Medoid: smallest total distance to the other members; ties to the lower index. Each pair
+  // is measured once (the distance is symmetric bit for bit) and summed in member order (#420).
+  const L = members.length;
+  const between = pointDistance(members.map((j) => vectors[j]), model.features, model.weights);
+  const pair = new Float64Array(L * L);
+  for (let a = 0; a < L; a++) {
+    for (let b = a + 1; b < L; b++) {
+      const d = between(a, b);
+      pair[a * L + b] = d;
+      pair[b * L + a] = d;
+    }
+  }
   let medoid = members[0];
   let best = Infinity;
-  for (const j of members) {
+  for (let a = 0; a < L; a++) {
+    const j = members[a];
     let total = 0;
-    for (const k of members) if (k !== j) total += dist(vectors[j], vectors[k]);
+    for (let b = 0; b < L; b++) if (members[b] !== j) total += pair[a * L + b];
     if (total < best - 1e-12) {
       best = total;
       medoid = j;
