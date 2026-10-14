@@ -242,6 +242,10 @@ export interface OrchestraPlayer {
    *  restarts the scheduler, resends the programs. `rawDoc` is the `doc` port's value,
    *  compared by identity. */
   ensurePlan(rawDoc: unknown, at: TickClock, parts?: readonly string[]): void;
+  /** True when the current plan has notes the orchestra can sound. A selection of only
+   *  percussion parts plans none (the cut bank has no drum kit, #334); the node then does
+   *  not claim the piece, so the `score` node keeps sounding it (#556). */
+  readonly audible: boolean;
   /** Stop what is sounding. */
   silence(at: TickClock): void;
   /** Send scheduler commands (engine times) on the context clock, keeping per-key order. */
@@ -304,6 +308,9 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
 
   return {
     synth,
+    get audible() {
+      return !!plan && plan.events.length > 0;
+    },
     deliver,
     silence,
     ensurePlan(rawDoc, at, parts = p.parts) {
@@ -434,7 +441,7 @@ export const orchestraNode = defineNode<Params>({
         player.ensurePlan(inputs.doc, at, partsOfConfig(inputs.config, p.parts));
 
         const conducting = inputs.conducting === true;
-        const playing = conducting && inputs.claimed !== true;
+        const playing = conducting && inputs.claimed !== true && player.audible;
         // Stopping releases everything; the levels below still go out, so the first
         // note after Start is already at the right level.
         if (!playing && wasPlaying) player.silence(at);
