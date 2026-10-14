@@ -130,8 +130,13 @@ describe('Your poses: the scripted body through the session store', () => {
     expect(names.map((n) => [...n][0]).sort()).toEqual(['arms up', 'crouch', 'left arm out', 'right arm out']);
     expect(c.neutral.length).toBeGreaterThan(0);
     for (const id of c.neutral) expect(pose.get(id)).toBe('rest');
-    // No general model yet (B3): the fallback names.
-    expect(c.categories.map((x) => x.label).sort()).toEqual(['pose 1', 'pose 2', 'pose 3', 'pose 4']);
+    // The default names (#383): the standing vocabulary names arms up and the crouch; an arm out
+    // to one side is not in it, so those two are `pose n`.
+    const labelOf = (p: string) => c.categories.find((cat) => pose.get(cat.members[0]) === p)!.label;
+    expect(labelOf('arms up')).toBe('arms up');
+    expect(labelOf('crouch')).toBe('crouch');
+    expect(labelOf('left arm out')).toMatch(/^pose \d+$/);
+    expect(labelOf('right arm out')).toMatch(/^pose \d+$/);
     // Only pose features, no positions.
     for (const x of c.samples) for (const k of Object.keys(x.vector)) expect(bodyModality.keep(k)).toBe(true);
     // A stick figure per hold, no camera still (opt-in), and the grid shows the figures.

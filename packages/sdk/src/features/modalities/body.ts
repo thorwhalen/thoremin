@@ -19,8 +19,9 @@
  *   live test and the bindings (the side nearer the model).
  * - **The picture** is a stick figure drawn from the segment directions ({@link poseSkeleton}),
  *   kept per sample in the file (#387 C7: a stick figure by default, camera stills opt-in).
- * - **No general model** yet: default names by context (#387 B9) are B3 (#383); until then a
- *   category is `pose n`.
+ * - **Default names** by context (#383, #387 B9): a hand-written prototype categorizer
+ *   (`./body_names.ts`) with a standing, a seated (chosen by coverage) and a conductor
+ *   vocabulary, matched one-to-one; a category none of them reaches is `pose n`.
  */
 import type { CarveModality, ModalityWords, NuisanceCueSpec, Skeleton } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
@@ -30,6 +31,7 @@ import { BODY_MIRROR, mirrorBodyVector } from '../body_mirror';
 import { buildBodyCtx } from '../catalog';
 import type { BodyFrame } from '../../nodes/domain';
 import { bodyWords } from './body_words';
+import { generalBodyLabeling } from './body_names';
 
 const POSE = new Set(BODY_POSE_FEATURE_IDS);
 const keep = (key: string): boolean => POSE.has(key);
@@ -204,6 +206,7 @@ export const bodyModality: CarveModality = {
     return seen ? out : null;
   },
   keep,
+  general: (context) => generalBodyLabeling(context),
   // Torso-normalised and torso-framed already: no distance proxy to learn.
   nuisance: {},
   describe: bodyWords,
