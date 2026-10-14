@@ -1054,6 +1054,16 @@ export function pickCategories(
   return { categories: learned, categoryCaptions: null };
 }
 
+/**
+ * The chord the cues name and highlight (#491): the chord selector's (the face, pose and sign
+ * chords) while it holds one, else the chord a categorizer plays (`categorizerChord`), else none.
+ */
+export function pickChord(selected: unknown, categorizer: unknown): number[] | undefined {
+  if (Array.isArray(selected) && selected.length > 0) return selected as number[];
+  if (Array.isArray(categorizer) && categorizer.length > 0) return categorizer as number[];
+  return Array.isArray(selected) ? (selected as number[]) : undefined;
+}
+
 /** A classifier's named class, written large (the ASL reader's letter or word). */
 const categoryLabelCue: OverlayElement = {
   name: 'categoryLabel',
@@ -2131,6 +2141,10 @@ export const canvasOverlayNode = defineNode<Params>({
     // The categorizer that plays chords (#450: a hand-shape or pose categorizer), drawn while
     // neither above is reading. Its own port, for the same reason.
     { name: 'chordCategories', kind: 'category-scores' },
+    // The chord that categorizer plays (#491), named and highlighted by `chordName` /
+    // `chordGuide` while the chord selector (`chord`: the face, pose and sign chords) is empty.
+    // Its own port: the selector's three inputs are taken, and a branch without a face has none.
+    { name: 'categorizerChord', kind: 'number[]' },
     // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
     // the current instrument. Absent → every element (headless tests, pre-composition).
     { name: 'elements', kind: 'string[]' },
@@ -2213,7 +2227,7 @@ export const canvasOverlayNode = defineNode<Params>({
             scaleLeft: inputs.scaleLeft as number[] | undefined,
             chordScale: inputs.chordScale as number[] | undefined,
             octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
-            chord: inputs.chord as number[] | undefined,
+            chord: pickChord(inputs.chord, inputs.categorizerChord),
             faceFrame: inputs.faceFrame as FaceFrame | undefined,
             bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
             bodyStatus: inputs.bodyStatus as BodyStatus | undefined,

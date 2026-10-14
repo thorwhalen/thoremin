@@ -16,7 +16,7 @@ import { importCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { Engine, replayNode, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
-import { pickCategories } from '@/nodes/output/canvas_overlay';
+import { pickCategories, pickChord } from '@/nodes/output/canvas_overlay';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { diatonicTriad, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -75,7 +75,9 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     expect(into(composed.spec, 'catChord', 'model')).toEqual(['ui.categorizerChordsModel']);
     expect(into(composed.spec, 'catChord', 'spec')).toEqual(['ui.chordSpec']);
     expect(into(composed.spec, 'overlay', 'chordCategories')).toEqual(['catChord.category']);
-    expect(composed.elements).toEqual(expect.arrayContaining(['categoryLabel', 'categoryBars']));
+    // The chord it plays is named and highlighted (#491), on its own port beside the selector's.
+    expect(into(composed.spec, 'overlay', 'categorizerChord')).toEqual(['catChord.triad']);
+    expect(composed.elements).toEqual(expect.arrayContaining(['categoryLabel', 'categoryBars', 'chordName', 'chordGuide']));
     // Its voices reach the merge (the structural guard: a chord nobody hears is not shipped).
     expect(composed.spec.edges.some((e) => e.from.node === 'catChord' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
   });
@@ -89,6 +91,8 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     expect(into(composed.spec, 'catChord', 'vector')).toEqual(['bodyVec.vector']);
     expect(into(composed.spec, 'overlay', 'chordCategories')).toEqual(['catChord.category']);
     expect(into(composed.spec, 'overlay', 'learnedCategories')).toEqual(['poseCat.category']);
+    expect(into(composed.spec, 'overlay', 'categorizerChord')).toEqual(['catChord.triad']);
+    expect(composed.elements).toEqual(expect.arrayContaining(['chordName', 'chordGuide']));
   });
 
   it('the composed graph compiles and ticks against the real registry, its ports validated', () => {
@@ -199,6 +203,14 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     expect(new Set(chordOf.values()).size).toBe(chordOf.size);
     // The overlay draws it (nothing else reading).
     expect(pickCategories(undefined, undefined, undefined, at[1].category).categories).toBe(at[1].category);
+    // ...and names its chord (#491): the categorizer's while the selector holds none, the
+    // selector's (a face, pose or sign chord) first; the relaxed hand names nothing.
+    const played = at.find((x) => x.triad.length > 0)!;
+    expect(pickChord([], played.triad)).toEqual(played.triad);
+    expect(pickChord(undefined, played.triad)).toEqual(played.triad);
+    expect(pickChord([62, 65, 69], played.triad)).toEqual([62, 65, 69]);
+    const rest = at.find((x) => x.shape === 'rest')!;
+    expect(pickChord([], rest.triad)).toEqual([]);
   });
 
   it('the player\'s own degree for a category plays instead of Auto; silence silences it', async () => {
