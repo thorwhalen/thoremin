@@ -352,6 +352,7 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
         now: at.nowEngine,
         beat: time.beat,
         bpm: time.tempo > 0 && Number.isFinite(time.tempo) ? time.tempo : 0,
+        ...(time.wrap ? { wrap: time.wrap } : {}),
         horizon: at.stage + p.lookaheadTicks * tick,
         durationScale: durationScaleFor(articulation, p.staccatoDepth),
       });

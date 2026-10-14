@@ -182,6 +182,10 @@ export interface DanceLeadState {
 export interface DanceLead {
   step(input: DanceLeadInput): DanceLeadState;
   state(): DanceLeadState;
+  /** Where the piece will loop (#508): the beat `at` it jumps from and the `to` it lands
+   *  on, or null when it will not (no loop point, the piece not started or ended, a fermata
+   *  holding, the dancer not followed). The condition is the wrap's own, as of the last step. */
+  wrap(): { at: number; to: number } | null;
   /** The relation actually followed (persisted, or resumed), or null: never a candidate
    *  still persisting (the state's `ratio` is that candidate while `locking`). */
   followed(): number | null;
@@ -228,6 +232,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
   /** When the dancer was last followed: the loop needs them followed within a cycle. */
   let followedAt = -Infinity;
   let loops = 0;
+  let wrapNow: { at: number; to: number } | null = null;
   let last: DanceLeadState = { t: 0, mode: 'waiting', started: false, beat: 0, tempo: 0, ratio: NaN, rate: NaN, phaseError: NaN, cycles: 0, loops: 0 };
 
   /** The relation a previous lead followed (see `reset`), until the first relation. */
@@ -256,6 +261,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
     step({ t, pulse, marked, ref = 0, top = 0, range, phaseOffset, fermatas, end }) {
       const dt = Number.isFinite(lastT) ? Math.max(0, t - lastT) : 0;
       lastT = t;
+      wrapNow = null;
       // The beat at `t`, at the tempo set last step: stopped on every written fermata on the
       // way for one dancer cycle (rule 6), wrapped at the piece's end (rule 7), otherwise
       // never backwards.
@@ -309,6 +315,10 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
             beat = loopAt;
             ended = true;
           }
+        }
+        // The next wrap, for a scheduler to commit the top's first notes ahead (#508).
+        if (!holdingFermata && !ended && tempo > 0 && loopAt > beat && t - followedAt <= (Number.isFinite(pulseCycle) ? pulseCycle : (cycleBeats * 60) / tempo)) {
+          wrapNow = { at: loopAt, to: top };
         }
       }
       const r = range !== undefined && range >= 0 && range < 1 ? range : o.range;
@@ -409,6 +419,7 @@ export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
       return last;
     },
     state: () => last,
+    wrap: () => wrapNow,
     reset,
     followed: () => level.ratio(),
   };

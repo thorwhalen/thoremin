@@ -280,7 +280,7 @@
   "endBeat": 13.221
  },
  "dancer/score": {
-  "hash": "fe6bdc1af2553ba611deedcab613c194775b2d9cd00ea1242d00957f12127380",
+  "hash": "77d99f822ffcc2f12160ee8c6f0e586e059bce2d0dddf3b4ac56dd49b880cdc9",
   "ticks": 600,
   "running": 319,
   "holds": 0,
@@ -301,7 +301,7 @@
   "endBeat": 22.014
  },
  "dancer/switch-away-and-back": {
-  "hash": "329d12edbf2453926f492fa01120a47d2898fbec21a5d4d21782c28f7e1f586e",
+  "hash": "622b2fb28f892e0833a548d84637d3ba95c0750fba95667adf40b1ec3c3ce3ed",
   "ticks": 600,
   "running": 144,
   "holds": 0,

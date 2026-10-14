@@ -179,3 +179,67 @@ describe('createScheduler', () => {
     expect(s.tick({ now: 0, beat: 0, bpm: 60, horizon: 0.1 }).filter((c) => c.type === 'noteOn').map((c) => c.key)).toEqual([60]);
   });
 });
+
+describe('a looped piece whose follower announces the wrap (#508)', () => {
+  /** A 4-beat piece looped by the follower (the beat jumps 4 -> 0), at 120 bpm. */
+  const EVENTS = [ev(60, 0, 0.5), ev(62, 1, 0.5), ev(64, 2, 0.5), ev(65, 3, 0.5)];
+  const LENGTH = 4;
+  const BPM = 120;
+  function loop({ announce, dt, t0 = 0, passes = 3 }: { announce: boolean; dt: number; t0?: number; passes?: number }) {
+    const s = createScheduler(EVENTS);
+    const out: ScheduleCommand[] = [];
+    for (let now = t0; now <= (passes * LENGTH * 60) / BPM; now += dt) {
+      const virtual = ((now - t0) * BPM) / 60;
+      const beat = virtual % LENGTH;
+      out.push(...s.tick({ now, beat, bpm: BPM, horizon: 0.1, ...(announce ? { wrap: { at: LENGTH, to: 0 } } : {}) }));
+    }
+    return out;
+  }
+  const ons = (out: ScheduleCommand[]) => out.filter((c) => c.type === 'noteOn');
+
+  it('sounds every note of every pass at its predicted time, within a millisecond, whatever the tick phase', () => {
+    for (const t0 of [0, 0.004, 0.011, 0.02, 0.029]) {
+      const out = loop({ announce: true, dt: 1 / 30, t0 });
+      const on = ons(out);
+      // Three passes of four notes; the first note of a pass is the wrap itself.
+      expect(on.length).toBeGreaterThanOrEqual(11);
+      for (const c of on) {
+        const k = EVENTS.findIndex((e) => e.key === c.key);
+        const pass = Math.round((c.time - t0 - EVENTS[k].start * 0.5) / ((LENGTH * 60) / BPM));
+        expect(Math.abs(c.time - (t0 + EVENTS[k].start * 0.5 + pass * 2)), `key ${c.key} t0 ${t0}`).toBeLessThan(1e-3);
+      }
+      expectAlternating(out);
+    }
+  });
+
+  it('carries a sounding note across the wrap and does not restart anything', () => {
+    // A note spanning the wrap point: written 3.5 .. 4.25 is clipped by nothing here, so
+    // use one ending at 4.25 -> after the wrap it ends 0.25 beats into the next pass.
+    const s = createScheduler([ev(60, 0, 0.5), ev(67, 3.5, 0.75)]);
+    const out: ScheduleCommand[] = [];
+    for (let now = 0; now <= 4.2; now += 1 / 30) {
+      out.push(...s.tick({ now, beat: ((now * BPM) / 60) % LENGTH, bpm: BPM, horizon: 0.1, wrap: { at: LENGTH, to: 0 } }));
+    }
+    const g = out.filter((c) => c.key === 67);
+    expect(g.map((c) => c.type)).toEqual(['noteOn', 'noteOff', 'noteOn', 'noteOff']);
+    expect(g[0].time).toBeCloseTo(1.75, 6);
+    expect(g[1].time).toBeCloseTo(2.125, 3); // 4.25 beats at 120 bpm
+    expect(g[2].time).toBeCloseTo(3.75, 6);
+  });
+
+  it('without the announcement the first note of a pass is met as a rewind, up to a frame late (the control)', () => {
+    const late = ons(loop({ announce: false, dt: 1 / 30, t0: 0.011 })).map((c) => {
+      const k = EVENTS.findIndex((e) => e.key === c.key);
+      return c.time - (0.011 + EVENTS[k].start * 0.5 + Math.round((c.time - 0.011 - EVENTS[k].start * 0.5) / 2) * 2);
+    });
+    expect(Math.max(...late)).toBeGreaterThan(0.005);
+  });
+
+  it('a jump the follower did not announce is still a rewind: everything released', () => {
+    const s = createScheduler(EVENTS);
+    s.tick({ now: 0, beat: 0, bpm: BPM, horizon: 0.1, wrap: { at: LENGTH, to: 0 } });
+    s.tick({ now: 1, beat: 1.9, bpm: BPM, horizon: 0.1, wrap: { at: LENGTH, to: 0 } });
+    const out = s.tick({ now: 1.033, beat: 0.1, bpm: BPM, horizon: 0.1, wrap: { at: LENGTH, to: 0 } });
+    expect(out.some((c) => c.type === 'noteOff')).toBe(true);
+  });
+});

@@ -974,6 +974,8 @@ export const conductorNode = defineNode<Params>({
         state: d.mode === 'fermata' || d.mode === 'ended' ? 'hold' : d.started ? 'running' : 'ready',
         anchors: d.cycles,
         ...(pulse.lastAnchorAt !== undefined ? { lastAnchorAt: pulse.lastAnchorAt } : {}),
+        // The piece's next loop, so a scheduler commits the top's first notes ahead (#508).
+        ...(d.started && dance.wrap() ? { wrap: dance.wrap()! } : {}),
       };
       return { ...emit({ time, bpm, dynamics: expression.dynamics, articulation: expression.articulation, enabled: true, c, level: Number.isFinite(d.ratio) ? d.ratio : 1, sounding: d.started }), dance: d.mode };
     };
