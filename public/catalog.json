@@ -3078,6 +3078,12 @@
         "default": 0
       },
       {
+        "name": "holdSlow",
+        "kind": "number",
+        "description": "How far toward `minRate` the song slows during a conductor's hold fade-out (#573), a fraction (0 = the rate holds, as before); needs `holdFade` > 0. The rate eases back over the same length on the release",
+        "default": 0
+      },
+      {
         "name": "claimed",
         "kind": "boolean",
         "description": "A tool holds the instrument quiet (the Trainer)",
@@ -3287,6 +3293,10 @@
       },
       {
         "name": "songHoldFade",
+        "kind": "number"
+      },
+      {
+        "name": "songHoldSlow",
         "kind": "number"
       },
       {

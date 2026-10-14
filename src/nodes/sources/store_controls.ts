@@ -109,7 +109,7 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   graphElements?: string[] | null;
   /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
    *  `volume` / `rate`. */
-  songPrefs?: { volume: number; rate: number; followRange?: number; holdFadeS?: number };
+  songPrefs?: { volume: number; rate: number; followRange?: number; holdFadeS?: number; holdSlow?: number };
   /** The body conductor's lead offsets (#427, a per-device pref) → `conductor`'s
    *  `leadOffsets`. */
   conductorPrefs?: { leadOffsets: Record<string, number> };
@@ -234,6 +234,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'songVolume', kind: 'number' },
     { name: 'songRate', kind: 'number' },
     { name: 'songHoldFade', kind: 'number' },
+    { name: 'songHoldSlow', kind: 'number' },
     // How far the pace controller may pull the song (#186 PR H; `follow` itself composes
     // the `song-pace` branch, so it needs no port).
     { name: 'songFollowRange', kind: 'number' },
@@ -324,6 +325,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
         out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
         out.songHoldFade = c.songPrefs?.holdFadeS ?? DEFAULT_SONG.holdFadeS;
+        out.songHoldSlow = c.songPrefs?.holdSlow ?? DEFAULT_SONG.holdSlow;
         out.songFollowRange = c.songPrefs?.followRange ?? DEFAULT_SONG.followRange;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {

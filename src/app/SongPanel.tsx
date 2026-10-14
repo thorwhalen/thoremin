@@ -118,7 +118,7 @@ export default function SongPanel() {
   if (!open) return null;
 
   const tool = toolById(SONG_TOOL_ID);
-  const { volume, rate, follow, followRange, holdFadeS } = prefs;
+  const { volume, rate, follow, followRange, holdFadeS, holdSlow } = prefs;
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -248,6 +248,23 @@ export default function SongPanel() {
                 onChange={(e) => setPrefs({ holdFadeS: Number(e.target.value) })}
               />
             </label>
+            {holdFadeS > 0 && (
+              <label className="flex items-center justify-between gap-2 text-xs text-white/80" data-testid="song-hold-slow">
+                <span>
+                  Slow down while it fades{' '}
+                  <span className="font-mono text-white/50">{holdSlow === 0 ? 'off' : `${Math.round(holdSlow * 100)} %`}</span>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={holdSlow}
+                  aria-label="Slow down while it fades"
+                  onChange={(e) => setPrefs({ holdSlow: Number(e.target.value) })}
+                />
+              </label>
+            )}
             <button onClick={unloadSong} className="text-[10px] uppercase tracking-widest text-white/40 hover:text-white/70">
               Unload the song
             </button>

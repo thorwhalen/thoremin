@@ -179,8 +179,10 @@ describe('the song player under a leader (the review\'s cases)', () => {
     let pos = 0;
     let playing = false;
     const log: string[] = [];
-    const s: Stretcher & { log: string[] } = {
+    const rates: number[] = [];
+    const s: Stretcher & { log: string[]; rates: number[] } = {
       log,
+      rates,
       load: async () => {},
       play: () => {
         log.push('play');
@@ -241,8 +243,10 @@ describe('a conductor\'s hold fades the song instead of cutting it (#366)', () =
     let playing = false;
     let pos = 0;
     const log: string[] = [];
-    const s: Stretcher & { log: string[] } = {
+    const rates: number[] = [];
+    const s: Stretcher & { log: string[]; rates: number[] } = {
       log,
+      rates,
       load: async () => {},
       play: () => {
         log.push('play');
@@ -253,7 +257,7 @@ describe('a conductor\'s hold fades the song instead of cutting it (#366)', () =
         playing = false;
       },
       fade: (level, seconds) => log.push(`fade:${level}:${seconds}`),
-      setRate: () => {},
+      setRate: (r) => rates.push(r),
       setVolume: () => {},
       seek: (p) => {
         log.push(`seek:${p.toFixed(1)}`);
@@ -267,13 +271,13 @@ describe('a conductor\'s hold fades the song instead of cutting it (#366)', () =
     return s;
   }
   /** One tick per `dt`; frames are [followPlaying, cue?]. */
-  const run = async (st: Stretcher, holdFade: number, frames: [boolean, number?][], dt = 0.25) => {
+  const run = async (st: Stretcher, holdFade: number, frames: [boolean, number?][], dt = 0.25, extra: Record<string, unknown> = {}) => {
     const song = handle();
     const player = songPlayerNode.make(songPlayerNode.params.parse({}));
     for (let i = 0; i < frames.length; i++) {
       const [followPlaying, cue] = frames[i];
       player.process(
-        { song, followPlaying, holdFade, ...(cue ? { cue: { id: cue, beat: 2 } } : {}) },
+        { song, followPlaying, holdFade, ...extra, ...(cue ? { cue: { id: cue, beat: 2 } } : {}) },
         { tick: i, time: i * dt, dt: i ? dt : 0, resources: { audioContext: {}, masterGain: {}, createStretcher: () => st } },
       );
       await Promise.resolve();
@@ -306,6 +310,29 @@ describe('a conductor\'s hold fades the song instead of cutting it (#366)', () =
     const seek = st.log.findIndex((l) => l.startsWith('seek'));
     expect(st.log.indexOf('pause')).toBeGreaterThan(-1);
     expect(seek).toBeGreaterThan(st.log.indexOf('pause'));
+  });
+
+  it('holdSlow eases the rate toward the minimum over the fade, holds it while paused, and eases back on the release (#573)', async () => {
+    const st = fadingStretcher();
+    const frames: [boolean, number?][] = [[true], [true], [false], [false], [false], [false], [false], [false], [true], [true], [true], [true], [true]];
+    await run(st, 1, frames, 0.25, { followRate: 1.5, holdSlow: 1 });
+    // 0.5 is the player's minRate. Tick 2 starts the fade (rate not yet eased), the ramp
+    // reaches the minimum when the fade ends, stays there paused, then climbs back to 1.5.
+    expect(st.rates[1]).toBe(1.5);
+    expect(st.rates[4]).toBeCloseTo(1.5 - 0.5 * 1.0, 5); // 0.5 s into the 1 s fade: halfway
+    expect(Math.min(...st.rates)).toBeCloseTo(0.5, 5);
+    expect(st.rates[7]).toBeCloseTo(0.5, 5);
+    expect(st.rates[9]).toBeGreaterThan(0.5);
+    expect(st.rates.at(-1)).toBeCloseTo(1.5, 5);
+  });
+
+  it('holdSlow 0, or no fade, leaves the rate alone (today\'s behaviour)', async () => {
+    const frames: [boolean, number?][] = [[true], [false], [false], [false], [false], [true]];
+    for (const [fade, slow] of [[1, 0], [0, 1]] as const) {
+      const st = fadingStretcher();
+      await run(st, fade, frames, 0.25, { followRate: 1.5, holdSlow: slow });
+      expect(new Set(st.rates)).toEqual(new Set([1.5]));
+    }
   });
 
   it('a stretcher with no fader cuts, as before', async () => {

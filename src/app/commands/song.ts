@@ -114,6 +114,19 @@ export const setSongHoldFadeCmd = defineCommand({
   },
 });
 
+/** How far the song slows while it fades on a conductor's hold (#573). */
+export const setSongHoldSlowCmd = defineCommand({
+  id: 'song.holdSlow.set',
+  title: 'Set the slowdown on a hold',
+  description: "How far toward the slowest rate the song slows while it fades out on the conductor's hold, so the held note stretches; 0 keeps the rate. Needs the hold fade.",
+  category: CATEGORY,
+  params: z.object({ fraction: z.number().min(0).max(1).describe('0 = no slowdown, 1 = all the way to the slowest rate') }),
+  execute: async ({ fraction }) => {
+    songHost().setHoldSlow(fraction);
+    return ok({ fraction });
+  },
+});
+
 /** Where in the song the conductor's first beat lands (#364). */
 export const setSongStartBeatCmd = defineCommand({
   id: 'song.startBeat.set',
@@ -128,4 +141,4 @@ export const setSongStartBeatCmd = defineCommand({
 });
 
 /** All song commands, registered together. */
-export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd, setSongStartBeatCmd] as const;
+export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd, setSongHoldSlowCmd, setSongStartBeatCmd] as const;

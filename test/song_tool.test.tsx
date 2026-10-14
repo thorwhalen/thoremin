@@ -113,7 +113,7 @@ describe('the Song tool', () => {
     for (const k of ['songHandle', 'songPlaying', 'songPrefs', 'song']) expect(settings[k], k).toBeUndefined();
     const persist = (useControls as unknown as { persist: { getOptions(): { partialize(s: unknown): Record<string, unknown> } } }).persist.getOptions();
     const saved = persist.partialize(useControls.getState());
-    expect(saved.songPrefs).toEqual({ volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0 });
+    expect(saved.songPrefs).toEqual({ volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0, holdSlow: 0 });
     expect(saved.songHandle).toBeUndefined();
     expect(saved.songPlaying).toBeUndefined();
     // A hand-edited blob is healed; the transients never come back from storage.

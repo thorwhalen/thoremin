@@ -174,6 +174,13 @@ export const songPlayerNode = defineNode<Params>({
       default: 0,
       description: "Seconds the song fades out on a conductor's hold and in on the release (#366); 0 = a cut",
     },
+    {
+      name: 'holdSlow',
+      kind: 'number',
+      default: 0,
+      description:
+        "How far toward `minRate` the song slows during a conductor's hold fade-out (#573), a fraction (0 = the rate holds, as before); needs `holdFade` > 0. The rate eases back over the same length on the release",
+    },
     { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
   ],
   outputs: [
@@ -197,6 +204,10 @@ export const songPlayerNode = defineNode<Params>({
     let applied = 1;
     let wasFollowed = false;
     let glide: { from: number; t0: number } | null = null;
+    /** A hold's slowdown (#573): the rate when the fade-out began, and, once the hold is
+     *  over, the rate it eases back from. */
+    let slowed: { from: number; to: number } | null = null;
+    let easing: { from: number; t0: number } | null = null;
     /** The last cue acted on (by id). Forgotten while no cue arrives, so a new leader's
      *  ids (a fresh servo counts from 1 again) are never mistaken for an old one's. */
     let cuedId: number | null = null;
@@ -324,6 +335,22 @@ export const songPlayerNode = defineNode<Params>({
           const k = Math.min(1, (ctx.time - glide.t0) / FOLLOW_RELEASE_S);
           wanted = glide.from + (wanted - glide.from) * k;
           if (k >= 1) glide = null;
+        }
+        // The fade-out stretches the held note: the rate eases toward the minimum over the
+        // fade, and back over the same length once the hold is released (#573).
+        const slow = led ? Math.max(0, Math.min(1, finite(inputs.holdSlow, 0))) : 0;
+        const slowLen = led && s.fade ? Math.max(0, finite(inputs.holdFade, 0)) : 0;
+        if (slow > 0 && slowLen > 0 && fading) {
+          slowed ??= { from: applied, to: applied + (p.minRate - applied) * slow };
+          easing = null;
+          wanted = slowed.from + (slowed.to - slowed.from) * Math.min(1, (ctx.time - fading.t0) / slowLen);
+        } else if (slowed && led && !playing) {
+          wanted = slowed.to; // a paused song keeps the slowed rate until the release
+        } else if (slowed) {
+          easing ??= { from: applied, t0: ctx.time };
+          const k = slowLen > 0 ? Math.min(1, (ctx.time - easing.t0) / slowLen) : 1;
+          wanted = easing.from + (wanted - easing.from) * k;
+          if (k >= 1) slowed = easing = null;
         }
         const rate = Math.max(p.minRate, Math.min(p.maxRate, wanted));
         applied = rate;
