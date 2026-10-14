@@ -66,21 +66,23 @@ describe.runIf(FACES)('"Your hand shapes" is reachable from the shell', () => {
     const which = (await screen.findByRole('combobox', { name: 'Which hand' })) as HTMLSelectElement;
     expect(which.value).toBe('either');
     fireEvent.change(which, { target: { value: 'left' } });
-    expect(handSessionStore().getState().hand).toBe('left');
+    await waitFor(() => expect(handSessionStore().getState().hand).toBe('left'));
     fireEvent.click(screen.getByRole('button', { name: 'Record my hand shapes' }));
-    expect(handSessionStore().getState().phase).toBe('explore');
+    // The phase and the claim are committed by effects after the click: wait, never assume synchronous (#521).
+    await waitFor(() => expect(handSessionStore().getState().phase).toBe('explore'));
     expect(faceSessionStore().getState().phase).toBe('idle');
-    expect(appFeatureDemand.owners()).toContain('hand-shapes');
+    await waitFor(() => expect(appFeatureDemand.owners()).toContain('hand-shapes'));
     expect(appFeatureDemand.owners()).not.toContain('faces');
-    for (const g of HAND_CLAIM_GROUPS) expect(appFeatureDemand.groups()).toContain(g);
-    // Waited for: CI once found no Explore text here (unexplained; not reproduced locally).
+    await waitFor(() => {
+      for (const g of HAND_CLAIM_GROUPS) expect(appFeatureDemand.groups()).toContain(g);
+    });
     expect(await screen.findByText(/Try your hand shapes/)).toBeTruthy();
     // Start capturing: the rest's progress ring (#403), click 4 from a cold load.
     fireEvent.click(screen.getByRole('button', { name: /Start capturing/ }));
     expect(await screen.findByRole('progressbar', { name: 'Rest progress' })).toBeTruthy();
     act(() => useTools.getState().close());
-    expect(handSessionStore().getState().phase).toBe('idle');
-    expect(appFeatureDemand.owners()).not.toContain('hand-shapes');
+    await waitFor(() => expect(handSessionStore().getState().phase).toBe('idle'));
+    await waitFor(() => expect(appFeatureDemand.owners()).not.toContain('hand-shapes'));
   });
 
   it('a saved hand categorizer: Bind to commands makes it the active set and opens the Gestures tool', async () => {
