@@ -91,29 +91,26 @@ Given the numbers above, the two workflows don't need the same trigger policy:
   ~$0.012/run, ~90 s. It stays on every `pull_request` and every `push` to `main`,
   unchanged.
 - **`smoke.yml`** (browser smoke) pays a fixed Chromium-install tax on every run
-  regardless of what changed. It is now **opt-in on pull requests**, and
-  unconditional only where its signal is load-bearing:
+  regardless of what changed. Since #476 it runs where its signal is load-bearing
+  and on the PRs that can change it:
 
   | Trigger | Runs smoke? |
   |---|---|
   | Push to `main` | **yes** — the commit that's about to deploy |
   | `workflow_dispatch` (Actions tab, or `gh workflow run smoke.yml`) | **yes** — on demand |
-  | Pull request carrying the `ci-full` label, or `[ci-full]` in its title | **yes** — add the label (or edit the title) when a PR touches anything the gate can't see: `useEngine`, the audio graph, overlay rendering, the tools/settings shell, recording |
-  | Ordinary pull request push, no opt-in | **no** — skipped (a grey "skipped" check, not a failure — easy to miss if you're not looking for it) |
+  | Pull request touching `src/`, `packages/`, `smoke/`, `public/`, `package.json`, `package-lock.json`, `extensions*.json`, `vite*.ts` or the workflow itself | **yes** — on open, push and reopen |
+  | Any other pull request (docs, scripts, other workflows) | **no** — the workflow never starts (a `paths` filter: no runner, no bill, and no check reported) |
 
-  The condition is a plain `if:` on the `smoke` job itself (no separate job): GitHub
-  Actions bills nothing for a job it skips before starting a runner, so an ordinary
-  PR pays nothing extra for opting out. `labeled`/`unlabeled`/`edited` are in the PR
-  trigger types so toggling the label or editing the title re-evaluates the
-  condition without needing a new push.
+  Why: with smoke main-only, two regressions sat red on `main` across six merges
+  because every worker gated on a PR whose checks were all green. The cost is one
+  smoke run (about 85 s, 2 billed minutes, about $0.012 on a private repo) per push to a
+  code-touching PR, roughly doubling smoke's share of the monthly bill (still pocket
+  change, see above). The `ci-full` label and `[ci-full]` title opt-in are gone: a
+  path-filtered workflow cannot be forced on a docs-only PR, and every code PR now runs it.
 
-  **Trade-off this makes on purpose:** most PRs no longer get an automatic browser
-  verdict *before* merge — only `ci.yml`'s typecheck/test/build does. The browser
-  smoke still runs automatically right after merge (on push to `main`), in parallel
-  with `deploy.yml`; it does not block that deploy (advisory, no branch protection),
-  so a regression the gate can't see could still reach production before smoke
-  reports on it. Use the `ci-full` label on a PR when that risk isn't acceptable for
-  the change in hand.
+  **Caveat:** a skipped path-filtered workflow reports no check. If the smoke check
+  is ever made *required* (branch protection, #388), a docs-only PR would wait
+  forever for it; that needs a no-op twin job or a different gate then.
 
 - **`deploy.yml`** already only runs on push to `main` with `paths-ignore` for
   docs/config-only changes, and its own job (`trigger-deploy`, a `gh workflow run`
