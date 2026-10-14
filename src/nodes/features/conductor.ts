@@ -134,7 +134,7 @@ import { captureTime } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { handGestureFrame } from './conductor_gesture';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
-import { beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
+import { barStartAt, beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 import { clamp01 } from '@thoremin/sdk/features/math';
 
@@ -545,6 +545,9 @@ export const conductorNode = defineNode<Params>({
      *  beat starts (the reference a bar or half-bar mark is counted from). */
     let docTempo: ((beat: number) => number | null) | null = null;
     let docSigStart: ((beat: number) => number) | null = null;
+    /** Where the bar line in force at a beat sits (the signature's start, or the pickup's
+     *  virtual bar start, #438): what `beatInBar` and the bar-level strokes count from. */
+    let docBarStart: ((beat: number) => number) | null = null;
     /** `markLevel: auto`: the level held (its ratio set has this beats-per-bar). */
     let levelHold: LevelHold | null = null;
     let levelBpb = 0;
@@ -677,6 +680,7 @@ export const conductorNode = defineNode<Params>({
       docMeter = null;
       docTempo = null;
       docSigStart = null;
+      docBarStart = null;
       docBpm = null;
       docLastOnset = null;
       docLength = null;
@@ -688,6 +692,7 @@ export const conductorNode = defineNode<Params>({
       docMeter = (beat) => beatsPerBarAt(doc, beat);
       docTempo = (beat) => tempoAt(doc, beat);
       docSigStart = (beat) => timeSignatureAt(doc, beat).beat;
+      docBarStart = (beat) => barStartAt(doc, beat);
       docBpm = firstTempo(doc);
       let last = -Infinity;
       for (const part of doc.parts) for (const n of part.notes) last = Math.max(last, n.start);
@@ -768,6 +773,13 @@ export const conductorNode = defineNode<Params>({
         levelHold.step(t, trusted ? s.period : NaN, 60 / marked);
       }
       return levelHold.ratio() ?? 1;
+    };
+    /** The whole beat within the bar at `beat` (#438): counted from the bar line in force,
+     *  so after a meter change or a pickup it agrees with the bar-level strokes, and a
+     *  fractional bar (5/8 = 2.5 quarter beats) still reads a whole beat. */
+    const barBeat = (beat: number, bpb: number): number => {
+      const into = beat - (docBarStart ? docBarStart(beat) : 0);
+      return Math.floor((((into % bpb) + bpb) % bpb) + 1e-9);
     };
     /** The tempo the body follower is seeded at: the score's first mark, at the stated
      *  level (null without a score, or reading the hands). */
@@ -948,7 +960,7 @@ export const conductorNode = defineNode<Params>({
       const marked = docTempo?.(beatOut) ?? c.dancer.bpm;
       // The piece's written fermatas hold for one dancer cycle, and its end loops to the top
       // on a cycle start (#463): the dance lead's rules 6 and 7.
-      const d = dance.step({ t: ctx.time, pulse, marked, ref: docSigStart ? docSigStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas, top: docSigStart ? docSigStart(0) : 0, ...(docLength !== null ? { end: docLength } : {}) });
+      const d = dance.step({ t: ctx.time, pulse, marked, ref: docBarStart ? docBarStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas, top: docSigStart ? docSigStart(0) : 0, ...(docLength !== null ? { end: docLength } : {}) });
       beatOut = d.beat;
       // A cycle the follower fitted is the dancer's "stroke" for the expression (A6's note).
       let cycle: Anchor | null = null;
@@ -969,7 +981,7 @@ export const conductorNode = defineNode<Params>({
         confidence: d.started ? pulse.confidence : 0,
         nextBeatAt: bpm > 0 ? ctx.time + ((1 - (beatOut - wholeBeat)) * 60) / bpm : Infinity,
         beatsPerBar: bpb,
-        beatInBar: ((wholeBeat % bpb) + bpb) % bpb,
+        beatInBar: barBeat(beatOut, bpb),
         // A held fermata reads as a hold to every consumer, as the conductor's does.
         state: d.mode === 'fermata' || d.mode === 'ended' ? 'hold' : d.started ? 'running' : 'ready',
         anchors: d.cycles,
@@ -1179,7 +1191,7 @@ export const conductorNode = defineNode<Params>({
      *  strokes `k` beats apart: a multiple of `k`, counted from the time signature's start
      *  (the servo's reference). */
     const gridFor = (k: number) => (b: number, snap: (x: number) => number): number => {
-      const ref = k === 1 || !docSigStart ? 0 : docSigStart(b);
+      const ref = k === 1 || !docBarStart ? 0 : docBarStart(b);
       return ref + k * snap((b - ref) / k);
     };
 
@@ -1259,7 +1271,7 @@ export const conductorNode = defineNode<Params>({
       if (w > 0 && Number.isFinite(s.period) && s.period > 0) {
         // A stroke lands on a multiple of `k` beats, counted from the time
         // signature's start. The horizon stays in strokes (`s.period`).
-        const ref = k === 1 ? 0 : docSigStart ? docSigStart(beatOut) : 0;
+        const ref = k === 1 ? 0 : docBarStart ? docBarStart(beatOut) : 0;
         const err = k === 1 ? wrapPhase(advanced - beatAt(s, ctx.time)) : wrapPhase((advanced - ref) / k - beatAt(s, ctx.time)) * k;
         corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
       }
@@ -1315,7 +1327,7 @@ export const conductorNode = defineNode<Params>({
         confidence: s.confidence,
         nextBeatAt: bpm > 0 ? ctx.time + ((1 - (beatOut - wholeBeat)) * 60) / bpm : Infinity,
         beatsPerBar: bpb,
-        beatInBar: ((wholeBeat % bpb) + bpb) % bpb,
+        beatInBar: barBeat(beatOut, bpb),
         // A fermata reads as a hold to every consumer (the HUD, the panel, the score).
         state: fermataAt !== null || bodyHold ? 'hold' : s.state,
         anchors: s.anchors,

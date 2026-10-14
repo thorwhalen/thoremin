@@ -81,6 +81,10 @@ export const ScoreDocSchema = z.object({
   dynamics: z.array(DynamicMarkSchema).default([]),
   /** Beats at which a fermata is written (the scheduler's HOLD points, PR 4). */
   fermatas: z.array(z.number().min(0)).default([]),
+  /** Beats of the incomplete bar before the first full one (an anacrusis); 0 = the piece
+   *  starts on a downbeat. Additive and optional: a stored document without it reads 0
+   *  (#438). */
+  pickup: z.number().min(0).optional(),
   /** Total length in beats (the last note-off). */
   lengthBeats: z.number().min(0),
 });
@@ -125,6 +129,20 @@ export function timeSignatureAt(doc: ScoreDoc, beat: number): TimeSignature {
     else break;
   }
   return current;
+}
+
+/**
+ * The beat a bar line sits on in the time signature in force at `beat`: the signature's
+ * own start, or, in the first signature, the start of the (virtual) bar the pickup
+ * completes, so the first full bar begins at `pickup` (#438). Bars are counted from here,
+ * for `beatInBar` and for a bar-level stroke's grid alike, so the two always agree.
+ */
+export function barStartAt(doc: ScoreDoc, beat: number): number {
+  const ts = timeSignatureAt(doc, beat);
+  if (ts.beat > 0 || !(doc.pickup !== undefined && doc.pickup > 0)) return ts.beat;
+  const bpb = (ts.numerator * 4) / ts.denominator;
+  // A pickup as long as the bar or longer is no pickup.
+  return doc.pickup < bpb ? doc.pickup - bpb : ts.beat;
 }
 
 /** Beats (quarter notes) per bar at `beat` — what the conductor's `beatsPerBar` should

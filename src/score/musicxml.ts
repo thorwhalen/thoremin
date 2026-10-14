@@ -49,6 +49,16 @@ function measureStart(breakpoints: readonly Breakpoint[], measureNumber: string)
   return bp ? bp.quarterPos - bp.beatInMeasure : null;
 }
 
+/** The beats of an incomplete first measure (an anacrusis): where the second measure
+ *  starts, when that is inside the first signature's bar; 0 when the piece starts on a
+ *  downbeat (#438). */
+function pickupOf(breakpoints: readonly Breakpoint[], barBeats: number): number {
+  const first = breakpoints[0]?.measureNumber;
+  const second = breakpoints.find((b) => b.measureNumber !== first)?.measureNumber;
+  const start = second === undefined ? null : measureStart(breakpoints, second);
+  return start !== null && start > 1e-6 && start < barBeats - 1e-6 ? start : 0;
+}
+
 export function musicxmlToScoreDoc(input: Uint8Array | string, title?: string): ScoreDoc {
   const score = parseAuto(input);
   const { midi, sidecar } = exportMidiWithTimingMap(score);
@@ -102,5 +112,7 @@ export function musicxmlToScoreDoc(input: Uint8Array | string, title?: string): 
 
   const md = score.metadata;
   const docTitle = title?.trim() || [md.workTitle, md.movementTitle].filter((s) => s && s.trim()).join(' — ') || base.title;
-  return ScoreDocSchema.parse({ ...base, source: 'musicxml', title: docTitle, dynamics, fermatas });
+  const firstSig = base.timeSignatures[0];
+  const pickup = pickupOf(breakpoints, firstSig ? (firstSig.numerator * 4) / firstSig.denominator : 4);
+  return ScoreDocSchema.parse({ ...base, source: 'musicxml', title: docTitle, dynamics, fermatas, ...(pickup > 0 ? { pickup } : {}) });
 }
