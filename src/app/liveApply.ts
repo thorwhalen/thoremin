@@ -12,9 +12,11 @@
  * ML models).
  */
 import type { Engine, NodeRegistry } from '@thoremin/dag';
-import { branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from './graph';
+import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from './graph';
 import { branchSetKey } from '@/instruments/derive';
-import type { Composed } from '@/instruments/compose';
+import { branchClosureIds, type Composed } from '@/instruments/compose';
+import { deriveHandCount, parseHandsOverride, type HandCount } from '@/instruments/hands';
+import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useControls } from './store';
 import { useToasts } from './toasts';
@@ -36,6 +38,34 @@ export function liveBranchIds(controls: ReturnType<typeof useControls.getState>,
   // for extension dial slices (an interface has none implicitly); a shallow copy of one
   // object per store change.
   return branchIdsFor({ ...controls }, { demanded, featureLab: controls.featureLab });
+}
+
+const BRANCH_BY_ID = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
+
+/** The `?hands=` override of this page, read once (a verification affordance, #325). */
+const HANDS_OVERRIDE: HandCount | null = typeof location === 'undefined' ? null : parseHandsOverride(location.search);
+
+/**
+ * How many hands the hand model should look for right now (#325): what the live branch set
+ * (requirements included) and the shell's hand readers need, unless the page says
+ * `?hands=`. Read by `webcam-hands` through the host's `handCount` resource.
+ */
+export function liveHandCount(
+  controls: ReturnType<typeof useControls.getState>,
+  demanded = featureDemandResource(),
+  override: HandCount | null = HANDS_OVERRIDE,
+): HandCount {
+  if (override) return override;
+  const ids = branchClosureIds([TRUNK_ID, ...liveBranchIds(controls, demanded)], ALL_BRANCHES);
+  return deriveHandCount(
+    ids.flatMap((id) => BRANCH_BY_ID.get(id) ?? []),
+    {
+      featureLab: controls.featureLab,
+      demanded,
+      gesturesEnabled: controls.gestures?.enabled,
+      skeletonShown: controls.overlay?.landmarks?.show,
+    },
+  );
 }
 
 /** The live branch set as a key, for "did it change since the build?". */

@@ -36,10 +36,14 @@
  *
  *   node smoke/latency/measure.mjs [--video hands.y4m] [--seconds 20] [--headed] [--audible] [--out report.json]
  *        [--cpu-throttle 4] [--captures 1280x720,640x360] [--num-hands 2,1] [--delegates GPU,CPU]
+ *        [--query hands=1]
  *
  * `--cpu-throttle N` slows the page's CPU N times (Chromium's DevTools throttling), the
  * "slow machine" column of #240's before/after: a 2018 laptop, not an M1. For the 15 fps
  * column, give a 15 fps clip (`fps=15` in the ffmpeg line).
+ *
+ * `--query` appends to the app's URL: `hands=1` / `hands=2` pins how many hands the hand
+ * model looks for (#325), the before/after of a one-hand instrument on the same clip.
  *
  * The instrument is muted during the run unless `--audible` is given.
  *
@@ -66,11 +70,12 @@ const SYNTH_COMPRESSOR = { threshold: -14, knee: 24, ratio: 3, attack: 0.005, re
 const SYNTH_FREQ_GLIDE_S = 0.03;
 
 function parseArgs(argv) {
-  const a = { video: null, seconds: 20, warmup: 4, headed: false, audible: false, out: null, port: 4174, frames: 150, cpuThrottle: 1, captures: [APP_CAPTURE, '640x360'], numHands: [2, 1], delegates: ['GPU', 'CPU'], toneSeconds: 3 };
+  const a = { query: '', video: null, seconds: 20, warmup: 4, headed: false, audible: false, out: null, port: 4174, frames: 150, cpuThrottle: 1, captures: [APP_CAPTURE, '640x360'], numHands: [2, 1], delegates: ['GPU', 'CPU'], toneSeconds: 3 };
   const list = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--video') a.video = resolve(argv[++i]);
+    else if (k === '--query') a.query = argv[++i];
     else if (k === '--seconds') a.seconds = Number(argv[++i]);
     else if (k === '--warmup') a.warmup = Number(argv[++i]);
     else if (k === '--frames') a.frames = Number(argv[++i]);
@@ -108,7 +113,7 @@ async function startPreview(port) {
 }
 
 async function measureApp(page, url, args) {
-  const query = args.video ? '?probe=latency' : '?probe=latency&slot.source=synthetic-hands';
+  const query = (args.video ? '?probe=latency' : '?probe=latency&slot.source=synthetic-hands') + (args.query ? `&${args.query}` : '');
   await page.goto(url + query);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 90_000 });
   await page.waitForFunction(() => window.thoreminLatency && window.thoremin?.audio().state === 'running', null, { timeout: 30_000 });

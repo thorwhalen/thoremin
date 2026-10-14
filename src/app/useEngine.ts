@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
+import { HAND_COUNT_RESOURCE_KEY } from '@/nodes/sources/webcam_hands';
 import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
@@ -48,7 +49,7 @@ import { useSongStatus, makeSongReporter } from './songStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './extensions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
-import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph } from './liveApply';
+import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount } from './liveApply';
 import { useGestureStatus, makeGestureReporter } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
@@ -130,6 +131,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // Unrelated dial edits leave it alone, so the re-apply effect below never fires for them.
   const demanded = useDemandedGroups();
   const branchKey = useControls((s) => branchSetKey(liveBranchIds(s, demanded)));
+  // How many hands the hand model looks for (#325), read by `webcam-hands` through the
+  // `handCount` resource on each frame; a change reconfigures the live model, never the graph.
+  const handCount = useControls((s) => liveHandCount(s, demanded));
+  const handCountRef = useRef(handCount);
+  handCountRef.current = handCount;
 
   /** Re-wire the LIVE engine onto the current slots and branch set (`./liveApply`). The refs
    *  are read when the graph is composed and committed, so every caller passes the same ones. */
@@ -266,6 +272,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         timing = createTimingResource({ audio: () => resources.audioContext as AudioContext | undefined });
         timing.noteCamera(stream);
         resources[TIMING_RESOURCE_KEY] = () => timing!.reading();
+        resources[HAND_COUNT_RESOURCE_KEY] = () => handCountRef.current;
 
         // `defaultGraph` validates the selection against the registry and falls
         // back (with a warning) on anything that would not satisfy the slot

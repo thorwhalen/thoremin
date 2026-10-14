@@ -125,6 +125,25 @@ export function demandWantsBody(demanded: DemandedGroups): boolean {
   return false;
 }
 
+/**
+ * The feature groups sourced from the HANDS, plus the derived formulas (which may read a
+ * hand feature): what the Lab and a demand claim read from the hand model (#325).
+ */
+export const HAND_GROUP_IDS: readonly string[] = FEATURE_GROUPS.filter((g) => g.source === 'hand' || g.id === DERIVED_GROUP).map((g) => g.id);
+
+/** Does the open Lab show a hand group? (The face rule, for how many hands the model looks for.) */
+export function labWantsHands(cfg: FeatureLabConfig | undefined): boolean {
+  if (!cfg?.show) return false;
+  return cfg.groups.some((g) => HAND_GROUP_IDS.includes(g));
+}
+
+/** Does a live feature DEMAND (#163) claim a hand group? */
+export function demandWantsHands(demanded: DemandedGroups): boolean {
+  if (!demanded) return false;
+  for (const g of demanded) if (HAND_GROUP_IDS.includes(g)) return true;
+  return false;
+}
+
 // ---- The compute gate the feature-vector nodes share ------------------------------
 
 /** The slice of the lab config the feature-vector nodes need off a control snapshot. */
