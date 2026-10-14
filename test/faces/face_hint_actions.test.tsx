@@ -103,4 +103,36 @@ describe('the hint offers Show me on the bars and Record more (#435)', () => {
     expect(s().focus).toBeNull();
     expect(s().holdsAs).toBeNull();
   });
+
+  it('Record more pins by category id: a category named like the Neutral bin keeps its holds (review)', async () => {
+    vi.useFakeTimers();
+    const store = createFaceSessionStore(deps());
+    const s = () => store.getState();
+    expect(s().importFile(exportCategorizer(scriptedCarve()))).toBe(true);
+    act(() => s().rename('cat-2', 'Neutral'));
+    expect(s().working!.categories.find((c) => c.id === 'cat-2')!.label).toBe('Neutral');
+    const base = new Set(s().working!.samples.map((x) => x.id));
+    expect(s().recordMore('cat-2')).toBe(true);
+    await run(SYNTHETIC_TIMELINE.restMs + 3 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs));
+    await act(() => s().stop());
+    const c = s().working!;
+    const added = c.samples.filter((x) => !base.has(x.id)).map((x) => x.id);
+    expect(added.length).toBeGreaterThan(0);
+    for (const id of added) expect(placeOf(c, id)).toBe('cat-2');
+  });
+
+  it('a Show-me take cancelled during its rest leaves no pause behind for the next take (review)', async () => {
+    vi.useFakeTimers();
+    const store = createFaceSessionStore(deps());
+    const s = () => store.getState();
+    expect(s().importFile(exportCategorizer(scriptedCarve()))).toBe(true);
+    expect(s().showOnBars('cat-2')).toBe(true);
+    await run(500);
+    act(() => s().cancelRecording());
+    act(() => s().reset());
+    act(() => s().start());
+    await run(SYNTHETIC_TIMELINE.restMs + 1000);
+    expect(s().phase).toBe('faces');
+    expect(s().focus).toBeNull();
+  });
 });

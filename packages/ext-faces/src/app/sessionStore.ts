@@ -347,9 +347,10 @@ export interface FaceSessionState {
   redo(): void;
   /** Record a new take and merge it into the working categorizer (P1's `mergeSession`): the open
    *  one, or a fresh carve before it is saved (#421); `burstName` names its bursts ("Record more
-   *  frown"); `name` is the Save field's text, there again when the take returns; `holdsAs`
-   *  names every hold the take makes (#435: "Record more" for one category). */
-  startMerge(seed: MergeSeed, options?: { burstName?: string; name?: string; holdsAs?: string }): void;
+   *  frown"); `name` is the Save field's text, there again when the take returns; `holdsIn`
+   *  (a category id) takes every hold the take makes that is not named otherwise, pinned (#435:
+   *  "Record more" for one category; by id, so a category named like a bin is still that category). */
+  startMerge(seed: MergeSeed, options?: { burstName?: string; name?: string; holdsIn?: string }): void;
   /** A hint's "Record more" (#435): a take whose every hold goes to category `id` (pinned, so
    *  it stays there at every k), its bursts named for it too. False when it cannot start. */
   recordMore(id: string): boolean;
@@ -498,8 +499,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     tuning: Tuning;
     checks: CategorizerChecks;
     dirty: boolean;
-    /** Every hold of the take goes to the category of this name (#435), unless named otherwise. */
-    holdsAs?: string;
+    /** Every hold of the take not named otherwise goes to this category (#435), pinned. */
+    holdsIn?: string;
     /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
     edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined; fresh: FreshTake | null };
   } | null = null;
@@ -843,14 +844,16 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null }));
 
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
-    const labelledHolds = (t: FaceTake, tid: string, holdsAs?: string): LabelledHolds[] => {
-      const by = new Map<string, { label: string; ids: string[] }>();
-      // A take for one category (#435) names every hold it; a name of its own wins.
-      const names = new Map<number, string>();
-      if (holdsAs?.trim()) for (let i = 0; i < t.pointCount(); i++) names.set(i, holdsAs);
+    /** The take's holds by name: a burst's, or one given in the strip. */
+    const holdNamesOf = (t: FaceTake): Map<number, string> => {
       // A name given in the strip (#404) is a burst's name given afterwards: it wins over one.
-      for (const [i, name] of t.labels()) names.set(i, name);
+      const names = new Map(t.labels());
       for (const [i, name] of holdNames) names.set(i, name);
+      return names;
+    };
+    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
+      const by = new Map<string, { label: string; ids: string[] }>();
+      const names = holdNamesOf(t);
       for (const [i, raw] of names) {
         const label = raw.trim();
         if (!label || dropped.has(i)) continue;
@@ -860,6 +863,21 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         by.set(key, g);
       }
       return [...by.values()];
+    };
+    /** `labelled` with every hold of the take that has no name of its own (and was not deleted in
+     *  the strip) moved to category `id` and pinned there (#435). A failure is said and nothing
+     *  moves. */
+    const holdAllIn = (labelled: { categorizer: PersonalCategorizer; named: string[]; error: string | null }, t: FaceTake, tid: string, id: string) => {
+      const names = holdNamesOf(t);
+      const present = new Set(labelled.categorizer.samples.map((x) => x.id));
+      const ids: string[] = [];
+      for (let i = 0; i < t.pointCount(); i++) {
+        const hid = holdId(tid, i);
+        if (!dropped.has(i) && !names.get(i)?.trim() && present.has(hid)) ids.push(hid);
+      }
+      if (ids.length === 0 || !labelled.categorizer.categories.some((c) => c.id === id)) return labelled;
+      const r = moveHoldsIn(labelled.categorizer, ids, id);
+      return r.ok ? { ...labelled, categorizer: r.categorizer } : { ...labelled, error: labelled.error ?? r.error };
     };
     /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). A
      *  failure is said, and the holds are carved like any other. */
@@ -1204,7 +1222,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           }
           // Bursts recorded under a name go to the category of that name (or a new one), pinned
           // (#385 E7): "Record more frown" lands in frown, whatever is nearest.
-          const labelled = withLabels(result.categorizer, labelledHolds(myTake, takeId!, merge.holdsAs));
+          const named = withLabels(result.categorizer, labelledHolds(myTake, takeId!));
+          // "Record more" (#435): every hold not named otherwise goes to its category, by id.
+          const labelled = merge.holdsIn ? holdAllIn(named, myTake, takeId!, merge.holdsIn) : named;
           for (const id of labelled.named) if (!sources.has(id)) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
           // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
           // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
@@ -1488,6 +1508,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       reset() {
         generation++;
+        pauseOnCapture = false;
         release();
         take = null;
         takeId = null;
@@ -1562,18 +1583,19 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A fresh carve too (#421): the same document, so the new holds are added to it, its
         // pins kept, and its first take's rest kept for the reject radius.
         if ((phase !== 'saved' && phase !== 'carved') || !working) return;
-        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, ...(options.holdsAs?.trim() ? { holdsAs: options.holdsAs.trim() } : {}), edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
+        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, ...(options.holdsIn ? { holdsIn: options.holdsIn } : {}), edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
         pauseOnCapture = false;
         get().start();
         // After the start (which resets): the take's bursts carry this name.
-        set({ burstName: options.burstName ?? '', holdsAs: options.holdsAs?.trim() || null });
+        const into = options.holdsIn ? working.categories.find((c) => c.id === options.holdsIn) : undefined;
+        set({ burstName: options.burstName ?? '', holdsAs: into ? into.label || into.id : null });
       },
 
       recordMore(id) {
         const { working, phase } = get();
         const cat = working?.categories.find((c) => c.id === id);
         if (!cat || !cat.label.trim() || (phase !== 'saved' && phase !== 'carved')) return false;
-        get().startMerge('samples', { burstName: cat.label, holdsAs: cat.label });
+        get().startMerge('samples', { burstName: cat.label, holdsIn: cat.id });
         return isRecording(get().phase);
       },
 
