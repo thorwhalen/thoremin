@@ -144,7 +144,7 @@ The air drum, bass and guitar take the new default through `createImpactPredicto
 
 #### 3.1.2 The late mean, decomposed (#352, measured 2026-10-14)
 
-A prediction is the crossing extrapolated at the commit plus the learned lag, and the lag is learned as the reference (the three-sample vertex) minus the crossing the confirmation fits. So the air error splits into three parts that add up to it: how far the commit's crossing sits from the confirmation's (`commitX − confX`), the reference's own bias (`ref − T`), and how far the learned lag trails this stroke's reference offset. `npx vite-node scripts/subframe/decompose.ts` prints the table (bench-v2, noise 0, native rates, mean ± sd in ms):
+A prediction is the crossing extrapolated at the commit plus the learned lag, and the lag is learned as the reference (the three-sample vertex) minus the crossing the confirmation fits. So the air error splits into three parts that add up to it: how far the commit's crossing sits from the confirmation's (`commitX − confX`), the reference's own bias (`ref − T`), and how far the learned lag trails this stroke's reference offset (in `auto` mode it also holds the strokes taken as surface, whose lag is learned from the kink). `npx vite-node scripts/subframe/decompose.ts` prints the table (bench-v2, noise 0, native rates, mean ± sd in ms):
 
 | fps | minLead | error | commitX − confX | ref − T | lag trail | lead |
 |---|---|---|---|---|---|---|
@@ -155,7 +155,7 @@ A prediction is the crossing extrapolated at the commit plus the learned lag, an
 | 30 | 77 ms | +6.1 ± 7.2 | +2.2 ± 7.1 | +3.0 ± 5.4 | +0.9 ± 4.6 | 100 |
 | 60 | 77 ms | +0.1 ± 4.2 | −1.9 ± 4.4 | +1.6 ± 2.7 | +0.4 ± 2.5 | 98 |
 
-The reference's bias is constant in the lead and grows with the sample period (the three-sample parabola on an asymmetric turn). The commit offset is what moves with the lead: −3 to −1 ms at a 30 ms lead, +2 to +4 at 77 ms, because the commit's quadratic is extrapolated further across a brake it does not model. At 60 fps and at the short lead the two have opposite signs and partly cancel.
+The reference's bias is constant in the lead and grows with the sample period (the three-sample parabola on an asymmetric turn). The commit offset is what moves with the lead: −3.1 to −0.2 ms at a 30 ms lead; at 77 ms +4.0 at 24 fps and +2.2 at 30, while 60 fps stays negative (−1.9). The commit's quadratic is extrapolated further across a brake it does not model. At 60 fps (both leads) and at the short lead the offset and the vertex's bias have opposite signs and partly cancel.
 
 **Tried: learning the commit offset** (an exponentially weighted mean of `confX − commitX` per air stroke, gain 0.1 or 0.3, a running mean for the first strokes, added to the prediction). It removes the lead-dependent part and leaves the reference's bias: the mean becomes a near-constant +2 to +5 ms. `predict`, mean / sd / MAE in ms, misses of 3456 where shown:
 
@@ -168,7 +168,7 @@ The reference's bias is constant in the lead and grows with the sample period (t
 | 60 fps, 30 ms | −1.1 / 2.7 / 2.4 | +1.9 / 2.9 / 2.7 | −1.6 / 3.5 / 3.1 | −1.7 / 3.7 / 3.2 |
 | 30 fps, 77 ms, `capture-jitter-actual` | +6.6 / 5.3 / 7.0 | +3.7 / 6.2 / 6.0 | +1.8 / 6.0 / 5.0 | +0.4 / 7.5 / 5.8 |
 
-It helps where the bias was largest (the app's effective lead at 24 and 30 fps: MAE 11.3 → 10.0, 7.6 → 7.0) and costs everywhere else: the spread rises, the MAE gets worse at the 30 ms lead and at 60 fps (where removing the negative commit offset uncovers the vertex's bias), and surface strokes get worse, because in `auto` mode some of a surface clip's strokes are taken as air and the offset applies to them. Gain 0.3 is the same or slightly worse; applying it to every kind moves surface to −3.2 to −4.8 ms. Not shipped: it is not better everywhere, and what is left after it (the reference's +2 to +4 ms) is the generator's turn shape, which only a real-hand take can say anything about ([#351](https://github.com/thorwhalen/thoremin/issues/351)).
+It helps where the bias was largest (the app's effective lead at 24 and 30 fps: MAE 11.3 → 10.0, 7.6 → 7.0) and costs everywhere else: the spread rises, the MAE gets worse at the 30 ms lead and at 60 fps (where removing the negative commit offset uncovers the vertex's bias), and surface strokes get worse, because in `auto` mode some of a surface clip's strokes are taken as air and the offset applies to them. Gain 0.3 is within 0.4 ms of gain 0.1 everywhere (slightly better at 60 fps and 30 ms, MAE 2.6 against 2.7, slightly worse elsewhere); applying it to every kind moves the surface mean to −3.2 to −4.7 ms at 77 ms and −3.6 at 30 ms over all rates. Not shipped: it is not better everywhere, and what is left after it (the reference's +2 to +4 ms) is the generator's turn shape, which only a real-hand take can say anything about ([#351](https://github.com/thorwhalen/thoremin/issues/351)).
 
 ### 3.2 By frame rate
 
