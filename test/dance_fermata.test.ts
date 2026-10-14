@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
-import { UNKNOWN_PULSE, type MusicalTime, type PulseState } from '@thoremin/ictus';
+import { createScheduler, UNKNOWN_PULSE, type MusicalTime, type PulseState, type ScheduleCommand } from '@thoremin/ictus';
 import { conductorNode, DEFAULT_CONDUCTOR_DIAL } from '@/nodes';
 
 const HZ = 30;
@@ -52,5 +52,37 @@ describe('a dancer and the written score (#463)', () => {
     // It never stops: the score is led throughout, after the start.
     const start = outs.findIndex((o) => o.leadsScore === true);
     expect(outs.slice(start).every((o) => o.leadsScore === true && (o.bpm as number) > 0)).toBe(true);
+  });
+
+  it('the orchestra\'s scheduler plays the top of each pass at the predicted wrap, not a frame late (#508)', async () => {
+    const d = doc([], 30);
+    const outs = await run(50, d);
+    const notes = d.parts[0].notes;
+    const s = createScheduler(notes.map((n) => ({ key: n.midi, channel: 0, start: n.start, duration: n.duration, velocity: n.velocity })));
+    const cmds: ScheduleCommand[] = [];
+    // The same ticks the orchestra node would run: engine time, the conductor's time (with
+    // its announced wrap), the horizon of a 50 ms output stage and two frames.
+    outs.forEach((o, i) => {
+      const t = o.time as MusicalTime;
+      cmds.push(...s.tick({ now: i / HZ, beat: t.beat, bpm: t.tempo > 0 ? t.tempo : 0, horizon: 0.05 + 2 / HZ, ...(t.wrap ? { wrap: t.wrap } : {}) }));
+    });
+    const tops = cmds.filter((c) => c.type === 'noteOn' && c.key === 60);
+    expect(tops.length).toBeGreaterThanOrEqual(3);
+    // The conductor wraps at 32 beats (every 16 s at 120 bpm): each later pass's first note
+    // sounds at that wrap's own time, which is on the beat grid of the 120 bpm run.
+    const wrapFrames = outs.map((o, i) => (i > 0 && (o.time as MusicalTime).beat < (outs[i - 1].time as MusicalTime).beat ? i : -1)).filter((i) => i > 0);
+    for (const [j, i] of wrapFrames.entries()) {
+      const beat = (outs[i].time as MusicalTime).beat;
+      const expected = i / HZ - beat / 2; // the moment the beat read 0 (120 bpm = 2 beats a second)
+      expect(Math.abs(tops[j + 1].time - expected), `pass ${j + 1}`).toBeLessThan(1e-3);
+    }
+    // No pass's note was cut or duplicated by the wrap.
+    const on = new Map<number, number>();
+    for (const c of cmds) {
+      if (c.type === 'noteOn') {
+        expect(on.has(c.key)).toBe(false);
+        on.set(c.key, c.time);
+      } else on.delete(c.key);
+    }
   });
 });

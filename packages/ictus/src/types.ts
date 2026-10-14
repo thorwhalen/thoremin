@@ -104,6 +104,11 @@ export interface MusicalTime {
    *  What a scheduler aligns to, and what a test reads to check the follower's
    *  timing without re-deriving it from the beat. */
   lastAnchorAt?: number;
+  /** A looped piece's next wrap (#508): when the beat reaches `at` (at the tempo it moves
+   *  at now) it jumps to `to`, continuing by the overshoot. What lets a scheduler commit
+   *  the top's first notes ahead like any other, instead of meeting the jump as a rewind
+   *  and playing the top "due now", up to a frame late. Absent: no wrap is expected. */
+  wrap?: { at: number; to: number };
   /** The player's own lead, seconds: how far ahead of the sound their beat lands
    *  (the research map's per-person conductor lead; a conductor's ictus precedes the
    *  orchestra's onset by a constant that differs by person and by piece). RESERVED:

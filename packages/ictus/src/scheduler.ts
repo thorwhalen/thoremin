@@ -30,6 +30,12 @@
  *    a note it did not start.
  *  - **A rewind releases everything.** A beat that goes backwards (the conductor
  *    re-enabled from the top) releases every sounding voice at `now` and re-positions.
+ *  - **An announced wrap is not a rewind** (#508). A looped piece's follower says where its
+ *    beat will jump (`wrap`: from `at` back to `to`, keeping the overshoot). Once that
+ *    jump is predicted inside the horizon, the next pass's first notes are committed
+ *    ahead at their predicted times like any other, and when the beat does jump (by the
+ *    amount announced, as the tempo predicts) nothing is released or re-positioned: the
+ *    voices already sounding and the notes already committed carry across.
  *  - **Releases are lazy.** A note-off is committed by the same horizon rule as an
  *    onset, so the tempo keeps shaping a held note's length until just before it ends.
  *
@@ -74,6 +80,9 @@ export interface ScheduleTick {
   /** Articulation: the fraction of its written length a note starting now is held for,
    *  (0, 1]. Default 1. */
   durationScale?: number;
+  /** The beat's next jump (a looped piece, #508): it goes from `at` to `to` when it gets
+   *  there at this tempo. Absent: none expected. */
+  wrap?: { at: number; to: number };
 }
 
 export interface SchedulerOptions {
@@ -101,6 +110,11 @@ export interface Scheduler {
 }
 
 export const SCHEDULER_DEFAULTS = { loopBeats: 0, retriggerGap: 0.005, minNoteSeconds: 0.02 } as const;
+
+/** How far the beat may have advanced past what the tempo predicts for a jump to still be
+ *  the announced wrap (a late tick), as a factor and as a floor in beats. */
+const WRAP_STEP_SLACK = 1.5;
+const WRAP_STEP_BEATS = 0.05;
 
 /** Two onsets closer than this (beats) are one unison. */
 const UNISON_BEATS = 1e-6;
@@ -134,6 +148,13 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
   /** Index into the (possibly looped) event sequence of the next event to consider. */
   let next = 0;
   let lastBeat = -Infinity;
+  let lastNow = -Infinity;
+  let lastBpm = 0;
+  /** The announced wrap, as of the last tick, and how many of the next pass's notes (from
+   *  `aheadBase` in the sequence) were committed ahead of it (#508). */
+  let announced: { at: number; to: number; length: number } | null = null;
+  let aheadBase = 0;
+  let ahead = 0;
   let skipped = 0;
   const voices = new Map<string, Voice>();
   /** When each key's last release was sent: an onset never lands on or before it. */
@@ -185,7 +206,7 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
       .map((x) => x.c);
 
   return {
-    tick({ now, beat, bpm, horizon, durationScale = 1 }) {
+    tick({ now, beat, bpm, horizon, durationScale = 1, wrap }) {
       const out: ScheduleCommand[] = [];
       // A non-finite clock would never satisfy the not-yet-due test below, so a looped
       // score would emit onsets forever (NaN, or an infinite tempo making every onset due
@@ -196,15 +217,59 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
       /** Predicted time of beat `b`, or Infinity while held and `b` is ahead. */
       const timeOf = (b: number): number => (b <= beat ? now : now + (b - beat) * secPerBeat);
 
+      /** Send one onset (and the release it forces), at its predicted time. */
+      const commit = (e: ScoreEvent, start: number, end: number): void => {
+        const k = keyOf(e.channel, e.key);
+        // Never on or before this key's last release: a tempo that sped up between the
+        // tick that committed the release and this one must not let the release cut the
+        // new note (a few milliseconds late beats a note that never sounds).
+        const t = Math.max(now, timeOf(start), (lastOff.get(k) ?? -Infinity) + o.retriggerGap);
+        const v = voices.get(k);
+        if (v && Math.abs(start - v.lastOnset) <= UNISON_BEATS) {
+          v.endBeat = Math.max(v.endBeat, end); // unison: one voice, the longer note
+          return;
+        }
+        let tOn = t;
+        if (v) {
+          // Struck again while sounding: release a hair before the new onset.
+          const tOff = Math.max(v.onTime + o.minNoteSeconds, t - o.retriggerGap);
+          release(v, tOff, out);
+          tOn = Math.max(t, tOff + o.retriggerGap);
+        }
+        out.push({ type: 'noteOn', channel: e.channel, key: e.key, velocity: e.velocity, time: tOn });
+        voices.set(k, { channel: e.channel, key: e.key, onTime: tOn, lastOnset: start, endBeat: Math.max(end, start) });
+      };
+
       // A rewind: release everything, then re-position (notes already under way at the
       // new beat are picked up by the due-now rule below).
-      if (beat < lastBeat - 1e-9) {
+      // An announced wrap that came true: the beat moved on as the tempo predicts, into the
+      // next pass (#508). Nothing is released; the voices and the notes committed ahead
+      // are re-expressed in the new pass's beats.
+      const wrapped =
+        announced !== null &&
+        beat < lastBeat - 1e-9 &&
+        beat >= announced.to - 1e-9 &&
+        beat + announced.length - lastBeat >= -1e-9 &&
+        beat + announced.length - lastBeat <= Math.max(0, now - lastNow) * (lastBpm / 60) * WRAP_STEP_SLACK + WRAP_STEP_BEATS;
+      if (wrapped && announced) {
+        for (const v of voices.values()) {
+          v.endBeat -= announced.length;
+          v.lastOnset -= announced.length;
+        }
+        next = aheadBase + ahead;
+        ahead = 0;
+        announced = null;
+      } else if (beat < lastBeat - 1e-9) {
         releaseAll(now, out);
         next = lowerBound(beat - maxDuration);
+        announced = null;
+        ahead = 0;
       } else if (lastBeat === -Infinity) {
         next = lowerBound(beat - maxDuration);
       }
       lastBeat = beat;
+      lastNow = now;
+      lastBpm = bpm;
 
       // 1. Releases due within the horizon (before onsets, so a retrigger sees the voice
       //    it replaces only if it is still sounding).
@@ -227,25 +292,34 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
           skipped++;
           continue;
         }
-        const k = keyOf(e.channel, e.key);
-        // Never on or before this key's last release: a tempo that sped up between the
-        // tick that committed the release and this one must not let the release cut the
-        // new note (a few milliseconds late beats a note that never sounds).
-        const t = Math.max(now, timeOf(start), (lastOff.get(k) ?? -Infinity) + o.retriggerGap);
-        const v = voices.get(k);
-        if (v && Math.abs(start - v.lastOnset) <= UNISON_BEATS) {
-          v.endBeat = Math.max(v.endBeat, end); // unison: one voice, the longer note
-          continue;
+        commit(e, start, end);
+      }
+
+      // 3. A wrap announced by the follower (#508): once it falls inside the horizon, the
+      //    next pass's first notes are committed ahead, at the times the jump predicts.
+      const length = wrap && !loop ? wrap.at - wrap.to : 0;
+      if (wrap && length > 0 && Number.isFinite(length) && bpm > 0) {
+        if (!announced || announced.at !== wrap.at || announced.to !== wrap.to) {
+          announced = { at: wrap.at, to: wrap.to, length };
+          aheadBase = lowerBound(wrap.to);
+          ahead = 0;
         }
-        let tOn = t;
-        if (v) {
-          // Struck again while sounding: release a hair before the new onset.
-          const tOff = Math.max(v.onTime + o.minNoteSeconds, t - o.retriggerGap);
-          release(v, tOff, out);
-          tOn = Math.max(t, tOff + o.retriggerGap);
+        if (timeOf(wrap.at) < now + horizon) {
+          for (;;) {
+            const idx = aheadBase + ahead;
+            if (idx >= n) break;
+            const e = notes[idx];
+            const start = e.start + length;
+            if (!(timeOf(start) < now + horizon)) break;
+            ahead++;
+            commit(e, start, start + e.duration * scale);
+          }
         }
-        out.push({ type: 'noteOn', channel: e.channel, key: e.key, velocity: e.velocity, time: tOn });
-        voices.set(k, { channel: e.channel, key: e.key, onTime: tOn, lastOnset: start, endBeat: Math.max(end, start) });
+      } else if (!wrap) {
+        // The follower no longer expects a wrap (held, stopped): what was committed ahead
+        // stays committed (never retracted), and the announcement is dropped.
+        announced = null;
+        ahead = 0;
       }
       return sortCommands(out);
     },
@@ -253,6 +327,9 @@ export function createScheduler(events: readonly ScoreEvent[], options: Schedule
       const out: ScheduleCommand[] = [];
       releaseAll(now, out);
       lastBeat = -Infinity;
+      lastNow = -Infinity;
+      announced = null;
+      ahead = 0;
       next = 0;
       return out;
     },
