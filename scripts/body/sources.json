@@ -1,0 +1,138 @@
+{
+  "corpus": "body",
+  "about": "The Wikimedia Commons videos fetched for the body-movement measurement (#373). `file` is the local name under the app-data dir's body/src (the download's own, percent-encoded); `work` names the #373 intermediates under body/work (pose streams decoded from 640x360 transcodes, beat grids, provenance notes), which the backfill (#510) copies or points at; `fixtures` are the committed excerpts. Labels say where they came from.",
+  "fetchedAt": "2026-10-13",
+  "sources": [
+    {
+      "id": "allelulias",
+      "file": "Conducting_choir_-_Allelulias.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Allelulias.webm",
+      "labels": [
+        {"label": "a conductor (David Drillock) conducting a choir", "from": "the Commons title and author"},
+        {"label": "a simple 4 pattern, three alleluia verses", "from": "a human (the #373 session, watching the clip)"},
+        {"label": "beat grid: the conductor's right-wrist strokes, 87 bpm", "from": "ictus's stroke detector on the right wrist (the #373 session); the choir carries no usable beat (librosa ran at 123 bpm)"}
+      ],
+      "purpose": ["#373 (which body channel carries the beat)", "#375 (the body conductor)", "#427 (the lead offset)"],
+      "work": {"meta": "c44.meta.json", "prov": "prov_allelulias.json", "beats": ["allelulias_full.beats.json"], "pose": ["allelulias_full.pose.ndjson.gz", "c44.pose.ndjson.gz"]},
+      "fixtures": ["video_body_conducting_44"]
+    },
+    {
+      "id": "bortniansky",
+      "file": "Conducting_choir_-_Bortniansky_Cherubic_Hymn.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Bortniansky_Cherubic_Hymn.webm",
+      "labels": [
+        {"label": "a conductor (David Drillock) conducting Bortniansky's Cherubic Hymn with a small choir", "from": "the Commons title and author"},
+        {"label": "a 3 pattern, slow and uneven (beats 0.54 to 1.47 s)", "from": "a human (the #373 session) and the stroke grid"}
+      ],
+      "purpose": ["#373", "#375", "#427"],
+      "work": {"meta": "c34.meta.json", "prov": "prov_bortniansky.json", "beats": ["bortniansky_full.beats.json"], "pose": ["bortniansky_full.pose.ndjson.gz", "c34.pose.ndjson.gz"]},
+      "fixtures": ["video_body_conducting_34"]
+    },
+    {
+      "id": "trisagion",
+      "file": "Conducting_choir_-_Trisagion_%28Greek%29.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Trisagion_(Greek).webm",
+      "labels": [
+        {"label": "a conductor (David Drillock) demonstrating the 2 beat pattern with the Greek Trisagion, sung", "from": "the Commons title and description"},
+        {"label": "beat grid: the conductor's strokes, 62 bpm", "from": "ictus's stroke detector (the #373 session)"}
+      ],
+      "purpose": ["#373", "#375", "#427"],
+      "work": {"meta": "c24.meta.json", "prov": "prov_trisagion.json", "beats": ["trisagion_full.beats.json"], "pose": ["trisagion_full.pose.ndjson.gz", "c24.pose.ndjson.gz"]},
+      "fixtures": ["video_body_conducting_24"]
+    },
+    {
+      "id": "allelulias_patterns",
+      "file": "Conducting_choir-_Allelulias_-_different_patterns.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir-_Allelulias_-_different_patterns.webm",
+      "labels": [
+        {"label": "a conductor conducting alleluias in different beat patterns", "from": "the Commons title"}
+      ],
+      "purpose": ["#373 (fetched as a candidate; no stream or fixture was made from it then)"],
+      "work": {},
+      "fixtures": []
+    },
+    {
+      "id": "budots",
+      "file": "Budots_Dance_Video.ogg",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Budots_Dance_Video.ogg",
+      "labels": [
+        {"label": "a Budots dance (a bouncing street dance from Davao), three dancers in front of the camera", "from": "the Commons title and description, and a human (the #373 session)"},
+        {"label": "beat grid: the soundtrack's beats, 143.5 bpm (interval CV 0.027)", "from": "librosa 1.0.0 beat_track over the soundtrack (scripts/body/audio_beats.py)"}
+      ],
+      "purpose": ["#373", "#380 (dance the orchestra)"],
+      "notes": ["The pose is the single most confident one per frame and may switch dancer now and then (4 hip jumps over 40 px in 401 frames of the uncut shot, 8.8 s to 22.25 s)."],
+      "work": {"meta": "budots.meta.json", "prov": "prov_budots.json", "beats": ["budots_full.beats.json", "budots_cut.beats.json"], "pose": ["budots_full.pose.ndjson.gz", "budots_cut.pose.ndjson.gz", "budots_cut_track.pose.ndjson.gz", "budots.pose.ndjson.gz"]},
+      "fixtures": ["video_body_budots"]
+    },
+    {
+      "id": "pm_dancer",
+      "file": "PM_plus_size_dancer.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:PM_plus_size_dancer.webm",
+      "labels": [
+        {"label": "a dancer", "from": "the Commons title"},
+        {"label": "beat grid: the soundtrack's beats", "from": "librosa beat_track (scripts/body/audio_beats.py)"}
+      ],
+      "purpose": ["#373 (measured; not committed as a fixture)"],
+      "work": {"beats": ["pm_full.beats.json"], "pose": ["pm_full.pose.ndjson.gz"]},
+      "fixtures": []
+    },
+    {
+      "id": "beethoven5",
+      "file": "Beethoven_Symphony_No._5%2C_Mvmt_1_-_University_of_Colorado_Boulder_Symphony_Orchestra.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Beethoven_Symphony_No._5,_Mvmt_1_-_University_of_Colorado_Boulder_Symphony_Orchestra.webm",
+      "labels": [
+        {"label": "an orchestra (University of Colorado Boulder Symphony Orchestra) playing Beethoven's 5th, first movement, with its conductor", "from": "the Commons title"}
+      ],
+      "purpose": ["#373 (rejected: wide shots, the conductor a few pixels tall, cuts)"],
+      "notes": ["The models track whichever body, hand and face is most confident in a wide shot; the conductor is rarely it."],
+      "work": {},
+      "fixtures": []
+    },
+    {
+      "id": "haikou_fitness",
+      "file": "Chinese_fitness_dancing_in_Haikou_People%27s_Park.ogv",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chinese_fitness_dancing_in_Haikou_People's_Park.ogv",
+      "labels": [
+        {"label": "a group fitness dance in a park (Haikou, China)", "from": "the Commons title"}
+      ],
+      "purpose": ["#373 (fetched as a candidate; not committed)"],
+      "notes": ["A crowd: one pose, one face and two hands are tracked per frame, not necessarily the same person's."],
+      "work": {},
+      "fixtures": []
+    },
+    {
+      "id": "hanoi_fitness",
+      "file": "L%E1%BB%9Bp_d%E1%BA%A1y_nh%E1%BA%A3y_dance_fitness_t%E1%BA%A1i_H%C3%A0_N%E1%BB%99i%2C_2020.ogg",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:L%E1%BB%9Bp_d%E1%BA%A1y_nh%E1%BA%A3y_dance_fitness_t%E1%BA%A1i_H%C3%A0_N%E1%BB%99i,_2020.ogg",
+      "labels": [
+        {"label": "a dance fitness class (Hanoi, 2020)", "from": "the Commons title (Vietnamese: a dance fitness teaching class in Hanoi)"}
+      ],
+      "purpose": ["#373 (fetched as a candidate; not committed)"],
+      "notes": ["A class: one pose, one face and two hands are tracked per frame, not necessarily the same person's."],
+      "work": {},
+      "fixtures": []
+    },
+    {
+      "id": "twerk_lesson",
+      "file": "Dance_It%27s_My_Lance_blimplimp_remix_-_twerk_lesson_-_language-independent_for_humans_%26_Venusians.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Dance_It's_My_Lance_blimplimp_remix_-_twerk_lesson_-_language-independent_for_humans_%26_Venusians.webm",
+      "labels": [
+        {"label": "a dance lesson (twerk) to a remix", "from": "the Commons title"}
+      ],
+      "purpose": ["#373 (fetched as a candidate; not committed)"],
+      "work": {},
+      "fixtures": []
+    },
+    {
+      "id": "twerk_choreo",
+      "file": "Hot_twerk_choreo.webm",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Hot_twerk_choreo.webm",
+      "labels": [
+        {"label": "a dance choreography (twerk)", "from": "the Commons title"}
+      ],
+      "purpose": ["#373 (fetched as a candidate; not committed)"],
+      "work": {},
+      "fixtures": []
+    }
+  ]
+}
