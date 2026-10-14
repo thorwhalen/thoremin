@@ -137,7 +137,7 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
     // #533: the snare raised lower than the kick, so its strokes start where the kick's
     // do (by the top, 7 of 16 off; by the hand, none); and soft snare strokes against
     // hard kicks, which main named the kick's floor and so never sounded (7 missed).
-    ['the snare raised 0.45 rad, the kick 0.7 (#533)', alternate('p1', 'p6', (k) => 'hard', (k) => (k % 2 ? 0.7 : 0.45)), {}],
+    ['the snare raised 0.45 rad, the kick 0.7 (#533)', alternate('p1', 'p6', () => 'hard', (k) => (k % 2 ? 0.7 : 0.45)), {}],
     ['soft snare strokes raised 0.5 rad against hard kicks (#533)', alternate('p1', 'p6', (k) => (k % 2 ? 'hard' : 'soft'), (k) => (k % 2 ? undefined : 0.5)), {}],
   ];
   for (const [name, script, options, layout = (p: Pads) => p] of cases) {
