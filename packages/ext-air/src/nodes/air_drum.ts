@@ -79,13 +79,13 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { median } from '@thoremin/stats';
-import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactPredictor, type MusicalTime, type Quadratic } from '@thoremin/ictus';
+import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, fitLine, fitQuadratic, lagGate, magnetise, nearestExpectedBeat, type ImpactConfirmation, type ImpactEvent, type ImpactPrediction, type ImpactPredictor, type LagGate, type MusicalTime, type Quadratic } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PAD_IDS, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type FallPath, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
-import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S } from '@thoremin/sdk/timing/tracker';
+import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S, type TimingView } from '@thoremin/sdk/timing/tracker';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -684,6 +684,55 @@ interface Stick {
   handled: number | null;
 }
 
+/** One tick's reading of the grid, shared by every stroke decided in it. */
+interface DrumTick {
+  c: Params;
+  ctx: NodeContext;
+  /** The hits this tick sounds, in the order they were decided. */
+  hits: DrumHit[];
+  time: MusicalTime | undefined;
+  running: boolean;
+  /** The magnet is engaged: it would pull this tick's predicted hits. */
+  engaged: boolean;
+  /** The lag gate as it stood before this tick's confirmations. */
+  gate: LagGate;
+}
+
+/** A fresh frame's timing, on top of its tick. */
+interface FrameTick extends DrumTick {
+  outputStage: TimingView['outputStage'];
+  aspect: number;
+  subframe: SubframeStanding;
+  /** The sample's time, and how long before this decision it was captured. */
+  t: number;
+  age: number;
+}
+
+/** One stick fed in one frame: what its strokes are decided with. */
+interface StickTick {
+  which: PlayerHand;
+  stick: Stick;
+  predictor: ImpactPredictor;
+  /** The tracked point, frame pixels. */
+  anchor: { x: number; y: number };
+  handSound: DrumSound;
+  gates: ReturnType<typeof gatesFor>;
+  /** The approach speed a stroke's hardness is taken against at least. */
+  hardnessFloor: number;
+}
+
+/** What a stroke plays: the pad (or the hand's own sound), where on it, how hard. */
+interface Strike {
+  silent: boolean;
+  sound: DrumSound;
+  pad: PadId | null;
+  radial: number;
+  x: number;
+  y: number;
+  speed: number;
+  hardness: number;
+}
+
 /** The reach is smoothed over this long (seconds): a stroke's own foreshortening
  *  passes, a player stepping back registers. */
 const GRIP_SMOOTHING = 1;
@@ -798,6 +847,358 @@ export const airDrumNode = defineNode<Params>({
       status = { ...IDLE_STATUS, ready: { right: false, left: false } };
     };
 
+    /** Rebuild both sticks when the config fields that shape one changed (see
+     *  {@link stickKey}), and hand back the live pair. */
+    const resolveSticks = (c: Params): Record<PlayerHand, Stick> => {
+      if (!sticks || sticksKey !== stickKey(c)) {
+        sticks = { right: makeStick(c), left: makeStick(c) };
+        sticksKey = stickKey(c);
+        // The grid's lag is measured against THIS tracked point (a wrist-tracking
+        // conductor sits differently behind a stick tip than behind a wrist).
+        lags = [];
+        magnetRun = [];
+        status = { ...IDLE_STATUS, enabled: true, ready: { right: false, left: false } };
+      }
+      return sticks;
+    };
+
+    /** The frame to play this tick, or null: a frame already seen (by reference or by its
+     *  stamp) or with no height is not played again. */
+    const freshFrame = (frame: HandsFrame | undefined): HandsFrame | null => {
+      const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
+      const fresh = frame !== lastFrame && !sameStamp;
+      lastFrame = frame;
+      return frame && fresh && frame.height > 0 ? frame : null;
+    };
+
+    /** #269: follow the pattern in play (a new one gets a new follower). */
+    const syncPattern = (play: PatternPlay | null) => {
+      if (play === playFor) return;
+      playFor = play;
+      follower = play ? createPatternFollower({ pattern: play.pattern, model: play.model }) : null;
+      if (follower && play?.startAt !== undefined) follower.start(play.startAt);
+    };
+
+    /** The grid's standing for this tick: running, the magnet engaged, the lag gate. */
+    const beginTick = (c: Params, ctx: NodeContext, time: MusicalTime | undefined): DrumTick => {
+      const running = !!time && time.state === 'running';
+      // A grid that stopped and restarted is a new grid: the lag measured against the
+      // old one says nothing about it.
+      if (running && !wasRunning) lags = [];
+      wasRunning = running;
+      const engaged = running && c.magnetism > 0 && !follower;
+      if (!engaged) magnetRun = [];
+      return { c, ctx, hits: [], time, running, engaged, gate: lagGate(lags) };
+    };
+
+    /** The sub-frame standing for this frame (#318; see the header), held for
+     *  {@link SUBFRAME_DWELL_FRAMES} before a change is taken. */
+    const subframeStep = (timing: TimingView): SubframeStanding => {
+      const rawNoise = timing.stampNoise ?? NaN;
+      const stampNoise = Number.isFinite(rawNoise) ? Math.round(rawNoise / STAMP_NOISE_STEP_S) * STAMP_NOISE_STEP_S : NaN;
+      const asked = subframeStanding(status.subframe, timing.dominantSource ?? null, rawNoise);
+      subframeAsks = asked === status.subframe ? 0 : subframeAsks + 1;
+      const subframe = subframeAsks >= SUBFRAME_DWELL_FRAMES ? asked : status.subframe;
+      if (subframe !== status.subframe) subframeAsks = 0;
+      if (subframe !== status.subframe || !Object.is(stampNoise, status.stampNoise)) status = { ...status, subframe, stampNoise };
+      return subframe;
+    };
+
+    /** A fresh frame's timing: its aspect, the sub-frame standing, the sample time and age. */
+    const frameTick = (tick: DrumTick, frame: HandsFrame): FrameTick => {
+      const { ctx } = tick;
+      // The output stage (how long after the decision the earliest sound can leave the
+      // device), from the host's timing resource; a stated prior, flagged, when unknown.
+      const timing = timingFrom(ctx.resources);
+      const aspect = frame.width / frame.height;
+      if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
+      const subframe = subframeStep(timing);
+      // A `clock` stamp (honoured) is when the source noticed the frame: the camera
+      // took it the capture lag earlier (#318). An `estimated` stamp already is. The
+      // rule is the timing resource's own, so its frame age is this one (#393).
+      const t = sampleTime(frame, ctx, timing.captureLag?.value ?? CAPTURE_LAG_PRIOR_S);
+      // The frame's age: the sample was captured `age` seconds before this decision
+      // (the camera, inference and the tick), so the lead the predictor must leave
+      // from the sample's time is the dial's lead plus that age.
+      const age = Math.max(0, ctx.time - t);
+      return { ...tick, outputStage: timing.outputStage, aspect, subframe, t, age };
+    };
+
+    /** Feed one stick its hand's tracked point in this frame; null when there is nothing
+     *  to feed (no such hand, too soon after the last sample, no point, no predictor yet). */
+    const trackStick = (f: FrameTick, frame: HandsFrame, which: PlayerHand, stick: Stick): StickTick | null => {
+      const { c, t } = f;
+      const hand = frame.hands.find((h) => h.handedness === labelFor(which, c.mirrorHandedness));
+      if (!hand || t < stick.lastT + MIN_SAMPLE_SPACING) return null;
+      const anchor = anchorPoint(hand.keypoints, c.point, { stickLength: c.stickLength });
+      if (!anchor) return null;
+      stick.lastT = t;
+      if (gatesInGrips(c.point)) regate(stick, c, stickReach(hand.keypoints, c.stickLength) / frame.height, t);
+      const d = toDisplay(anchor.x, anchor.y, frame.width, frame.height);
+      const sample: TrackSample = { t, x: d.x, y: d.y };
+      if (gatesInGrips(c.point)) {
+        const heel = gripHeel(hand.keypoints);
+        sample.grip = toDisplay(heel.x, heel.y, frame.width, frame.height);
+      }
+      stick.recent.push(sample);
+      while (stick.recent.length > 2 && stick.recent[0].t < t - 2 * APPROACH_WINDOW) stick.recent.shift();
+      const predictor = stick.predictor;
+      if (!predictor) return null;
+      predictor.setMinLead(c.minLead + f.age);
+      const gates = gatesFor(c, stick.gateScale);
+      return {
+        which,
+        stick,
+        predictor,
+        anchor,
+        handSound: which === 'right' ? c.rightSound : c.leftSound,
+        gates,
+        // A `minSpeed` dial near 0 must not make every stroke infinitely hard: the
+        // speed ratio is taken against at least the default dial's gate.
+        hardnessFloor: gatesFor({ ...c, minSpeed: DEFAULT_MIN_SPEED }, stick.gateScale).minApproachSpeed,
+      };
+    };
+
+    /** What a stroke landing at `at` plays, and how hard (#245): the pad under the
+     *  landing point (or the hand's own sound), the centre-to-rim position, and the
+     *  stroke's hardness (`velocityOf`) as the velocity before the volume dial. */
+    const strike = (c: Params, st: StickTick, landing: Landing, strength: number): Strike => {
+      const speed = landing.speed;
+      const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad, landing.path) : null;
+      const silent = !padHit && anyPadOn(c.pads) && c.offPad === 'silent';
+      return {
+        silent,
+        sound: padHit ? padHit.pad.sound : st.handSound,
+        pad: padHit ? padHit.id : null,
+        radial: padHit ? clamp01(padHit.radial) : 0,
+        x: padHit ? padHit.at.x : landing.x,
+        y: padHit ? padHit.at.y : landing.y,
+        speed,
+        hardness: velocityOf(speed / Math.max(st.gates.minApproachSpeed, st.hardnessFloor), c.hardHit, strength),
+      };
+    };
+
+    /** A raised stick carried down by the arm (#261): not a stroke, whatever the
+     *  predictor made of its depth. Dropped there too, so the stroke the arm is
+     *  carrying it toward starts fresh from where the carry ends. */
+    const carried = (st: StickTick, tEnd: number, floor: number) => {
+      const seg = fallingSegment(st.stick.recent, tEnd, st.gates.minAmplitude * FALL_JITTER);
+      if (seg.length < 2) return false;
+      const fallen = seg[seg.length - 1].y - seg[0].y;
+      const amplitude = Number.isFinite(floor) ? Math.max(fallen, floor - seg[0].y) : fallen;
+      if (!isCarried(seg, { amplitude, minSwing: CARRY_SWING_FRACTION * st.gates.minAmplitude })) return false;
+      st.predictor.dropStroke();
+      return true;
+    };
+
+    /** A confirmation while the stamps cannot carry a sub-frame fit (#318). */
+    const onSnapped = (f: FrameTick, st: StickTick, e: ImpactConfirmation, decided: boolean) => {
+      const { c, ctx } = f;
+      const { stick } = st;
+      stick.committed = null;
+      stick.handled = null;
+      if (decided) return;
+      // The frame-snapped onset (#318): the deepest sample's own time, sounded
+      // now. A full hit, not a ghost: every stroke is reactive here, and it is the
+      // stamps, not the stroke, that ruled prediction out. No magnet outcome: the
+      // magnet can pull nothing it was never offered, and the status says why.
+      if (carried(st, e.t, NaN)) return;
+      const snappedT = deepestSampleTime(stick.recent, e.t);
+      const s = strike(c, st, landingAt(stick.recent, snappedT, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
+      if (s.silent) return;
+      // Pattern mode keeps following (its drum names the sound); the time stays now.
+      let sound = s.sound;
+      if (follower) {
+        if (follower.beat(snappedT) === null) follower.start(snappedT);
+        const snap = follower.snap(snappedT, { sound: s.sound, pad: s.pad });
+        if (snap.event !== null && snap.drum) sound = DRUM_SOUND[snap.drum];
+      }
+      f.hits.push({
+        t: ctx.time,
+        impactT: snappedT,
+        velocity: s.hardness * c.volume,
+        hand: st.which,
+        sound,
+        pad: s.pad,
+        radial: s.radial,
+        x: s.x,
+        y: s.y,
+        speed: s.speed,
+        strength: clamp01(e.strength),
+        ...standing(snappedT, ctx.time, f.outputStage),
+        pull: 0,
+      });
+    };
+
+    /** A predicted impact: sounded ahead of the frame that shows it, pulled toward the
+     *  pattern's grid or by the magnet. */
+    const onPredict = (f: FrameTick, st: StickTick, e: ImpactPrediction) => {
+      const { c, ctx, time, engaged, gate } = f;
+      const { stick, predictor } = st;
+      // The grid this stroke is committed against, before anything can skip it:
+      // its confirmation measures the grid's lag (rule a), whether or not the
+      // magnet is on, so the gate is warm when the player turns it up.
+      stick.committed = f.running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
+      stick.handled = e.t;
+      if (carried(st, e.t, predictor.level())) return;
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect: f.aspect }), e.strength);
+      if (s.silent) return;
+      /** The INTENDED sounding time: the impact, pulled toward the grid. */
+      let intended = e.t;
+      let sound = s.sound;
+      /** Whether a snap or the magnet moved the sounding time: only then is the
+       *  move a `pull`; the clamp alone (an impact already past at the decision,
+       *  a lastChance commit on a slow pipeline) is not one. */
+      let pulled = false;
+      /** Rule (a): the magnet's pull before the lag gate (to tell a gated
+       *  stroke from one the magnet's own window left alone). */
+      let wanted = 0;
+      if (follower) {
+        // Pattern mode: the first hit is the one when no count-in said where it falls.
+        if (follower.beat(e.t) === null) follower.start(e.t);
+        const snap = follower.snap(e.t, { sound: s.sound, pad: s.pad });
+        if (snap.event !== null) {
+          intended = snap.at;
+          pulled = true;
+          if (snap.drum) sound = DRUM_SOUND[snap.drum];
+        }
+      } else if (engaged) {
+        // Rule (a): the pull scaled by the lag gate. A grid sitting measurably
+        // off the strokes pulls nothing.
+        wanted = magnetise(e.t, time!, c.magnetism).pull;
+        intended = e.t + wanted * gate.gate;
+        pulled = true;
+      }
+      // Rule (b): never before the earliest sound, the decision plus the output
+      // stage (from the timing resource: never "now", which the device cannot
+      // reach). A pull toward a beat already behind that is truncated to it, and
+      // `pull` reports the move actually made against where the unpulled impact
+      // would have sounded; the lead reports what was intended.
+      const earliest = ctx.time + f.outputStage.value;
+      const at = pulled ? Math.max(earliest, intended) : Math.max(ctx.time, intended);
+      const pull = pulled ? at - Math.max(earliest, e.t) : 0;
+      if (engaged) {
+        // What stopped a pull, in order: none asked for; the pipeline (even the
+        // ungated pull would have been truncated to nothing); the lag gate.
+        const ungatedMove = Math.max(earliest, e.t + wanted) - Math.max(earliest, e.t);
+        noteOutcome(
+          Math.abs(pull) >= NO_PULL ? 'pulled'
+          : Math.abs(wanted) < NO_PULL ? 'quiet'
+          : Math.abs(ungatedMove) < NO_PULL ? 'pipeline'
+          : gate.gate === 0 ? (gate.n < LAG_MIN_STROKES ? 'warming' : 'gated')
+          : Math.abs(wanted * gate.gate) < NO_PULL ? 'quiet'
+          : 'pipeline',
+        );
+      }
+      f.hits.push({
+        t: at,
+        impactT: e.t,
+        velocity: s.hardness * c.volume,
+        hand: st.which,
+        sound,
+        pad: s.pad,
+        radial: s.radial,
+        x: s.x,
+        y: s.y,
+        speed: s.speed,
+        strength: clamp01(e.strength),
+        ...standing(intended, ctx.time, f.outputStage),
+        pull,
+      });
+    };
+
+    /** Rule (a): a predicted stroke confirmed: how far the impact landed from the
+     *  grid used at its commit. The confirmed impact, never what was sounded
+     *  (rule c: nothing pulled or truncated is ever fed back). */
+    const onConfirm = (stick: Stick, e: ImpactConfirmation) => {
+      const committed = stick.committed;
+      if (committed && committed.t === e.predicted && Number.isFinite(committed.grid)) {
+        lags.push(e.t - committed.grid);
+        if (lags.length > LAG_STROKES) lags.shift();
+      }
+      stick.committed = null;
+      stick.handled = null;
+    };
+
+    /** Unpredicted (or predicted while prediction was off, #318): a ghost note,
+     *  now; its lead is how late that is. It landed where the deepest sample was. */
+    const onGhost = (f: FrameTick, st: StickTick, e: ImpactConfirmation) => {
+      const { c, ctx } = f;
+      const { stick } = st;
+      stick.committed = null;
+      stick.handled = null;
+      if (carried(st, e.t, NaN)) return;
+      const s = strike(c, st, landingAt(stick.recent, e.t, st.gates.minAmplitude * FALL_JITTER, { turned: true, aspect: f.aspect }), e.strength);
+      if (s.silent) return;
+      // A stroke the pipeline could not predict cannot be pulled.
+      if (f.engaged) noteOutcome('pipeline');
+      f.hits.push({
+        t: ctx.time,
+        impactT: e.t,
+        velocity: s.hardness * c.volume * GHOST_VELOCITY,
+        hand: st.which,
+        sound: s.sound,
+        pad: s.pad,
+        radial: s.radial,
+        x: s.x,
+        y: s.y,
+        speed: s.speed,
+        strength: clamp01(e.strength),
+        ...standing(e.t, ctx.time, f.outputStage),
+        pull: 0,
+      });
+    };
+
+    /** One predictor event, routed by kind and by the sub-frame standing. */
+    const onEvent = (f: FrameTick, st: StickTick, e: ImpactEvent) => {
+      if (e.kind === 'predict') {
+        // With the stamps unable to carry the fit, no prediction is sounded (the stroke
+        // sounds at its confirmation, frame-snapped).
+        if (f.subframe === 'off-stamps') st.stick.committed = null;
+        else onPredict(f, st, e);
+        return;
+      }
+      /** A confirmation whose prediction was already decided (while predicting). */
+      const decided = e.predicted !== null && st.stick.handled === e.predicted;
+      if (f.subframe === 'off-stamps') onSnapped(f, st, e, decided);
+      else if (decided) onConfirm(st.stick, e);
+      else onGhost(f, st, e);
+    };
+
+    /** Play one fresh frame: every stick the config names takes its sample and its events. */
+    const playFrame = (tick: DrumTick, frame: HandsFrame, live: Record<PlayerHand, Stick>) => {
+      const f = frameTick(tick, frame);
+      const hands: PlayerHand[] = f.c.hand === 'both' ? ['right', 'left'] : [f.c.hand];
+      for (const which of hands) {
+        const st = trackStick(f, frame, which, live[which]);
+        if (!st) continue;
+        const { predictor, anchor } = st;
+        for (const e of predictor.push({ t: f.t, x: anchor.x / frame.height, y: anchor.y / frame.height })) onEvent(f, st, e);
+        if (!status.ready[which] && Number.isFinite(predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
+      }
+    };
+
+    /** The status after a tick: the magnet's standing, then this tick's hits counted. */
+    const updateStatus = ({ engaged, hits }: DrumTick) => {
+      const g = lagGate(lags);
+      const magnet = engaged ? magnetStanding(magnetRun) : 'off';
+      if (magnet !== status.magnet || !Object.is(g.lag, status.magnetLag) || g.gate !== status.magnetGate) status = { ...status, magnet, magnetLag: g.lag, magnetGate: g.gate };
+      if (hits.length) {
+        const last = hits[hits.length - 1];
+        status = {
+          ...status,
+          hits: status.hits + hits.length,
+          predicted: status.predicted + hits.filter((h) => h.predicted).length,
+          lastHand: last.hand,
+          lastPad: last.pad ?? null,
+          lastLead: last.lead,
+          lastPull: last.pull,
+          lastOnTime: last.onTime,
+          lastLateBy: last.lateBy,
+        };
+      }
+    };
+
     return {
       process(inputs, ctx: NodeContext) {
         const c = resolveConfig(inputs.config);
@@ -805,291 +1206,13 @@ export const airDrumNode = defineNode<Params>({
           if (sticks) reset();
           return { hits: [], status, enabled: false };
         }
-        if (!sticks || sticksKey !== stickKey(c)) {
-          sticks = { right: makeStick(c), left: makeStick(c) };
-          sticksKey = stickKey(c);
-          // The grid's lag is measured against THIS tracked point (a wrist-tracking
-          // conductor sits differently behind a stick tip than behind a wrist).
-          lags = [];
-          magnetRun = [];
-          status = { ...IDLE_STATUS, enabled: true, ready: { right: false, left: false } };
-        }
-        const hits: DrumHit[] = [];
-        const frame = inputs.hands as HandsFrame | undefined;
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        const fresh = frame !== lastFrame && !sameStamp;
-        lastFrame = frame;
-        const time = inputs.time as MusicalTime | undefined;
-        const play = (inputs.pattern as PatternPlay | null | undefined) ?? null;
-        if (play !== playFor) {
-          playFor = play;
-          follower = play ? createPatternFollower({ pattern: play.pattern, model: play.model }) : null;
-          if (follower && play?.startAt !== undefined) follower.start(play.startAt);
-        }
-        const running = !!time && time.state === 'running';
-        // A grid that stopped and restarted is a new grid: the lag measured against the
-        // old one says nothing about it.
-        if (running && !wasRunning) lags = [];
-        wasRunning = running;
-        /** The magnet is engaged: it would pull this tick's predicted hits. */
-        const engaged = running && c.magnetism > 0 && !follower;
-        if (!engaged) magnetRun = [];
-        const gate = lagGate(lags);
-        if (frame && fresh && frame.height > 0) {
-          // The output stage (how long after the decision the earliest sound can leave the
-          // device), from the host's timing resource; a stated prior, flagged, when unknown.
-          const timing = timingFrom(ctx.resources);
-          const outputStage = timing.outputStage;
-          const aspect = frame.width / frame.height;
-          if (Math.abs(aspect - status.frameAspect) > 1e-3) status = { ...status, frameAspect: aspect };
-          // A sub-frame fit only where the stamps can carry it (#318; see the header).
-          const rawNoise = timing.stampNoise ?? NaN;
-          const stampNoise = Number.isFinite(rawNoise) ? Math.round(rawNoise / STAMP_NOISE_STEP_S) * STAMP_NOISE_STEP_S : NaN;
-          const asked = subframeStanding(status.subframe, timing.dominantSource ?? null, rawNoise);
-          subframeAsks = asked === status.subframe ? 0 : subframeAsks + 1;
-          const subframe = subframeAsks >= SUBFRAME_DWELL_FRAMES ? asked : status.subframe;
-          if (subframe !== status.subframe) subframeAsks = 0;
-          if (subframe !== status.subframe || !Object.is(stampNoise, status.stampNoise)) status = { ...status, subframe, stampNoise };
-          // A `clock` stamp (honoured) is when the source noticed the frame: the camera
-          // took it the capture lag earlier (#318). An `estimated` stamp already is. The
-          // rule is the timing resource's own, so its frame age is this one (#393).
-          const t = sampleTime(frame, ctx, timing.captureLag?.value ?? CAPTURE_LAG_PRIOR_S);
-          // The frame's age: the sample was captured `age` seconds before this decision
-          // (the camera, inference and the tick), so the lead the predictor must leave
-          // from the sample's time is the dial's lead plus that age.
-          const age = Math.max(0, ctx.time - t);
-          const hands: PlayerHand[] = c.hand === 'both' ? ['right', 'left'] : [c.hand];
-          for (const which of hands) {
-            const stick = sticks[which];
-            const hand = frame.hands.find((h) => h.handedness === labelFor(which, c.mirrorHandedness));
-            if (!hand || t < stick.lastT + MIN_SAMPLE_SPACING) continue;
-            const anchor = anchorPoint(hand.keypoints, c.point, { stickLength: c.stickLength });
-            if (!anchor) continue;
-            stick.lastT = t;
-            if (gatesInGrips(c.point)) regate(stick, c, stickReach(hand.keypoints, c.stickLength) / frame.height, t);
-            const d = toDisplay(anchor.x, anchor.y, frame.width, frame.height);
-            const sample: TrackSample = { t, x: d.x, y: d.y };
-            if (gatesInGrips(c.point)) {
-              const heel = gripHeel(hand.keypoints);
-              sample.grip = toDisplay(heel.x, heel.y, frame.width, frame.height);
-            }
-            stick.recent.push(sample);
-            while (stick.recent.length > 2 && stick.recent[0].t < t - 2 * APPROACH_WINDOW) stick.recent.shift();
-            const predictor = stick.predictor;
-            if (!predictor) continue;
-            predictor.setMinLead(c.minLead + age);
-            const handSound = which === 'right' ? c.rightSound : c.leftSound;
-            const gates = gatesFor(c, stick.gateScale);
-            // A `minSpeed` dial near 0 must not make every stroke infinitely hard: the
-            // speed ratio is taken against at least the default dial's gate.
-            const hardnessFloor = gatesFor({ ...c, minSpeed: DEFAULT_MIN_SPEED }, stick.gateScale).minApproachSpeed;
-            /** What a stroke landing at `at` plays, and how hard (#245): the pad under the
-             *  landing point (or the hand's own sound), the centre-to-rim position, and the
-             *  stroke's hardness (`velocityOf`) as the velocity before the volume dial. */
-            const strike = (landing: Landing, strength: number) => {
-              const speed = landing.speed;
-              const padHit = anyPadOn(c.pads) ? hitPad(c.pads, landing, c.offPad, landing.path) : null;
-              const silent = !padHit && anyPadOn(c.pads) && c.offPad === 'silent';
-              return {
-                silent,
-                sound: padHit ? padHit.pad.sound : handSound,
-                pad: padHit ? padHit.id : null,
-                radial: padHit ? clamp01(padHit.radial) : 0,
-                x: padHit ? padHit.at.x : landing.x,
-                y: padHit ? padHit.at.y : landing.y,
-                speed,
-                hardness: velocityOf(speed / Math.max(gates.minApproachSpeed, hardnessFloor), c.hardHit, strength),
-              };
-            };
-            /** A raised stick carried down by the arm (#261): not a stroke, whatever the
-             *  predictor made of its depth. Dropped there too, so the stroke the arm is
-             *  carrying it toward starts fresh from where the carry ends. */
-            const carried = (tEnd: number, floor: number) => {
-              const seg = fallingSegment(stick.recent, tEnd, gates.minAmplitude * FALL_JITTER);
-              if (seg.length < 2) return false;
-              const fallen = seg[seg.length - 1].y - seg[0].y;
-              const amplitude = Number.isFinite(floor) ? Math.max(fallen, floor - seg[0].y) : fallen;
-              if (!isCarried(seg, { amplitude, minSwing: CARRY_SWING_FRACTION * gates.minAmplitude })) return false;
-              predictor.dropStroke();
-              return true;
-            };
-            for (const e of predictor.push({ t, x: anchor.x / frame.height, y: anchor.y / frame.height })) {
-              if (e.kind === 'predict' && subframe === 'off-stamps') {
-                // The stamps cannot carry the fit: no prediction is sounded (the stroke
-                // sounds at its confirmation, frame-snapped, below).
-                stick.committed = null;
-                continue;
-              }
-              /** A confirmation whose prediction was already decided (while predicting). */
-              const decided = e.kind !== 'predict' && e.predicted !== null && stick.handled === e.predicted;
-              if (e.kind !== 'predict' && subframe === 'off-stamps') {
-                stick.committed = null;
-                stick.handled = null;
-                if (decided) continue;
-                // The frame-snapped onset (#318): the deepest sample's own time, sounded
-                // now. A full hit, not a ghost: every stroke is reactive here, and it is the
-                // stamps, not the stroke, that ruled prediction out. No magnet outcome: the
-                // magnet can pull nothing it was never offered, and the status says why.
-                if (carried(e.t, NaN)) continue;
-                const snappedT = deepestSampleTime(stick.recent, e.t);
-                const s = strike(landingAt(stick.recent, snappedT, gates.minAmplitude * FALL_JITTER, { turned: true, aspect }), e.strength);
-                if (s.silent) continue;
-                // Pattern mode keeps following (its drum names the sound); the time stays now.
-                let sound = s.sound;
-                if (follower) {
-                  if (follower.beat(snappedT) === null) follower.start(snappedT);
-                  const snap = follower.snap(snappedT, { sound: s.sound, pad: s.pad });
-                  if (snap.event !== null && snap.drum) sound = DRUM_SOUND[snap.drum];
-                }
-                hits.push({
-                  t: ctx.time,
-                  impactT: snappedT,
-                  velocity: s.hardness * c.volume,
-                  hand: which,
-                  sound,
-                  pad: s.pad,
-                  radial: s.radial,
-                  x: s.x,
-                  y: s.y,
-                  speed: s.speed,
-                  strength: clamp01(e.strength),
-                  ...standing(snappedT, ctx.time, outputStage),
-                  pull: 0,
-                });
-                continue;
-              }
-              if (e.kind === 'predict') {
-                // The grid this stroke is committed against, before anything can skip it:
-                // its confirmation measures the grid's lag (rule a), whether or not the
-                // magnet is on, so the gate is warm when the player turns it up.
-                stick.committed = running ? { t: e.t, grid: nearestExpectedBeat(time!, e.t) } : null;
-                stick.handled = e.t;
-                if (carried(e.t, predictor.level())) continue;
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { floor: predictor.level(), aspect }), e.strength);
-                if (s.silent) continue;
-                /** The INTENDED sounding time: the impact, pulled toward the grid. */
-                let intended = e.t;
-                let sound = s.sound;
-                /** Whether a snap or the magnet moved the sounding time: only then is the
-                 *  move a `pull`; the clamp alone (an impact already past at the decision,
-                 *  a lastChance commit on a slow pipeline) is not one. */
-                let pulled = false;
-                /** Rule (a): the magnet's pull before the lag gate (to tell a gated
-                 *  stroke from one the magnet's own window left alone). */
-                let wanted = 0;
-                if (follower) {
-                  // Pattern mode: the first hit is the one when no count-in said where it falls.
-                  if (follower.beat(e.t) === null) follower.start(e.t);
-                  const snap = follower.snap(e.t, { sound: s.sound, pad: s.pad });
-                  if (snap.event !== null) {
-                    intended = snap.at;
-                    pulled = true;
-                    if (snap.drum) sound = DRUM_SOUND[snap.drum];
-                  }
-                } else if (engaged) {
-                  // Rule (a): the pull scaled by the lag gate. A grid sitting measurably
-                  // off the strokes pulls nothing.
-                  wanted = magnetise(e.t, time!, c.magnetism).pull;
-                  intended = e.t + wanted * gate.gate;
-                  pulled = true;
-                }
-                // Rule (b): never before the earliest sound, the decision plus the output
-                // stage (from the timing resource: never "now", which the device cannot
-                // reach). A pull toward a beat already behind that is truncated to it, and
-                // `pull` reports the move actually made against where the unpulled impact
-                // would have sounded; the lead reports what was intended.
-                const earliest = ctx.time + outputStage.value;
-                const at = pulled ? Math.max(earliest, intended) : Math.max(ctx.time, intended);
-                const pull = pulled ? at - Math.max(earliest, e.t) : 0;
-                if (engaged) {
-                  // What stopped a pull, in order: none asked for; the pipeline (even the
-                  // ungated pull would have been truncated to nothing); the lag gate.
-                  const ungatedMove = Math.max(earliest, e.t + wanted) - Math.max(earliest, e.t);
-                  noteOutcome(
-                    Math.abs(pull) >= NO_PULL ? 'pulled'
-                    : Math.abs(wanted) < NO_PULL ? 'quiet'
-                    : Math.abs(ungatedMove) < NO_PULL ? 'pipeline'
-                    : gate.gate === 0 ? (gate.n < LAG_MIN_STROKES ? 'warming' : 'gated')
-                    : Math.abs(wanted * gate.gate) < NO_PULL ? 'quiet'
-                    : 'pipeline',
-                  );
-                }
-                hits.push({
-                  t: at,
-                  impactT: e.t,
-                  velocity: s.hardness * c.volume,
-                  hand: which,
-                  sound,
-                  pad: s.pad,
-                  radial: s.radial,
-                  x: s.x,
-                  y: s.y,
-                  speed: s.speed,
-                  strength: clamp01(e.strength),
-                  ...standing(intended, ctx.time, outputStage),
-                  pull,
-                });
-              } else if (decided) {
-                // Rule (a): a predicted stroke confirmed: how far the impact landed from the
-                // grid used at its commit. The confirmed impact, never what was sounded
-                // (rule c: nothing pulled or truncated is ever fed back).
-                const committed = stick.committed;
-                if (committed && committed.t === e.predicted && Number.isFinite(committed.grid)) {
-                  lags.push(e.t - committed.grid);
-                  if (lags.length > LAG_STROKES) lags.shift();
-                }
-                stick.committed = null;
-                stick.handled = null;
-              } else {
-                // Unpredicted (or predicted while prediction was off, #318): a ghost note,
-                // now; its lead is how late that is. It landed where the deepest sample was.
-                stick.committed = null;
-                stick.handled = null;
-                if (carried(e.t, NaN)) continue;
-                const s = strike(landingAt(stick.recent, e.t, gates.minAmplitude * FALL_JITTER, { turned: true, aspect }), e.strength);
-                if (s.silent) continue;
-                // A stroke the pipeline could not predict cannot be pulled.
-                if (engaged) noteOutcome('pipeline');
-                hits.push({
-                  t: ctx.time,
-                  impactT: e.t,
-                  velocity: s.hardness * c.volume * GHOST_VELOCITY,
-                  hand: which,
-                  sound: s.sound,
-                  pad: s.pad,
-                  radial: s.radial,
-                  x: s.x,
-                  y: s.y,
-                  speed: s.speed,
-                  strength: clamp01(e.strength),
-                  ...standing(e.t, ctx.time, outputStage),
-                  pull: 0,
-                });
-              }
-            }
-            if (!status.ready[which] && Number.isFinite(predictor.level())) status = { ...status, ready: { ...status.ready, [which]: true } };
-          }
-        }
-        {
-          const g = lagGate(lags);
-          const magnet = engaged ? magnetStanding(magnetRun) : 'off';
-          if (magnet !== status.magnet || !Object.is(g.lag, status.magnetLag) || g.gate !== status.magnetGate) status = { ...status, magnet, magnetLag: g.lag, magnetGate: g.gate };
-        }
-        if (hits.length) {
-          const last = hits[hits.length - 1];
-          status = {
-            ...status,
-            hits: status.hits + hits.length,
-            predicted: status.predicted + hits.filter((h) => h.predicted).length,
-            lastHand: last.hand,
-            lastPad: last.pad ?? null,
-            lastLead: last.lead,
-            lastPull: last.pull,
-            lastOnTime: last.onTime,
-            lastLateBy: last.lateBy,
-          };
-        }
-        return { hits, status, enabled: true };
+        const live = resolveSticks(c);
+        const frame = freshFrame(inputs.hands as HandsFrame | undefined);
+        syncPattern((inputs.pattern as PatternPlay | null | undefined) ?? null);
+        const tick = beginTick(c, ctx, inputs.time as MusicalTime | undefined);
+        if (frame) playFrame(tick, frame, live);
+        updateStatus(tick);
+        return { hits: tick.hits, status, enabled: true };
       },
       dispose() {
         reset();
