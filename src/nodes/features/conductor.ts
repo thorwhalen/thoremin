@@ -128,14 +128,14 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createDanceLead, createExpressionBlend, createHandGesture, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type DynamicsEstimate, type ExpressionBlend, type HandGesture, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
-import { LM, type BodyFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { beatAt, conductorRatios, createDanceLead, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, createTransport, wrapPhase, ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TRANSPORT_DEFAULTS, UNKNOWN_PULSE, type Anchor, type DanceLead, type Ictus, type IctusState, type LeadOffsets, type LevelHold, type MusicalTime, type PulseState, type Transport, type TransportPhase, type TransportPose } from '@thoremin/ictus';
+import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
-import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import { handGestureFrame } from './conductor_gesture';
-import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyExpressionMeter, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyExpressionMeter, type BodyMotionMeter } from './conductor_body';
-import { barStartAt, beatsPerBarAt, timeSignatureAt } from '@thoremin/sdk/score/schema';
-import { readScoreDoc } from '@thoremin/sdk/score/prepare';
+import { handPoint, isFresh, MIN_SAMPLE_SPACING, pickHand } from './conductor_hands';
+import { createExpressionShaper } from './conductor_shaping';
+import { createDocContext } from './conductor_doc';
+export { firstTempo } from './conductor_doc';
+import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints, createBodyMotionMeter, CONDUCTOR_BODY_POINTS, type BodyMotionMeter } from './conductor_body';
 import { clamp01 } from '@thoremin/sdk/features/math';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
@@ -351,38 +351,6 @@ export function conductorReadsTwoHands(c: Partial<Params> | undefined): boolean 
   return handsShape && shaping !== 'auto' && shaping !== beating;
 }
 
-/** MediaPipe's label for the player's hand, given the mirror convention. */
-function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolean): Hand['handedness'] {
-  const raw = hand === 'right' ? 'Right' : 'Left';
-  if (!mirrorHandedness) return raw;
-  return raw === 'Right' ? 'Left' : 'Right';
-}
-
-/** The hand that shapes the expression (#378): the one `expressionHand` names (#457);
- *  with `auto`, while an ARM of the body beats on a named side, the other hand (the
- *  conducting literature's expressive hand), otherwise the conductor's hand choice. */
-function shapingHand(frame: HandsFrame, cfg: Params): Hand | undefined {
-  if (cfg.expressionHand !== 'auto') {
-    const label = labelFor(cfg.expressionHand, cfg.mirrorHandedness);
-    return frame.hands.find((h) => h.handedness === label);
-  }
-  if (cfg.source === 'body' && (cfg.bodyPoint === 'impact' || cfg.bodyPoint === 'wrist') && cfg.hand !== 'auto') {
-    const label = labelFor(cfg.hand === 'right' ? 'left' : 'right', cfg.mirrorHandedness);
-    return frame.hands.find((h) => h.handedness === label);
-  }
-  return pickHand(frame, cfg);
-}
-
-function pickHand(frame: HandsFrame, cfg: Params): Hand | undefined {
-  if (!frame.hands.length) return undefined;
-  if (cfg.hand === 'auto') {
-    const preferred = labelFor('right', cfg.mirrorHandedness);
-    return frame.hands.find((h) => h.handedness === preferred) ?? frame.hands[0];
-  }
-  const label = labelFor(cfg.hand, cfg.mirrorHandedness);
-  return frame.hands.find((h) => h.handedness === label);
-}
-
 /** The release of a fermata is a stroke at least this many periods after it was reached. */
 const FERMATA_RELEASE_PERIODS = 0.5;
 
@@ -452,43 +420,6 @@ function readTransportPose(raw: unknown): TransportPose | undefined {
   return pose;
 }
 
-/** The score's first marked tempo (bpm), if it marks one. */
-export function firstTempo(doc: ScoreDoc): number | null {
-  let first: { beat: number; bpm: number } | null = null;
-  for (const m of doc.tempoMap) if (!first || m.beat < first.beat) first = m;
-  return first ? first.bpm : null;
-}
-
-/** The score's marked tempo (bpm) at a beat: the last mark at or before it, else the
- *  first. Null when it marks none. */
-function tempoAt(doc: ScoreDoc, beat: number): number | null {
-  let at: { beat: number; bpm: number } | null = null;
-  let first: { beat: number; bpm: number } | null = null;
-  for (const m of doc.tempoMap) {
-    if (!first || m.beat < first.beat) first = m;
-    if (m.beat <= beat && (!at || m.beat >= at.beat)) at = m;
-  }
-  return (at ?? first)?.bpm ?? null;
-}
-
-/** Two samples closer than this (seconds) are not two camera frames: a stamp-source
- *  switch (a clock stamp followed by an estimated one, pushed forward to stay
- *  increasing) can put them a millisecond apart, and a backward difference over that
- *  would latch the speed fallback. No camera this app meets exceeds 240 fps. */
-const MIN_SAMPLE_SPACING = 0.004;
-
-/** Whether a frame is a new observation: the same object again, or a distinct copy
- *  carrying the same stamp (a replayed recording stores every tick, so a camera frame
- *  comes back as two parsed copies), is not. */
-const isFresh = (f: { t?: number } | undefined, prev: { t?: number } | undefined): boolean =>
-  f !== prev && !(!!f && !!prev && f.t !== undefined && f.t === prev.t);
-
-/** The tracked point of a hand, in frame heights (the hand detector's unit). */
-function handPoint(hand: Hand, frame: HandsFrame, c: Params, t: number): { t: number; x: number; y: number } {
-  const kp = hand.keypoints[c.point === 'wrist' ? LM.wrist : LM.index_tip];
-  return { t, x: kp.x / frame.height, y: kp.y / frame.height };
-}
-
 export const conductorNode = defineNode<Params>({
   type: 'conductor',
   roles: ['feature', 'mapping'],
@@ -537,34 +468,19 @@ export const conductorNode = defineNode<Params>({
     /** The beat the score reads: integrated here, phase-servoed onto the ictus. */
     let beatOut = 0;
     let wasEnabled = false;
-    // The document's fermatas (sorted beats) and meter, re-read when the doc object changes.
-    let docRef: unknown = null;
-    let fermatas: number[] = [];
-    let docMeter: ((beat: number) => number) | null = null;
-    /** The document's marked tempo at a beat, and where the time signature in force at a
-     *  beat starts (the reference a bar or half-bar mark is counted from). */
-    let docTempo: ((beat: number) => number | null) | null = null;
-    let docSigStart: ((beat: number) => number) | null = null;
-    /** Where the bar line in force at a beat sits (the signature's start, or the pickup's
-     *  virtual bar start, #438): what `beatInBar` and the bar-level strokes count from. */
-    let docBarStart: ((beat: number) => number) | null = null;
+    /** The loaded piece: its fermatas, meter, tempo, bar lines, first tempo, last onset and length. */
+    const doc = createDocContext();
     /** `markLevel: auto`: the level held (its ratio set has this beats-per-bar). */
     let levelHold: LevelHold | null = null;
     let levelBpb = 0;
-    /** The document's first tempo mark (bpm), seeding the body detector's period. */
-    let docBpm: number | null = null;
-    /** Fermata hold: the beat we stopped at, and the anchor count when we stopped (a
-     *  NEW stroke — one more anchor — releases it). */
-    let fermataAt: number | null = null;
-    let fermataAnchors = 0;
-    /** When the fermata was reached, and the stroke period then: the release is a stroke
-     *  whose own time is at least half a period later. The stroke that LANDS on the fermata
-     *  is often confirmed after the beat got there (a stroke that ends in a stop is
-     *  confirmed late, #377); counting it as the release would play straight through. */
-    let fermataT = -Infinity;
-    let fermataPeriod = 0;
-    /** The fermata last released: the beat still sits on it, and must not stop there again. */
-    let fermataReleased: number | null = null;
+    /** Fermata hold. `at`: the beat we stopped at; `anchors`: the anchor count when we
+     *  stopped (a NEW stroke, one more anchor, releases it); `t` and `period`: when the
+     *  fermata was reached and the stroke period then (the release is a stroke whose own
+     *  time is at least half a period later: the stroke that LANDS on the fermata is often
+     *  confirmed after the beat got there, as one that ends in a stop is confirmed late,
+     *  #377; counting it as the release would play straight through); `released`: the
+     *  fermata last released, which the beat still sits on and must not stop at again. */
+    const fermata: { at: number | null; anchors: number; t: number; period: number; released: number | null } = { at: null, anchors: 0, t: -Infinity, period: 0, released: null };
     /** The hands frame seen on the previous tick: the same object again is not a new
      *  observation (#225). */
     let lastFrame: HandsFrame | undefined;
@@ -588,11 +504,6 @@ export const conductorNode = defineNode<Params>({
     let transportCfg: unknown = null;
     let meter: BodyMotionMeter | null = null;
     let transportReading: ConductorTransportReading = 'off';
-    /** The last note onset of the loaded piece (null without one): a cut-off at or past it
-     *  ends the piece, and the next start is from the top. */
-    let docLastOnset: number | null = null;
-    /** The document's length in beats (its last note-off): where a dancer's piece loops (#463). */
-    let docLength: number | null = null;
     /** The beat the body's transport started on (its downbeat), until the prior has a
      *  period: meanwhile the beat moves at the marked tempo and waits just short of the
      *  next stroke's beat for the second stroke (see `process`). */
@@ -609,45 +520,8 @@ export const conductorNode = defineNode<Params>({
     /** The tempo the beat last advanced at: the body's hold runs up to its stop at it, and
      *  the release moves at it until the next stroke. */
     let holdBpm = 0;
-    /** Expression (#378). A follower of the OTHER source when the expression is not the
-     *  beat's (only its strokes' dynamics and articulation are read), the body's
-     *  per-frame channels, and their per-player blend while the body shapes. */
-    let exprIctus: Ictus | null = null;
-    let exprKey = '';
-    let exprMeter: BodyExpressionMeter | null = null;
-    let blend: ExpressionBlend | null = null;
-    let lastExprBody: BodyFrame | undefined;
-    let lastExprBodyT = -Infinity;
-    let lastExprHands: HandsFrame | undefined;
-    let lastExprPtT = -Infinity;
-    /** The shaping hand's gesture (#457) and the time of its last stroke: while it makes
-     *  none, the gesture shapes. */
-    let gesture: HandGesture | null = null;
-    let lastShapeStrokeT = -Infinity;
-    let prevShapeStrokeT = -Infinity;
-    /** The crossfade between the strokes' reading and the gesture's (`handGesture.fadeS`). */
-    let shapeMode: 'strokes' | 'gesture' | null = null;
-    let fadeFrom = NaN;
-    let fadeT0 = -Infinity;
-    let lastShapedDyn = NaN;
-    const resetFade = (): void => {
-      shapeMode = null;
-      fadeFrom = NaN;
-      fadeT0 = -Infinity;
-      lastShapedDyn = NaN;
-    };
-    const resetExpression = (): void => {
-      exprIctus = null;
-      exprKey = '';
-      exprMeter = null;
-      blend = null;
-      gesture = null;
-      resetFade();
-      lastExprBodyT = -Infinity;
-      lastExprPtT = -Infinity;
-      lastShapeStrokeT = -Infinity;
-      prevShapeStrokeT = -Infinity;
-    };
+    /** The expression's state (#378, #457) lives in its own factory (`conductor_shaping.ts`). */
+    const expr = createExpressionShaper();
     // Speed-based fallback: EW speed of the tracked point (or the body's quantity of
     // motion) and a decaying envelope of it.
     let lastPt: { t: number; x: number; y: number } | null = null;
@@ -660,11 +534,7 @@ export const conductorNode = defineNode<Params>({
     const resetFollower = (): void => {
       ictus = null;
       // The expression's own frame clocks restart with the follower's (a replay from the top).
-      lastExprBodyT = -Infinity;
-      lastExprPtT = -Infinity;
-      lastShapeStrokeT = -Infinity;
-      prevShapeStrokeT = -Infinity;
-      resetFade();
+      expr.restartClocks();
       lastPt = null;
       lastBody = null;
       lead.reset();
@@ -674,30 +544,9 @@ export const conductorNode = defineNode<Params>({
     };
 
     const resolveDoc = (raw: unknown): void => {
-      if (raw === docRef) return;
-      docRef = raw;
-      fermatas = [];
-      docMeter = null;
-      docTempo = null;
-      docSigStart = null;
-      docBarStart = null;
-      docBpm = null;
-      docLastOnset = null;
-      docLength = null;
-      fermataAt = null;
-      fermataReleased = null;
-      const doc = readScoreDoc(raw);
-      if (!doc) return;
-      fermatas = [...doc.fermatas].sort((a, b) => a - b);
-      docMeter = (beat) => beatsPerBarAt(doc, beat);
-      docTempo = (beat) => tempoAt(doc, beat);
-      docSigStart = (beat) => timeSignatureAt(doc, beat).beat;
-      docBarStart = (beat) => barStartAt(doc, beat);
-      docBpm = firstTempo(doc);
-      let last = -Infinity;
-      for (const part of doc.parts) for (const n of part.notes) last = Math.max(last, n.start);
-      docLastOnset = Number.isFinite(last) ? last : null;
-      docLength = doc.lengthBeats > 0 ? doc.lengthBeats : null;
+      if (!doc.resolve(raw)) return;
+      fermata.at = null;
+      fermata.released = null;
     };
 
     const resolveConfig = (raw: unknown): Params => {
@@ -767,7 +616,7 @@ export const conductorNode = defineNode<Params>({
         levelHold.set(held === levelBpb && held > 2 ? bpb : held);
         levelBpb = bpb;
       }
-      const marked = docTempo ? docTempo(beatOut) : null;
+      const marked = doc.tempo ? doc.tempo(beatOut) : null;
       if (s && marked !== null && marked > 0) {
         const trusted = s.state === 'running' && s.confidence >= c.fallbackBelowConfidence && Number.isFinite(s.period) && s.period > 0;
         levelHold.step(t, trusted ? s.period : NaN, 60 / marked);
@@ -778,7 +627,7 @@ export const conductorNode = defineNode<Params>({
      *  so after a meter change or a pickup it agrees with the bar-level strokes, and a
      *  fractional bar (5/8 = 2.5 quarter beats) still reads a whole beat. */
     const barBeat = (beat: number, bpb: number): number => {
-      const into = beat - (docBarStart ? docBarStart(beat) : 0);
+      const into = beat - (doc.barStart ? doc.barStart(beat) : 0);
       return Math.floor((((into % bpb) + bpb) % bpb) + 1e-9);
     };
     /** The tempo the body follower is seeded at: the score's first mark, at the stated
@@ -789,137 +638,9 @@ export const conductorNode = defineNode<Params>({
       // too would hand the detector the marked period at the downbeat, and a piece marked
       // at twice the conductor's tempo then has it take each stroke's rebound for a stroke
       // (measured on A1's fixture against a score at 160 bpm).
-      if (c.source !== 'body' || docBpm === null || c.transport.rules) return null;
-      const k = c.markLevel === 'half' ? 2 : c.markLevel === 'bar' ? (docMeter ? docMeter(0) : c.beatsPerBar) : 1;
-      return docBpm / k;
-    };
-
-    /** The dynamics and articulation for this tick (#378; see `expression`). A dancer's own
-     *  expression is the body's (#380): its motion and reach, read once per pulse cycle
-     *  (`s.anchor` is the cycle), with no stroke excursion. */
-    const shapeExpression = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: Pick<IctusState, 'dynamics' | 'articulation' | 'anchor'>): DynamicsEstimate => {
-      const source = c.expression === 'same' ? (c.source === 'dancer' ? 'body' : c.source) : c.expression;
-      const beat: DynamicsEstimate = { dynamics: s.dynamics, articulation: s.articulation };
-      const ownBody = c.source === 'dancer' && source === 'body';
-      // The hand conductor's other hand, named to shape (#457): the hands alone split the role.
-      const beatingHand = c.hand === 'auto' ? 'right' : c.hand;
-      const otherHand = source === 'hands' && c.source === 'hands' && c.expressionHand !== 'auto' && c.expressionHand !== beatingHand;
-      const now = followOtherSource(inputs, ctx, c, source, (source === c.source && !otherHand) || ownBody);
-      // The shaping source's strokes, once it has shown one; until then (the pose model
-      // loading, nobody's other hand in frame) the beat's own.
-      const shaped = (): DynamicsEstimate => {
-        const e = exprIctus?.state();
-        return e && e.anchors > 0 ? e : beat;
-      };
-      return source !== 'body' ? shapeFromHands(c, shaped(), now) : shapeFromBody(inputs, ctx, c, s, ownBody, shaped);
-    };
-
-    /** The follower of the OTHER source (`own`: the beat's own source shapes, so there is
-     *  none): built when the source or its settings change, fed the hands' frame here (the
-     *  body's is fed by {@link shapeFromBody}). Returns the time the shaping reads at. */
-    const followOtherSource = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, source: string, own: boolean): number => {
-      let now = ctx.time;
-      if (own) {
-        exprIctus = null;
-        return now;
-      }
-      // The other source's follower: its prior only paces its detector.
-      const key = source === 'body' ? `body:${c.bodyPoint}:${c.hand}:${c.mirrorX}` : `hands:${c.source}:${c.bodyPoint}:${c.hand}:${c.expressionHand}:${c.handGesture.minStroke}:${c.mirrorX}:${c.mirrorHandedness}`;
-      if (!exprIctus || key !== exprKey) {
-        exprIctus = createIctus({
-          // A shaping hand's stroke is at least `minStroke` frame heights: a hand held
-          // still is quiet (its tremor is no stroke), so its gesture shapes (#457).
-          detector: source === 'body' ? createImpactDetector({ joints: conductorBodyJoints(c.bodyPoint, c.hand), mirrorX: c.mirrorX }) : { mirrorX: c.mirrorX, minAmplitude: c.handGesture.minStroke },
-          prior: c.prior,
-        });
-        exprKey = key;
-        lastExprPtT = -Infinity;
-        lastShapeStrokeT = -Infinity;
-        prevShapeStrokeT = -Infinity;
-        gesture = null;
-        resetFade();
-      }
-      if (source === 'hands') {
-        const frame = inputs.hands as HandsFrame | undefined;
-        const fresh = isFresh(frame, lastExprHands);
-        lastExprHands = frame;
-        const hand = frame && fresh ? shapingHand(frame, c) : undefined;
-        const t = captureTime(frame, ctx);
-        now = t;
-        if (hand && frame && frame.height > 0 && t >= lastExprPtT + MIN_SAMPLE_SPACING) {
-          if (exprIctus.feed(handPoint(hand, frame, c, t)).anchor) {
-            prevShapeStrokeT = lastShapeStrokeT;
-            lastShapeStrokeT = t;
-          }
-          gesture ??= createHandGesture();
-          gesture.push(handGestureFrame(hand, frame, inputs.body as BodyFrame | undefined, t));
-          lastExprPtT = t;
-        }
-      }
-      return now;
-    };
-
-    /** Shaping read from the hands (#457): the shaping source's strokes, or, while its hand
-     *  makes no stroke, the gesture (its height and palm), continuously; a change of reading
-     *  crossfades from where the dynamics were (no step in CC11). `shapedNow` is the
-     *  strokes the shaping source has shown (the beat's own until it shows one). */
-    const shapeFromHands = (c: Params, shapedNow: DynamicsEstimate, now: number): DynamicsEstimate => {
-      exprMeter = null;
-      blend = null;
-      let strokes = shapedNow;
-      // A shaping hand that makes no stroke (#457): its height and palm say the loudness,
-      // continuously; its strokes' articulation (or the beat's) stands. A hand not seen for
-      // a moment reads as before.
-      // Stroking is two strokes in a row, each within `quietS` of the next (and of now):
-      // one turn, a hand lowered to hush and stopping, is not a beat.
-      const stroking = lastShapeStrokeT - prevShapeStrokeT <= c.handGesture.quietS && now - lastShapeStrokeT <= c.handGesture.quietS;
-      if (exprIctus) {
-        let mode: 'strokes' | 'gesture' = 'strokes';
-        if (gesture && !stroking) {
-          gesture.setWeights({ height: c.handGesture.height, palm: c.handGesture.palm });
-          const g = gesture.read(now);
-          if (Number.isFinite(g)) {
-            strokes = { dynamics: g, articulation: strokes.articulation };
-            mode = 'gesture';
-          }
-        }
-        // A change of reading crossfades from where the dynamics were (no step in CC11).
-        if (shapeMode !== null && mode !== shapeMode) {
-          fadeFrom = lastShapedDyn;
-          fadeT0 = now;
-        }
-        shapeMode = mode;
-        const u = c.handGesture.fadeS > 0 ? Math.min(1, Math.max(0, (now - fadeT0) / c.handGesture.fadeS)) : 1;
-        if (Number.isFinite(fadeFrom) && u < 1) strokes = { dynamics: fadeFrom + (strokes.dynamics - fadeFrom) * u, articulation: strokes.articulation };
-        lastShapedDyn = strokes.dynamics;
-      }
-      return strokes;
-    };
-
-    /** Shaping read from the body: the strokes' dynamics blended with its motion and its
-     *  arm's reach, each per player (`shaped` is read at the end, after this tick's frame). */
-    const shapeFromBody = (inputs: Record<string, unknown>, ctx: NodeContext, c: Params, s: Pick<IctusState, 'anchor'>, ownBody: boolean, shaped: () => DynamicsEstimate): DynamicsEstimate => {
-      exprMeter ??= createBodyExpressionMeter();
-      // A dancer's cycle has no braking sharpness: its articulation is the body's flow.
-      const articulation = ownBody ? 'flow' : c.articulationFrom;
-      blend ??= createExpressionBlend({ articulation });
-      blend.setArticulation(articulation);
-      const body = inputs.body as BodyFrame | undefined;
-      const fresh = isFresh(body, lastExprBody);
-      lastExprBody = body;
-      const t = captureTime(body, ctx);
-      if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
-        lastExprBodyT = t;
-        // The channels are read per stroke (a hold or a fermata changes nothing).
-        blend.push(exprMeter.push(body, t, c.hand));
-        if (exprIctus) {
-          const a = exprIctus.feedFrame(bodyChannelFrame(body, t, c.hand)).anchor;
-          if (a) blend.pushStroke(a);
-        }
-      }
-      // The beat's own stroke this tick, when the body both beats and shapes.
-      if (!exprIctus && s.anchor) blend.pushStroke(s.anchor);
-      return blend.read(ownBody ? null : shaped());
+      if (c.source !== 'body' || doc.bpm === null || c.transport.rules) return null;
+      const k = c.markLevel === 'half' ? 2 : c.markLevel === 'bar' ? (doc.meter ? doc.meter(0) : c.beatsPerBar) : 1;
+      return doc.bpm / k;
     };
 
     /** A dancer leads (#380): ictus's dance lead owns the beat (the loose law: it starts on
@@ -945,7 +666,7 @@ export const conductorNode = defineNode<Params>({
       transportReading = 'off';
       levelHold = null;
       startBeat = null;
-      fermataAt = null;
+      fermata.at = null;
       // The hand's or the body's follower is not kept across a dancer: back to it, it
       // starts fresh and waits for a first stroke.
       if (ictus) resetFollower();
@@ -957,10 +678,10 @@ export const conductorNode = defineNode<Params>({
       wasEnabled = true;
       const raw = inputs.pulse as PulseState | undefined;
       const pulse = raw && typeof raw === 'object' && typeof raw.period === 'number' ? raw : UNKNOWN_PULSE;
-      const marked = docTempo?.(beatOut) ?? c.dancer.bpm;
+      const marked = doc.tempo?.(beatOut) ?? c.dancer.bpm;
       // The piece's written fermatas hold for one dancer cycle, and its end loops to the top
       // on a cycle start (#463): the dance lead's rules 6 and 7.
-      const d = dance.step({ t: ctx.time, pulse, marked, ref: docBarStart ? docBarStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas, top: docSigStart ? docSigStart(0) : 0, ...(docLength !== null ? { end: docLength } : {}) });
+      const d = dance.step({ t: ctx.time, pulse, marked, ref: doc.barStart ? doc.barStart(beatOut) : 0, range: c.dancer.range, phaseOffset: c.dancer.phaseOffset, fermatas: doc.fermatas, top: doc.sigStart ? doc.sigStart(0) : 0, ...(doc.length !== null ? { end: doc.length } : {}) });
       beatOut = d.beat;
       // A cycle the follower fitted is the dancer's "stroke" for the expression (A6's note).
       let cycle: Anchor | null = null;
@@ -968,10 +689,10 @@ export const conductorNode = defineNode<Params>({
         lastCycleAt = pulse.lastAnchorAt;
         cycle = { t: pulse.lastAnchorAt, confidence: pulse.confidence, strength: 1, sharpness: NaN, lateral: 0 };
       }
-      const expression = shapeExpression(inputs, ctx, c, { dynamics: 0.5, articulation: 0.5, anchor: cycle });
+      const expression = expr.shape(inputs, ctx, c, { dynamics: 0.5, articulation: 0.5, anchor: cycle });
       const bpm = d.started ? d.tempo : 0;
       const wholeBeat = Math.floor(beatOut);
-      const bpb = docMeter ? docMeter(beatOut) : c.beatsPerBar;
+      const bpb = doc.meter ? doc.meter(beatOut) : c.beatsPerBar;
       const time: MusicalTime = {
         t: ctx.time,
         beat: beatOut,
@@ -998,8 +719,8 @@ export const conductorNode = defineNode<Params>({
       if (wasEnabled) {
         resetFollower();
         beatOut = 0;
-        fermataAt = null;
-        fermataReleased = null;
+        fermata.at = null;
+        fermata.released = null;
         wasEnabled = false;
       }
       levelHold = null;
@@ -1007,7 +728,7 @@ export const conductorNode = defineNode<Params>({
       meter = null;
       dance = null;
       danceRatio = null;
-      resetExpression();
+      expr.reset();
       transportReading = 'off';
       afterStop = false;
       startBeat = null;
@@ -1057,7 +778,7 @@ export const conductorNode = defineNode<Params>({
         resetFollower();
         // A held fermata stays held, and the new follower's first stroke releases it
         // (its anchor count starts again from 0).
-        fermataAnchors = 0;
+        fermata.anchors = 0;
       }
       if (!wasEnabled || !ictus) {
         coreKey = key;
@@ -1100,7 +821,7 @@ export const conductorNode = defineNode<Params>({
       // would hand the beat to the speed fallback for a few strokes.
       if (wasHolding && tr.accept) {
         ic.prior.reset();
-        fermataAnchors = 0;
+        fermata.anchors = 0;
         released = true;
       }
       return { accept: tr.accept, stopped: tr.stopped, started: tr.started, released };
@@ -1177,11 +898,11 @@ export const conductorNode = defineNode<Params>({
       // A leading joint's anchor held past the cut-off is not a stroke after it.
       lead.reset();
       const s = ic.state();
-      fermataAnchors = 0;
-      if (docLastOnset !== null && beatOut >= docLastOnset) {
+      fermata.anchors = 0;
+      if (doc.lastOnset !== null && beatOut >= doc.lastOnset) {
         beatOut = 0;
-        fermataAt = null;
-        fermataReleased = null;
+        fermata.at = null;
+        fermata.released = null;
         afterStop = false;
       } else afterStop = true;
       return s;
@@ -1191,7 +912,7 @@ export const conductorNode = defineNode<Params>({
      *  strokes `k` beats apart: a multiple of `k`, counted from the time signature's start
      *  (the servo's reference). */
     const gridFor = (k: number) => (b: number, snap: (x: number) => number): number => {
-      const ref = k === 1 || !docBarStart ? 0 : docBarStart(b);
+      const ref = k === 1 || !doc.barStart ? 0 : doc.barStart(b);
       return ref + k * snap((b - ref) / k);
     };
 
@@ -1207,9 +928,9 @@ export const conductorNode = defineNode<Params>({
         // plays the next stroke's beat strictly after it.
         const from = beatOut;
         beatOut = grid(beatOut + START_EPS / 2, Math.ceil);
-        if (fermataAt !== null && fermataAt <= from) {
-          fermataReleased = fermataAt;
-          fermataAt = null;
+        if (fermata.at !== null && fermata.at <= from) {
+          fermata.released = fermata.at;
+          fermata.at = null;
         }
         afterStop = false;
       } else if (started) beatOut = grid(beatOut - START_EPS, Math.ceil);
@@ -1233,10 +954,10 @@ export const conductorNode = defineNode<Params>({
 
     /** The beat reached a written fermata: stop on it and hold there. */
     const stopAtFermata = (f: number, s: IctusState, ctx: NodeContext): void => {
-      fermataAt = f;
-      fermataAnchors = s.anchors;
-      fermataT = ctx.time;
-      fermataPeriod = Number.isFinite(s.period) && s.period > 0 ? s.period : 0;
+      fermata.at = f;
+      fermata.anchors = s.anchors;
+      fermata.t = ctx.time;
+      fermata.period = Number.isFinite(s.period) && s.period > 0 ? s.period : 0;
     };
 
     /** The body holding (raised and still, no stroke): the beat goes on at the tempo it
@@ -1248,7 +969,7 @@ export const conductorNode = defineNode<Params>({
       const cap = grid(beatOut, Math.ceil) - START_EPS;
       let next = Math.min(beatOut + (holdBpm / 60) * ctx.dt, Math.max(beatOut, cap));
       // A written fermata on the way stops it there, as when running.
-      const f = fermatas.find((x) => x > beatOut && x <= next);
+      const f = doc.fermatas.find((x) => x > beatOut && x <= next);
       if (f !== undefined) {
         next = f;
         stopAtFermata(f, s, ctx);
@@ -1263,7 +984,7 @@ export const conductorNode = defineNode<Params>({
      *  cross. Returns the tempo it advanced at. */
     const runBeat = (c: Params, ctx: NodeContext, s: IctusState, k: number, grid: Grid, fallbackBpm: number): number => {
       const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
-      let bpm = startBeat !== null ? (startBpm ?? docTempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
+      let bpm = startBeat !== null ? (startBpm ?? doc.tempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
       const advanced = beatOut + (bpm / 60) * ctx.dt;
       // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
       //    below where the beat already was (a rewind would retrigger a note).
@@ -1271,7 +992,7 @@ export const conductorNode = defineNode<Params>({
       if (w > 0 && Number.isFinite(s.period) && s.period > 0) {
         // A stroke lands on a multiple of `k` beats, counted from the time
         // signature's start. The horizon stays in strokes (`s.period`).
-        const ref = k === 1 ? 0 : docBarStart ? docBarStart(beatOut) : 0;
+        const ref = k === 1 ? 0 : doc.barStart ? doc.barStart(beatOut) : 0;
         const err = k === 1 ? wrapPhase(advanced - beatAt(s, ctx.time)) : wrapPhase((advanced - ref) / k - beatAt(s, ctx.time)) * k;
         corrected = advanced - w * err * Math.min(1, ctx.dt / (c.servoBeats * s.period));
       }
@@ -1280,9 +1001,9 @@ export const conductorNode = defineNode<Params>({
       // The stroke overdue and the body still: the next stroke's beat waits for it.
       if (waiting && strokeBeat !== null) next = Math.max(beatOut, Math.min(next, strokeBeat + k - START_EPS));
       // 4. Fermatas: stop exactly on one the beat would cross, and hold there.
-      for (const f of fermatas) {
+      for (const f of doc.fermatas) {
         // One the beat sits on counts too (a fermata at beat 0, #393), unless just released.
-        if ((f > beatOut || (f === beatOut && f !== fermataReleased)) && f <= next) {
+        if ((f > beatOut || (f === beatOut && f !== fermata.released)) && f <= next) {
           next = f;
           stopAtFermata(f, s, ctx);
           bpm = 0;
@@ -1300,14 +1021,14 @@ export const conductorNode = defineNode<Params>({
     const advanceBeat = (c: Params, ctx: NodeContext, s: IctusState, k: number, grid: Grid, bodyHold: boolean): number => {
       const fallbackBpm = c.fallbackBpmMin + (c.fallbackBpmMax - c.fallbackBpmMin) * (speedEnv > 0 ? clamp01(speedEw / speedEnv) : 0);
       // A fermata releases on the NEXT stroke after it was reached. The stroke that landed
-      // on it does not (`fermataT`): its anchor is confirmed a few frames after the beat got
+      // on it does not (`fermata.t`): its anchor is confirmed a few frames after the beat got
       // there, hands and body alike (#449).
-      const landedOnIt = s.lastAnchorAt !== undefined && s.lastAnchorAt < fermataT + FERMATA_RELEASE_PERIODS * fermataPeriod;
-      if (fermataAt !== null && s.anchors > fermataAnchors && !landedOnIt) {
-        fermataReleased = fermataAt;
-        fermataAt = null;
+      const landedOnIt = s.lastAnchorAt !== undefined && s.lastAnchorAt < fermata.t + FERMATA_RELEASE_PERIODS * fermata.period;
+      if (fermata.at !== null && s.anchors > fermata.anchors && !landedOnIt) {
+        fermata.released = fermata.at;
+        fermata.at = null;
       }
-      if (fermataAt !== null) return 0;
+      if (fermata.at !== null) return 0;
       if (bodyHold) return holdBeat(ctx, s, grid);
       // Holding, or no stroke seen yet (the preparatory beat has not come): frozen.
       if (s.state === 'hold' || s.anchors === 0) return 0;
@@ -1317,7 +1038,7 @@ export const conductorNode = defineNode<Params>({
     /** The time this tick reports, from the follower's state and the beat as moved. */
     const timeOf = (ctx: NodeContext, c: Params, s: IctusState, bpm: number, bodyHold: boolean): MusicalTime => {
       const wholeBeat = Math.floor(beatOut);
-      const bpb = docMeter ? docMeter(beatOut) : c.beatsPerBar;
+      const bpb = doc.meter ? doc.meter(beatOut) : c.beatsPerBar;
       return {
         t: ctx.time,
         beat: beatOut,
@@ -1329,7 +1050,7 @@ export const conductorNode = defineNode<Params>({
         beatsPerBar: bpb,
         beatInBar: barBeat(beatOut, bpb),
         // A fermata reads as a hold to every consumer (the HUD, the panel, the score).
-        state: fermataAt !== null || bodyHold ? 'hold' : s.state,
+        state: fermata.at !== null || bodyHold ? 'hold' : s.state,
         anchors: s.anchors,
         lastAnchorAt: s.lastAnchorAt,
         leadOffset: s.leadOffset,
@@ -1340,7 +1061,7 @@ export const conductorNode = defineNode<Params>({
       process(inputs, ctx: NodeContext) {
         const c = resolveConfig(inputs.config);
         resolveDoc(inputs.doc);
-        const beatsPerBar = docMeter ? docMeter(beatOut) : c.beatsPerBar;
+        const beatsPerBar = doc.meter ? doc.meter(beatOut) : c.beatsPerBar;
         if (!c.enabled) return idleTick(ctx, c, beatsPerBar);
         if (c.source === 'dancer') return danceTick(inputs, ctx, c);
         leaveDance();
@@ -1349,7 +1070,7 @@ export const conductorNode = defineNode<Params>({
         // 1b. Expression (#378): from the beat's source, or from the other one through a
         //     follower of its own whose strokes only shape; reading the body, the strokes'
         //     dynamics are blended with its motion and its arm's reach, each per player.
-        const expression = shapeExpression(inputs, ctx, c, fed.s);
+        const expression = expr.shape(inputs, ctx, c, fed.s);
         const s = fed.stopped ? cutOff(ic) : fed.s;
         // The strokes' tempo and phase are scaled to the piece's beats by the level `k`.
         const k = markRatio(c, s, ctx.time, beatsPerBar);
