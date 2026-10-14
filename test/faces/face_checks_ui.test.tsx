@@ -144,6 +144,33 @@ describe("an open categorizer's checks", () => {
     act(() => test.getState().stop());
   });
 
+  it('a quiz miss offers "Merge X into Neutral" (#444): the category goes, its holds pinned in Neutral; undo brings it back', () => {
+    const { s, test } = opened();
+    const [smile, other] = s().working!.categories;
+    act(() => {
+      s().setChecks({ quiz: { at: 'now', categories: { [smile.id]: { label: smile.label, asked: 2, hits: 0, slow: 0, misses: 2, medianTimeMs: null, confusedWith: null }, [other.id]: { label: other.label, asked: 2, hits: 2, slow: 0, misses: 0, medianTimeMs: 400, confusedWith: null } } } });
+      test.setState({ quiz: { step: { kind: 'done', total: 4 }, trials: [] } });
+    });
+    expect(document.querySelector(`[data-faces-quiz-result="${other.id}"]`)).not.toBeNull();
+    expect(document.querySelector(`[data-faces-quiz-neutral="${other.id}"]`)).toBeNull();
+    const merge = document.querySelector(`[data-faces-quiz-neutral="${smile.id}"]`) as HTMLButtonElement;
+    expect(merge.textContent).toBe(`Merge ${smile.label} into Neutral`);
+    const taught = s().working!.neutralTrained === true || s().working!.strangers === 'neutral';
+    expect(merge.title.includes('Neutral is not taught')).toBe(!taught);
+    act(() => {
+      fireEvent.click(merge);
+    });
+    const w = s().working!;
+    expect(w.categories.map((c) => c.id)).not.toContain(smile.id);
+    for (const id of smile.members) {
+      expect(w.neutral).toContain(id);
+      expect(w.pins?.[id]).toBe('neutral');
+    }
+    expect(document.querySelector(`[data-faces-quiz-result="${smile.id}"]`)).toBeNull();
+    act(() => s().undo());
+    expect(s().working!.categories.map((c) => c.id)).toContain(smile.id);
+  });
+
   it('a kept quiz result shows beside the chip, and not once the category is renamed', () => {
     const { s } = opened();
     act(() =>

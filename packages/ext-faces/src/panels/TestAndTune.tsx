@@ -21,7 +21,8 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { FaceSessionState, MergeSeed } from '../app/sessionStore';
 import type { FaceTestState } from '../app/testStore';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
-import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
+import { NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
+import { QUIZ_DEFAULTS, reproducibilityOf, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
 import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
 
@@ -261,13 +262,19 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
     );
   }
   const result = s.checks.quiz;
-  const hits = q.trials.filter((x): x is QuizTrial & { vector: NonNullable<QuizTrial['vector']> } => x.outcome !== 'miss' && x.vector !== undefined);
+  // Only the categories still there: one merged into Neutral since the quiz has no holds to add to.
+  const present = new Set(live.model.categories.map((c) => c.id));
+  const hits = q.trials.filter((x): x is QuizTrial & { vector: NonNullable<QuizTrial['vector']> } => x.outcome !== 'miss' && x.vector !== undefined && present.has(x.categoryId));
+  // Whether Neutral means "none of these" here (taught, or strangers read as Neutral): else a face
+  // merged into it reads as the nearest of the others.
+  const neutralMeans = s.working?.neutralTrained === true || s.working?.strangers === 'neutral';
   return (
     <div className="space-y-1.5" data-faces-quiz="done">
       <h4 className={heading}>Quiz result</h4>
       <ul className="space-y-1">
         {live.model.categories.map((c) => {
-          const r = result?.categories[c.id];
+          // By id AND name: a re-cut (or a merge into Neutral) can give a freed id to another face.
+          const r = reproducibilityOf(result, c);
           if (!r) return null;
           return (
             <li key={c.id} className="flex flex-wrap items-center gap-2 text-[11px] text-white/80" data-faces-quiz-result={c.id}>
@@ -290,11 +297,26 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
                   {`Record more ${c.label || c.id}`}
                 </button>
               )}
+              {r.misses > 0 && live.model.categories.length > 1 && (
+                <button
+                  type="button"
+                  className={btn}
+                  onClick={() => s.merge(c.id, NEUTRAL_BIN)}
+                  title={
+                    neutralMeans
+                      ? `${c.label || c.id} stops being one of your ${w.many}; its holds join Neutral.`
+                      : `${c.label || c.id} stops being one of your ${w.many}; its holds join Neutral. Neutral is not taught here, so doing it will read as the nearest of your other ${w.many} (Teach Neutral from these, in Sorting, changes that).`
+                  }
+                  data-faces-quiz-neutral={c.id}
+                >
+                  {`Merge ${c.label || c.id} into Neutral`}
+                </button>
+              )}
             </li>
           );
         })}
       </ul>
-      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it.`}</p>
+      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it into Neutral (it stops being one of your ${w.many}; doing it then reads as Neutral where Neutral is taught and it had enough holds, else as the nearest other).`}</p>
       <div className="flex flex-wrap gap-2">
         {hits.length > 0 && (
           <button

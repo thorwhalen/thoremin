@@ -277,4 +277,22 @@ describe('one editable carve: the grid', () => {
     fireEvent.change(screen.getByRole('combobox', { name: `Change ${big.label}` }), { target: { value: 'split' } });
     expect(s().view!.k).toBe(k);
   });
+
+  it('a category menu merges it into Neutral (#444): its holds land in the Neutral bin', async () => {
+    const store = await carved();
+    const s = () => store.getState();
+    render(<FaceSessionView store={store} test={faceTestStore()} />);
+    const gone = s().view!.categories[0];
+    const members = s().working!.categories.find((c) => c.id === gone.id)!.members;
+    fireEvent.change(screen.getByRole('combobox', { name: `Change ${gone.label}` }), { target: { value: 'merge:neutral' } });
+    expect(s().working!.categories.map((c) => c.id)).not.toContain(gone.id);
+    for (const id of members) expect(s().working!.neutral).toContain(id);
+    // Its header dropped on the Neutral bin does the same.
+    const next = s().view!.categories[0];
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', effectAllowed: '' };
+    fireEvent.dragStart(document.querySelector(`[data-face-category="${next.id}"] [draggable]`)!, { dataTransfer });
+    fireEvent.drop(document.querySelector('[data-face-neutral]')!, { dataTransfer });
+    expect(s().working!.categories.map((c) => c.id)).not.toContain(next.id);
+  });
 });

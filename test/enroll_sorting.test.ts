@@ -241,6 +241,24 @@ describe('the edits', () => {
     expect(splitCategory(ok(moveHolds(c, [c.categories[0].members[0]], NEW_CATEGORY)), 'cat-5').ok).toBe(false);
   });
 
+  it('merge into Neutral (#444): the holds go to the Neutral bin, pinned, at every k; the category is dropped; never the last one', () => {
+    const c = doc(vectors(rng(12)), 4);
+    const gone = c.categories[1];
+    const into = ok(mergeCategories(c, gone.id, NEUTRAL_BIN));
+    expect(into.categories.map((x) => x.id)).not.toContain(gone.id);
+    expect(into.categories).toHaveLength(3);
+    for (const id of gone.members) {
+      expect(into.neutral).toContain(id);
+      expect(into.pins?.[id]).toBe(NEUTRAL_BIN);
+    }
+    expect(into.samples).toHaveLength(c.samples.length);
+    for (let k = 1; k <= 6; k++) for (const id of gone.members) expect(placeOf(ok(recut(into, k)), id)).toBe(NEUTRAL_BIN);
+    expect(mergeCategories(c, 'nope', NEUTRAL_BIN).ok).toBe(false);
+    let one = c;
+    while (one.categories.length > 1) one = ok(mergeCategories(one, one.categories[0].id, one.categories[1].id));
+    expect(mergeCategories(one, one.categories[0].id, NEUTRAL_BIN)).toEqual({ ok: false, error: 'that would leave no category; a categorizer keeps at least one' });
+  });
+
   it('a name anchors its category: refused when taken, kept at every k', () => {
     let c = doc(vectors(rng(11)), 4);
     c = ok(nameCategory(c, c.categories[1].id, 'smile'));

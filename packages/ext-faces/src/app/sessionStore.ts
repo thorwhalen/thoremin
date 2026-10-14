@@ -338,7 +338,8 @@ export interface FaceSessionState {
   moveHolds(ids: readonly string[], to: Place): boolean;
   /** Delete holds (by sample id); a category they empty goes too. Undoable. */
   deleteHolds(ids: readonly string[]): boolean;
-  /** Merge category `from` into `into` (both's holds pinned to `into`). */
+  /** Merge category `from` into `into` (both's holds pinned to `into`); `into` may be the Neutral
+   *  bin (`NEUTRAL_BIN`): the category is dropped, its holds pinned in Neutral (#444). */
   merge(from: string, into: string): boolean;
   /** Split a category in two (its own sub-hierarchy cut at 2, both halves pinned). */
   split(id: string): boolean;

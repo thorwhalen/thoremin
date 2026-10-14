@@ -184,7 +184,8 @@ function Strip({ holds, label, place, grid }: StripProps) {
   );
 }
 
-/** Drop handlers for a category or a bin: holds move there; a category dropped merges into it. */
+/** Drop handlers for a category or a bin: holds move there; a category dropped merges into it
+ *  (or into Neutral). */
 function dropTarget(grid: GridApi, to: string) {
   return {
     onDragOver: (e: DragEvent) => e.preventDefault(),
@@ -193,7 +194,8 @@ function dropTarget(grid: GridApi, to: string) {
       const holds = e.dataTransfer?.getData(DRAG_HOLDS);
       const category = e.dataTransfer?.getData(DRAG_CATEGORY);
       if (holds) grid.send(JSON.parse(holds) as string[], to);
-      else if (category && category !== to && to !== NEUTRAL_BIN && to !== ASIDE_BIN) grid.s.merge(category, to);
+      // A category dropped on Neutral merges into it (#444); on Set aside, nothing.
+      else if (category && category !== to && to !== ASIDE_BIN) grid.s.merge(category, to);
     },
   };
 }
@@ -299,6 +301,7 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
           {others.map((o) => (
             <option key={o.id} value={`merge:${o.id}`}>{`Merge into ${o.label || o.id}`}</option>
           ))}
+          {others.length > 0 && <option value={`merge:${NEUTRAL_BIN}`}>Merge into Neutral</option>}
         </select>
       </div>
       <p className="text-[10px] text-white/40">{sourceText(c, w.one)}</p>
