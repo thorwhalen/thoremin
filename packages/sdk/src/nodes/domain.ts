@@ -65,8 +65,7 @@ export const FRAME_TIME_SOURCES = ['capture', 'presentation', 'estimated', 'cloc
 
 /** The stamp sources read off a clock rather than the camera's time (`clock`, and
  *  `estimated` = the clock minus a lag): the stamps that jitter with the page's delivery.
- *  One set for every reader (the timing tracker's share, the de-jitter, the air drum's
- *  standing, the frame pump). */
+ *  One set for every reader (the timing tracker's share, the de-jitter). */
 export const CLOCK_DERIVED_SOURCES = ['clock', 'estimated'] as const satisfies readonly (typeof FRAME_TIME_SOURCES)[number][];
 
 /** Whether a stamp source is one of {@link CLOCK_DERIVED_SOURCES}. */
