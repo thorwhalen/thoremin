@@ -19,6 +19,12 @@ export interface CarveCaptureControl {
   /** Explore: start capturing (the rest first). Capturing: pause. Paused: resume. The rest:
    *  nothing (it is a few seconds and has its own end). */
   toggle(): void;
+  /** Begin a burst (one held face of every frame while it lasts, #385 E7), optionally named by
+   *  the name typed beforehand. Only while capturing or paused. Returns whether a burst is now
+   *  held (false: not in a phase that takes one, or one already held is kept). */
+  beginBurst(): boolean;
+  /** End the held burst: it becomes one hold. Returns whether a burst was held. */
+  endBurst(): boolean;
 }
 
 let current: CarveCaptureControl | null = null;

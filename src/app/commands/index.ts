@@ -24,7 +24,7 @@ export { SONG_COMMANDS, playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRate
 export { provideSongHost, songHost, type SongHost } from './songHost';
 export { CONDUCTOR_TIMING_COMMANDS, keepConductorTimingCmd, clearConductorTimingCmd } from './conductorLead';
 export { provideConductorLeadHost, conductorLeadHost, type ConductorLeadHost } from './conductorLeadHost';
-export { CARVE_COMMANDS, toggleCarveCaptureCmd } from './carve';
+export { CARVE_COMMANDS, toggleCarveCaptureCmd, beginCarveBurstCmd, endCarveBurstCmd } from './carve';
 export { provideCarveHost, liveCarve, type CarveHost, type CarveControl, type CarveCaptureState } from './carveHost';
 export {
   installConfirmationGate,

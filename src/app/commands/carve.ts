@@ -30,4 +30,37 @@ export const toggleCarveCaptureCmd = defineCommand({
   },
 });
 
-export const CARVE_COMMANDS = [toggleCarveCaptureCmd] as const;
+/** A burst is held, so it is two commands: a pedal, a MIDI note or a gesture binds one to the
+ *  press and one to the release (a category entry binds `begin`, another `end`). The panel's B key
+ *  and button reach the same take through the store directly (the extension owns that surface). */
+export const beginCarveBurstCmd = defineCommand({
+  id: 'carve.burst.begin',
+  title: 'Begin a burst',
+  description:
+    'In a carve tool (Your faces): while capturing or paused, start a burst - every frame is collected until carve.burst.end, then kept as ONE held face (named by the name typed beforehand, if any). Bound to holding B.',
+  category: CATEGORY,
+  params: z.object({}),
+  execute: async () => {
+    const control = liveCarve();
+    if (!control) return err('no_carve', 'No carve tool is reading the camera (in Your faces: Record my faces).');
+    const state = control.state();
+    if (state !== 'capturing' && state !== 'paused') return err('not_capturing', 'A burst needs capturing started (Start capturing); it works while capturing or paused.');
+    if (!control.beginBurst()) return err('burst_refused', 'The burst could not start (one may already be held).');
+    return ok({ what: control.what, state });
+  },
+});
+
+export const endCarveBurstCmd = defineCommand({
+  id: 'carve.burst.end',
+  title: 'End the burst',
+  description: 'In a carve tool (Your faces): end the burst begun by carve.burst.begin; it becomes one held face. Does nothing when no burst is held.',
+  category: CATEGORY,
+  params: z.object({}),
+  execute: async () => {
+    const control = liveCarve();
+    if (!control) return err('no_carve', 'No carve tool is reading the camera (in Your faces: Record my faces).');
+    return ok({ what: control.what, ended: control.endBurst() });
+  },
+});
+
+export const CARVE_COMMANDS = [toggleCarveCaptureCmd, beginCarveBurstCmd, endCarveBurstCmd] as const;

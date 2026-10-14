@@ -579,7 +579,20 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     };
     const provideCapture = () => {
       if (withdraw || !deps.capture) return;
-      const control: CarveCaptureControl = { what: modality.words.many, state: () => captureState() ?? 'explore', toggle: () => get().toggleCapture() };
+      const control: CarveCaptureControl = {
+        what: modality.words.many,
+        state: () => captureState() ?? 'explore',
+        toggle: () => get().toggleCapture(),
+        beginBurst: () => {
+          get().beginBurst();
+          return get().burst !== null;
+        },
+        endBurst: () => {
+          const held = get().burst !== null;
+          get().endBurst();
+          return held;
+        },
+      };
       withdraw = deps.capture(control);
     };
 

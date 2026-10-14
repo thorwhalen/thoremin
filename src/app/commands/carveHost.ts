@@ -17,6 +17,10 @@ export interface CarveControl {
   readonly what: string;
   state(): CarveCaptureState;
   toggle(): void;
+  /** Begin a burst (#443); true when one is now held. */
+  beginBurst(): boolean;
+  /** End the held burst; true when one was held. */
+  endBurst(): boolean;
 }
 
 export interface CarveHost {
