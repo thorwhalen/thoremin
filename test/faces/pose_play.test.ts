@@ -185,6 +185,15 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     // The scripted body as a camera (one pose frame per tick), and the host's transient and dial
     // as the store-controls node gives them.
     const script = frames();
+    /** Engine ticks per camera frame: the webcam source hands out its cached frame (the same
+     *  object) until the next video frame (#492). */
+    let ticksPerFrame = 1;
+    let shown: { n: number; frame: ReturnType<typeof poseFrame> } | null = null;
+    const frameAt = (tick: number) => {
+      const n = Math.min(Math.floor(tick / ticksPerFrame), script.length - 1);
+      if (shown?.n !== n) shown = { n, frame: poseFrame(POSES[script[n].pose], 20_000 + n) };
+      return shown.frame;
+    };
     const camera = defineNode({
       type: 'test-pose-camera',
       roles: ['source'],
@@ -197,7 +206,7 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
       params: z.object({}),
       make: () => ({
         process: (_in, ctx) => ({
-          body: poseFrame(POSES[script[Math.min(ctx.tick, script.length - 1)].pose], 20_000 + ctx.tick),
+          body: frameAt(ctx.tick),
           model: play,
           config: { id: 'mine', transport: true },
         }),
@@ -221,11 +230,13 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     const demand = createFeatureDemand();
     const run = (groups: () => ReturnType<typeof demand.groups>) => {
       const engine = new Engine(spec, reg, { resources: { controls: () => controls, featureDemand: groups } });
+      shown = null;
       const out: { label: string | null; present: boolean }[] = [];
-      for (let i = 0; i < script.length; i++) {
-        engine.tick(i / 30);
+      // One reading per camera frame, at the frame's last tick.
+      for (let i = 0; i < script.length * ticksPerFrame; i++) {
+        engine.tick(i / (30 * ticksPerFrame));
         const c = engine.getOutput('poseCat', 'category') as CategoryScores;
-        out.push({ label: c.label, present: c.present });
+        if ((i + 1) % ticksPerFrame === 0) out.push({ label: c.label, present: c.present });
       }
       engine.dispose();
       return out;
@@ -241,6 +252,11 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     });
     const claimed = run(() => demand.groups());
     expect(ends(claimed).map((o) => o.label)).toEqual([null, 'ready', null, 'fermata', null, 'cut-off', null]);
+    // The engine ticking twice per camera frame reads the same, frame by frame (#492): the vector
+    // node keeps its vector for a frame it has seen, so the hysteresis counts camera frames.
+    ticksPerFrame = 2;
+    expect(run(() => demand.groups())).toEqual(claimed);
+    ticksPerFrame = 1;
     stop();
     expect(demand.groups() ?? []).toEqual([]);
     // Without the claim the vector is empty: nobody is seen (the failure the claim exists for).

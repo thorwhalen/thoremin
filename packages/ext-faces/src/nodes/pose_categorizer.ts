@@ -13,7 +13,11 @@
  *
  * The model is a transient the host resolves off the tick (`../app/posePlay.ts`); only the model
  * the dial names plays. The engine ticks faster than the camera, so a vector seen already is not a
- * new reading (the hysteresis counts camera frames).
+ * new reading (the hysteresis counts camera frames). The vector's identity is the camera frame's
+ * here, with no `frame` input (#492): `body-feature-vector` keeps its vector for a body frame it
+ * has seen, the webcam source hands out one frame object per video frame, and out of view the
+ * reader is reset every tick, which counts nothing. `test/faces/pose_play.test.ts` replays the
+ * graph at two ticks per frame to hold that.
  */
 import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
