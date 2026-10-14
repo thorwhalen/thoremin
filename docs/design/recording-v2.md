@@ -93,7 +93,10 @@ Feature-detected, never UA-sniffed:
 3. **perFile** — per-file `saveBlob` (last resort).
 
 A `directory` request that is cancelled/unsupported degrades to a zip, so a take
-is never lost.
+is never lost. So does a `directory` write that fails mid-take (#308: the folder
+was deleted, its permission revoked, the disk full): the sink keeps what it was
+given, and the zip holds every file added so far plus the rest, the manifest
+included; `SinkResult.fellBack` makes the UI say so.
 
 ## `manifest.json` — the alignment SSOT
 

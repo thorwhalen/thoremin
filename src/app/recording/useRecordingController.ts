@@ -71,6 +71,11 @@ function toastResult(res: RecordingResult): void {
     const names = res.failedFormats.map((f) => f.toUpperCase()).join(', ');
     toasts.push(`Couldn't encode ${names} — that file was not saved`, TOAST_MS.encodeFailed, 'error');
   }
+  if (res.fellBack) {
+    // The folder refused a write at stop (#308): the take is whole, but as a zip in
+    // Downloads, not in the folder the player chose.
+    toasts.push(`The folder could not be written (${res.fellBack.reason}) — the take was saved as a zip instead`, TOAST_MS.encodeFailed, 'error');
+  }
   if (res.cancelled) {
     // The take recorded fine but the user dismissed the Save-As dialog — be
     // honest that nothing was written rather than toasting a false "Saved".
