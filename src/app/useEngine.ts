@@ -44,6 +44,8 @@ import { createTimingResource } from './timing/resource';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
+import { makeLeadCalibrationSink } from './conductorLead';
+import type { BodySide } from '@/nodes/features/conductor_body';
 import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
 import { useSongStatus, makeSongReporter } from './songStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './extensions';
@@ -363,6 +365,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Bridge the `conductor` node's musical time to React (#187), for the Conductor
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
+        // A 'Learn my timing' take (#427): the body frames against the click, while one runs.
+        const reportLeadTake = makeLeadCalibrationSink(engine, () => (useControls.getState().conductor?.hand ?? 'auto') as BodySide);
         // The orchestra's load status (#187 PR 5), for the orchestra controls' readout.
         const reportOrchestra = makeOrchestraReporter(engine);
         // The song player's status and beat (#186 PR G), for the Song tool's readout; a song
@@ -416,7 +420,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate

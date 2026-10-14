@@ -1147,6 +1147,10 @@
       {
         "name": "pulse",
         "kind": "pulse-state"
+      },
+      {
+        "name": "leadOffsets",
+        "kind": "lead-offsets"
       }
     ],
     "outputs": [
@@ -3208,6 +3212,10 @@
       {
         "name": "scoreDoc",
         "kind": "score-doc"
+      },
+      {
+        "name": "conductorLeadOffsets",
+        "kind": "lead-offsets"
       },
       {
         "name": "songHandle",

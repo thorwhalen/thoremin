@@ -368,7 +368,7 @@ function readTransportPose(raw: unknown): TransportPose | undefined {
 }
 
 /** The score's first marked tempo (bpm), if it marks one. */
-function firstTempo(doc: ScoreDoc): number | null {
+export function firstTempo(doc: ScoreDoc): number | null {
   let first: { beat: number; bpm: number } | null = null;
   for (const m of doc.tempoMap) if (!first || m.beat < first.beat) first = m;
   return first ? first.bpm : null;
