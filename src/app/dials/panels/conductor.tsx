@@ -1,8 +1,10 @@
 /**
  * The CONDUCTOR section of the settings panel (#187): conduct a score with a hand, or
  * with the body (#375: `conductor.source`, the arm and point choosers following it).
- * Where the loudness comes from (#378: `conductor.expression`, the split role) and, while the
- * body shapes it, the staccato (`conductor.articulationFrom`).
+ * Where the loudness comes from (#378: `conductor.expression`, the split role), which hand
+ * shapes it while a hand does (#457: `conductor.expressionHand`; a hand that makes no stroke
+ * shapes by its height and palm) and, while the body shapes it, the staccato
+ * (`conductor.articulationFrom`).
  * Off by default; the toggle, the piece chooser, the hand and point choosers and the
  * follow-tightness slider all write leaves of the structured `conductor` dial through
  * `dispatchDialSetIn` (the single write path). The catch-up slider dispatches on every
@@ -70,6 +72,12 @@ const EXPRESSION_LABEL: Record<ConductorDialParams['expression'], string> = {
   hands: 'a hand',
   body: 'the body (strokes, motion, reach)',
 };
+/** Which hand shapes while the hands shape the loudness (#457), in the player's terms. */
+const EXPRESSION_HAND_LABEL: Record<ConductorDialParams['expressionHand'], string> = {
+  auto: 'the free hand while an arm beats, else the beating one (default)',
+  left: 'the left hand',
+  right: 'the right hand',
+};
 const ARTICULATION_LABEL: Record<ConductorDialParams['articulationFrom'], string> = {
   sharpness: 'how sharply each stroke stops (default)',
   flow: 'how smoothly the arm moves',
@@ -107,6 +115,10 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
   const markLevel = c.markLevel ?? 'beat';
   const expression = c.expression ?? 'same';
   const articulationFrom = c.articulationFrom ?? 'sharpness';
+  const expressionHand = c.expressionHand ?? 'auto';
+  // A hand shapes the loudness (#457): which one is a choice. A hand that makes no stroke
+  // shapes by its height and its palm.
+  const handShapes = expression === 'hands' || (expression === 'same' && c.source !== 'body' && !dancer);
   // Articulation has a choice only while the body shapes the expression (#378).
   // A dancer's articulation is always the body's flow (#380): no choice to offer.
   const bodyShapes = !dancer && (expression === 'body' || (expression === 'same' && body));
@@ -358,6 +370,24 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
           ))}
         </select>
       </label>
+      {handShapes && (
+        <label className="flex items-center justify-between gap-2 text-xs" title="A hand that is not beating shapes the loudness by its height and its palm: raise it or turn the palm up to swell, lower it or turn the palm down to hush.">
+          Shaping hand
+          <select
+            className={selectCls}
+            value={expressionHand}
+            disabled={!enabled}
+            data-testid="conductor-expression-hand"
+            onChange={(e) => dispatchDialSetIn('conductor.expressionHand', e.target.value)}
+          >
+            {CONDUCTOR_HANDS.map((m) => (
+              <option key={m} value={m}>
+                {EXPRESSION_HAND_LABEL[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {bodyShapes && (
         <label className="flex items-center justify-between gap-2 text-xs">
           Staccato from

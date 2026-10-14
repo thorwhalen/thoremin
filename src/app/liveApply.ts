@@ -16,6 +16,7 @@ import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, t
 import { branchSetKey } from '@/instruments/derive';
 import { branchClosureIds, type Composed } from '@/instruments/compose';
 import { deriveHandCount, parseHandsOverride, type HandCount } from '@/instruments/hands';
+import { conductorReadsTwoHands } from '@/nodes/features/conductor';
 import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useControls } from './store';
@@ -64,6 +65,7 @@ export function liveHandCount(
       demanded,
       gesturesEnabled: controls.gestures?.enabled,
       skeletonShown: controls.overlay?.landmarks?.show,
+      twoHandsRead: conductorReadsTwoHands(controls.conductor),
     },
   );
 }

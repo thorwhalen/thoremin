@@ -75,6 +75,9 @@ export interface HandCountContext {
   gesturesEnabled?: boolean;
   /** The hand skeleton overlay is shown (`overlay.landmarks.show`). */
   skeletonShown?: boolean;
+  /** A dial makes a one-hand branch read two hands at once: the conductor's split with the
+   *  hands alone (#457: one hand beats, the other, named, shapes). */
+  twoHandsRead?: boolean;
 }
 
 /**
@@ -84,7 +87,7 @@ export interface HandCountContext {
  */
 export function deriveHandCount(branches: readonly GraphBranch[], ctx: HandCountContext = {}, policy: HandCountPolicy = HAND_COUNT_POLICY): HandCount {
   const tools = labWantsHands(ctx.featureLab) || demandWantsHands(ctx.demanded ?? new Set()) || ctx.gesturesEnabled === true;
-  if (tools || (ctx.skeletonShown === true && policy.skeletonSeesAllHands)) return ALL_HANDS;
+  if (tools || ctx.twoHandsRead === true || (ctx.skeletonShown === true && policy.skeletonSeesAllHands)) return ALL_HANDS;
   let need: HandCount = 1;
   for (const b of branches) {
     const h = branchHands(b);
