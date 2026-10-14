@@ -136,7 +136,6 @@ export function carveView(input: CarveInput): CarveView {
       const isRest = new Set(rest);
       let best: { id: string; share: number } | null = null;
       for (const c of model.categories) {
-        if (sources.has(c.id)) continue;
         const share = c.members.filter((j) => isRest.has(j)).length / Math.max(1, c.members.length);
         if (share >= 0.5 && (!best || share > best.share)) best = { id: c.id, share };
       }

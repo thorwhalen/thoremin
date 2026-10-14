@@ -156,6 +156,9 @@ describe('carving the synthetic take', () => {
     // At a larger k the names survive, and no name is given twice.
     const wide = at(doc, 5);
     expect(labels(wide)).toEqual(expect.arrayContaining(['grin', 'happy', 'wow']));
+    // The player's names stay theirs: naming keeps them, it never re-proposes a general name over one.
+    const sources = nameCarve(ok(recut(doc, 5, { rest })), { restCloud: cloud ?? undefined }).sources;
+    for (const id of [smile.id, other.id, third.id]) expect(sources.get(id)?.source).toBe('kept');
     expect(new Set(labels(wide).map((l) => l.toLowerCase())).size).toBe(wide.categories.length);
     // Two categories never share a name: refused, case-insensitively.
     const notGrin = doc.categories.find((c) => c.id !== smile.id)!;
