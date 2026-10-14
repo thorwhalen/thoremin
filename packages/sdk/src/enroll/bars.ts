@@ -56,15 +56,36 @@ const NAMESPACE_WORDS = new Set(['blendshape', 'geom']);
 
 /** A feature id in words, for a bar's label: `face.blendshape.mouth.smileLeft` -> "mouth smile
  *  left", `face.head.yaw` -> "head yaw". The source (the first segment) is dropped. */
-export function featureWords(id: string): string {
+export function featureWords(id: string, { keepSource = false }: { keepSource?: boolean } = {}): string {
   const words: string[] = [];
-  for (const seg of id.split('.').slice(1)) {
+  for (const seg of id.split('.').slice(keepSource ? 0 : 1)) {
     if (NAMESPACE_WORDS.has(seg)) continue;
     for (const w of seg.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/\s+/)) {
       if (w && words.at(-1) !== w) words.push(w);
     }
   }
   return words.join(' ') || id;
+}
+
+/**
+ * A label per feature, unique among `ids` (#402: a player picks a feature to pin by its label):
+ * {@link featureWords}, then, where two collide (a side-relative hand id has no source segment to
+ * drop: `index.curl` and `middle.curl` are both "curl"), the words with the first segment kept,
+ * then the id itself.
+ */
+export function featureLabels(ids: readonly string[]): Map<string, string> {
+  const pass = (label: (id: string) => string, among: readonly string[]) => {
+    const counts = new Map<string, number>();
+    const out = new Map(among.map((id) => [id, label(id)]));
+    for (const l of out.values()) counts.set(l, (counts.get(l) ?? 0) + 1);
+    return { out, clash: among.filter((id) => counts.get(out.get(id)!)! > 1) };
+  };
+  const first = pass((id) => featureWords(id), ids);
+  const second = pass((id) => featureWords(id, { keepSource: true }), first.clash);
+  const labels = new Map(first.out);
+  for (const [id, l] of second.out) labels.set(id, l);
+  for (const id of second.clash) labels.set(id, id);
+  return labels;
 }
 
 /** `x` in noise units from `ref`, or null when either is missing or the unit is unknown. */
@@ -248,6 +269,9 @@ export interface LiveBars {
   /** Categories the holds so far carve into. */
   categories: number;
   bars: readonly Bar[];
+  /** Every feature a bar may show, in words (#402: what a player can pin), in the context's
+   *  order. The same array while the context's ids are. */
+  choices: readonly { id: string; label: string }[];
 }
 
 export interface LiveBarsOptions {
@@ -282,6 +306,14 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
   let last: FeatureVector | null = null;
   let lastT = Number.NEGATIVE_INFINITY;
   let shown: string[] = [];
+  let choices: { ids: readonly string[]; labels: Map<string, string>; list: { id: string; label: string }[] } | null = null;
+  const labelsFor = (ids: readonly string[]) => {
+    if (!choices || choices.ids !== ids) {
+      const labels = featureLabels(ids);
+      choices = { ids, labels, list: ids.map((id) => ({ id, label: labels.get(id)! })) };
+    }
+    return choices;
+  };
   let shownRanking: LiveBars['ranking'] | null = null;
   /** The online carve, cached by the holds it was made from, redone every `recarveMs`. */
   let carve: { holds: readonly FeatureVector[]; n: number; at: number; clusters: number[][] } | null = null;
@@ -339,13 +371,13 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
         const spread = ctx.rest ? ctx.restSpread?.[id] : undefined;
         return {
           id,
-          label: featureWords(id),
+          label: labelsFor(ctx.ids).labels.get(id) ?? featureWords(id),
           value: noiseUnit(last?.[id], ref[id], s),
           ticks: centroids.map((m) => noiseUnit(m[id], ref[id], s)),
           band: Number.isFinite(spread) && s > 0 ? (spread as number) / s : null,
         };
       });
-      return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars };
+      return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars, choices: labelsFor(ctx.ids).list };
     },
     carve() {
       return clustersOf(context());

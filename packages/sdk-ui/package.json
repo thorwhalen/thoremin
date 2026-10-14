@@ -7,6 +7,7 @@
   "exports": {
     "./dials": "./src/dials.ts",
     "./enroll/FeatureBars": "./src/enroll/FeatureBars.tsx",
+    "./enroll/barPins": "./src/enroll/barPins.ts",
     "./enroll/HoldRing": "./src/enroll/HoldRing.tsx",
     "./enroll/binder": "./src/enroll/binder.ts",
     "./enroll/capture": "./src/enroll/capture.ts",
@@ -32,7 +33,8 @@
     "@zodal/dials-ui": "^0.1.0",
     "@zodal/store": "^0.1.2",
     "@zodal/store-localstorage": "^0.1.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "peerDependencies": {
     "react": "*"
