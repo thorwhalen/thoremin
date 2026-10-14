@@ -74,7 +74,7 @@ function parseRecords(text: string): StreamRecord[] {
     .map((l) => JSON.parse(l) as StreamRecord);
 }
 
-/** Read a `.face.ndjson` or `.mouth.ndjson[.gz]` stream into mouth frames. */
+/** Read a `.face.ndjson[.gz]` or `.mouth.ndjson[.gz]` stream into mouth frames. */
 export function readMouthFrames(path: string): MouthFrame[] {
   const text = path.endsWith('.gz')
     ? gunzipSync(readFileSync(path)).toString('utf8')

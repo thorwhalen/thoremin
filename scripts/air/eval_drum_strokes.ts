@@ -25,7 +25,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fMeasure, medianInterval } from '@thoremin/ictus/metrics';
-import { airDir } from './lib_air_paths';
+import { airDir, streamPath } from './lib_air_paths';
 import { readLandmarks } from './lib_chord_shape_dataset';
 import { DRUM_ANCHOR_POINTS, DEFAULT_STICK_LENGTH, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { assignStrokes, handTracks, maskTracks, median, strokesOfTracks, timingErrors, wristTracks, type Cluster, type Stroke, type Wrist, type WristSample } from './lib_drum_strokes';
@@ -87,13 +87,13 @@ for (const f of extraFiles) jobs.push({ id: f, player: 'local', air: true });
 
 const rows: Row[] = [];
 for (const job of jobs) {
-  const pose = join(airDir('landmarks', 'drums'), `${job.id}.pose.ndjson`);
+  const pose = streamPath('drums', job.id, 'pose');
   if (!existsSync(pose) && !existsSync(`${pose}.gz`)) {
     console.error(`skip ${job.id}: no pose stream`);
     continue;
   }
   const records = readLandmarks(pose);
-  const handsPath = join(airDir('landmarks', 'drums'), `${job.id}.src.hands.ndjson`);
+  const handsPath = streamPath('drums', job.id, 'hands');
   const handRecords = existsSync(handsPath) || existsSync(`${handsPath}.gz`) ? readLandmarks(handsPath) : null;
   const fps = records.length > 1 ? (records.length - 1) / (records[records.length - 1].t - records[0].t) : 30;
   const onsetsPath = join(airDir('labels', 'drums'), `${job.id}.onsets.json`);

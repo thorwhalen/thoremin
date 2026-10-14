@@ -9,7 +9,7 @@ This repository is **public**. The footage is standard-YouTube-licence material.
 | committed | local only (`~/.local/share/thoremin/<kind>/air/<instrument>/`) |
 |---|---|
 | `sources/<instrument>.json` — the curated URL list (id, why, licence, chord vocabulary, fretting-hand pick) | `videos/` — the mp4 files and yt-dlp `.info.json` |
-| the scripts and their tests (`test/air/`, on self-made synthetic hands only) | `landmarks/` — MediaPipe hand / pose / face NDJSON streams |
+| the scripts and their tests (`test/air/`, on self-made synthetic hands only) | `landmarks/` — `<id>.{pose,hands,face,face.landmarks}.ndjson.gz` and `<id>.meta.json` (source, licence, description, labels and where they came from, sha256, extractor and model per stream) |
 | the research doc with the held-out **numbers** | `labels/` — audio-derived chord segments |
 | | `datasets/`, `models/`, `results/` — joined samples, trained weights, fold-by-fold evaluations |
 
@@ -22,7 +22,8 @@ Override the root with `THOREMIN_DATA_DIR`. Nothing under it is ever a fixture: 
 python3 scripts/air/fetch.py guitar
 
 # 2. Hand landmarks with the decoder the fixtures already use (mediapipe lives in media/.venv).
-THOREMIN_MEDIA_PYTHON=media/.venv/bin/python python3 scripts/air/extract.py guitar --streams hands
+# Every stream (pose, hands, face with its 478 landmarks), gzipped, with <id>.meta.json: the video-data rule.
+THOREMIN_MEDIA_PYTHON=media/.venv/bin/python python3 scripts/air/extract.py guitar
 
 # 3. Chord labels from the AUDIO (librosa chroma templates + Viterbi, vocabulary per source).
 python3 scripts/air/label_chords.py guitar          # --self-test runs it on synthetic chords
@@ -49,7 +50,7 @@ The **featurizer is the existing hand catalog** (`src/features/hand_catalog.ts`)
 
 ## The other instruments
 
-Same five steps, different label source and tracker. `label_pitch.py` (pyin, range per instrument) labels flute and bass; `label_onsets.py` labels drum hits; `extract.py --streams hands face` for flute, `hands` for bass, `pose hands` for drums (the pose says whose hand it is and normalises by the shoulders; the hands give the point the air drum tracks; `--file` adds a local clip such as a self-recorded take). Then:
+Same five steps, different label source and tracker. `label_pitch.py` (pyin, range per instrument) labels flute and bass; `label_onsets.py` labels drum hits; `extract.py` keeps every stream for every instrument (the video-data rule); flute reads hands and face, bass hands, drums pose and hands (the pose says whose hand it is and normalises by the shoulders; the hands give the point the air drum tracks; `--file` adds a local clip such as a self-recorded take). Then:
 
 ```bash
 npx vite-node scripts/air/build_pitch_dataset.ts flute      # both hands + embouchure blendshapes -> pitch class
@@ -89,7 +90,7 @@ The face stream `video_to_face.py` writes carries blendshapes only; `extract_mou
 | `lib_synthetic_grip.ts` | a synthetic hand gripping an `an.impacts` stick (wrist stroke plus a chosen arm share, seeded landmark noise) |
 | `label_pitch.py`, `label_onsets.py`, `label_note_onsets.py` | audio → note segments (pyin); audio → hit onsets; note segments → onsets at 2.9 ms from the pitch band; all with `--self-test` |
 | `label_chords.py` | audio → chord segments; `--self-test` recovers a synthetic progression |
-| `fetch.py`, `extract.py`, `extract_mouth.py` | download; run `video_to_landmarks.py` / `video_to_pose.py` / `video_to_face.py` per source; the streamed mouth stream (blendshapes + lip landmarks) |
+| `fetch.py`, `extract.py`, `extract_mouth.py` | download; every stream and the meta per source through `scripts/video_streams.py` (which runs `video_to_pose.py` / `video_to_landmarks.py` / `video_to_face.py --landmarks-out`), pre-rule names migrated; the streamed mouth stream (blendshapes + lip landmarks) |
 | `lib_embouchure_onset.ts`, `eval_embouchure_onset.ts` | mouth signals (blendshapes + lip geometry), the oracle onset profile, the causal embouchure detector (ictus anchors), one-to-one matching and lead statistics; the flute CLI that scores them |
 | `build_chord_shape_dataset.ts`, `train_chord_shape.ts`, `enrol_chord_shape.ts` | the guitar CLIs: join, held-out training, enrolment budget |
 | `build_pitch_dataset.ts`, `train_air_model.ts`, `eval_drum_strokes.ts`, `eval_drum_anchors.ts` | flute/bass join, the generic held-out trainer, the drum stroke evaluation on footage, the tracked-point comparison on synthetic strokes |

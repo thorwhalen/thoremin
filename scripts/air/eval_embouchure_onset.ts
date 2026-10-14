@@ -19,7 +19,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { effectiveSigma } from '@thoremin/sdk/enroll/noise';
-import { airDir } from './lib_air_paths';
+import { airDir, streamPath } from './lib_air_paths';
 import {
   allSeries,
   BLENDSHAPE_SIGNALS,
@@ -177,7 +177,7 @@ for (const src of doc.sources) {
   if (ONLY.length && !ONLY.includes(src.id)) continue;
   if (!src.face) continue;
   const mouthPath = join(airDir('landmarks', 'flute'), `${src.id}.mouth.ndjson.gz`);
-  const facePath = join(airDir('landmarks', 'flute'), `${src.id}.face.ndjson`);
+  const facePath = streamPath('flute', src.id, 'face');
   const onsetsPath = join(airDir('labels', 'flute'), `${src.id}.note_onsets.json`);
   const streamPath = existsSync(mouthPath) ? mouthPath : facePath;
   if (!existsSync(streamPath) || !existsSync(onsetsPath)) {
