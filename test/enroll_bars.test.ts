@@ -80,6 +80,22 @@ describe('the shown bars are sticky', () => {
 });
 
 describe('the live bars model', () => {
+  it('marks centres given from outside the take on every bar, in noise units from the same reference (#435)', () => {
+    const ctx: LiveBarsContext = { ids: ['a', 'b'], sigma: () => 0.5, rest: { a: 1, b: 0 }, restSpread: null, holds: [] };
+    const bars = createLiveBars(() => ctx);
+    bars.push({ a: 1, b: 0 }, 0);
+    const marks = [
+      { label: 'open smile', vector: { a: 3, b: 1 } },
+      { label: 'smile', vector: { a: 2 } },
+    ];
+    const s = bars.snapshot({ count: 2, pinned: ['b', 'a'], marks });
+    expect(s.bars.map((b) => b.id)).toEqual(['b', 'a']);
+    expect(s.bars[0].marks).toEqual([{ label: 'open smile', value: 2 }, { label: 'smile', value: null }]);
+    expect(s.bars[1].marks).toEqual([{ label: 'open smile', value: 4 }, { label: 'smile', value: 2 }]);
+    // None asked: no marks key at all (the bars are what they were).
+    expect('marks' in bars.snapshot({ count: 2 }).bars[0]).toBe(false);
+  });
+
   it('measures from a running baseline, then from the rest, with the rest band and the category ticks', () => {
     const ctx: LiveBarsContext = { ids: ['a', 'b'], sigma: () => 0.5, rest: null, restSpread: null, holds: [] };
     const bars = createLiveBars(() => ctx, { recentMs: 1000, baselineMs: 1000 });

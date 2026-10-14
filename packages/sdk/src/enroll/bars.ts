@@ -259,6 +259,15 @@ export interface Bar {
   /** The rest's standard deviation in noise units (the neutral zone is drawn as plus or minus
    *  this), or null before a rest. */
   band: number | null;
+  /** Centres marked from outside the take (#435: a hint's two categories), in noise units from the
+   *  same reference, in the order asked; absent when none was asked. */
+  marks?: readonly { label: string; value: number | null }[];
+}
+
+/** A centre to mark on every bar (#435), raw. */
+export interface BarMark {
+  label: string;
+  vector: FeatureVector;
 }
 
 export interface LiveBars {
@@ -287,7 +296,7 @@ export interface LiveBarsModel {
   /** Feed the latest frame (null: the part is not in view). */
   push(vector: FeatureVector | null, tMs: number): void;
   /** The bars now, `count` of them (pinned first). */
-  snapshot(options?: { count?: number; pinned?: readonly string[] }): LiveBars;
+  snapshot(options?: { count?: number; pinned?: readonly string[]; marks?: readonly BarMark[] }): LiveBars;
   /** The online carve of the context's holds now (cached; the same array until it is redone):
    *  clusters of indices into those holds, ordered by their earliest hold. */
   carve(): readonly (readonly number[])[];
@@ -375,6 +384,7 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
           value: noiseUnit(last?.[id], ref[id], s),
           ticks: centroids.map((m) => noiseUnit(m[id], ref[id], s)),
           band: Number.isFinite(spread) && s > 0 ? (spread as number) / s : null,
+          ...(opts.marks && opts.marks.length > 0 ? { marks: opts.marks.map((m) => ({ label: m.label, value: noiseUnit(m.vector[id], ref[id], s) })) } : {}),
         };
       });
       return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars, choices: labelsFor(ctx.ids).list };

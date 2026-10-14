@@ -36,6 +36,9 @@ export function barPosition(z: number, fullScale: number = FEATURE_BARS_DEFAULTS
 
 const pct = (p: number) => `${50 + 50 * p}%`;
 
+/** The colours of the marked centres (#435), in order: the hint's category, then its neighbour. */
+const MARK_COLORS = ['#fbbf24', '#38bdf8'] as const;
+
 export interface FeatureBarsProps {
   /** The bars now (null: nothing is read). Called every `rateMs`. */
   read: (options: { count: number; pinned: readonly string[] }) => LiveBars | null;
@@ -139,6 +142,18 @@ export function FeatureBars({
                   style={b.value >= 0 ? { left: '50%', width: `${50 * barPosition(b.value)}%` } : { right: '50%', width: `${-50 * barPosition(b.value)}%` }}
                 />
               )}
+              {(b.marks ?? []).map((m, i) =>
+                m.value === null ? null : (
+                  // A marked centre (#435): taller and outlined, so it reads apart from a tick.
+                  <span
+                    key={`mark-${i}`}
+                    data-feature-bar-mark={m.label}
+                    title={m.label}
+                    className="absolute -inset-y-0.5 w-1 rounded-sm border border-black/60"
+                    style={{ left: pct(barPosition(m.value)), background: MARK_COLORS[i % MARK_COLORS.length] }}
+                  />
+                ),
+              )}
               {b.ticks.map((z, i) =>
                 z === null ? null : (
                   <span
@@ -155,6 +170,16 @@ export function FeatureBars({
           </li>
         ))}
       </ul>
+      {bars.bars[0]?.marks && bars.bars[0].marks.length > 0 && (
+        <p className="flex flex-wrap items-center gap-2 text-[9px] text-white/60" data-feature-bars-marks>
+          {bars.bars[0].marks.map((m, i) => (
+            <span key={m.label} className="flex items-center gap-1">
+              <span className="inline-block h-2 w-1 rounded-sm" style={{ background: MARK_COLORS[i % MARK_COLORS.length] }} />
+              {m.label}
+            </span>
+          ))}
+        </p>
+      )}
       <p className="flex items-center gap-2 text-[9px] text-white/40">
         <span className="flex-1">
           {pinned.length > 0 ? 'Pinned first. ' : ''}
