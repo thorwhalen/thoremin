@@ -25,6 +25,7 @@ import {
   type ScoreDoc,
 } from '@/score';
 import type { LoadStatus } from '@thoremin/lazy';
+import { musicxmlToScoreDoc } from '@/score/musicxml';
 
 const PUBLIC = join(__dirname, '..', 'public');
 const readPublic = async (path: string) => new Uint8Array(readFileSync(join(PUBLIC, path)));
@@ -108,6 +109,22 @@ describe('Haydn Op. 76 No. 3 (compressed MusicXML, OpenScore)', () => {
     expect(ts.numerator).toBeGreaterThan(0);
     expect(ts.denominator).toBeGreaterThan(0);
     expect(doc.tempoMap.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a pickup measure (#438)', () => {
+  const PICKUP_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part-list><score-part id="P1"><part-name>Pn</part-name></score-part></part-list>
+<part id="P1">
+<measure number="0" implicit="yes"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note></measure>
+<measure number="1"><note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure>
+<measure number="2"><note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><type>whole</type></note></measure>
+</part></score-partwise>
+`;
+  it('is read from a MusicXML score whose first measure is short, and absent otherwise', () => {
+    expect(musicxmlToScoreDoc(PICKUP_XML).pickup).toBe(1);
+    expect(musicxmlToScoreDoc(PICKUP_XML.replace('<measure number="0" implicit="yes">', '<measure number="0">').replace('<duration>1</duration><type>quarter</type>', '<duration>4</duration><type>whole</type>')).pickup).toBeUndefined();
   });
 });
 
