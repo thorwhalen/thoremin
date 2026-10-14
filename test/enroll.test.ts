@@ -650,3 +650,49 @@ describe('end-to-end over the REAL recording', () => {
     expect(shifted.rejected).toBe(false);
   });
 });
+
+describe('a nuisance cue does not feed the noise estimate (#460)', () => {
+  // The player moves on purpose during a nuisance demonstration (closer and further, a step
+  // aside, a turn); that motion is what the nuisance profile is FOR, and it must not inflate
+  // the jitter every later distance is measured in.
+  const reg = toyRegistry(['a', 'b']);
+  const rest = toyCue('rest', 'baseline');
+  const dolly = toyCue('dolly', 'nuisance', { sufficiency: { kind: 'frames', minFrames: 10_000, patienceMs: 60_000 } } as Partial<Cue>);
+  const faces = toyCue('faces', 'vocabulary');
+  const rnd = prng(460);
+  const SIGMA = 0.01;
+  const frame = (a: number, b: number) => v({ a: a + SIGMA * rnd(), b: b + SIGMA * rnd() });
+
+  it('the noise at the start of capture is the noise at the end of the rest, whatever the nuisance did', () => {
+    const session = createSession({ ...reg });
+    let t = 0;
+    const feed = (cue: Cue | null, seconds: number, f: (t: number) => FeatureVector) => {
+      if (cue) session.beginCue(cue);
+      for (const end = t + seconds * 1000; t < end; t += 33) session.push(f(t), t);
+      if (cue) session.endCue();
+    };
+    feed(rest, 3, () => frame(0.5, 0.2));
+    const atRest = { a: session.sigma('a'), b: session.sigma('b') };
+    // A large deliberate swing of `a` (a 15-degree leg swing, in the issue's simulation).
+    feed(dolly, 12, (ms) => frame(0.5 + 0.3 * Math.sin((2 * Math.PI * ms) / 2000), 0.2));
+    feed(null, 0.5, () => frame(0.5, 0.2));
+    session.beginCue(faces);
+    for (const id of ['a', 'b'] as const) {
+      expect(session.sigma(id) / atRest[id]).toBeGreaterThan(0.8);
+      expect(session.sigma(id) / atRest[id]).toBeLessThan(1.25);
+    }
+  });
+
+  it('the nuisance frames still set the nuisance profile', () => {
+    const session = createSession({ ...reg, sampler: { dwellMs: 200 } });
+    let t = 0;
+    const feed = (cue: Cue, seconds: number, f: (t: number) => FeatureVector) => {
+      session.beginCue(cue);
+      for (const end = t + seconds * 1000; t < end; t += 33) session.push(f(t), t);
+      session.endCue();
+    };
+    feed(rest, 3, () => frame(0.5, 0.2));
+    feed(dolly, 4, (ms) => frame(0.5 + 0.3 * Math.sin((2 * Math.PI * ms) / 2000), 0.2));
+    expect(session.framesFor('dolly')).toBeGreaterThan(100);
+  });
+});
