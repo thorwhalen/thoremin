@@ -39,9 +39,11 @@
  * predictor's depth of the turn) the depth it stopped at and the top it fell from, and
  * before each sample the predictor is told the floor of the pad the stroke is heading
  * for (`ImpactPredictor.setFloor`): of the pads its way down crosses at their floor, the
- * one whose strokes start nearest where this one did. A pad never struck has no floor
- * yet, so the first stroke on it is read as before. With no pad on nothing is named, and
- * the node is what it was.
+ * one whose strokes start nearest where this one did, by where it starts for a stick
+ * tip (#533: top and hand) and by the fall's top otherwise. A pad never struck, with no
+ * learned pad on the stroke's way, is expected at its centre's depth, moved and topped by
+ * the player's strokes on the other pads (#530), until its own first stroke teaches it. With no pad on nothing is named, and the
+ * node is what it was.
  *
  * What comes out is a list of {@link DrumHit}s on the `hits` port — each with the
  * time it should SOUND, in engine seconds, possibly in the future — which the
@@ -481,6 +483,26 @@ export function fallingSegment(samples: readonly TrackSample[], tEnd: number, ep
   // to the next pad while it waits there, and that is not the stroke's path.
   while (j < i - 2 && samples[j + 1].y <= samples[j].y + eps) j++;
   return samples.slice(j, i + 1);
+}
+
+/** Samples of the hold at the top a departure's hand depth is averaged over. */
+const GRIP_HOLD_SAMPLES = 3;
+
+/** The depth of the hand gripping the stick where the fall up to `tEnd` departed (#533:
+ *  the pad a stroke heads for, by where the hand is held), averaged over the departure
+ *  and the samples held at the top just before it (up to {@link GRIP_HOLD_SAMPLES}, so
+ *  one frame's landmark noise does not decide); NaN for a point with no grip. The same
+ *  read when a stroke is named and when it is learned, except that a slow fall longer
+ *  than the approach window is read a little way down it at learning. */
+export function gripAtDeparture(samples: readonly TrackSample[], tEnd: number, eps: number): number {
+  const seg = fallingSegment(samples, tEnd, eps);
+  const dep = seg[0];
+  if (!dep?.grip) return NaN;
+  let i = samples.indexOf(dep);
+  let sum = 0;
+  let n = 0;
+  for (; i >= 0 && n < GRIP_HOLD_SAMPLES && samples[i].grip && Math.abs(samples[i].y - dep.y) <= eps; i--, n++) sum += samples[i].grip!.y;
+  return n ? sum / n : dep.grip.y;
 }
 
 export interface Landing {
@@ -1191,18 +1213,19 @@ export const airDrumNode = defineNode<Params>({
       // Where it turned (the predictor's depth of the turn, not the fall's fit read at its
       // time), on the pad under that point.
       const hit = hitPad(c.pads, landingAt(stick.recent, e.t, eps, { turned: true, aspect: f.aspect, depth: e.depth }), 'silent');
-      if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top });
+      if (hit) stick.floors = learnPadFloor(stick.floors, hit.id, { floor: e.depth, top: e.top, grip: gripAtDeparture(stick.recent, e.t, eps) });
     };
 
     /** #353: name the predictor the floor of the pad the stroke in progress is heading for
-     *  (NaN, its own floor, until two pads have one). */
+     *  (NaN, its own floor, until a pad has one). */
     const nameFloor = (f: FrameTick, st: StickTick) => {
       const { c } = f;
       const { stick, predictor } = st;
       let floor = NaN;
       if (anyPadOn(c.pads) && Object.keys(stick.floors).length >= MIN_FLOOR_PADS) {
         const top = predictor.top();
-        if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, xAt: landingAt(stick.recent, f.t, st.gates.minAmplitude * FALL_JITTER, { aspect: f.aspect }).path.xAt });
+        const eps = st.gates.minAmplitude * FALL_JITTER;
+        if (Number.isFinite(top)) floor = padFloorFor(stick.floors, c.pads, { top, grip: gripAtDeparture(stick.recent, f.t, eps), xAt: landingAt(stick.recent, f.t, eps, { aspect: f.aspect }).path.xAt });
       }
       predictor.setFloor(floor);
       stick.named = floor;

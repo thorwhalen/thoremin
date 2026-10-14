@@ -82,8 +82,8 @@ describe.runIf(AIR)('the pads demo take (#261): every stroke on its pad, no fals
     // the later slot must not be read as the earlier one just because its path crossed
     // that one's top edge first. Each pad is struck four times. Since #353 each pad has
     // its own floor, so a change of pad is predicted against the new pad's depth at once;
-    // the one stroke left off its pad is the first ever on the kick, which no floor
-    // describes yet (before #353: four off, the strokes after each change of pad).
+    // the one stroke left off its pad is the first ever on the kick, read against the
+    // snare learned above it (before #353: four off; why #530 leaves it, `pad_floors.ts`).
     const pads = kitWithLowPads();
     const order = ['p1', 'p6', 'p1', 'p7', 'p3', 'p6', 'p7', 'p5'] as PadId[];
     const script: DrumStroke[] = order.flatMap((pad) => [hard(pad), hard(pad), hard(pad), hard(pad)]);
@@ -120,9 +120,11 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
   // following the last pad at half a stroke per stroke): the kick/snare alternation put 7
   // of 16 off their pad (every snare after a kick read as the kick), 8 with landmark noise
   // and 8 with soft and hard strokes mixed; tom/floor tom 8. Now the only stroke off its
-  // pad is the first on the kick.
-  const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard'): DrumStroke[] =>
-    Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k) }));
+  // pad is the first on the kick. Since #533 the start is read by the hand as well as the
+  // top, so a snare swung lower than the kick is still the snare's (main: 7 of 16 off),
+  // and soft snare strokes against hard kicks are heard (main: 7 of 16 silent).
+  const alternate = (a: PadId, b: PadId, force: (k: number) => DrumStroke['force'] = () => 'hard', lift: (k: number) => number | undefined = () => undefined): DrumStroke[] =>
+    Array.from({ length: 16 }, (_, k) => ({ pad: k % 2 ? b : a, where: 'centre', force: force(k), ...(lift(k) !== undefined ? { lift: lift(k) } : {}) }));
   /** The kick moved down so that it no longer overlaps the snare (0.82 to 0.94; the snare
    *  ends at 0.84 only at its centre's x): a prediction at the kick's floor is read on the
    *  kick, not on the snare its path crosses first (the #353 review). */
@@ -133,6 +135,11 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
     ['kick and snare alternating under landmark noise', alternate('p1', 'p6'), { noise: 0.02, seed: 3 }],
     ['kick and snare, soft and hard strokes mixed', alternate('p1', 'p6', (k) => (k % 4 < 2 ? 'soft' : 'hard')), {}],
     ['tom and floor tom (overlapping) alternating', alternate('p3', 'p7'), {}],
+    // #533: the snare raised lower than the kick, so its strokes start where the kick's
+    // do (by the top, 7 of 16 off; by the hand, none); and soft snare strokes against
+    // hard kicks, which main named the kick's floor and so never sounded (7 missed).
+    ['the snare raised 0.45 rad, the kick 0.7 (#533)', alternate('p1', 'p6', () => 'hard', (k) => (k % 2 ? 0.7 : 0.45)), {}],
+    ['soft snare strokes raised 0.5 rad against hard kicks (#533)', alternate('p1', 'p6', (k) => (k % 2 ? 'hard' : 'soft'), (k) => (k % 2 ? undefined : 0.5)), {}],
   ];
   for (const [name, script, options, layout = (p: Pads) => p] of cases) {
     it(name, async () => {
@@ -144,6 +151,24 @@ describe.runIf(AIR)('a change of pad is read against the new pad\'s floor (#353)
       expect(score.perStroke.filter((p) => p.hit?.predicted).length).toBeGreaterThanOrEqual(14);
     });
   }
+});
+
+describe.runIf(AIR)('the pad a stroke heads for, against the #530 reviews\' takes', () => {
+  // A never-struck pad must not take the played pad's strokes, and a lower pad reached by
+  // tilting the stick (the hand where it was) is still told apart under landmark noise.
+  // Main: 16 and 15; versions of #530/#533 that let a never-struck stacked pad compete,
+  // or read the hand alone: 13 and 11.
+  it('the snare struck with the hand raised 0 to 0.09 in turn, the kick on and never struck', async () => {
+    const script: DrumStroke[] = Array.from({ length: 16 }, (_, k) => ({ ...hard('p1'), hand: -[0, 0.03, 0.06, 0.09][k % 4] }));
+    const { score } = await playTake(kitWithLowPads(), { script });
+    expect({ on: score.on, missed: score.missed, false: score.false }).toEqual({ on: 16, missed: 0, false: 0 });
+  });
+  it('the kick reached by a 0.23 rad tilt, alternating with the snare, landmark noise 0.03', async () => {
+    const script: DrumStroke[] = Array.from({ length: 16 }, (_, k) => (k % 2 ? { ...hard('p6'), tilt: 0.232 } : hard('p1')));
+    const { score } = await playTake(kitWithLowPads(), { script, noise: 0.03, seed: 7 });
+    expect(score.on).toBeGreaterThanOrEqual(15);
+    expect({ missed: score.missed, false: score.false }).toEqual({ missed: 0, false: 0 });
+  });
 });
 
 describe.runIf(AIR)('a full swing with the arm on top of it is a stroke (#261 review)', () => {
