@@ -55,6 +55,16 @@ describe('the palm faces up or down (real landmarks, both labels)', () => {
   });
 });
 
+describe('a source without depth has no palm (#514)', () => {
+  it('reads undefined, not a level palm, when the keypoints carry no z', () => {
+    const h = FIXTURE[0];
+    const flat = { ...h, worldKeypoints: undefined, keypoints: h.keypoints.map(({ x, y }) => ({ x, y })) };
+    expect(palmUp(flat, h)).toBeUndefined();
+    expect(handGestureFrame(flat, { ...h, hands: [flat] } as HandsFrame, undefined, 1).palmUp).toBeUndefined();
+    expect(palmUp({ ...h, worldKeypoints: undefined }, h)).toBeDefined();
+  });
+});
+
 describe('ictus createHandGesture', () => {
   /** A hand moving between 0.2 and 0.6 torso for `s` seconds from `t0` (it teaches the range). */
   const wander = (g: ReturnType<typeof createHandGesture>, t0: number, s: number): number => {

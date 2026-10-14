@@ -36,6 +36,10 @@ export function palmUp(hand: Hand, frame: Pick<HandsFrame, 'width'>): number | u
   const i = kp[LM.index_mcp];
   const p = kp[LM.pinky_mcp];
   if (!w || !i || !p) return undefined;
+  // A source without depth (synthetic hands, older fixtures) has no palm: without z the normal
+  // has no vertical part and the palm would read exactly 0 ("facing the camera"), a stated
+  // value for what is unknown (#514).
+  if (!world && (w.z === undefined || i.z === undefined || p.z === undefined)) return undefined;
   const a = { x: i.x - w.x, y: i.y - w.y, z: ((i.z ?? 0) - (w.z ?? 0)) * zScale };
   const b = { x: p.x - w.x, y: p.y - w.y, z: ((p.z ?? 0) - (w.z ?? 0)) * zScale };
   const n = { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
