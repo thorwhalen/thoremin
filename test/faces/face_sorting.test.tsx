@@ -287,5 +287,12 @@ describe('one editable carve: the grid', () => {
     fireEvent.change(screen.getByRole('combobox', { name: `Change ${gone.label}` }), { target: { value: 'merge:neutral' } });
     expect(s().working!.categories.map((c) => c.id)).not.toContain(gone.id);
     for (const id of members) expect(s().working!.neutral).toContain(id);
+    // Its header dropped on the Neutral bin does the same.
+    const next = s().view!.categories[0];
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (t: string, v: string) => data.set(t, v), getData: (t: string) => data.get(t) ?? '', effectAllowed: '' };
+    fireEvent.dragStart(document.querySelector(`[data-face-category="${next.id}"] [draggable]`)!, { dataTransfer });
+    fireEvent.drop(document.querySelector('[data-face-neutral]')!, { dataTransfer });
+    expect(s().working!.categories.map((c) => c.id)).not.toContain(next.id);
   });
 });
