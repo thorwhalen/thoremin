@@ -900,7 +900,10 @@ export const conductorNode = defineNode<Params>({
             // the transport's call (no anchor before the downbeat).
             // The player's lead offset (#427): the anchor moved by its joint's learned lag.
             lead.setOffsets(readLeadOffsets(inputs.leadOffsets));
-            const a = lead.push(ictus.detector.push(bodyChannelFrame(body, t, c.hand)), t);
+            // The detector's own refractory (a quarter period) on the corrected anchors too:
+            // two joints with different offsets must not make one stroke two.
+            const period = ictus.state().period;
+            const a = lead.push(ictus.detector.push(bodyChannelFrame(body, t, c.hand)), t, Number.isFinite(period) && period > 0 ? 0.25 * period : 0);
             let accept = a !== null;
             const cues = meter ? meter.push(body, t, c.hand) : {};
             if (transport) {
@@ -966,6 +969,8 @@ export const conductorNode = defineNode<Params>({
           // stroke period, and the dynamics their envelope (a fresh detector mistakes the
           // still arm's jitter for strokes while it relearns them).
           ictus.prior.reset();
+          // A leading joint's anchor held past the cut-off is not a stroke after it.
+          lead.reset();
           s = ictus.state();
           fermataAnchors = 0;
           if (docLastOnset !== null && beatOut >= docLastOnset) {

@@ -24,6 +24,7 @@ const reset = async () => {
   cancelLeadTake();
   useControls.getState().setConductorLeadOffsets({});
   await dispatchDialSetIn('conductor.source', 'hands');
+  await dispatchDialSetIn('conductor.enabled', false);
 };
 beforeEach(async () => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
@@ -59,20 +60,44 @@ describe('Learn my timing', () => {
     expect(useLeadCalibration.getState().phase).toBe('idle');
   });
 
+  it('while conducting, the take waits (the score would start over the click)', async () => {
+    await dispatchDialSetIn('conductor.source', 'body');
+    await dispatchDialSetIn('conductor.enabled', true);
+    useTools.getState().openTool('conductor');
+    render(<ConductorPanel />);
+    await waitFor(() => expect((screen.getByText('Learn my timing...') as HTMLButtonElement).disabled).toBe(true));
+    expect(screen.getByText(/Stop conducting to learn it/)).toBeTruthy();
+    await dispatchDialSetIn('conductor.enabled', false);
+  });
+
+  it('a take that measured nothing offers no Keep', async () => {
+    await dispatchDialSetIn('conductor.source', 'body');
+    useTools.getState().openTool('conductor');
+    render(<ConductorPanel />);
+    useLeadCalibration.getState().start({ beats: [1, 2], startT: 0, endT: 3, bpm: 60, joints: ['trunk'], side: 'auto', droppedAtStart: 0 });
+    useLeadCalibration.getState().finish({ lags: { trunk: { lagS: 0.05, r: 0.6, n: 16, seS: 0.03, halves: [0, 0.1] } }, refused: { trunk: 'loose' }, offsets: {}, clickInterval: 1 });
+    await waitFor(() => expect(screen.getByText(/trunk: too uneven to measure, not corrected/)).toBeTruthy());
+    expect(screen.queryByText('Keep')).toBeNull();
+    expect(screen.getByText(/nothing changes/)).toBeTruthy();
+  });
+
   it('a finished take: per joint, Keep writes the pref, the line shows it, Forget it clears it', async () => {
     await dispatchDialSetIn('conductor.source', 'body');
     useTools.getState().openTool('conductor');
     render(<ConductorPanel />);
-    useLeadCalibration.getState().start({ beats: [1, 2], startT: 0, endT: 3, bpm: 60, joints: ['trunk', 'wrist.right'] });
+    useControls.getState().setConductorLeadOffsets({ elbow: -0.03 });
+    useLeadCalibration.getState().start({ beats: [1, 2], startT: 0, endT: 3, bpm: 60, joints: ['trunk', 'wrist.right'], side: 'right', droppedAtStart: 0 });
     useLeadCalibration.getState().finish({
-      lags: { trunk: { lagS: 0.05, r: 0.7, n: 16 }, 'wrist.right': { lagS: 0.2, r: 0.2, n: 9 } },
+      lags: { trunk: { lagS: 0.05, r: 0.7, n: 16, seS: 0.012, halves: [0.04, 0.06] }, 'wrist.right': { lagS: 0.2, r: 0.2, n: 9, seS: 0.05, halves: [0.1, 0.3] } },
+      refused: { 'wrist.right': 'lock' },
       offsets: { trunk: 0.05 },
       clickInterval: 1,
     });
-    await waitFor(() => expect(screen.getByText(/trunk: \+50 ms \(kept the click, 70 %\)/)).toBeTruthy());
-    expect(screen.getByText(/right wrist: did not keep the click/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/trunk: \+50 ms \(±12 ms\)/)).toBeTruthy());
+    expect(screen.getByText(/right wrist: did not keep the click, not corrected/)).toBeTruthy();
     fireEvent.click(screen.getByText('Keep'));
-    await waitFor(() => expect(useControls.getState().conductorPrefs.leadOffsets).toEqual({ trunk: 0.05 }));
+    // Merged: the elbow kept from before.
+    await waitFor(() => expect(useControls.getState().conductorPrefs.leadOffsets).toEqual({ elbow: -0.03, trunk: 0.05 }));
     await waitFor(() => expect(screen.getByText(/trunk \+50 ms/)).toBeTruthy());
     fireEvent.click(screen.getByText('Forget it'));
     await waitFor(() => expect(useControls.getState().conductorPrefs.leadOffsets).toEqual({}));

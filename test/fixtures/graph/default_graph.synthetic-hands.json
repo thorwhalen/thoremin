@@ -1037,6 +1037,16 @@
   },
   {
    "from": {
+    "node": "ui",
+    "port": "conductorLeadOffsets"
+   },
+   "to": {
+    "node": "conductor",
+    "port": "leadOffsets"
+   }
+  },
+  {
+   "from": {
     "node": "conductor",
     "port": "time"
    },

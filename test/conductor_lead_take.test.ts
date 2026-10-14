@@ -5,7 +5,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
-import { cancelLeadTake, leadTakeClicks, makeLeadCalibrationSink, startLeadTake, useLeadCalibration, LEAD_TAKE } from '@/app/conductorLead';
+import { cancelLeadTake, leadTakeBpm, leadTakeClicks, makeLeadCalibrationSink, startLeadTake, useLeadCalibration, LEAD_TAKE } from '@/app/conductorLead';
+import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
+import { demandWantsBody } from '@/features/labConfig';
 import { conductorLeadHost } from '@/app/commands/conductorLeadHost';
 import '@/app/conductorLeadHost';
 import { useControls } from '@/app/store';
@@ -42,7 +44,7 @@ describe('the take', () => {
     const sc = conduct([{ kind: 'rest', s: 1 }, { kind: 'ready', s: first - 1.6 }, { kind: 'upbeat', s: 0.6 }, { kind: 'beat', bpm: 80, beats: LEAD_TAKE.beats + 1 }], { fps: FPS });
     let i = 0;
     const engine = { getOutput: (node: string, port: string) => (node === 'camBody' && port === 'body' ? sc.frames[i] : undefined) };
-    const sink = makeLeadCalibrationSink(engine, () => 'right');
+    const sink = makeLeadCalibrationSink(engine);
     for (; i < sc.frames.length && useLeadCalibration.getState().phase === 'listening'; i++) sink((i / FPS) * 1000);
     const s = useLeadCalibration.getState();
     expect(s.phase).toBe('done');
@@ -50,8 +52,10 @@ describe('the take', () => {
     expect(s.result!.offsets.wrist).toBeGreaterThan(LATE - 0.02);
     expect(s.result!.offsets.wrist).toBeLessThan(LATE + 0.02);
 
+    // Keep merges: a joint this take did not measure keeps the offset it had.
+    useControls.getState().setConductorLeadOffsets({ trunk: 0.05 });
     const kept = conductorLeadHost().keep();
-    expect(kept).toEqual(s.result!.offsets);
+    expect(kept).toEqual({ trunk: 0.05, ...s.result!.offsets });
     expect(useControls.getState().conductorPrefs.leadOffsets).toEqual(kept);
     expect(useLeadCalibration.getState().phase).toBe('idle');
     conductorLeadHost().clear();
@@ -60,13 +64,52 @@ describe('the take', () => {
 
   it('nothing is learned while no take runs, and a cancelled take leaves nothing to keep', () => {
     const engine = { getOutput: () => undefined };
-    const sink = makeLeadCalibrationSink(engine, () => 'right');
+    const sink = makeLeadCalibrationSink(engine);
     sink(1000);
     expect(useLeadCalibration.getState().phase).toBe('idle');
     setClickPlayer({ play: vi.fn(), stop: vi.fn() });
     startLeadTake({ bpm: 80, point: 'impact', side: 'auto', nowMs: 0 });
     cancelLeadTake();
     expect(conductorLeadHost().keep()).toBeNull();
+  });
+
+  it('a take during which a click was dropped is refused; a take that measured nothing keeps nothing', () => {
+    let dropped = 0;
+    setClickPlayer({ play: vi.fn(), stop: vi.fn(), dropped: () => dropped });
+    startLeadTake({ bpm: 80, point: 'wrist', side: 'right', nowMs: 0 });
+    const take = useLeadCalibration.getState().take!;
+    const sink = makeLeadCalibrationSink({ getOutput: () => undefined });
+    sink(1000);
+    dropped = 1;
+    sink(take.endT * 1000 + 1);
+    expect(useLeadCalibration.getState().phase).toBe('done');
+    expect(useLeadCalibration.getState().failure).toBe('clicks');
+    expect(conductorLeadHost().keep()).toBeNull();
+    // No frames at all: every joint refused, nothing to keep, nothing wiped.
+    cancelLeadTake();
+    useControls.getState().setConductorLeadOffsets({ trunk: 0.05 });
+    dropped = 0;
+    startLeadTake({ bpm: 80, point: 'wrist', side: 'right', nowMs: 0 });
+    sink(take.endT * 1000 + 1);
+    expect(useLeadCalibration.getState().result!.offsets).toEqual({});
+    expect(useLeadCalibration.getState().result!.refused.wrist).toBe('anchors');
+    expect(conductorLeadHost().keep()).toBeNull();
+    expect(useControls.getState().conductorPrefs.leadOffsets).toEqual({ trunk: 0.05 });
+  });
+
+  it('the take claims the body camera for its length', () => {
+    setClickPlayer({ play: vi.fn(), stop: vi.fn() });
+    startLeadTake({ bpm: 80, point: 'impact', side: 'auto', nowMs: 0 });
+    expect(demandWantsBody(appFeatureDemand.groups())).toBe(true);
+    cancelLeadTake();
+    expect(demandWantsBody(appFeatureDemand.groups())).toBe(false);
+  });
+
+  it("the take tempo: the piece's, inside 60..160 bpm", () => {
+    expect(leadTakeBpm(null)).toBe(LEAD_TAKE.bpm);
+    expect(leadTakeBpm(40)).toBe(60);
+    expect(leadTakeBpm(200)).toBe(160);
+    expect(leadTakeBpm(96.4)).toBe(96);
   });
 
   it('the store refuses an offset past half a second', () => {

@@ -45,7 +45,6 @@ import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
 import { makeLeadCalibrationSink } from './conductorLead';
-import type { BodySide } from '@/nodes/features/conductor_body';
 import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
 import { useSongStatus, makeSongReporter } from './songStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './extensions';
@@ -366,7 +365,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
         // A 'Learn my timing' take (#427): the body frames against the click, while one runs.
-        const reportLeadTake = makeLeadCalibrationSink(engine, () => (useControls.getState().conductor?.hand ?? 'auto') as BodySide);
+        const reportLeadTake = makeLeadCalibrationSink(engine, () => resources);
         // The orchestra's load status (#187 PR 5), for the orchestra controls' readout.
         const reportOrchestra = makeOrchestraReporter(engine);
         // The song player's status and beat (#186 PR G), for the Song tool's readout; a song

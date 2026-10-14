@@ -11,7 +11,9 @@
  * reaches), and each half after calibrating on the other (held out: whether the lag is a
  * property of the player that survives the next half minute). Columns: the calibrated
  * lag (ms), its R and anchor count; the offset kept (`none`: refused, the joint does not
- * keep the click); the follower's lag before and after, in ms.
+ * keep the click; otherwise the gate that refused it: `lock`, `loose` (standard error over
+ * 20 ms), `drift` (the halves more than 40 ms apart)); the follower's lag before and after,
+ * in ms.
  *
  * Usage: npx vite-node scripts/body/measure_lead_offset.ts -- [scenario ...]
  */
@@ -23,7 +25,7 @@ const CLIPS = ['video_body_conducting_44', 'video_body_conducting_34', 'video_bo
 const ms = (x: number | undefined) => (x !== undefined && Number.isFinite(x) ? String(Math.round(x * 1000)) : '-');
 
 const names = process.argv.slice(2).filter((a) => a !== '--');
-console.log('| clip | joint | test span | calibrated on | lag, R, n | offset | lag before | lag after | F before | F after |');
+console.log('| clip | joint | test span | calibrated on | lag, R, n, SE, halves (ms) | offset or refusal | lag before | lag after | F before | F after |');
 console.log('|---|---|---|---|---|---|---|---|---|---|');
 for (const name of names.length ? names : CLIPS) {
   const clip = loadClip(name);
@@ -41,7 +43,7 @@ for (const name of names.length ? names : CLIPS) {
       const l = cal.lags[joint];
       const before = scoreLevel(raw, clip.grid, 1, [span]);
       const after = scoreLevel(followAnchors(clip, [joint], cal.offsets), clip.grid, 1, [span]);
-      console.log(`| ${name.replace('video_body_', '')} | ${joint} | ${test} | ${calName} | ${ms(l.lagS)}, ${l.r.toFixed(2)}, ${l.n} | ${cal.offsets[joint] === undefined ? 'none' : ms(cal.offsets[joint])} | ${ms(before.lagS)} | ${ms(after.lagS)} | ${before.f.toFixed(2)} | ${after.f.toFixed(2)} |`);
+      console.log(`| ${name.replace('video_body_', '')} | ${joint} | ${test} | ${calName} | ${ms(l.lagS)}, ${l.r.toFixed(2)}, ${l.n}, ${ms(l.seS)}, ${ms(l.halves[0])}/${ms(l.halves[1])} | ${cal.offsets[joint] === undefined ? (cal.refused[joint] ?? 'none') : ms(cal.offsets[joint])} | ${ms(before.lagS)} | ${ms(after.lagS)} | ${before.f.toFixed(2)} | ${after.f.toFixed(2)} |`);
     }
   }
 }

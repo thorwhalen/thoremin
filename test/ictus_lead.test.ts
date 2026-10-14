@@ -4,7 +4,7 @@
  * anchor until its time, and the calibration over frames.
  */
 import { describe, expect, it } from 'vitest';
-import { createLeadCalibration, createLeadCorrector, leadOffsetsFrom, measureLeadLag, shiftAnchor, type Anchor, type ChannelFrame } from '@thoremin/ictus';
+import { createLeadCalibration, createLeadCorrector, leadJointKey, leadOffsetsFrom, leadRefusal, measureLeadLag, shiftAnchor, type Anchor, type ChannelFrame } from '@thoremin/ictus';
 
 const P = 0.75;
 const clicks = Array.from({ length: 17 }, (_, i) => 1 + i * P);
@@ -41,22 +41,35 @@ describe('measureLeadLag', () => {
   });
 });
 
-describe('leadOffsetsFrom', () => {
-  it('keeps a joint that keeps the click, refuses one that does not, or one at another level', () => {
-    const offsets = leadOffsetsFrom(
-      {
-        trunk: { lagS: 0.09, r: 0.65, n: 16 },
-        elbow: { lagS: -0.08, r: 0.3, n: 16 },
-        head: { lagS: 0.05, r: 0.9, n: 4 },
-        hips: { lagS: 0.35, r: 0.9, n: 16 },
-      },
-      P,
-    );
-    expect(offsets).toEqual({ trunk: 0.09 });
+describe('leadRefusal and leadOffsetsFrom', () => {
+  const ok = { lagS: 0.09, r: 0.9, n: 16, seS: 0.01, halves: [0.08, 0.1] as const };
+  it('keeps a joint the take measured; says why it refuses the others', () => {
+    expect(leadRefusal(ok, P)).toBeNull();
+    expect(leadRefusal({ ...ok, n: 4 }, P)).toBe('anchors');
+    expect(leadRefusal({ ...ok, r: 0.3 }, P)).toBe('lock');
+    expect(leadRefusal({ ...ok, lagS: 0.35 }, P)).toBe('level');
+    expect(leadRefusal({ ...ok, seS: 0.025 }, P)).toBe('loose');
+    expect(leadRefusal({ ...ok, halves: [0.05, 0.13] }, P)).toBe('drift');
+    expect(leadRefusal({ ...ok, halves: [0.05, NaN] }, P)).toBe('drift');
+  });
+
+  it('by side-free key; of two sides, the one with more anchors (the arm that beat)', () => {
+    const offsets = leadOffsetsFrom({ trunk: ok, 'wrist.left': { ...ok, lagS: 0.01, n: 9 }, 'wrist.right': { ...ok, lagS: 0.02, n: 15 }, elbow: { ...ok, r: 0.2 } }, P);
+    expect(offsets).toEqual({ trunk: 0.09, wrist: 0.02 });
+    expect(leadJointKey('elbow.right')).toBe('elbow');
   });
 
   it('an option passed as undefined keeps its default', () => {
-    expect(leadOffsetsFrom({ trunk: { lagS: 0.05, r: 0.9, n: 3 } }, P, { minAnchors: undefined })).toEqual({});
+    expect(leadOffsetsFrom({ trunk: { ...ok, n: 3 } }, P, { minAnchors: undefined })).toEqual({});
+  });
+
+  it('measures the spread and the halves: a joint whose lag moves mid-take drifts', () => {
+    const moving = measureLeadLag(clicks.map((c, i) => c + (i < 8 ? 0.02 : 0.12)), clicks);
+    expect(moving.halves[1] - moving.halves[0]).toBeCloseTo(0.1, 2);
+    expect(leadRefusal(moving, P)).toBe('drift');
+    const steady = measureLeadLag(clicks.map((c, i) => c + 0.05 + 0.01 * jitter(i)), clicks);
+    expect(steady.seS).toBeLessThan(0.005);
+    expect(leadRefusal(steady, P)).toBeNull();
   });
 });
 
@@ -82,11 +95,24 @@ describe('shiftAnchor and the corrector', () => {
     expect(c.push(null, 2.2)).toBeNull();
   });
 
-  it('a held anchor is delivered before a fresh one; a reset drops it', () => {
+  it('two anchors due on one frame: the earlier now, the later on the next frame, in order', () => {
     const c = createLeadCorrector({ trunk: -0.1 });
-    c.push(anchor(2, 'trunk'), 2.03);
+    expect(c.push(anchor(2, 'trunk'), 2.03)).toBeNull();
     // A fresh, uncorrected anchor (another joint) on the frame the held one comes due.
     expect(c.push(anchor(2.11, 'wrist'), 2.12)!.t).toBeCloseTo(2.1, 9);
+    expect(c.push(null, 2.15)!.t).toBeCloseTo(2.11, 9);
+  });
+
+  it('one stroke seen by two joints with different offsets is delivered once (the refractory)', () => {
+    // The review's case: the detector switches from the elbow to the wrist mid-stroke.
+    const c = createLeadCorrector({ elbow: -0.25 });
+    const out = [c.push(anchor(2, 'elbow.right'), 2.03, 0.15), c.push(anchor(2.2, 'wrist.right'), 2.21, 0.15), c.push(null, 2.26, 0.15)].filter(Boolean);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.t).toBeCloseTo(2.2, 9);
+  });
+
+  it('a reset drops a held anchor', () => {
+    const c = createLeadCorrector({ trunk: -0.1 });
     c.push(anchor(3, 'trunk'), 3.01);
     c.reset();
     expect(c.push(null, 4)).toBeNull();
@@ -116,6 +142,7 @@ describe('createLeadCalibration', () => {
     expect(Math.abs(r.offsets.wrist)).toBeLessThan(0.02);
     expect(r.offsets.trunk).toBeGreaterThan(0.07);
     expect(r.offsets.trunk).toBeLessThan(0.11);
+    expect(r.refused).toEqual({});
     expect(r.clickInterval).toBeCloseTo(P, 9);
     cal.reset();
     expect(cal.anchors()).toEqual({ wrist: [], trunk: [] });

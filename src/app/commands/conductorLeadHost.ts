@@ -7,7 +7,9 @@
 export interface ConductorLeadHost {
   /** The finished take's offsets, or null when no take has finished. */
   pending(): Record<string, number> | null;
-  /** Keep the finished take's offsets (replacing the old set) and close the take. */
+  /** Keep the finished take's offsets (merged per joint over the kept ones) and close the
+   *  take; the offsets now kept, or null when nothing was kept (no take, nothing measured,
+   *  or the store refused the set). */
   keep(): Record<string, number> | null;
   /** Forget the kept offsets. */
   clear(): void;

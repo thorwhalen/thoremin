@@ -1,15 +1,19 @@
 /**
- * The body conductor's lead offset (#427) on A1's conductor fixtures, and the take that
- * learns it.
+ * The body conductor's lead offset (#427) on A1's conductor fixtures, and the node's path.
  *
  * The grid of a conductor clip IS the beating wrist's strokes (A1), the stand-in for the
- * click a player conducts against. The claims: a calibration over the clip learns the
- * trunk's lag where the trunk keeps the beat (the 4-pattern clip) and refuses it where it
- * does not (the 3- and 2-pattern clips); with the learned offset, the follower with the
- * trunk alone followed lands its anchors within ±20 ms of the grid (the issue's check),
- * and so does the conductor node's beat; and the learned lag does NOT carry from one half
- * of the 4-pattern clip to the other (pinned, so a change that makes it carry, or a claim
- * that it does, is noticed: `scripts/body/measure_lead_offset.ts` prints the table).
+ * click a player conducts against. What the fixtures say (`scripts/body/measure_lead_offset.ts`
+ * prints the table; the research doc §5.2):
+ *
+ * - The correction does what it says: the 4-pattern trunk's own lag subtracted from it
+ *   lands the trunk-alone follower within ±20 ms of the grid (the issue's check), on the
+ *   take it was measured on.
+ * - But the take does not KEEP the trunk on any clip: on the 4-pattern its lag moved
+ *   between the take's halves (`drift`), on the 3- and 2-pattern it does not keep the
+ *   beat (`lock`). Kept on the 4-pattern's first half, it moved the second half by as much
+ *   as it corrected (3 ms became -84 ms) before the gates.
+ * - Whatever the take keeps, on any clip and any split, never moves the held-out half
+ *   more than 15 ms further from the grid (the gates' purpose).
  */
 import { describe, expect, it } from 'vitest';
 import { replayNode } from '@thoremin/dag';
@@ -21,6 +25,7 @@ import { conduct } from './helpers/body_conduct';
 
 const FPS = 30;
 const C44 = 'video_body_conducting_44';
+const CLIPS = [C44, 'video_body_conducting_34', 'video_body_conducting_24'];
 
 function whole(name: string) {
   const clip = loadClip(name);
@@ -28,31 +33,43 @@ function whole(name: string) {
   return { clip, dur, cal: calibrate(clip, 0, dur) };
 }
 
-describe('the trunk lead offset on the conductor clips', () => {
-  it('the 4-pattern clip: the trunk lags the hand, and the correction lands it on the grid (within 20 ms)', () => {
+describe('the lead offset on the conductor clips', () => {
+  it("the 4-pattern trunk: its measured lag, subtracted, lands it on the grid (within 20 ms)", () => {
     const { clip, dur, cal } = whole(C44);
-    expect(cal.offsets.trunk).toBeGreaterThan(0.03);
+    const lag = cal.lags.trunk.lagS;
+    expect(lag).toBeGreaterThan(0.03);
     const before = scoreLevel(followAnchors(clip, ['trunk']), clip.grid, 1, [[0, dur]]);
-    const after = scoreLevel(followAnchors(clip, ['trunk'], cal.offsets), clip.grid, 1, [[0, dur]]);
+    const after = scoreLevel(followAnchors(clip, ['trunk'], { trunk: lag }), clip.grid, 1, [[0, dur]]);
     expect(before.lagS).toBeGreaterThan(0.03);
     expect(Math.abs(after.lagS)).toBeLessThanOrEqual(0.02);
   });
 
-  it.each(['video_body_conducting_34', 'video_body_conducting_24'])('%s: the trunk does not keep the beat, so it gets no offset', (name) => {
-    expect(whole(name).cal.offsets.trunk).toBeUndefined();
+  it('...but the take keeps no trunk offset on any clip: it drifts on the 4-pattern, does not lock on the others', () => {
+    expect(whole(C44).cal.refused.trunk).toBe('drift');
+    for (const name of CLIPS.slice(1)) expect(whole(name).cal.refused.trunk).toBe('lock');
   });
 
-  it('the wrist (the reference) needs almost none: under 15 ms on every clip', () => {
-    for (const name of [C44, 'video_body_conducting_34', 'video_body_conducting_24']) expect(Math.abs(whole(name).cal.offsets.wrist)).toBeLessThan(0.015);
+  it('the wrist (the reference) is kept, and needs under 15 ms on every clip', () => {
+    for (const name of CLIPS) expect(Math.abs(whole(name).cal.offsets.wrist)).toBeLessThan(0.015);
   });
 
-  it("the trunk's lag does not carry across the 4-pattern clip's halves (more than 20 ms off, held out)", () => {
-    const clip = loadClip(C44);
-    const dur = clip.frames.length / clip.fps;
-    const h = dur / 2;
-    const first = calibrate(clip, 0, h);
-    const after = scoreLevel(followAnchors(clip, ['trunk'], first.offsets), clip.grid, 1, [[h, dur]]);
-    expect(Math.abs(after.lagS)).toBeGreaterThan(0.02);
+  it('what a half keeps never moves the other half more than 15 ms further from the grid', () => {
+    for (const name of CLIPS) {
+      const clip = loadClip(name);
+      const dur = clip.frames.length / clip.fps;
+      const h = dur / 2;
+      for (const [cal, test] of [
+        [[0, h], [h, dur]],
+        [[h, dur], [0, h]],
+      ] as const) {
+        const offsets = calibrate(clip, cal[0], cal[1]).offsets;
+        for (const joint of Object.keys(offsets)) {
+          const before = scoreLevel(followAnchors(clip, [joint]), clip.grid, 1, [[test[0], test[1]]]);
+          const after = scoreLevel(followAnchors(clip, [joint], offsets), clip.grid, 1, [[test[0], test[1]]]);
+          expect(Math.abs(after.lagS) - Math.abs(before.lagS), `${name} ${joint}`).toBeLessThan(0.015);
+        }
+      }
+    }
   });
 });
 

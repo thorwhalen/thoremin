@@ -21,6 +21,7 @@ const CORE_HEALED = [
   'hands',
   'body',
   'songPrefs',
+  'conductorPrefs',
   'bodyMap',
   'steer',
   'faceControls',
@@ -33,7 +34,7 @@ const CORE_HEALED = [
 const MERGE_EXPLICIT = ['midi', 'faceMapping', 'steerPlaying', 'scoreDoc', 'songHandle', 'songPlaying', 'songPlays'];
 
 describe('the heal table', () => {
-  it('heals exactly the fifteen core whole-object fields', () => {
+  it('heals exactly the sixteen core whole-object fields', () => {
     expect(Object.keys(HEAL_RULES).sort()).toEqual([...CORE_HEALED].sort());
   });
 

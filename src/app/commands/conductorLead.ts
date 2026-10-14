@@ -14,12 +14,12 @@ const CATEGORY = 'Conductor';
 export const keepConductorTimingCmd = defineCommand({
   id: 'conductor.timing.keep',
   title: 'Keep my conducting timing',
-  description: "Keep the lead offsets the last 'Learn my timing' take measured (the body conductor subtracts each joint's lag from its beats). Replaces the offsets kept before.",
+  description: "Keep the lead offsets the last 'Learn my timing' take measured (the body conductor subtracts each joint's lag from its beats). Joints the take did not measure keep their offsets.",
   category: CATEGORY,
   params: z.object({}),
   execute: async () => {
     const kept = conductorLeadHost().keep();
-    if (!kept) return err('no_take', "No timing take has finished: press 'Learn my timing' in the Conductor tool (conducting with the body) first.");
+    if (!kept) return err('nothing_to_keep', "Nothing to keep: no 'Learn my timing' take has finished, or it measured no joint well enough (the Conductor tool, conducting with the body).");
     return ok({ offsets: kept });
   },
 });
