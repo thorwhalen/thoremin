@@ -61,6 +61,9 @@ test('Your poses records, carves, saves and binds the scripted body', async ({ p
   await bind.click();
   const yours = page.getByRole('region', { name: 'Your categories' });
   await expect(yours).toBeVisible({ timeout: 10_000 });
-  await expect(yours.getByRole('combobox', { name: 'Command for pose 1' })).toBeVisible();
+  // The default names (#383): the scripted body's arms up is named for itself (its arm out to one
+  // side is outside the vocabulary and stays `pose n`), and every category gets a command picker.
+  await expect(yours.getByRole('combobox', { name: 'Command for arms up' })).toBeVisible();
+  await expect.poll(() => yours.getByRole('combobox', { name: /^Command for / }).count()).toBeGreaterThanOrEqual(3);
   expect(errors).toEqual([]);
 });
