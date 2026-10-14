@@ -10,6 +10,10 @@
  *
  * It reads its snapshot by polling `read` at `rateMs` (the hot-path rule: a holder plus a poll,
  * never a store write per frame), so it re-renders at UI rate whatever the camera's rate.
+ *
+ * Pins (#402): given `onPinnedChange`, each bar has a pin, and "Pin a feature" offers every
+ * feature not shown; a pinned feature always shows, above the ones the bars choose. The host
+ * keeps the pins (the faces extension: per modality, per device, `./barPins`).
  */
 import { useEffect, useState } from 'react';
 import { BARS_DEFAULTS, type LiveBars } from '@thoremin/sdk/enroll/bars';
@@ -34,26 +38,58 @@ const pct = (p: number) => `${50 + 50 * p}%`;
 
 export interface FeatureBarsProps {
   /** The bars now (null: nothing is read). Called every `rateMs`. */
-  read: (options: { count: number }) => LiveBars | null;
+  read: (options: { count: number; pinned: readonly string[] }) => LiveBars | null;
   /** The body part, for the empty state ("No face in view"). */
   part?: string;
   /** What one category is called in the legend ("face"). */
   one?: string;
   rateMs?: number;
+  /** The features always shown, first (#402). */
+  pinned?: readonly string[];
+  /** Pin or unpin: the new pinned list. Absent: no pin controls. */
+  onPinnedChange?: (ids: string[]) => void;
+  /** The most features pinned (the pin controls stop offering more). */
+  maxPins?: number;
 }
 
-export function FeatureBars({ read, part = 'body part', one = 'category', rateMs = FEATURE_BARS_DEFAULTS.rateMs }: FeatureBarsProps) {
+const NONE: readonly string[] = [];
+
+/** A pushpin, drawn: filled when pinned. */
+function PinIcon({ on }: { on: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" aria-hidden="true">
+      <path d="M5 1h6l-1 5 3 3H9.5L8 15l-1.5-6H3l3-3z" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function FeatureBars({
+  read,
+  part = 'body part',
+  one = 'category',
+  rateMs = FEATURE_BARS_DEFAULTS.rateMs,
+  pinned = NONE,
+  onPinnedChange,
+  maxPins = BARS_DEFAULTS.count,
+}: FeatureBarsProps) {
   const [more, setMore] = useState(false);
   const count = more ? BARS_DEFAULTS.more : BARS_DEFAULTS.count;
-  const [bars, setBars] = useState<LiveBars | null>(() => read({ count }));
+  const pinKey = pinned.join('\n');
+  const [bars, setBars] = useState<LiveBars | null>(() => read({ count, pinned }));
   useEffect(() => {
-    setBars(read({ count }));
-    const timer = setInterval(() => setBars(read({ count })), rateMs);
+    const ids = pinKey === '' ? [] : pinKey.split('\n');
+    setBars(read({ count, pinned: ids }));
+    const timer = setInterval(() => setBars(read({ count, pinned: ids })), rateMs);
     return () => clearInterval(timer);
-  }, [read, count, rateMs]);
+  }, [read, count, rateMs, pinKey]);
 
   if (!bars) return null;
   const inView = bars.bars.some((b) => b.value !== null);
+  const isPinned = (id: string) => pinned.includes(id);
+  const togglePin = (id: string) => onPinnedChange?.(isPinned(id) ? pinned.filter((x) => x !== id) : [...pinned, id]);
+  const full = pinned.length >= maxPins;
+  const shownIds = new Set(bars.bars.map((b) => b.id));
+  const unshown = (bars.choices ?? []).filter((c) => !shownIds.has(c.id)).sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
   return (
     <section data-feature-bars={bars.ranking} className="space-y-1">
       <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/50">
@@ -62,7 +98,20 @@ export function FeatureBars({ read, part = 'body part', one = 'category', rateMs
       {!inView && <p className="text-[10px] text-amber-200/80">{`No ${part} in view, or still learning how much it jitters.`}</p>}
       <ul className="space-y-0.5">
         {bars.bars.map((b) => (
-          <li key={b.id} data-feature-bar={b.id} className="flex items-center gap-1.5 text-[10px]">
+          <li key={b.id} data-feature-bar={b.id} data-feature-bar-pinned={isPinned(b.id) || undefined} className="flex items-center gap-1.5 text-[10px]">
+            {onPinnedChange && (
+              <button
+                type="button"
+                aria-label={`${isPinned(b.id) ? 'Unpin' : 'Pin'} ${b.label}`}
+                aria-pressed={isPinned(b.id)}
+                title={isPinned(b.id) ? 'Pinned: always shown. Click to unpin.' : full ? `At most ${maxPins} pinned` : 'Pin: always show this one'}
+                disabled={!isPinned(b.id) && full}
+                onClick={() => togglePin(b.id)}
+                className={`shrink-0 ${isPinned(b.id) ? 'text-amber-300' : 'text-white/30 hover:text-white/70'} disabled:opacity-30`}
+              >
+                <PinIcon on={isPinned(b.id)} />
+              </button>
+            )}
             <span className="w-24 shrink-0 truncate text-white/70" title={b.id}>
               {b.label}
             </span>
@@ -101,6 +150,25 @@ export function FeatureBars({ read, part = 'body part', one = 'category', rateMs
         <span className="flex-1">
           {bars.categories >= 2 ? `The ticks are your ${bars.categories} ${one}s so far; these features tell them apart.` : bars.categories === 1 ? `The tick is your first ${one}.` : 'The features that moved most lately.'}
         </span>
+        {onPinnedChange && unshown.length > 0 && (
+          <select
+            aria-label="Pin a feature"
+            value=""
+            disabled={full}
+            title={full ? `At most ${maxPins} pinned: unpin one first` : 'Always show a feature the bars do not show now'}
+            onChange={(e) => {
+              if (e.target.value) togglePin(e.target.value);
+            }}
+            className="max-w-28 rounded bg-white/5 text-[9px] text-white/60 disabled:opacity-40"
+          >
+            <option value="">Pin a feature...</option>
+            {unshown.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        )}
         <button type="button" className="underline hover:text-white/70" onClick={() => setMore((m) => !m)}>
           {more ? 'fewer' : 'more'}
         </button>

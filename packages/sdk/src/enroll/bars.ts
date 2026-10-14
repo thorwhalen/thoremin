@@ -248,6 +248,9 @@ export interface LiveBars {
   /** Categories the holds so far carve into. */
   categories: number;
   bars: readonly Bar[];
+  /** Every feature a bar may show, in words (#402: what a player can pin), in the context's
+   *  order. The same array while the context's ids are. */
+  choices: readonly { id: string; label: string }[];
 }
 
 export interface LiveBarsOptions {
@@ -282,6 +285,7 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
   let last: FeatureVector | null = null;
   let lastT = Number.NEGATIVE_INFINITY;
   let shown: string[] = [];
+  let choices: { ids: readonly string[]; list: { id: string; label: string }[] } | null = null;
   let shownRanking: LiveBars['ranking'] | null = null;
   /** The online carve, cached by the holds it was made from, redone every `recarveMs`. */
   let carve: { holds: readonly FeatureVector[]; n: number; at: number; clusters: number[][] } | null = null;
@@ -345,7 +349,8 @@ export function createLiveBars(context: () => LiveBarsContext, options: LiveBars
           band: Number.isFinite(spread) && s > 0 ? (spread as number) / s : null,
         };
       });
-      return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars };
+      if (!choices || choices.ids !== ctx.ids) choices = { ids: ctx.ids, list: ctx.ids.map((id) => ({ id, label: featureWords(id) })) };
+      return { reference: ctx.rest ? 'rest' : 'running', ranking, categories: clusters.length, bars, choices: choices.list };
     },
     carve() {
       return clustersOf(context());

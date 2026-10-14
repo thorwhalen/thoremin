@@ -271,7 +271,7 @@ export interface FaceSessionState {
   /** End the burst; a burst too short to take says so. */
   endBurst(): void;
   /** The live feature bars now, or null when nothing is read. Not reactive: a panel polls it. */
-  live(options?: { count?: number }): LiveBars | null;
+  live(options?: { count?: number; pinned?: readonly string[] }): LiveBars | null;
   stop(): Promise<void>;
   /** The strangers switch: what a face nobody taught reads as, Neutral or the nearest face. An
    *  edit of the working categorizer (undoable); before a take, the next take's setting. */

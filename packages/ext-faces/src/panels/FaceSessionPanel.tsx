@@ -27,6 +27,7 @@ import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
 import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import { FeatureBars } from '@thoremin/sdk-ui/enroll/FeatureBars';
+import { BAR_PINS_DEFAULTS, pinsOf, useBarPins } from '@thoremin/sdk-ui/enroll/barPins';
 import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
@@ -461,7 +462,13 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
   const phase = s.phase as 'explore' | 'rest' | 'faces' | 'paused';
   const { modality } = s;
   const { one, many } = modality.words;
-  const read = useCallback((o: { count: number }) => store.getState().live(o), [store]);
+  const read = useCallback((o: { count: number; pinned: readonly string[] }) => store.getState().live(o), [store]);
+  // The pinned bars (#402): this modality's, on this device.
+  const pinned = useBarPins((p) => pinsOf(p, modality.id));
+  useEffect(() => {
+    void useBarPins.getState().hydrate();
+  }, []);
+  const setPinned = useCallback((ids: string[]) => useBarPins.getState().setPinned(modality.id, ids), [modality.id]);
   const setup = setupCues(modality);
   const cue = phase === 'rest' ? (setup[s.setupStep] ?? setup[0]) : vocabularyCue(modality);
   const instruction =
@@ -517,7 +524,7 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
       {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
       {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase, modality.words)} />}
       {(phase === 'faces' || phase === 'paused') && <HoldStrip s={s} />}
-      <FeatureBars read={read} part={modality.words.part} one={one} />
+      <FeatureBars read={read} part={modality.words.part} one={one} pinned={pinned} onPinnedChange={setPinned} maxPins={BAR_PINS_DEFAULTS.max} />
     </div>
   );
 }
