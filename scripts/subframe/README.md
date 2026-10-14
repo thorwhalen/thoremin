@@ -17,6 +17,12 @@ The scoring pipeline behind [`docs/research/subframe-impact-prediction.md`](../.
 
    The slow column: `--fps 15` thins every clip to a regular slower camera, `--infer 0.045` paces it by a simulated inference time (the latest frame wins; `decimate.ts`). The stamp regimes (`stamps.ts`): `--poll 60` is `raf-poll`, positions held from the latest frame and sampled at a 60 Hz vsync with the vsync time as the stamp (Safari before the pump fix); `--dejitter line` runs the frame pump's gated de-jitter over the stamps with the source each regime stands for (`exact` and `capture-jitter-actual` are capture stamps and must come out byte-identical, which the scorer checks; `--dejitter clamp` is the variant capped at the raw stamp, for comparison). `--predict-opts '<json>'` passes extra `createImpactPredictor` options to every predictor run, so a variant is scored against the shipped defaults without editing them (`'{"airReference":"departure"}'` reproduces the air rows before #234). Each flag is read once: pass it once.
 
+   `decompose.ts` splits the prediction's air error into its parts (the commit's crossing against the confirmation's, the reference's bias, the learned lag's trail), per rate and lead, with the same `--set` and `--predict-opts`:
+
+   ```bash
+   npx vite-node scripts/subframe/decompose.ts --set ~/.local/share/thoremin/synthetic/bench-v2 --min-lead 0.03,0.077
+   ```
+
 3. **Make a committed fixture** from one clip (keypoints verbatim, the truth without its per-frame table):
 
    ```bash
