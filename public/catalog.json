@@ -832,6 +832,10 @@
         "kind": "category-scores"
       },
       {
+        "name": "categorizerChord",
+        "kind": "number[]"
+      },
+      {
         "name": "elements",
         "kind": "string[]"
       },

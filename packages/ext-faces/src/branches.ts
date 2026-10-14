@@ -82,6 +82,8 @@ const chordEdges = (vector: { node: string; port: string }, frame: { node: strin
   to(ui('octaveShift'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'octaveShift' }),
   // Its own overlay input: never a fan-in with the pose categorizer's or ASL's categories.
   to({ node: CATEGORIZER_CHORD_NODE_ID, port: 'category' }, overlay('chordCategories')),
+  // The chord it plays, for the chord name and the chord guide (#491): its own port too.
+  to({ node: CATEGORIZER_CHORD_NODE_ID, port: 'triad' }, overlay('categorizerChord')),
 ];
 
 /**
@@ -94,7 +96,7 @@ export const handChords = defineBranch({
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: 'handVec', port: 'vector' }, { node: TRUNK.cam, port: 'hands' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
-  overlay: ['categoryLabel', 'categoryBars'],
+  overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 
 /** A saved pose categorizer plays chords (#450, and #468): the body source's vector, the same node.
@@ -108,7 +110,7 @@ export const poseChords = defineBranch({
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }, { node: 'camBody', port: 'body' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
-  overlay: ['categoryLabel', 'categoryBars'],
+  overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 
 export const FACES_BRANCHES = [faceCategorizer, poseCategorizer, handChords, poseChords] as const;
