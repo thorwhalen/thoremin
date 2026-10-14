@@ -9,6 +9,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFaceSessionStore } from '@thoremin/ext-faces/app/sessionStore';
 import { exportCategorizer, importCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { unknownVocabulary } from '@thoremin/sdk/enroll/modality';
+import { bodyModality } from '@thoremin/sdk/features/modalities/body';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import type { PoseName } from '../helpers/body_poses';
 import { deps, namesByPose, resetPoseClock, STREAM, take } from '../helpers/pose_take';
 
@@ -65,6 +68,26 @@ describe('Your poses names its categories from the vocabulary of its context', (
     store.getState().reset();
     expect(store.getState().vocabulary).toBeNull();
   }, 60_000);
+
+  it('an imported file with a vocabulary the body does not have: opened without it, and the notice says so (#465)', async () => {
+    const names: readonly PoseName[] = ['ready', 'fermata', 'cut-off'];
+    const store = await take(names, { vocabulary: 'conductor' });
+    const doc = JSON.parse(exportCategorizer(store.getState().working!));
+    // A known id is kept without a word about it.
+    expect(store.getState().importFile(JSON.stringify(doc))).toBe(true);
+    expect(store.getState().working!.vocabulary).toBe('conductor');
+    expect(store.getState().notice).not.toMatch(/vocabulary/);
+    expect(store.getState().importFile(JSON.stringify({ ...doc, vocabulary: 'standing' }))).toBe(true);
+    expect(store.getState().working!.vocabulary).toBeUndefined();
+    expect(store.getState().vocabulary).toBeNull();
+    expect(store.getState().notice).toMatch(/"standing" is not one body categorizers have \(conductor\)/);
+  }, 60_000);
+
+  it('unknownVocabulary: face and hand have none, so any id is unknown', () => {
+    expect(unknownVocabulary(bodyModality, {})).toBeNull();
+    expect(unknownVocabulary(bodyModality, { vocabulary: 'conductor' })).toBeNull();
+    expect(unknownVocabulary(faceModality, { vocabulary: 'conductor' })).toMatch(/not one face categorizers have, so/);
+  });
 
   it('the vocabulary is chosen before the take, and a reset returns to the choice', async () => {
     const store = createFaceSessionStore(deps(() => ({ kind: 'synthetic', read: () => null, video: () => STREAM, dispose: () => {} })));

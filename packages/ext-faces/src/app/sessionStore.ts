@@ -80,7 +80,7 @@ import { carveTake, fullMean, generalContextOf, nameCarve, sortingView, type Nam
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
 import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '@thoremin/sdk/enroll/live';
 import { createFaceTake, vocabularyCue, type FaceTake, type HoldState } from '../lib/take';
-import { createReader, foreignModality, keepOnly, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
+import { createReader, foreignModality, keepOnly, unknownVocabulary, type CarveModality, type HandChoice, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, liveStrip, type BarMark, type LiveBars, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
@@ -1658,14 +1658,19 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         get().reset();
         const taken = get().saved.some((s) => s.name.trim().toLowerCase() === r.categorizer.name.trim().toLowerCase());
-        showOpened(r.categorizer, {
+        // An unknown vocabulary id is dropped and said so, not silently ignored (#465).
+        const badVocabulary = unknownVocabulary(modality, r.categorizer);
+        const { vocabulary: _dropped, ...rest } = r.categorizer;
+        const imported = badVocabulary ? rest : r.categorizer;
+        showOpened(imported, {
           openId: null,
           name: r.categorizer.name,
           tuning: DEFAULT_TUNING,
           dirty: true,
           notice:
             `Imported "${r.categorizer.name}"${r.migratedFrom !== null ? ` (from file version ${r.migratedFrom})` : ''}. A file carries no pictures. Save to keep it` +
-            (taken ? '; saving under the same name replaces the one you have.' : '.'),
+            (taken ? '; saving under the same name replaces the one you have.' : '.') +
+            (badVocabulary ? ` Note: ${badVocabulary}.` : ''),
         });
         return true;
       },
