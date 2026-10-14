@@ -384,7 +384,7 @@ export const FOREST_CACHE_SIZE = 8;
 const forests = new Map<string, Forest>();
 
 /**
- * The forest a re-cut cuts. Building it is cubic in the pool, and it depends on the pool's
+ * The forest a re-cut cuts. Building it is quadratic in the pool (#420), and it depends on the pool's
  * vectors, the must-link groups and the feature space only (never on k), so it is cached on
  * exactly that: the range shown after an edit and the cut that follows share one build.
  */

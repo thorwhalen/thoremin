@@ -25,8 +25,9 @@
  * - **Determinism.** No seeding, no restarts, no `Math.random`. The same recording
  *   yields the same tree every time, which is what makes the whole thing testable.
  *
- * Scale is a non-issue: O(n²) over the *hundreds* of still-points a 60-second gated
- * take produces, not the millions raw frames would give.
+ * Scale: the merge loop is O(n²) in time and memory (a nearest-neighbour cache over a flat
+ * distance matrix, see {@link agglomerate}), so the *hundreds* of still-points a 60-second gated
+ * take produces build instantly and the file's bound of 2000 in about a second (#420).
  *
  * ## Linkage
  *
@@ -81,81 +82,19 @@ export function weightedDistance(
 }
 
 /**
- * Build the agglomerative hierarchy over `vectors` with average linkage.
+ * Build the agglomerative hierarchy over `vectors` with average linkage: the unconstrained
+ * {@link buildConstrainedForest}, whose one root (when every distance is finite) is the tree.
  *
  * Uses the Lance-Williams update so cluster-to-cluster distances are maintained
- * incrementally rather than recomputed from members on every merge — O(n²) overall
- * instead of O(n³), which is the difference between instant and noticeable at n≈400.
+ * incrementally rather than recomputed from members on every merge.
  */
 export function buildHierarchy(
   vectors: readonly FeatureVector[],
   features: readonly string[],
   weights: Record<string, number> = {},
 ): Hierarchy {
-  const n = vectors.length;
-  if (n === 0) return { heights: [], size: 0 };
-  if (n === 1) return { root: { members: [0], height: 0 }, heights: [], size: 1 };
-
-  // Active cluster slots; `nodes[i]` is null once slot i has been merged away.
-  const nodes: (TreeNode | null)[] = vectors.map((_, i) => ({ members: [i], height: 0 }));
-  const counts: number[] = new Array(n).fill(1);
-  const d: number[][] = Array.from({ length: n }, () => new Array(n).fill(Infinity));
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const dist = weightedDistance(vectors[i], vectors[j], features, weights);
-      d[i][j] = dist;
-      d[j][i] = dist;
-    }
-  }
-
-  const heights: number[] = [];
-  let remaining = n;
-  while (remaining > 1) {
-    // Closest active pair.
-    let bi = -1;
-    let bj = -1;
-    let best = Infinity;
-    for (let i = 0; i < n; i++) {
-      if (!nodes[i]) continue;
-      for (let j = i + 1; j < n; j++) {
-        if (!nodes[j]) continue;
-        if (d[i][j] < best) {
-          best = d[i][j];
-          bi = i;
-          bj = j;
-        }
-      }
-    }
-    if (bi < 0) break;
-
-    const a = nodes[bi]!;
-    const b = nodes[bj]!;
-    const merged: TreeNode = {
-      members: [...a.members, ...b.members],
-      height: best,
-      left: a,
-      right: b,
-    };
-    heights.push(best);
-
-    // Lance-Williams for average linkage: the distance from the merged cluster to any
-    // other is the count-weighted mean of its two children's distances.
-    const na = counts[bi];
-    const nb = counts[bj];
-    for (let k = 0; k < n; k++) {
-      if (k === bi || k === bj || !nodes[k]) continue;
-      const nd = (na * d[bi][k] + nb * d[bj][k]) / (na + nb);
-      d[bi][k] = nd;
-      d[k][bi] = nd;
-    }
-    nodes[bi] = merged;
-    counts[bi] = na + nb;
-    nodes[bj] = null;
-    remaining -= 1;
-  }
-
-  const root = nodes.find((x): x is TreeNode => x !== null);
-  return { root, heights, size: n };
+  const { roots, heights, size } = buildConstrainedForest(vectors, features, weights);
+  return { root: roots[0], heights, size };
 }
 
 /**
@@ -281,46 +220,115 @@ export function buildConstrainedForest(
   const m = leaves.length;
   if (m === 0) return { roots: [], heights: [], size: 0 };
 
-  const point: number[][] = Array.from({ length: n }, () => new Array(n).fill(0));
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const dist = weightedDistance(vectors[i], vectors[j], features, weights);
-      point[i][j] = dist;
-      point[j][i] = dist;
+  const dist = pointDistance(vectors, features, weights);
+  const d = new Float64Array(m * m).fill(Infinity);
+  for (let a = 0; a < m; a++) {
+    for (let b = a + 1; b < m; b++) {
+      let dd = Infinity;
+      if (leaves[a].group === -1 || leaves[b].group === -1) {
+        let s = 0;
+        for (const i of leaves[a].members) for (const j of leaves[b].members) s += dist(i, j);
+        dd = s / (leaves[a].members.length * leaves[b].members.length);
+      }
+      d[a * m + b] = dd;
+      d[b * m + a] = dd;
     }
   }
   const nodes: (TreeNode | null)[] = leaves.map((l) => ({ members: l.members, height: 0 }));
-  const counts = leaves.map((l) => l.members.length);
-  const d: number[][] = Array.from({ length: m }, () => new Array(m).fill(Infinity));
-  for (let a = 0; a < m; a++) {
-    for (let b = a + 1; b < m; b++) {
-      let dist = Infinity;
-      if (leaves[a].group === -1 || leaves[b].group === -1) {
-        let s = 0;
-        for (const i of leaves[a].members) for (const j of leaves[b].members) s += point[i][j];
-        dist = s / (counts[a] * counts[b]);
-      }
-      d[a][b] = dist;
-      d[b][a] = dist;
-    }
+  const { roots, heights } = agglomerate(d, m, nodes, leaves.map((l) => l.members.length));
+  return { roots, heights, size: m };
+}
+
+/**
+ * A distance between two of `vectors` by index, bit for bit {@link weightedDistance}: the
+ * coordinates are read once into a flat array (a non-finite one as NaN, which the sum skips as
+ * `weightedDistance` does, the zero-weight features dropped), so the O(n²) pairs of a hierarchy
+ * or a medoid pay no property lookups (#420).
+ */
+export function pointDistance(
+  vectors: readonly FeatureVector[],
+  features: readonly string[],
+  weights: Record<string, number>,
+): (i: number, j: number) => number {
+  const ws: number[] = [];
+  const kept: string[] = [];
+  for (const f of features) {
+    const w = Object.hasOwn(weights, f) ? weights[f] : 1;
+    if (w === 0) continue;
+    ws.push(w);
+    kept.push(f);
   }
+  const dim = kept.length;
+  const x = new Float64Array(vectors.length * dim);
+  vectors.forEach((v, i) => {
+    kept.forEach((f, k) => {
+      const value = v[f];
+      x[i * dim + k] = Number.isFinite(value) ? value : NaN;
+    });
+  });
+  return (i, j) => {
+    let sum = 0;
+    const oi = i * dim;
+    const oj = j * dim;
+    for (let k = 0; k < dim; k++) {
+      const a = x[oi + k];
+      const b = x[oj + k];
+      if (a !== a || b !== b) continue; // NaN: not measurable this frame
+      const e = (a - b) * ws[k];
+      sum += e * e;
+    }
+    return Math.sqrt(sum);
+  };
+}
+
+/**
+ * Greedy average-linkage agglomeration over `m` slots: repeatedly merge the closest allowed
+ * pair (ties to the lowest slot pair, row-major), the merged cluster taking the lower slot,
+ * until no pair is below `Infinity`. `d` is the symmetric m x m distance matrix (row-major,
+ * updated in place); `nodes` and `counts` are the slots' starting clusters and point counts.
+ *
+ * Each live row keeps its nearest live column to its right (a nearest-neighbour cache), so a
+ * merge rescans only the merged row and the rows whose nearest was one of the pair: O(n²)
+ * overall instead of the O(n³) of a full scan per merge (#420). It is exact, not a heuristic:
+ * the global minimum is the minimum over the rows' cached minima, and a row that pointed
+ * elsewhere can only gain the merged slot, whose new distance is checked against its cache
+ * with the same tie rule. So the tree is the one the full scan builds, merge for merge.
+ */
+function agglomerate(
+  d: Float64Array,
+  m: number,
+  nodes: (TreeNode | null)[],
+  counts: number[],
+): { roots: TreeNode[]; heights: number[] } {
+  const nn = new Int32Array(m).fill(-1);
+  const nnDist = new Float64Array(m).fill(Infinity);
+  const rescan = (i: number) => {
+    let best = Infinity;
+    let at = -1;
+    const row = i * m;
+    for (let j = i + 1; j < m; j++) {
+      if (nodes[j] && d[row + j] < best) {
+        best = d[row + j];
+        at = j;
+      }
+    }
+    nn[i] = at;
+    nnDist[i] = best;
+  };
+  for (let i = 0; i < m; i++) rescan(i);
 
   const heights: number[] = [];
   for (;;) {
     let bi = -1;
-    let bj = -1;
     let best = Infinity;
     for (let i = 0; i < m; i++) {
-      if (!nodes[i]) continue;
-      for (let j = i + 1; j < m; j++) {
-        if (nodes[j] && d[i][j] < best) {
-          best = d[i][j];
-          bi = i;
-          bj = j;
-        }
+      if (nodes[i] && nnDist[i] < best) {
+        best = nnDist[i];
+        bi = i;
       }
     }
     if (bi < 0) break; // no allowed pair left
+    const bj = nn[bi];
     const a = nodes[bi]!;
     const b = nodes[bj]!;
     heights.push(best);
@@ -328,15 +336,30 @@ export function buildConstrainedForest(
     const nb = counts[bj];
     for (let k = 0; k < m; k++) {
       if (k === bi || k === bj || !nodes[k]) continue;
-      const nd = (na * d[bi][k] + nb * d[bj][k]) / (na + nb);
-      d[bi][k] = nd;
-      d[k][bi] = nd;
+      const nd = (na * d[bi * m + k] + nb * d[bj * m + k]) / (na + nb);
+      d[bi * m + k] = nd;
+      d[k * m + bi] = nd;
     }
     nodes[bi] = { members: [...a.members, ...b.members], height: best, left: a, right: b };
     counts[bi] = na + nb;
     nodes[bj] = null;
+    nn[bj] = -1;
+    nnDist[bj] = Infinity;
+    // Rows left of bi see the merged slot's new distance; rows that pointed at either half
+    // (only rows left of bj can) rescan; row bi rescans.
+    for (let k = 0; k < bj; k++) {
+      if (!nodes[k]) continue;
+      if (k === bi || nn[k] === bi || nn[k] === bj) rescan(k);
+      else if (k < bi) {
+        const nd = d[k * m + bi];
+        if (nd < nnDist[k] || (nd === nnDist[k] && nd < Infinity && bi < nn[k])) {
+          nn[k] = bi;
+          nnDist[k] = nd;
+        }
+      }
+    }
   }
-  return { roots: nodes.filter((x): x is TreeNode => x !== null), heights, size: m };
+  return { roots: nodes.filter((x): x is TreeNode => x !== null), heights };
 }
 
 /** The k a forest can be cut at: from one cluster per root to one per leaf. */
