@@ -48,9 +48,14 @@ Under the app-data root, never in the repository: `<root>/<kind>/<corpus>/`, whe
 
 The repository is public. A stream goes into `test/fixtures/` only when its source licence permits redistribution (CC0, CC BY, CC BY-SA, MIT, ...), with the attribution and licence in the fixture's `meta.json` or `README.md`. Streams from standard-YouTube-licence or research-only sources stay local, however small (the ecosystem's provenance rule). Numbers measured on them may be committed.
 
+## The catalog
+
+Every dataset and clip set thoremin has trained, tuned or measured on is one row of [`docs/research/datasets.md`](../../docs/research/datasets.md): source, licence, what used it, which derived streams exist and where (committed fixture, app-data dir, regenerable), and whether the raw media is kept. A new corpus adds its row in the same PR, written in repository terms (no local paths or machine names: the repository is public).
+
 ## Checklist before you finish a task that fetched video
 
 - every clip has its streams (`pose`, `hands`, `face`, as present) as `.ndjson.gz` and a `meta.json` with the fields above;
 - the labels say where they came from;
 - the video can be found again from `sourceUrl` alone;
-- nothing non-redistributable entered the repository.
+- nothing non-redistributable entered the repository;
+- the catalog has the corpus's row.
