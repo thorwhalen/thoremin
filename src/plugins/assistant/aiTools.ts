@@ -15,6 +15,8 @@ import type { Tool } from 'ai';
 import { toAITools, toToolNameMap } from 'acture-ai-vercel';
 import type { AnyCommandRecord } from 'acture';
 import { registry, DIAL_FIELD_COMMANDS } from '@/app/commands';
+// The extensions' commands join the registry (#600 S11).
+import '@/app/host/contributions';
 
 /** Reported to the UI after each assistant dispatch (the canonical command + its Result). */
 export type DispatchListener = (command: AnyCommandRecord, result: unknown) => void;

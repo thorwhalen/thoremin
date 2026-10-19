@@ -6,7 +6,8 @@
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
  * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
- * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route);
+ * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command
+ * and a carve modality);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -20,6 +21,7 @@ import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { defineExtension, dialSlice, overlayElementId, overlayPortName, transientPort, type OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 export const PROBE_NODE_TYPE = 'probe-tone';
 export const PROBE_NODE_ID = 'probe';
@@ -28,6 +30,10 @@ export const PROBE_TOOL_ID = 'probe-tool';
 export const PROBE_INSTRUMENT = 'Probe Instrument';
 /** The voice id the probe plays on: far from the trunk's 0 and 1 and the air instruments'. */
 export const PROBE_VOICE_ID = 9001;
+/** The probe's command (#600 S11): declared here, implemented in its React half. */
+export const PROBE_COMMAND_ID = 'probe.ping';
+/** The probe's carve modality (#600 S11): the face's, under its own id. */
+export const PROBE_MODALITY_ID = 'probe-part';
 
 export const ProbeDialSchema = z.object({ enabled: z.boolean(), freq: z.number().positive() });
 export type ProbeDial = z.infer<typeof ProbeDialSchema>;
@@ -136,6 +142,8 @@ export const PROBE_EXTENSION = defineExtension({
   catalog: [{ id: 'probe', label: 'Probe', emoji: '🧪', class: 'probe-class', usesScale: true, on: (s) => (s.probe as Partial<ProbeDial> | undefined)?.enabled === true }],
   overlay: [{ name: PROBE_ELEMENT, category: 'output', inputs: [{ name: 'level', kind: 'number' }], config: { dialKey: 'probe' } }],
   overlayElements: [probeMeter],
+  commandDecls: [{ id: PROBE_COMMAND_ID, title: 'Probe: ping', description: 'A test-only command.', category: 'Probe', params: z.object({ times: z.number().int().positive().default(1) }) }],
+  modalities: [{ ...faceModality, id: PROBE_MODALITY_ID }],
   instruments: [{ name: PROBE_INSTRUMENT, patch: { probe: { enabled: true, freq: 330 } } }],
   training: {
     routes: [{ id: 'probe', label: 'Train the probe', hint: 'Test-only.', tool: PROBE_TOOL_ID }],

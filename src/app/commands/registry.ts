@@ -30,18 +30,18 @@ import { STEER_COMMANDS } from './steer';
 import { RECORDING_COMMANDS } from './recording';
 import { SONG_COMMANDS } from './song';
 import { CONDUCTOR_TIMING_COMMANDS } from './conductorLead';
-import { CARVE_COMMANDS } from './carve';
 import { confirmationGate, createApprovalStore, defaultGetRisk, type ApprovalStore } from './confirmation';
 import { createDialsHistory, type DialsHistory } from './history';
 import { createJournal, type Journal } from './journal';
 import { installMiddleware } from './middleware';
 
-/** Build a registry with all thoremin commands registered: the generic dial verbs,
+/** Build a registry with all of CORE's commands registered: the generic dial verbs,
  *  one typed `set` command per dial (generated from the dials SSOT), the instrument
  *  load/save/create commands, the generative steering commands (#188), the
- *  recording-location commands (#257), the song transport (#186 PR G), the body
- *  conductor's timing (#427) and the live carve's
- *  capture (#385 E2). */
+ *  recording-location commands (#257), the song transport (#186 PR G) and the body
+ *  conductor's timing (#427). The extensions' commands are registered by the shell's
+ *  contribution registry (`src/app/host/contributions.ts`, #600 S11), which may name the
+ *  extension list this layer must not. */
 export function createThoreminRegistry(): Registry {
   const r = createRegistry();
   r.registerAll(DIAL_COMMANDS);
@@ -51,7 +51,6 @@ export function createThoreminRegistry(): Registry {
   r.registerAll(RECORDING_COMMANDS);
   r.registerAll(SONG_COMMANDS);
   r.registerAll(CONDUCTOR_TIMING_COMMANDS);
-  r.registerAll(CARVE_COMMANDS);
   return r;
 }
 

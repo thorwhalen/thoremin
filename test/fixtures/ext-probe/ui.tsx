@@ -4,7 +4,9 @@
  * one saw is recorded in {@link probeSeen}, so a test can ask whether the host called it.
  */
 import type { ExtensionUi, ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
-import { PROBE_NODE_ID, PROBE_TOOL_ID } from './index';
+import { defineCommand, ok } from 'acture';
+import { z } from 'zod';
+import { PROBE_COMMAND_ID, PROBE_NODE_ID, PROBE_TOOL_ID } from './index';
 
 /** What the host did with the probe's UI contributions, for the test to read. */
 export const probeSeen = {
@@ -14,7 +16,21 @@ export const probeSeen = {
   resets: 0,
   mounts: 0,
   unmounts: 0,
+  /** The `times` of each run of the probe's command. */
+  pings: [] as number[],
 };
+
+const pingCmd = defineCommand({
+  id: PROBE_COMMAND_ID,
+  title: 'Probe: ping',
+  description: 'A test-only command.',
+  category: 'Probe',
+  params: z.object({ times: z.number().int().positive().default(1) }),
+  execute: async ({ times }) => {
+    probeSeen.pings.push(times);
+    return ok({ times });
+  },
+});
 
 function ProbeControls() {
   return <p>probe controls</p>;
@@ -43,6 +59,7 @@ export const PROBE_UI: ExtensionUi = {
       readoutOn: (s) => (s.probe as { enabled?: boolean } | undefined)?.enabled === true,
     },
   ],
+  commands: [pingCmd],
   statusHooks: [
     {
       nodeId: PROBE_NODE_ID,

@@ -20,10 +20,10 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
+import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
-import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
+import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
 
 afterEach(cleanup);
@@ -48,6 +48,9 @@ type App = {
   uis: typeof import('@/app/extensions');
   store: typeof import('@/app/store');
   category: typeof import('@/app/library/category');
+  commands: typeof import('@/app/commands/registry');
+  keys: typeof import('@/app/keyboardShortcuts');
+  modalities: typeof import('@thoremin/sdk/features/modalities');
 };
 let app: App;
 /** The lazy probe's React half, as the host loads it (one module instance after the reset). */
@@ -70,7 +73,8 @@ beforeAll(async () => {
     import('@/app/store'),
   ]);
   const category = await import('@/app/library/category');
-  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category };
+  const [commands, keys, modalities] = await Promise.all([import('@/app/commands/registry'), import('@/app/keyboardShortcuts'), import('@thoremin/sdk/features/modalities')]);
+  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities };
 });
 
 describe('the probe reaches every pure contribution point', () => {
@@ -199,6 +203,49 @@ describe('the probe draws overlay elements (#600 S5)', () => {
     const engine = new Engine(composed.spec, reg, { resources: { controls: () => controls, canvas: rc.canvas, video: rc.video } });
     engine.tick(0);
     expect(rc.calls.some((c) => c.fill === '#a855f7')).toBe(false);
+  });
+});
+
+describe('the probe contributes commands, a keybinding and a carve modality (#600 S11)', () => {
+  it('the palette lists the LAZY probe\'s command before its half loads, and running it loads the half', async () => {
+    const listed = app.commands.registry.list().map((c) => c.id);
+    expect(listed).toEqual(expect.arrayContaining([PROBE_COMMAND_ID, PROBE_LAZY_COMMAND_ID]));
+    expect(app.commands.registry.get(PROBE_LAZY_COMMAND_ID)?.title).toBe('Lazy probe: ping');
+    const before = lazyUi.probeLazySeen.pings;
+    const result = await app.commands.registry.dispatch(PROBE_LAZY_COMMAND_ID, {});
+    expect(result.ok).toBe(true);
+    expect(lazyUi.probeLazySeen.pings).toBe(before + 1);
+    expect(lazyUi.probeLazySeen.mounts).toBeGreaterThan(0);
+  });
+
+  it('the eager probe\'s command runs its own implementation with its parameters', async () => {
+    probeSeen.pings.length = 0;
+    expect((await app.commands.registry.dispatch(PROBE_COMMAND_ID, { times: 2 })).ok).toBe(true);
+    expect(probeSeen.pings).toEqual([2]);
+  });
+
+  it('the keymap folds the stub\'s keybinding after core\'s: a repeat is swallowed, a press dispatches', async () => {
+    const action = app.keys.DEFAULT_KEYMAP[PROBE_LAZY_KEY];
+    expect(action).toBeTypeOf('function');
+    const before = lazyUi.probeLazySeen.pings;
+    expect(action({ repeat: true } as KeyboardEvent)).toBe(true);
+    await Promise.resolve();
+    expect(lazyUi.probeLazySeen.pings).toBe(before);
+    expect(action({ repeat: false } as KeyboardEvent)).toBe(true);
+    await vi.waitFor(() => expect(lazyUi.probeLazySeen.pings).toBe(before + 1));
+  });
+
+  it('a keybinding on a key core binds, on a key bound twice, or to no command is refused', () => {
+    const { withKeybindings, DEFAULT_KEYMAP } = app.keys;
+    const has = (id: string) => id === PROBE_COMMAND_ID;
+    expect(() => withKeybindings(DEFAULT_KEYMAP, [{ key: 'm', command: PROBE_COMMAND_ID }], { has })).toThrow(/"m".*already bound by core/);
+    expect(() => withKeybindings({}, [{ key: 'x', command: PROBE_COMMAND_ID }, { key: 'x', command: PROBE_COMMAND_ID }], { has })).toThrow(/"x".*already bound/);
+    expect(() => withKeybindings({}, [{ key: 'x', command: 'nope' }], { has })).toThrow(/"nope", which no command registers/);
+  });
+
+  it('the probe\'s carve modality joins the SDK\'s', () => {
+    expect(app.modalities.CARVE_MODALITIES[PROBE_MODALITY_ID]?.id).toBe(PROBE_MODALITY_ID);
+    expect(Object.keys(app.modalities.CARVE_MODALITIES)).toEqual(expect.arrayContaining(['face', 'hand', 'body', PROBE_MODALITY_ID]));
   });
 });
 

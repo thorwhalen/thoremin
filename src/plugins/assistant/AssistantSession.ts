@@ -12,6 +12,8 @@
 import type { ModelMessage } from 'ai';
 import type { AnyCommandRecord } from 'acture';
 import { registry, approvals } from '@/app/commands';
+// The extensions' commands join the registry (#600 S11).
+import '@/app/host/contributions';
 import { buildSystemPrompt } from './systemPrompt';
 import { buildAssistantTools, assistantToolNameToId } from './aiTools';
 import { createVercelChatBackend, type ChatBackend } from './backend';

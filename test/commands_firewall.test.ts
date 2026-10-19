@@ -14,6 +14,9 @@
  *    it must reach SOUND only by dispatching a command (which writes a dial). So it is
  *    forbidden the hot store / DAG / nodes / audio-host modules (a DENYlist, since a
  *    consumer's legitimate import surface is open-ended, unlike a command handler's).
+ *  - An EXTENSION's command modules (#600 S11: every extension file that defines a command, the
+ *    test probe's included) are held to the assistant's denylist plus the SDK's host seam (the hot
+ *    store's way in): an extension command, like core's, reaches sound only by writing a dial.
  *
  * Enforced over import specifiers (not raw text), so a comment mentioning a module
  * doesn't trip it.
@@ -88,6 +91,16 @@ const FORBIDDEN_FROM_ASSISTANT: RegExp[] = [
 ];
 const isForbiddenFromAssistant = (spec: string): boolean => FORBIDDEN_FROM_ASSISTANT.some((re) => re.test(spec));
 
+/** What an extension's command module must never import (#600 S11): the assistant's denylist,
+ *  plus the SDK's host seam (`controls()`, the hot store as an extension reaches it). */
+const FORBIDDEN_FROM_EXTENSION_COMMANDS: RegExp[] = [...FORBIDDEN_FROM_ASSISTANT, /^@thoremin\/sdk-ui\/host$/];
+
+/** Every extension file that defines a command (`defineCommand(`), and the probe's. */
+function extensionCommandModules(): string[] {
+  const dirs = [...ALL_EXTENSION_DIRS.map(({ dir }) => dir), 'test/fixtures/ext-probe'];
+  return dirs.flatMap((d) => tsFiles(d)).filter((f) => /\bdefineCommand\s*\(/.test(readFileSync(f, 'utf8')));
+}
+
 describe('command-dispatch import firewall (#87)', () => {
   it('commands import ONLY the sanctioned surface (never the hot store / DAG / nodes / audio)', () => {
     const files = tsFiles('src/app/commands');
@@ -151,6 +164,23 @@ describe('command-dispatch import firewall (#87)', () => {
         ).toBe(false);
       }
     }
+  });
+
+  it('an extension\'s command modules reach sound only via a dial (#600 S11)', () => {
+    const files = extensionCommandModules();
+    // Guard: the faces' carve commands and the probe's are found.
+    expect(files.some((f) => /ext-faces/.test(f)), 'no command module found in the faces extension').toBe(true);
+    expect(files.some((f) => /ext-probe/.test(f)), 'no command module found in the probe').toBe(true);
+    for (const f of files) {
+      for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {
+        expect(
+          FORBIDDEN_FROM_EXTENSION_COMMANDS.some((re) => re.test(spec)),
+          `${f} imports "${spec}" — an extension command must change sound by writing a dial, never the hot store / DAG / nodes / audio.`,
+        ).toBe(false);
+      }
+    }
+    expect(FORBIDDEN_FROM_EXTENSION_COMMANDS.some((re) => re.test('@thoremin/sdk-ui/host'))).toBe(true);
+    expect(FORBIDDEN_FROM_EXTENSION_COMMANDS.some((re) => re.test('@thoremin/sdk-ui/enroll/capture'))).toBe(false);
   });
 
   it('the assistant denylist refuses the hot-path modules (alias AND relative) but allows its real consumer surface', () => {

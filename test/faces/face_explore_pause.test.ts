@@ -29,6 +29,7 @@ import { syntheticSource, type FaceSource } from '@thoremin/ext-faces/app/source
 import { registry } from '@/app/commands/registry';
 import { toggleCarveCapture } from '@/app/carveCapture';
 import { loadStream } from '../helpers/fixtures';
+import { FACES } from '../helpers/extensions';
 
 const DWELL_MS = 220;
 const FRAME_MS = 1000 / 30;
@@ -195,7 +196,8 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('Explore, Space and pause in the store', () => {
-  it('explores with the claim held and nothing recorded; the command starts, pauses and resumes; the seam goes with the take', async () => {
+  // The carve commands are the faces extension's (#600 S11): absent when core runs alone.
+  it.runIf(FACES)('explores with the claim held and nothing recorded; the command starts, pauses and resumes; the seam goes with the take', async () => {
     const store = createFaceSessionStore(deps());
     const s = () => store.getState();
     expect(carveCapture()).toBeNull();

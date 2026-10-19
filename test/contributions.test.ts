@@ -11,6 +11,7 @@ import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { assertNoCoreClash, checkUiDecls, foldContributions, loadExtensionNodes, overlayConfigEdges, type UiDecls } from '@/host/contributions';
 import { PROBE_EXTENSION } from './fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from './fixtures/ext-probe/lazy_stub';
+import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 const probe = PROBE_EXTENSION as unknown as Extension;
 const empty = (id: string): Extension => ({ id, branches: [], dials: [], nodes: [], derive: () => [] });
@@ -116,6 +117,14 @@ describe('foldContributions', () => {
     expect(own.classes.map((k) => k.label)).toEqual(['Signs']);
   });
 
+
+  it('folds commands and carve modalities (#600 S11), and refuses a command declared twice or a modality id core owns', () => {
+    const c = foldContributions([probe, { ...PROBE_LAZY_EXTENSION, load: async () => ({ nodes: [] }) }]);
+    expect(c.commandDecls.map((d) => [d.extension, d.decl.id])).toEqual([['probe', 'probe.ping'], ['probe-lazy', 'probeLazy.ping']]);
+    expect(c.modalities.map((m) => m.id)).toEqual(['probe-part']);
+    expect(() => foldContributions([probe, twin({ commandDecls: probe.commandDecls })])).toThrow(/probe\.ping/);
+    expect(() => foldContributions([twin({ modalities: [faceModality] })])).toThrow(/carve modality "face"/);
+  });
 
   it('refuses a key one extension declares twice', () => {
     expect(() => foldContributions([twin({ nodes: [node('a'), node('a')] })])).toThrow(/extension "probe-twin" declares the node type "a" twice/);

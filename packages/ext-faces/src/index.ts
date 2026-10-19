@@ -20,6 +20,7 @@ import type { PoseCategorizerPlay } from './lib/posePlay';
 import type { CategorizerChordPlay } from './lib/categorizerChord';
 import { FACES_BRANCHES, FACE_CATEGORIZER_BRANCH_ID, HAND_CHORDS_BRANCH_ID, POSE_CATEGORIZER_BRANCH_ID, POSE_CHORDS_BRANCH_ID } from './branches';
 import { FACES_DIAL_SLICES } from './dials';
+import { CARVE_COMMAND_DECLS } from './carveCommands';
 import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 export const FACES_EXTENSION = defineExtension({
@@ -28,6 +29,9 @@ export const FACES_EXTENSION = defineExtension({
   provides: ['face-categorizer', 'pose-categorizer', 'categorizer-chord'],
   branches: FACES_BRANCHES,
   dials: FACES_DIAL_SLICES,
+  // The carve commands (#600 S11; they were core's), declared here so they are listed before
+  // this extension loads; implemented in its deferred React half.
+  commandDecls: CARVE_COMMAND_DECLS,
   // The resolved categorizer, set by the React half off the tick; null until then (and for the
   // general model), when the node passes the general reading through.
   transient: [

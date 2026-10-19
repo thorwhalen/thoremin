@@ -23,6 +23,7 @@ import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import { registry } from '@/app/commands/registry';
 import '@/app/carveCapture';
 import { isGestureBindable } from '@/app/gestureDispatch';
+import { FACES } from '../helpers/extensions';
 
 let clock = 0;
 const models = () => createFaceModelStore(createInMemoryProvider<FaceModelRecord>([], { idField: 'id', searchFields: ['name'] }));
@@ -111,7 +112,8 @@ describe('labelled bursts (#385 E7)', () => {
     }
   });
 
-  it('a burst is held by the commands carve.burst.begin / carve.burst.end, the seam the pedal, a MIDI note or a gesture reach (#443)', async () => {
+  // The carve commands are the faces extension's (#600 S11): absent when core runs alone.
+  it.runIf(FACES)('a burst is held by the commands carve.burst.begin / carve.burst.end, the seam the pedal, a MIDI note or a gesture reach (#443)', async () => {
     // Registered, and so offered to gestures, categories, the palette and the assistant.
     const ids = registry.list().map((c) => c.id);
     expect(ids).toEqual(expect.arrayContaining(['carve.burst.begin', 'carve.burst.end']));

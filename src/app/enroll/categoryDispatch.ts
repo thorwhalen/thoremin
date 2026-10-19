@@ -39,6 +39,8 @@ import {
 } from '@thoremin/sdk/enroll';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import { registry } from '../commands/registry';
+// The extensions' commands join the registry (#600 S11).
+import '@/app/host/contributions';
 import { isGestureBindable } from '../gestureDispatch';
 import { useControls } from '../store';
 import { useToasts } from '../toasts';
