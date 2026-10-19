@@ -68,7 +68,8 @@ const SPECS: (ScaleSpec | undefined)[] = [
   undefined,
 ];
 const DTS = [1 / 30, 1 / 60, 0, Number.NaN, Number.POSITIVE_INFINITY, 0.2, 1 / 144];
-const VOICING_IDS = [...VOICINGS, 'mystery' as VoicingId];
+// The idioms (voiceLed is new in H3: the predecessor stacked it as spread).
+const VOICING_IDS = [...VOICINGS.filter((v) => v !== 'voiceLed'), 'mystery' as VoicingId];
 const RENDERING_IDS = [...RENDERINGS, 'mystery' as RenderingId];
 
 describe('the chord renderer equals its predecessor', () => {

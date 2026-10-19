@@ -15,7 +15,7 @@
  * voicing and the rendering are two of its five seams (with no coloration, no reduction and the
  * root in the bass), and `test/harmony/renderer_golden.test.ts` holds the output sample for sample.
  */
-import { diatonicTriad, type ScaleSpec } from './theory';
+import { diatonicTriad, scalePitchClasses, type ScaleSpec } from './theory';
 import type { RenderingId, VoicingId } from './voicing';
 import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '../harmony/realize';
 import type { VoiceParams } from '../nodes/domain';
@@ -55,6 +55,7 @@ export function createChordRenderer({ idBase, maxVoices }: { idBase: number; max
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
       const { voices, voiced } = realizer.render({
         tones: tonesInRegister(triad),
+        context: spec ? { scale: [...scalePitchClasses(spec.root, spec.type)] } : undefined,
         spec: { ...DEFAULT_SPEC, voicing, figuration: rendering },
         controls: { ...DEFAULT_CONTROLS, register: octaveShift },
         bpm,

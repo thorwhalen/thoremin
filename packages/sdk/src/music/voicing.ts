@@ -17,8 +17,11 @@
  *     voices sound right now"; the synth's own envelope smooths the edges.
  */
 
-/** Voicing idioms (how a triad's tones are stacked into a chord with a low bass). */
-export const VOICINGS = ['spread', 'bassTriad', 'close', 'shell', 'power'] as const;
+/** Voicing idioms (how a triad's tones are stacked into a chord with a low bass), and
+ *  `voiceLed` (H3 of #613): each chord's upper voices led from the previous chord's, common
+ *  tones held (`@thoremin/sdk/harmony/voice_leading`). `voiceTriad` has no memory, so it
+ *  stacks `voiceLed` as `spread`. */
+export const VOICINGS = ['spread', 'bassTriad', 'close', 'shell', 'power', 'voiceLed'] as const;
 export type VoicingId = (typeof VOICINGS)[number];
 
 /** Articulation patterns (how a voiced chord is played over time). */

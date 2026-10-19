@@ -23,84 +23,29 @@
 import { midiToFreq } from '../music/theory';
 import { RENDERINGS, VOICINGS, renderGains, voiceTriad } from '../music/voicing';
 import type { VoiceParams } from '../nodes/domain';
-import { EXTENSION_ROLE, QUALITIES, qualityOfIntervals, type ToneRole } from './qualities';
+import { EXTENSION_ROLE, QUALITIES, qualityOfIntervals } from './qualities';
+import type { BassRule, Coloration, Figuration, FigureEvent, RealizationContext, RealizationControls, RealizationSpec, Reduction, Tone, Voicer, VoicingMemory } from './strategies';
+import { diatonicSeventh, smoothBass, voiceLedVoicer } from './voice_leading';
 
-/** One chord tone, in register, with its role above the root. */
-export interface Tone {
-  midi: number;
-  role: ToneRole;
-}
+export type {
+  BassRule,
+  Coloration,
+  Figuration,
+  FigurationClock,
+  FigureEvent,
+  RealizationContext,
+  RealizationControls,
+  RealizationSpec,
+  Reduction,
+  Tone,
+  Voicer,
+  VoicingMemory,
+} from './strategies';
 
-/** The live controls a realization reads (a gesture, a dial, a face may set them). */
-export interface RealizationControls {
-  /** Octaves the whole realization is shifted (the instrument's octave shift). */
-  register: number;
-  /** 0..1: how many extensions a coloration may add (unused by the defaults). */
-  tension: number;
-  /** 0..1: how many tones a reduction keeps (unused by the defaults). */
-  density: number;
-  /** 0..1: close to open spacing (unused by the defaults). */
-  spread: number;
-}
+/** The voicing idioms of `music/voicing` that are stacking recipes (every id but `voiceLed`). */
+const IDIOMS = VOICINGS.filter((v) => v !== 'voiceLed');
 
 export const DEFAULT_CONTROLS: RealizationControls = { register: 0, tension: 0, density: 1, spread: 0.5 };
-
-/** What a voicer remembers: the PREVIOUS chord's voicing and bass (voice leading). It changes
- *  only when the chord to realize changes (its tones, the strategies or the controls), so within
- *  a held chord a voicer always sees the same memory and voices it the same way; it is forgotten
- *  after a silence of `resetAfterS`, so the first chord after a rest is voiced afresh. */
-export interface VoicingMemory {
-  last: readonly number[];
-  bass: number | null;
-}
-
-/** The figuration's clock: the beat position (quarter notes) and the seconds since the chord changed. */
-export interface FigurationClock {
-  beat: number;
-  sinceChange: number;
-}
-
-/** A timed note an event figuration emits (a strum's strings, a broken pattern's steps), in
- *  engine seconds; the shape a note scheduler (`pluck-out`, MIDI) consumes. */
-export interface FigureEvent {
-  t: number;
-  midi: number;
-  velocity: number;
-  voice?: number;
-}
-
-export interface Coloration {
-  id: string;
-  color(tones: readonly Tone[], controls: RealizationControls): Tone[];
-}
-export interface Reduction {
-  id: string;
-  reduce(tones: readonly Tone[], controls: RealizationControls): Tone[];
-}
-export interface BassRule {
-  id: string;
-  /** The tone that should sound lowest (an index into `tones`). */
-  bass(tones: readonly Tone[], memory: VoicingMemory): number;
-}
-export interface Voicer {
-  id: string;
-  /** MIDI notes, ascending, with `tones[bass]` lowest when the voicer honours the bass rule. */
-  voice(tones: readonly Tone[], bass: number, controls: RealizationControls, memory: VoicingMemory): number[];
-}
-export interface Figuration {
-  id: string;
-  /** Per-voice gains for this tick (continuous voices), and/or timed events. */
-  render(n: number, clock: FigurationClock): { gains?: number[]; events?: FigureEvent[] };
-}
-
-/** Which strategy each seam uses, by id. */
-export interface RealizationSpec {
-  coloration: string;
-  reduction: string;
-  bass: string;
-  voicing: string;
-  figuration: string;
-}
 
 export const DEFAULT_SPEC: RealizationSpec = { coloration: 'asIs', reduction: 'none', bass: 'root', voicing: 'spread', figuration: 'sustained' };
 
@@ -116,12 +61,13 @@ export interface RealizationRegistry {
 export function createRealizationRegistry(): RealizationRegistry {
   const byId = <T extends { id: string }>(items: T[]) => new Map(items.map((x) => [x.id, x]));
   return {
-    coloration: byId<Coloration>([{ id: 'asIs', color: (tones) => [...tones] }]),
+    coloration: byId<Coloration>([{ id: 'asIs', color: (tones) => [...tones] }, diatonicSeventh]),
     reduction: byId<Reduction>([{ id: 'none', reduce: (tones) => [...tones] }]),
-    bass: byId<BassRule>([{ id: 'root', bass: () => 0 }]),
+    bass: byId<BassRule>([{ id: 'root', bass: () => 0 }, smoothBass]),
     // The five idioms put the root in the bass an octave below the chord's register; they read
-    // the first three tones as root, second and third tone (`voiceTriad`).
-    voicing: byId<Voicer>(VOICINGS.map((id) => ({ id, voice: (tones, _bass, c) => voiceTriad(tones.map((t) => t.midi), id, c.register) }))),
+    // the first three tones as root, second and third tone (`voiceTriad`). `voiceLed` (H3) leads
+    // from the previous chord, honouring the bass and any number of tones.
+    voicing: byId<Voicer>([...IDIOMS.map((id) => ({ id, voice: (tones: readonly Tone[], _bass: number, c: RealizationControls) => voiceTriad(tones.map((t) => t.midi), id, c.register) })), voiceLedVoicer]),
     figuration: byId<Figuration>(RENDERINGS.map((id) => ({ id, render: (n, clock) => ({ gains: renderGains(n, id, clock.beat, clock.sinceChange) }) }))),
   };
 }
@@ -145,6 +91,8 @@ export function tonesInRegister(notes: readonly number[]): Tone[] {
 export interface RealizeInput {
   /** The chord's tones in register, root first; empty for silence. */
   tones: readonly Tone[];
+  /** Where the chord is heard (the key's pitch classes), for a coloration that reads it. */
+  context?: RealizationContext;
   spec: RealizationSpec;
   controls: RealizationControls;
   /** The figuration's tempo. */
@@ -210,7 +158,7 @@ export function createRealizer({
     Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
 
   return {
-    render({ tones, spec, controls, bpm, gain, sound, silentSound, dt }) {
+    render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt }) {
       let voiced: number[] = [];
       const step = Number.isFinite(dt) ? dt : 0;
       if (tones.length === 0) {
@@ -224,7 +172,7 @@ export function createRealizer({
           inputKey = key;
           memory = current;
         }
-        const colored = pick(registry.coloration, spec.coloration, DEFAULT_SPEC.coloration).color(tones, controls);
+        const colored = pick(registry.coloration, spec.coloration, DEFAULT_SPEC.coloration).color(tones, controls, context);
         const reduced = pick(registry.reduction, spec.reduction, DEFAULT_SPEC.reduction).reduce(colored, controls);
         const bass = pick(registry.bass, spec.bass, DEFAULT_SPEC.bass).bass(reduced, memory);
         voiced = pick(registry.voicing, spec.voicing, DEFAULT_SPEC.voicing).voice(reduced, bass, controls, memory).sort((a, b) => a - b);

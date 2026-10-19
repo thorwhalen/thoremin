@@ -35,13 +35,13 @@ const input = (notes: number[], over: Partial<RealizeInput> = {}): RealizeInput 
 const midis = (r: { voices: { present: boolean; freq: number }[] }) => r.voices.filter((v) => v.present).map((v) => Math.round(freqToMidi(v.freq)));
 
 describe('the realization pipeline', () => {
-  it('ships today\'s strategies: five voicings, seven figurations, no coloration or reduction, the root in the bass', () => {
+  it('ships today\'s strategies (five idioms, seven figurations, no coloration or reduction, the root in the bass) and H3\'s', () => {
     const reg = createRealizationRegistry();
-    expect([...reg.voicing.keys()]).toEqual([...VOICINGS]);
+    expect([...reg.voicing.keys()]).toEqual([...VOICINGS]); // the five idioms, then voiceLed (H3)
     expect([...reg.figuration.keys()]).toEqual([...RENDERINGS]);
-    expect([...reg.coloration.keys()]).toEqual(['asIs']);
+    expect([...reg.coloration.keys()]).toEqual(['asIs', 'diatonicSeventh']);
     expect([...reg.reduction.keys()]).toEqual(['none']);
-    expect([...reg.bass.keys()]).toEqual(['root']);
+    expect([...reg.bass.keys()]).toEqual(['root', 'smooth']);
   });
 
   it('reads tone roles from the intervals', () => {

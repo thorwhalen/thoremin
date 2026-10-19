@@ -35,6 +35,7 @@ export const VOICING_LABELS: Record<VoicingId, string> = {
   close: 'Close',
   shell: 'Shell (sparse)',
   power: 'Power (5ths)',
+  voiceLed: 'Voice-led (common tones held)',
 };
 
 /** Chord renderings (how the voiced chord is articulated in time). */
