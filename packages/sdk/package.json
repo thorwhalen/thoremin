@@ -63,6 +63,7 @@
     "./harmony/affect": "./src/harmony/affect.ts",
     "./harmony/chord": "./src/harmony/chord.ts",
     "./harmony/coloration": "./src/harmony/coloration.ts",
+    "./harmony/prior": "./src/harmony/prior.ts",
     "./harmony/qualities": "./src/harmony/qualities.ts",
     "./harmony/distance": "./src/harmony/distance.ts",
     "./harmony/layout": "./src/harmony/layout.ts",

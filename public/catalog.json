@@ -1572,6 +1572,11 @@
         "name": "tension",
         "type": "enum(off | function | tps | profile)",
         "default": "off"
+      },
+      {
+        "name": "order",
+        "type": "enum(fixed | likely)",
+        "default": "fixed"
       }
     ]
   },

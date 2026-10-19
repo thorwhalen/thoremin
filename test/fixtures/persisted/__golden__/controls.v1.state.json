@@ -293,6 +293,7 @@
     "hand": "left",
     "mirrorHandedness": true,
     "moves": "diatonic",
+    "order": "fixed",
     "point": "palm",
     "radius": 0.3,
     "reach": 0.14,

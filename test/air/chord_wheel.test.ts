@@ -178,6 +178,18 @@ describe('the chord-wheel node', () => {
     expect(plain[plain.length - 1].grid.captions).toEqual([]);
   });
 
+  it('puts the likeliest next chord on top (Piston), so pushing up three times plays I, IV, V, I', () => {
+    const outs = play([at(null), at(0), at(null), at(0), at(null), at(0), at(null)], { order: 'likely' });
+    expect(outs.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1])).toEqual(['C', 'F', 'G', 'C']);
+    const first = play([at(null)], { order: 'likely' });
+    const grid = first[first.length - 1].grid;
+    expect(grid.cells.slice(1).map((c) => c.label)).toEqual(['F', 'G', 'Am', 'Em', 'Dm', 'B°']);
+    expect(grid.captions.map((c) => c.text)).toEqual(["Most likely on top: Piston's usual root progressions"]);
+    // The Tonnetz's moves leave the key: always in their places.
+    const tonnetz = play([at(null)], { order: 'likely', moves: 'tonnetz' });
+    expect(tonnetz[tonnetz.length - 1].grid.captions).toEqual([]);
+  });
+
   it('is silent and draws nothing with the dial off', () => {
     const h = chordWheelNode.make(chordWheelNode.params.parse({}));
     const out = h.process({ hands: { t: 0, width: W, height: H, hands: [palmAt(at(null), 'Left')] }, config: { enabled: false }, spec: C }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;

@@ -63,6 +63,7 @@ export function ChordWheelControls() {
   const faceMoves = (c.faceMoves ?? {}) as Partial<Record<Emotion, string>>;
   const walk = c.walk ?? false;
   const tension = c.tension ?? 'off';
+  const order = c.order ?? 'fixed';
   const walkBeats = c.walkBeats ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
@@ -129,6 +130,13 @@ export function ChordWheelControls() {
       <label className="flex items-center gap-2 text-xs" title="Hold a push out and the wheel keeps making that move on the beat the Chord sound plays: a fourth walks all seven chords of the key. On the Tonnetz wheel each move undoes itself, so a held one swings between two chords.">
         <input type="checkbox" checked={walk} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.walk', e.target.checked)} />
         Hold a push to walk it on the beat
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="Likeliest on top: the key's moves ranked from the chord in force by Piston's table of usual root progressions, so the wheel turns as the chord changes (pushing up from C plays I, IV, V, I).">
+        Where each move sits
+        <select className={selectCls} value={order} disabled={!enabled || moves !== 'diatonic'} onChange={(e) => dispatchDialSetIn('chordWheel.order', e.target.value)}>
+          <option value="fixed">always the same place</option>
+          <option value="likely">likeliest next chord on top</option>
+        </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the key profile hears V's leading tone, Lerdahl's distance puts ii further than V), so a number always comes with its model.">
         Tension shown
