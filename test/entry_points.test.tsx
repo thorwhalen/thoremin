@@ -11,7 +11,8 @@ import { EXTENSION_ENTRY_POINTS } from '@/app/extensions';
 import { shellToolById } from '@/app/shellTools';
 import { FACES } from './helpers/extensions';
 
-const entry = (over: Partial<ToolEntryPointDecl> = {}): ToolEntryPointDecl => ({ id: 'e', from: 'conductor', tool: 'song', label: 'Go', ...over });
+// `lab`: a core tool, in every build (the song's tool, the example before, is its slice's since #600 S15).
+const entry = (over: Partial<ToolEntryPointDecl> = {}): ToolEntryPointDecl => ({ id: 'e', from: 'conductor', tool: 'lab', label: 'Go', ...over });
 
 describe('entryPointsFrom', () => {
   it('lists the entry points of one host tool whose tool is in the shell', () => {

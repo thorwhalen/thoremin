@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { SHIPPED_EXTENSION_DIRS, MIDI, GENERATIVE } from './helpers/extensions';
+import { SHIPPED_EXTENSION_DIRS, MIDI, GENERATIVE, SONG } from './helpers/extensions';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctxWith = (resources: Record<string, unknown>) =>
@@ -133,10 +133,11 @@ describe('every node that makes real-time output honours the boundary', () => {
   const synthNodes = registry.list().filter((d) => (d.roles ?? []).includes('synth'));
 
   it('finds the synth nodes (the guard is not vacuous)', () => {
-    expect(synthNodes.length).toBeGreaterThanOrEqual(3);
+    // Core alone has the synth and the orchestra; the song player is the song slice's (#600 S15).
+    expect(synthNodes.length).toBeGreaterThanOrEqual(SONG ? 3 : 2);
     expect(synthNodes.map((d) => d.type).sort()).toEqual(
       // `midi-out` is the MIDI slice's (#600 S13): there while it is listed.
-      expect.arrayContaining([...(GENERATIVE ? ['lyria'] : []), ...(MIDI ? ['midi-out'] : []), 'webaudio-synth']),
+      expect.arrayContaining([...(GENERATIVE ? ['lyria'] : []), ...(MIDI ? ['midi-out'] : []), ...(SONG ? ['song-player'] : []), 'webaudio-synth']),
     );
   });
 
@@ -151,7 +152,8 @@ describe('every node that makes real-time output honours the boundary', () => {
       // Moved with its slice (#600 S14).
       lyria: 'src/slices/generative/nodes/lyria.ts',
       orchestra: 'src/nodes/output/orchestra.ts',
-      'song-player': 'src/nodes/output/song_player.ts',
+      // The song slice's (#600 S15).
+      'song-player': 'src/slices/song/nodes/song_player.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));
     expect(

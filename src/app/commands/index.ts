@@ -20,8 +20,6 @@ export { DIAL_FIELD_COMMANDS, generateDialCommands, setCommandIdFor } from './pe
 export { INSTRUMENT_COMMANDS, loadInstrumentCmd, saveInstrumentCmd, createInstrumentCmd } from './instruments';
 export { RECORDING_COMMANDS, setRecordingLocationCmd, chooseRecordingFolderCmd } from './recording';
 export { provideRecordingHost, recordingHost, type RecordingHost, type ChosenFolder } from './recordingHost';
-export { SONG_COMMANDS, playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd } from './song';
-export { provideSongHost, songHost, type SongHost } from './songHost';
 export { CONDUCTOR_TIMING_COMMANDS, keepConductorTimingCmd, clearConductorTimingCmd } from './conductorLead';
 export { provideConductorLeadHost, conductorLeadHost, type ConductorLeadHost } from './conductorLeadHost';
 export {

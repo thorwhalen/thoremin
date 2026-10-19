@@ -262,8 +262,9 @@ export function composeInstrumentGraph(
   selection?: SlotSelection,
   registry?: NodeRegistry,
 ): Composed {
-  // The trunk is implied: every instrument shares it, so no spec has to name it.
-  const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
+  // The trunk is implied: every instrument shares it, so no spec has to name it; so are the
+  // extensions' branches that join it (#600 S15: the song player).
+  const ids = [...new Set([trunk.id, ...CONTRIBUTIONS.trunkBranches, ...branchIds])];
   const composed = composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET, categories: CATEGORY_TARGET });
   // A contributed overlay element's config dial reaches it from the host, never a branch (#600 S5).
   const config = overlayConfigEdges({ elements: composed.elements, edges: composed.spec.edges }, CONTRIBUTIONS.overlayElements, { ui: TRUNK.ui, overlay: TRUNK.overlay });

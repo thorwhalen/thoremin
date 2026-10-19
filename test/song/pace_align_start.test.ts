@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { PACE_DEFAULTS, type MusicalTime, type PulseState } from '@thoremin/ictus';
-import { paceControllerNode } from '@/nodes';
+import { paceControllerNode } from '@/slices/song/nodes/pace_controller';
+import { SONG } from '../helpers/extensions';
 
 const P0 = 60 / 120;
 const HZ = 30;
@@ -39,7 +40,7 @@ function run(align: boolean, offsetBeats: number, seconds = 12, handle: unknown 
   return cues;
 }
 
-describe('start alignment', () => {
+describe.runIf(SONG)('start alignment', () => {
   it('off by default: no cue, whatever the error', () => {
     expect(run(false, 0.4)).toEqual([]);
   });

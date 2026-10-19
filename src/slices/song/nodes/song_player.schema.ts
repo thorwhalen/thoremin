@@ -68,3 +68,26 @@ export interface StretcherOptions {
 }
 
 export type StretcherFactory = (opts: StretcherOptions) => Stretcher;
+
+/** Which default stretcher the node's `stretcher` param asks for. */
+export type StretcherKind = 'signalsmith' | 'element';
+
+/** Loads a default stretcher's factory on first need (the browser engines, a DOM audio element or an
+ *  AudioWorklet). The node never imports them: the slice's app half installs this (#600 S15, the
+ *  rule S13 and S14 set: a slice's node never imports its browser engine). */
+export type StretcherLoader = (kind: StretcherKind) => Promise<StretcherFactory>;
+
+let stretcherLoader: StretcherLoader | null = null;
+
+/** Install the default stretchers' loader (`../app/stretchers.ts`); returns the previous one. */
+export function provideStretcherLoader(next: StretcherLoader | null): StretcherLoader | null {
+  const was = stretcherLoader;
+  stretcherLoader = next;
+  return was;
+}
+
+/** The installed loader, or null in a host that installed none (a headless test injects
+ *  `ctx.resources.createStretcher` instead). */
+export function installedStretcherLoader(): StretcherLoader | null {
+  return stretcherLoader;
+}

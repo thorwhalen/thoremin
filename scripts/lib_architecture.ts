@@ -16,7 +16,7 @@
  *    modules, the in-tree extensions and slices, the flat-slice policy table, the frozen legacy
  *    app and tests) whose CODE names one of that extension's
  *    identifiers: its id, a node type, a branch id, a dial key or kind, a transient field or
- *    kind (V1, V4). Comments do not count; identifiers and string literals do, and a name that
+ *    kind, a device pref or a port it derives (V1, V4). Comments do not count; identifiers and string literals do, and a name that
  *    starts with one (`airDrumConfig` names `airDrum`) counts too.
  *  - `storeControlsPorts`: the hand-written output ports of the `store-controls` node (V2);
  *    the generated extension ports are not counted.
@@ -347,6 +347,7 @@ export function extensionNames(ext: {
   branches: readonly { id: string }[];
   dials: readonly { key: string; kind: string; layout?: 'object' | 'flat'; ports?: readonly { name: string }[] }[];
   transient?: readonly { field: string; kind: string }[];
+  prefs?: readonly { key: string; ports?: readonly { name: string }[] }[];
 }): ExtensionNames {
   const names = new Set<string>([
     ...(ext.nodes ?? []).map((n) => n.type),
@@ -357,6 +358,8 @@ export function extensionNames(ext: {
     // flat keys are what a saved instrument and a command name. Its derived ports count too.
     ...ext.dials.flatMap((d) => [...(d.layout === 'flat' ? flatDialKeys(d as DialSlice) : [d.key]), ...(GENERIC_KINDS.has(d.kind) ? [] : [d.kind]), ...(d.ports ?? []).map((p) => p.name)]),
     ...(ext.transient ?? []).flatMap((t) => [t.field, ...(GENERIC_KINDS.has(t.kind) ? [] : [t.kind])]),
+    // A device pref and the ports it derives (#600 S15: the song's `songPrefs`, `songVolume`).
+    ...(ext.prefs ?? []).flatMap((p) => [p.key, ...(p.ports ?? []).map((q) => q.name)]),
   ]);
   return { id: ext.id, names: [...names].sort() };
 }

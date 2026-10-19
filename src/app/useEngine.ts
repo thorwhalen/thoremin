@@ -44,7 +44,6 @@ import { useTimingStatus, makeTimingReporter } from './timingStatus';
 import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
 import { makeLeadCalibrationSink } from './conductorLead';
 import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
-import { useSongStatus, makeSongReporter } from './songStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
@@ -358,11 +357,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         const reportLeadTake = makeLeadCalibrationSink(engine, () => resources);
         // The orchestra's load status (#187 PR 5), for the orchestra controls' readout.
         const reportOrchestra = makeOrchestraReporter(engine);
-        // The song player's status and beat (#186 PR G), for the Song tool's readout; a song
-        // that plays to its end turns the transport off, so the next Play starts it again.
-        const reportSong = makeSongReporter(engine, useSongStatus.getState(), () => {
-          if (useControls.getState().songPlaying) useControls.getState().setSongPlaying(false);
-        });
         // The extensions' status hooks (the air instruments' readouts and live shapes):
         // built once per engine, run as sinks below, reset on removal and teardown.
         const extensionSinks = makeExtensionSinks(engine);
@@ -409,7 +403,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -443,7 +437,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useGestureStatus.getState().reset();
       useConductorStatus.getState().reset();
       useOrchestraStatus.getState().reset();
-      useSongStatus.getState().reset();
       useTimingStatus.getState().reset();
       for (const hook of extensionStatusHooks()) hook.reset();
       uninstallDebug();
@@ -452,9 +445,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       resetCategoryLive();
       timing?.dispose();
       timing = null;
-      // Nor start the song by itself on the next tap (#186 PR G): the new player has no
-      // memory of the press that started the old one.
-      useControls.getState().setSongPlaying(false);
       releaseTake();
       cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());

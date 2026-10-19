@@ -42,7 +42,7 @@
  * hands every call to the media element stretcher instead, so a song always plays.
  * Browser-only, like the element: the node imports this module dynamically on first need.
  */
-import type { Stretcher, StretcherFactory, StretcherOptions } from './song_player.schema';
+import type { Stretcher, StretcherFactory, StretcherOptions } from '../nodes/song_player.schema';
 import { createMediaElementStretcher } from './song_stretcher';
 import { rampGain } from './gain_ramp';
 

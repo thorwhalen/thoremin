@@ -17,8 +17,7 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map.schema';
-import { DEFAULT_SONG, type FaceChord, type FaceExpr, type HandsSettings } from '@/settings/schema';
-import type { SongHandle } from '@/nodes/output/song_player.schema';
+import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
@@ -100,20 +99,9 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
    *  the node plays its built-in demo. */
   scoreDoc?: ScoreDoc | null;
   graphElements?: string[] | null;
-  /** The song's level and rate (#186 PR G, a per-device pref) → `song-player`'s
-   *  `volume` / `rate`. */
-  songPrefs?: { volume: number; rate: number; followRange?: number; holdFadeS?: number; holdSlow?: number; alignStart?: boolean };
   /** The body conductor's lead offsets (#427, a per-device pref) → `conductor`'s
    *  `leadOffsets`. */
   conductorPrefs?: { leadOffsets: Record<string, number> };
-  /** The loaded song (transient), emitted as the SAME object until another loads, so
-   *  `song-player` tells a new song by identity. */
-  songHandle?: SongHandle | null;
-  /** The song's transport (transient). */
-  songPlaying?: boolean;
-  /** The press counter (transient, #344). */
-  songPlays?: number;
-  songStartBeat?: number;
 }
 
 const Params = z.object({});
@@ -226,20 +214,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
     { name: 'scoreDoc', kind: 'score-doc' },
     // The body conductor's lead offsets per joint (#427, a per-device pref) → `conductor`.
     { name: 'conductorLeadOffsets', kind: 'lead-offsets' },
-    // The song (#186 PR G) → `song-player`: the loaded song (transient, by identity), its
-    // transport (transient), and its level and rate (a per-device pref).
-    { name: 'songHandle', kind: 'song-handle' },
-    { name: 'songPlaying', kind: 'boolean' },
-    { name: 'songPlays', kind: 'number' },
-    { name: 'songStartBeat', kind: 'number' },
-    { name: 'songVolume', kind: 'number' },
-    { name: 'songRate', kind: 'number' },
-    { name: 'songHoldFade', kind: 'number' },
-    { name: 'songHoldSlow', kind: 'number' },
-    { name: 'songAlignStart', kind: 'boolean' },
-    // How far the pace controller may pull the song (#186 PR H; `follow` itself composes
-    // the `song-pace` branch, so it needs no port).
-    { name: 'songFollowRange', kind: 'number' },
     // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
@@ -324,17 +298,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         // Always emitted, `{}` included: clearing the offsets must reach the conductor.
         out.conductorLeadOffsets = c.conductorPrefs?.leadOffsets ?? {};
-        // Always emitted, null included: unloading a song must reach the player.
-        out.songHandle = c.songHandle ?? null;
-        out.songPlaying = c.songPlaying ?? false;
-        out.songPlays = c.songPlays ?? 0;
-        out.songStartBeat = c.songStartBeat ?? 0;
-        out.songVolume = c.songPrefs?.volume ?? DEFAULT_SONG.volume;
-        out.songRate = c.songPrefs?.rate ?? DEFAULT_SONG.rate;
-        out.songHoldFade = c.songPrefs?.holdFadeS ?? DEFAULT_SONG.holdFadeS;
-        out.songHoldSlow = c.songPrefs?.holdSlow ?? DEFAULT_SONG.holdSlow;
-        out.songAlignStart = c.songPrefs?.alignStart ?? DEFAULT_SONG.alignStart;
-        out.songFollowRange = c.songPrefs?.followRange ?? DEFAULT_SONG.followRange;
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {

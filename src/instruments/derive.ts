@@ -23,6 +23,7 @@
  * node is simply absent when unwanted.
  */
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
+import type { ToolDeriveContext } from '@thoremin/sdk/instruments/extension';
 import type { FeatureLabConfig } from '../features/labConfig';
 /**
  * What the derivation needs to know about the build it runs in: which branch ids exist,
@@ -33,16 +34,13 @@ import type { FeatureLabConfig } from '../features/labConfig';
  */
 export interface DerivationTable {
   knownBranchIds: ReadonlySet<string>;
-  extensions: readonly { id: string; derive: (settings: DerivationSettings, context: { implied: ReadonlySet<string> }) => readonly string[]; toolDerive?: (settings: DerivationSettings, composed: readonly string[]) => readonly string[] }[];
+  extensions: readonly { id: string; derive: (settings: DerivationSettings, context: { implied: ReadonlySet<string> }) => readonly string[]; toolDerive?: (settings: DerivationSettings, context: ToolDeriveContext) => readonly string[] }[];
   /** The branches that declare feature `demands` (#600 S17): one is implied while a live claim
    *  (the Lab's shown groups, a tool's demand) wants any group it declares. A source branch
    *  says what it measures; nothing names it to turn it on. */
   implying?: readonly { id: string; demands?: readonly string[] }[];
 }
 
-/** The groups a dancer leading the song needs (#186 PR H): the pulse, from the body. Said as
- *  a group, not a branch, so core names no source branch (#600 S17). */
-const DANCER_NEEDS = ['body.rhythm'] as const;
 /** The groups the body conductor needs (#375): the pose stream, from the body. */
 const BODY_CONDUCTOR_NEEDS = ['body.pos'] as const;
 
@@ -73,11 +71,8 @@ export interface DerivationSettings {
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
   conductor?: { enabled?: boolean; conducts?: string; source?: string; expression?: string; orchestra?: { enabled?: boolean } };
-  /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
-  songPrefs?: { follow?: boolean };
-  /** The loaded song (transient): following needs one. Only its presence is read. */
-  songHandle?: unknown;
-  /** Extension dial slices (`airDrum`, …): read by each extension's own `derive`. */
+  /** Extension dial slices (`airDrum`, …), prefs and transients (the song's, #600 S15): read by
+   *  each extension's own `derive` / `toolDerive`. */
   [extensionKey: string]: unknown;
 }
 
@@ -93,7 +88,6 @@ export interface StrictDerivationSettings {
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
   conductor: { enabled: boolean; conducts: string; source: string; expression: string; orchestra: { enabled: boolean } };
-  songPrefs: { follow: boolean };
 }
 
 export interface DerivationContext {
@@ -116,34 +110,6 @@ export function bodyMapRoutesAnything(bodyMap: DerivationSettings['bodyMap']): b
 
 const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === true;
 
-/** Whether the song follows the dancer: following is on and a song is loaded. A tool's
- *  need like the Lab's (a per-device pref, not the instrument's), so an explicit branch
- *  set does not veto it. */
-export function songFollows(settings: Pick<DerivationSettings, 'songPrefs' | 'songHandle'>): boolean {
-  return settings.songPrefs?.follow === true && settings.songHandle != null;
-}
-
-/** Whether the conductor is on and leads the loaded recording, whoever leads him. */
-function conductsRecording(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
-  return settings.conductor?.enabled === true && settings.conductor.conducts === 'recording' && settings.songHandle != null;
-}
-
-/** Whether the conductor's BEAT leads the recording (#187 PR 7): conducting is on, it
- *  conducts the recording, a song is loaded, and a hand or the body beats (a dancer
- *  leading the recording is {@link songDanced}). It replaces following the dancer. */
-export function songConducted(settings: Pick<DerivationSettings, 'conductor' | 'songHandle'>): boolean {
-  return conductsRecording(settings) && settings.conductor?.source !== 'dancer';
-}
-
-/** Whether the song follows the dancer's pulse (#380: one leader per consumer): the Song
- *  tool's "Follow the dancer", or the conductor led by a dancer and leading the recording.
- *  Either way the pace law follows the pulse, and a conductor's beat leading the recording
- *  wins over the Song tool's pref. */
-export function songDanced(settings: Pick<DerivationSettings, 'conductor' | 'songPrefs' | 'songHandle'>): boolean {
-  if (songConducted(settings)) return false;
-  return songFollows(settings) || conductsRecording(settings);
-}
-
 /** Whether the conductor reads the body (#375): its source is `body`, or the body shapes its
  *  expression (#378, `expression: body` while a hand beats). The body source is
  *  then composed with the conductor branch, whenever that branch is (so the pose model
@@ -165,7 +131,8 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // What the extensions' TOOLS need (#600 S15), on either path: unioned into an explicit set
   // too, after everything else, so each sees the ids implied so far.
   const addToolNeeds = (): void => {
-    for (const ext of table.extensions) for (const id of ext.toolDerive?.(settings, [...ids]) ?? []) add(id, table.knownBranchIds.has(id));
+    const implying = (groups: readonly string[]): string[] => [...impliedBy(new Set(groups), table)];
+    for (const ext of table.extensions) for (const id of ext.toolDerive?.(settings, { composed: [...ids], implying }) ?? []) add(id, table.knownBranchIds.has(id));
   };
   // What a live claim implies (the Lab, a tool's demand): each source branch by its `demands`.
   const claimed = impliedBy(claimedGroups(ctx), table);
@@ -180,18 +147,11 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
     for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
     for (const id of claimed) add(id, true);
-    // The conductor is the instrument's (an explicit set lists it); the recording it leads
-    // is the player's, like the dancer's song.
-    const listed = ids.includes('conductor');
-    const conducted = songConducted(settings) && listed;
-    // A dancer leads the song from the Song tool's pref, or through a listed conductor.
-    const dancerLeads = !conducted && (songFollows(settings) || (songDanced(settings) && listed));
     // As below: only while the conductor (or its orchestra) is on, not for a saved set
     // that merely lists an idle conductor.
     const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
-    needs(DANCER_NEEDS, dancerLeads);
     needs(BODY_CONDUCTOR_NEEDS, bodyConducts);
-    add('song-pace', dancerLeads || conducted);
+    // A dancer leading the song needs the body's rhythm too: the song slice's tool need (#600 S15).
     addToolNeeds();
     return ids;
   }
@@ -210,14 +170,10 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('face-controls', faceMapping === 'controls');
 
   const bodyWanted = on(settings.body) || claimed.has('body-source');
-  // Following the dancer (#186 PR H) needs the body; it does not make the body ROUTE
-  // anything onto the voices, so `bodyWanted` (which gates the router) leaves it out.
-  // A conductor leading the song replaces the dancer (one leader for one song): the pace
-  // node prefers his time, and the body is not started for a dancer nobody follows.
-  const dancerLeads = songDanced(settings);
+  // Following the dancer (#186 PR H) needs the body's rhythm too: the song slice's tool need
+  // (#600 S15, `toolDerive`); it does not make the body ROUTE anything onto the voices, so
+  // `bodyWanted` (which gates the router) leaves it out.
   add('body-source', on(settings.body));
-  needs(DANCER_NEEDS, dancerLeads);
-  add('song-pace', dancerLeads || songConducted(settings));
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 

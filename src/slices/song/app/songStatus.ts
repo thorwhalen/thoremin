@@ -14,13 +14,13 @@
  * refused to start (`reason: 'autoplay'`), turns `songPlaying` back off, so the next press
  * of Play is a fresh start rather than a no-op.
  */
-import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+import { SONG_PLAYER } from '@thoremin/sdk/instruments/trunk';
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
-import type { MusicalTime, PaceMode, PaceState } from '@thoremin/ictus';
+import type { MusicalTime, PaceMode, PaceState, ServoMode, ServoState } from '@thoremin/ictus';
 import type { OutputReader } from '@thoremin/sdk-ui/types';
 
-export const SONG_NODE_ID = TRUNK.song;
+export const SONG_NODE_ID = SONG_PLAYER;
 /** The pace controller's id in the `song-pace` branch. */
 export const PACE_NODE_ID = 'pace';
 
@@ -49,11 +49,20 @@ export interface PaceReadout {
   nudge: -1 | 0 | 1;
 }
 
+/** The beat servo's reading while a conductor leads the recording (#187 PR 7): read here since
+ *  #600 S15 (the conductor's status read it before the song became a slice). */
+export interface ServoReadout {
+  mode: ServoMode;
+  rate: number;
+  error: number;
+}
+
 export interface SongStatusState {
   status: LoadStatus;
   live: SongLive;
   pace: PaceReadout | null;
-  report(status: LoadStatus, live: SongLive, pace?: PaceReadout | null): void;
+  servo: ServoReadout | null;
+  report(status: LoadStatus, live: SongLive, pace?: PaceReadout | null, servo?: ServoReadout | null): void;
   reset(): void;
 }
 
@@ -61,9 +70,17 @@ export const useSongStatus = create<SongStatusState>((set) => ({
   status: ABSENT_SONG_STATUS,
   live: ABSENT_SONG_LIVE,
   pace: null,
-  report: (status, live, pace = null) => set({ status, live, pace }),
-  reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null }),
+  servo: null,
+  report: (status, live, pace = null, servo = null) => set({ status, live, pace, servo }),
+  reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null, servo: null }),
 }));
+
+/** The servo's reading, while a conductor leads the song; null otherwise. */
+export function servoReadout(raw: unknown): ServoReadout | null {
+  if (!raw || typeof raw !== 'object' || !('mode' in raw)) return null;
+  const s = raw as ServoState;
+  return { mode: s.mode, rate: s.rate, error: Number.isFinite(s.error) ? s.error : 0 };
+}
 
 /** The pace controller's state as the Song tool shows it. */
 export function paceReadout(p: PaceState | undefined): PaceReadout | null {
@@ -88,6 +105,7 @@ export function makeSongReporter(
     const time = engine.getOutput(SONG_NODE_ID, 'songTime') as MusicalTime | undefined;
     const position = engine.getOutput(SONG_NODE_ID, 'position') as number | undefined;
     const pace = paceReadout(engine.getOutput(PACE_NODE_ID, 'pace') as PaceState | undefined);
+    const servo = servoReadout(engine.getOutput(PACE_NODE_ID, 'servo'));
     const live: SongLive = {
       beat: time && time.state !== 'ready' ? Math.floor(time.beat) : 0,
       bpm: time && time.state !== 'ready' ? Math.round(time.tempo * 10) / 10 : 0,
@@ -102,9 +120,11 @@ export function makeSongReporter(
     lastStop = stop;
     // Whole seconds of position are enough for the readout; the beat drives the flash.
     const paceKey = pace ? `${pace.mode}|${pace.ratio}|${pace.rate}|${pace.nudge}` : '';
-    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${live.beat}|${live.bpm}|${Math.floor(live.positionS)}|${paceKey}`;
+    // As the conductor's readout quantised it: a percent of rate, a twentieth of a beat.
+    const servoKey = servo ? `${servo.mode}:${Math.round(servo.rate * 100)}:${Math.round(servo.error * 20)}` : '';
+    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${live.beat}|${live.bpm}|${Math.floor(live.positionS)}|${paceKey}|${servoKey}`;
     if (key === lastKey) return;
     lastKey = key;
-    store.report(s, live, pace);
+    store.report(s, live, pace, servo);
   };
 }

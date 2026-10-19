@@ -38,9 +38,6 @@ import {
   type Settings,
   type FaceChord,
   type FaceExpr,
-  SongSettingsSchema,
-  DEFAULT_SONG,
-  type SongSettings,
   ConductorPrefsSchema,
   DEFAULT_CONDUCTOR_PREFS,
   type ConductorPrefs,
@@ -54,7 +51,6 @@ import {
 } from '@/nodes/features/face_controls.schema';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import type { SongHandle } from '@/nodes/output/song_player.schema';
 import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
 import { CONTROLS_VERSION, migrateCoreControls } from './storeMigrations';
 import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
@@ -182,36 +178,11 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** The body→sound routing (#186 PR E). A preset field; flows to `body-route` through
    *  `store-controls` as the `bodyMap` port, so a route edit is live without a rebuild. */
   bodyMap: BodyMap;
-  /** The song's level and rate, and whether it follows the dancer (#186 PR G, H): a per-DEVICE tooling pref like
-   *  {@link audioPrefs}, persisted via `partialize`, NOT a preset field (the song plays
-   *  under any instrument; loading one must not change its tempo). Flows to
-   *  `song-player`'s `volume` / `rate` inputs through `store-controls`. */
-  songPrefs: SongSettings;
   /** The body conductor's per-DEVICE prefs (#427): the player's lead offset per joint,
-   *  learned in the Conductor tool. Persisted via `partialize` like {@link songPrefs}, NOT
+   *  learned in the Conductor tool. Persisted via `partialize` like {@link audioPrefs}, NOT
    *  a preset field. Flows to the `conductor` node's `leadOffsets` input through
    *  `store-controls`. */
   conductorPrefs: ConductorPrefs;
-  /**
-   * The loaded song (#186 PR G, research map §9.5): the stable {@link SongHandle} the
-   * Song tool writes after decoding a file and tracking its beats. TRANSIENT, like
-   * {@link scoreDoc}: never persisted (its object URL dies with the page, and a beat grid
-   * has no place in a saved instrument). `store-controls` emits the SAME object every
-   * tick until another song loads, so `song-player` detects a new song by identity.
-   */
-  songHandle: SongHandle | null;
-  /** The song's TRANSPORT, transient like the generative layer's (`steerPlaying`): a saved instrument must
-   *  never start playing on load. Written by the `song.play` / `song.pause` commands
-   *  (through the song host), and back to false when the song plays to its end. */
-  songPlaying: boolean;
-  /** How many times Play was pressed (#344), transient with {@link songPlaying}: the
-   *  `song-player` reads a change as a press even when the level never fell (a Play made
-   *  in the frame the song ended, before the player saw the transport go off). */
-  songPlays: number;
-  /** The song beat (a whole tracked beat, 0 = the first) on which the conductor's first
-   *  beat lands when he conducts the recording (#364): the way past an intro or a pickup.
-   *  Transient: it belongs to THIS song, so loading another resets it to 0. */
-  songStartBeat: number;
   /**
    * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
    * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
@@ -277,17 +248,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   toggleMuted(): void;
   /** Take (`on`) or release a hush claim (see {@link hushedBy}). Idempotent per claimer. */
   setHush(claimer: string, on: boolean): void;
-  /** Replace the loaded song (transient, see {@link songHandle}); releases the previous
-   *  song's object URL and stops the transport. */
-  setSongHandle(song: SongHandle | null): void;
-  /** Start or stop the song (transient, see {@link songPlaying}); a start also counts a
-   *  press ({@link songPlays}). */
-  setSongPlaying(v: boolean): void;
-  /** Set {@link songStartBeat}; a negative or non-finite value is ignored, a fraction rounds. */
-  setSongStartBeat(beat: number): void;
-  /** Patch the song's level / rate (see {@link songPrefs}); an out-of-range value is
-   *  clamped by the schema's bounds, an invalid one ignored. */
-  setSongPrefs(patch: Partial<SongSettings>): void;
   /** Replace the player's lead offsets (see {@link conductorPrefs}); `{}` clears them. An
    *  invalid set is ignored. */
   setConductorLeadOffsets(offsets: Record<string, number>): void;
@@ -446,8 +406,6 @@ export const HEAL_RULES: CoreHealRules = {
   hands: { schema: HandsSettingsSchema, complete: overDefaults(DEFAULT_HANDS) },
   // The body settings (#186): a pre-body blob has none → off, lite.
   body: { schema: BodySettingsSchema, complete: overDefaults(DEFAULT_BODY) },
-  // The per-device song pref (#186 PR G): a pre-song blob has none → the defaults.
-  songPrefs: { schema: SongSettingsSchema, complete: overDefaults(DEFAULT_SONG) },
   // The body conductor's lead offsets (#427): a pre-#427 blob has none → no offset.
   conductorPrefs: { schema: ConductorPrefsSchema, complete: overDefaults(DEFAULT_CONDUCTOR_PREFS) },
   // The body map (#186): a pre-routing blob has none → no routes.
@@ -522,7 +480,7 @@ export function withExtensionPrefs<S extends object>(state: S, prefSlices: reado
  * prefs (core's below and every extension's pref slice: persisted, never in an instrument), and
  * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
  */
-const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs', 'songPrefs', 'conductorPrefs'] as const satisfies readonly (keyof ControlState)[];
+const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs', 'conductorPrefs'] as const satisfies readonly (keyof ControlState)[];
 const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
 
 /** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
@@ -569,13 +527,9 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
     : legacyFaceToMapping(p.faceEnabled);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, scoreDoc: current.scoreDoc, ...keptTransients(current) };
 }
 
-/** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
-function releaseSongUrl(song: SongHandle | null): void {
-  if (song?.url.startsWith('blob:') && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(song.url);
-}
 
 /** The extensions' transient fields as they are now: a rehydrated blob never carries them
  *  (they are not persisted), and a hand-edited one must not override them. */
@@ -617,12 +571,7 @@ export const useControls = create<ControlState>()(
       handMap: defaultHandMap(),
       hands: { ...DEFAULT_HANDS },
       body: { ...DEFAULT_BODY },
-      songPrefs: { ...DEFAULT_SONG },
       conductorPrefs: { leadOffsets: {} },
-      songHandle: null,
-      songPlaying: false,
-      songPlays: 0,
-      songStartBeat: 0,
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
       scoreDoc: null,
       graphElements: null,
@@ -658,19 +607,6 @@ export const useControls = create<ControlState>()(
           const held = s.hushedBy.includes(claimer);
           if (on === held) return s;
           return { hushedBy: on ? [...s.hushedBy, claimer] : s.hushedBy.filter((c) => c !== claimer) };
-        }),
-      setSongHandle: (song) =>
-        set((s) => {
-          if (s.songHandle === song) return s;
-          releaseSongUrl(s.songHandle);
-          return { songHandle: song, songPlaying: false, songStartBeat: 0 };
-        }),
-      setSongPlaying: (v) => set((s) => (v ? { songPlaying: true, songPlays: s.songPlays + 1 } : { songPlaying: false })),
-      setSongStartBeat: (beat) => set((s) => (Number.isFinite(beat) && beat >= 0 && Math.round(beat) !== s.songStartBeat ? { songStartBeat: Math.round(beat) } : s)),
-      setSongPrefs: (patch) =>
-        set((s) => {
-          const r = SongSettingsSchema.safeParse({ ...s.songPrefs, ...patch });
-          return r.success ? { songPrefs: r.data } : s;
         }),
       setConductorLeadOffsets: (offsets) =>
         set((s) => {

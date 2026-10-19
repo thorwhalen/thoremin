@@ -69,6 +69,9 @@ export interface ExtensionTool extends ExtensionToolDecl {
    *  the bar shows it running and carries its stop control. An EAGER extension's only (a lazy
    *  tool runs nothing before its half loads). */
   detached?: ToolDetached;
+  /** Its icon in the bar, the launcher and the panel's frame (#600 S15; a lucide icon, say). An
+   *  EAGER extension's only; absent, the tool is shown by its label (and the frame's generic icon). */
+  icon?: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
 }
 
 /** How the bar shows a detached tool (see {@link ExtensionTool.detached}). */

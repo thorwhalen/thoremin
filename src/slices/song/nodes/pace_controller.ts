@@ -35,7 +35,7 @@ import { defineNode } from '@thoremin/dag';
 import { beatAt, createBeatServo, createPaceController, PACE_DEFAULTS, SERVO_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState, type ServoState } from '@thoremin/ictus';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { LoadStatus } from '@thoremin/lazy';
-import { songPlayable } from '../output/song_player';
+import { songPlayable } from './song_player';
 
 const Params = z.object({
   /** Seconds a ratio must persist before it is followed (the red-noise guard, #339). */

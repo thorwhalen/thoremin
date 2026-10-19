@@ -13,7 +13,7 @@
  * merely crept.
  */
 import { create } from 'zustand';
-import { type DanceLeadMode, type MusicalTime, type ServoMode, type ServoState } from '@thoremin/ictus';
+import { type DanceLeadMode, type MusicalTime } from '@thoremin/ictus';
 import type { ConductorTransportReading } from '@/nodes/features/conductor';
 
 export interface ConductorLive {
@@ -31,9 +31,6 @@ export interface ConductorLive {
   dynamics: number;
   /** Anchors (strokes) the follower has accepted. */
   anchors: number;
-  /** The recording the beat leads (#187 PR 7), while it leads one: what the song's servo
-   *  is doing, the rate it plays at and how far it is from the beat (beats, + = ahead). */
-  recording?: { mode: ServoMode; rate: number; error: number } | null;
   /** The body's transport (#377): what the pose rules say (`off` reading the hands). */
   transport?: ConductorTransportReading;
   /** A dancer leading (#380): what the dance lead is doing (absent otherwise). */
@@ -50,15 +47,11 @@ export const ABSENT_CONDUCTOR_LIVE: ConductorLive = {
   confidence: 0,
   dynamics: 0,
   anchors: 0,
-  recording: null,
   transport: 'off',
 };
 
 /** The node id the reporter reads — the `conductor` node in `graph.ts`. */
 export const CONDUCTOR_NODE_ID = 'conductor';
-/** The song's pace controller (the `song-pace` branch), which the conductor leads while
- *  he conducts the recording (#187 PR 7). */
-export const SONG_LEAD_NODE_ID = 'pace';
 
 export interface ConductorStatusState {
   live: ConductorLive;
@@ -79,7 +72,7 @@ export interface OutputReader {
 
 /** Quantise what the panel shows, so the change gate compares what a player sees. */
 export function conductorLiveKey(l: ConductorLive): string {
-  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.recording ? `${l.recording.mode}:${Math.round(l.recording.rate * 100)}:${Math.round(l.recording.error * 20)}` : '-'}|${l.transport ?? 'off'}|${l.dance ?? '-'}`;
+  return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.transport ?? 'off'}|${l.dance ?? '-'}`;
 }
 
 /**
@@ -108,7 +101,6 @@ export function makeConductorReporter(
       confidence: time.confidence,
       dynamics: typeof dynamics === 'number' ? dynamics : 0,
       anchors: time.anchors,
-      recording: recordingOf(engine.getOutput(SONG_LEAD_NODE_ID, 'servo')),
       transport: transportOf(engine.getOutput(nodeId, 'transport')),
       dance: danceOf(engine.getOutput(nodeId, 'dance')),
     };
@@ -131,9 +123,3 @@ function transportOf(raw: unknown): ConductorTransportReading {
   return TRANSPORT_READINGS.includes(raw as ConductorTransportReading) ? (raw as ConductorTransportReading) : 'off';
 }
 
-/** The servo's reading, while the conductor leads the song. */
-function recordingOf(raw: unknown): ConductorLive['recording'] {
-  if (!raw || typeof raw !== 'object' || !('mode' in raw)) return null;
-  const s = raw as ServoState;
-  return { mode: s.mode, rate: s.rate, error: Number.isFinite(s.error) ? s.error : 0 };
-}

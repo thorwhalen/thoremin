@@ -155,7 +155,6 @@ function useDetached(): Record<string, { running: boolean; stop: () => void; hin
   const setFeatureLab = useControls((s) => s.setFeatureLab);
   const { state } = useDialsSettings();
   const conducting = ((state.effective.conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
-  const songPlaying = useControls((s) => s.songPlaying);
   // An extension's detached tools (#600 S15): the list is fixed for the build, so the hooks run in
   // a stable order on every render.
   const contributed = Object.fromEntries(UI_CONTRIBUTIONS.toolDetached.map(({ id, detached }) => [id, { running: detached.useRunning(), stop: detached.stop, hint: detached.hint }]));
@@ -168,8 +167,6 @@ function useDetached(): Record<string, { running: boolean; stop: () => void; hin
       stop: () => void dispatchDialSetIn('conductor.enabled', false),
       hint: 'stop conducting (the instrument sounds again)',
     },
-    // Through the single write path: the `song.pause` command (#186 PR G).
-    song: { running: songPlaying, stop: () => void dispatchCommand('song.pause', {}), hint: 'pause the song' },
   };
 }
 

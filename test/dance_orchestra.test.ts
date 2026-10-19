@@ -25,6 +25,7 @@ import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { DEFAULT_CONDUCTOR_DIAL, type BodyFrame } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
+import { SONG } from './helpers/extensions';
 
 const HZ = 30;
 const REGISTRY = createAppRegistry();
@@ -199,7 +200,8 @@ describe('the dancer as a leader (the derivation, #380)', () => {
     expect(branchIdsFor({ conductor: { enabled: true, source: 'dancer' } })).not.toContain('song-pace');
   });
 
-  it('a dancer leading the recording is the song following the dancer: the pace branch, never the beat servo', () => {
+  // The pace branch is the song slice's (#600 S15): there while it is listed.
+  it.runIf(SONG)('a dancer leading the recording is the song following the dancer: the pace branch, never the beat servo', () => {
     const ids = branchIdsFor({ conductor: { enabled: true, source: 'dancer', conducts: 'recording' }, songHandle: {} });
     expect(ids).toEqual(expect.arrayContaining(['conductor', 'body-source', 'song-pace']));
     // Without a song there is nothing to pace.

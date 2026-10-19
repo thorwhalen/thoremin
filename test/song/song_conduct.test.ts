@@ -9,10 +9,14 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext, PortValues } from '@thoremin/dag';
 import { beatIndexAt, trackSongGrid, type MusicalTime, type ServoState } from '@thoremin/ictus';
-import { conductorNode, paceControllerNode, songPlayerNode, type SongHandle, type Stretcher } from '@/nodes';
+import { conductorNode } from '@/nodes';
+import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
+import { paceControllerNode } from '@/slices/song/nodes/pace_controller';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
-import { songConducted, type DerivationSettings } from '@/instruments/derive';
-import { renderClickTrack, SR } from './helpers/clicks';
+import type { DerivationSettings } from '@/instruments/derive';
+import { songConducted } from '@/slices/song/derive';
+import { renderClickTrack, SR } from '../helpers/clicks';
+import { SONG } from '../helpers/extensions';
 
 const handle = (): SongHandle => ({
   id: 'take',
@@ -29,7 +33,7 @@ const settings = (over: Partial<DerivationSettings> = {}): DerivationSettings =>
   ...over,
 });
 
-describe('which branches compose', () => {
+describe.runIf(SONG)('which branches compose', () => {
   it('the conductor leading a loaded recording composes the song pace and the conductor, not the body', () => {
     const ids = branchIdsFor(settings());
     expect(songConducted(settings())).toBe(true);
@@ -62,7 +66,7 @@ describe('which branches compose', () => {
   });
 });
 
-describe('the conductor node hands the score or the recording the beat, never both', () => {
+describe.runIf(SONG)('the conductor node hands the score or the recording the beat, never both', () => {
   const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: {} };
   it('leading the score: the score plays, the song is not led', () => {
     const out = conductorNode.make(conductorNode.params.parse({ enabled: true })).process({}, ctx);
@@ -82,7 +86,7 @@ describe('the conductor node hands the score or the recording the beat, never bo
   });
 });
 
-describe('the loop through the real nodes', () => {
+describe.runIf(SONG)('the loop through the real nodes', () => {
   /** A stretcher whose position is the exact integral of its rate, with seek. */
   function integratingStretcher() {
     let pos = 0;
@@ -174,7 +178,7 @@ describe('the loop through the real nodes', () => {
   });
 });
 
-describe('the song player under a leader (the review\'s cases)', () => {
+describe.runIf(SONG)('the song player under a leader (the review\'s cases)', () => {
   function seekingStretcher(durationS = 30) {
     let pos = 0;
     let playing = false;
@@ -238,7 +242,7 @@ describe('the song player under a leader (the review\'s cases)', () => {
   });
 });
 
-describe('a conductor\'s hold fades the song instead of cutting it (#366)', () => {
+describe.runIf(SONG)('a conductor\'s hold fades the song instead of cutting it (#366)', () => {
   function fadingStretcher() {
     let playing = false;
     let pos = 0;
@@ -343,7 +347,7 @@ describe('a conductor\'s hold fades the song instead of cutting it (#366)', () =
   });
 });
 
-describe('a song replaced by another restarts the beat servo (#439)', () => {
+describe.runIf(SONG)('a song replaced by another restarts the beat servo (#439)', () => {
   // The pace node alone, over a song that obeys it: its beat advances at the rate the node
   // asks while it says play, and jumps to a new cue, as the song player does. Song A is at
   // 120 bpm under a conductor at 240, so the servo settles on a level ratio other than 1;
@@ -404,7 +408,7 @@ describe('a song replaced by another restarts the beat servo (#439)', () => {
   });
 });
 
-describe('a song still loading is not led (#500)', () => {
+describe.runIf(SONG)('a song still loading is not led (#500)', () => {
   // The real pace node and song player under a running conductor. Song A plays; at SWAP the
   // player is given song B, whose load resolves only at LOADED. Until then the stretcher
   // keeps song A's position (as Signalsmith does while it fetches and decodes), so the

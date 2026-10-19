@@ -108,6 +108,11 @@ export const EXTENSION_TOOL_DETACHED: readonly { id: string; detached: ToolDetac
   (u.tools ?? []).flatMap((t) => (t.detached ? [{ id: t.id, detached: t.detached }] : [])),
 );
 
+/** Every eager extension tool's icon (#600 S15), by tool id. */
+export const EXTENSION_TOOL_ICONS: readonly { id: string; icon: NonNullable<ExtensionTool['icon']> }[] = EXTENSION_UIS.flatMap((u) =>
+  (u.tools ?? []).flatMap((t) => (t.icon ? [{ id: t.id, icon: t.icon }] : [])),
+);
+
 /** Every eager extension's sections in another tool's panel (#600 S15). */
 export const EXTENSION_TOOL_SECTIONS: readonly ExtensionToolSection[] = EXTENSION_UIS.flatMap((u) => u.toolSections ?? []);
 

@@ -10,19 +10,23 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import ConductorPanel, { describeRecording } from '@/app/ConductorPanel';
-import SongPanel from '@/app/SongPanel';
+import ConductorPanel from '@/app/ConductorPanel';
+import { describeRecording } from '@/slices/song/panels/RecordingSection';
+// The Song tool's panel, in the frame the shell opens an extension's tool in (#600 S15).
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
-import { loadSongFile } from '@/app/song/host';
-import { useSongStatus } from '@/app/songStatus';
-import { makeConductorReporter, useConductorStatus, SONG_LEAD_NODE_ID } from '@/app/conductorStatus';
+import { loadSongFile } from '@/slices/song/app/host';
+import { makeSongReporter, PACE_NODE_ID, SONG_NODE_ID, useSongStatus } from '@/slices/song/app/songStatus';
+
 import { branchIdsFor } from '@/app/graph';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import type { DerivationSettings } from '@/instruments/derive';
 import type { ConductorSettings } from '@/settings/schema';
-import { renderClickTrack, SR } from './helpers/clicks';
+import { renderClickTrack, SR } from '../helpers/clicks';
+import { setSongHandle, setSongStartBeat, songStartBeat } from '@/slices/song/app/state';
+import { SONG } from '../helpers/extensions';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -39,8 +43,8 @@ function clickFile() {
 
 beforeEach(async () => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
-  useControls.getState().setSongHandle(null);
-  useConductorStatus.getState().reset();
+  setSongHandle(null);
+  useSongStatus.getState().reset();
   await dispatchDialSetIn('conductor.enabled', false);
   await dispatchDialSetIn('conductor.conducts', 'score');
 });
@@ -48,10 +52,10 @@ afterEach(async () => {
   cleanup();
   await dispatchDialSetIn('conductor.enabled', false);
   await dispatchDialSetIn('conductor.conducts', 'score');
-  useControls.getState().setSongHandle(null);
+  setSongHandle(null);
 });
 
-describe('Conduct a recording', () => {
+describe.runIf(SONG)('Conduct a recording', () => {
   it('four clicks from a cold load: Conductor, Conduct a recording, Choose a recording, Start conducting', async () => {
     render(
       <>
@@ -88,12 +92,13 @@ describe('Conduct a recording', () => {
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     render(<ConductorPanel />);
-    const time = { t: 3, beat: 4.2, phase: 0.2, tempo: 100, period: 0.6, confidence: 0.8, nextBeatAt: 3.5, beatsPerBar: 4, beatInBar: 0, state: 'running', anchors: 5 };
+    // The servo's reading reaches the section through the SONG's reporter (#600 S15: the
+    // conductor's reporter read it before the song became a slice).
     const outputs: Record<string, Record<string, unknown>> = {
-      conductor: { time, enabled: true, dynamics: 0.5 },
-      [SONG_LEAD_NODE_ID]: { servo: { t: 3, mode: 'following', rate: 0.834, playing: true, cue: { id: 1, beat: 0 }, error: -0.04 } },
+      [SONG_NODE_ID]: { status: { phase: 'active', message: 'Playing' } },
+      [PACE_NODE_ID]: { servo: { t: 3, mode: 'following', rate: 0.834, playing: true, cue: { id: 1, beat: 0 }, error: -0.04 } },
     };
-    const tick = makeConductorReporter({ getOutput: (n, p) => outputs[n]?.[p] }, useConductorStatus.getState());
+    const tick = makeSongReporter({ getOutput: (n, p) => outputs[n]?.[p] }, useSongStatus.getState());
     act(() => tick());
     expect(screen.getByTestId('conductor-recording-live').textContent).toBe('Playing at 83 % speed, 4 % of a beat behind.');
   });
@@ -104,19 +109,19 @@ describe('Conduct a recording', () => {
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     render(<ConductorPanel />);
-    expect(useControls.getState().songStartBeat).toBe(0);
+    expect(songStartBeat()).toBe(0);
     fireEvent.change(screen.getByLabelText("Song beat the conductor's first beat lands on"), { target: { value: '8' } });
-    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(8));
+    await waitFor(() => expect(songStartBeat()).toBe(8));
     act(() => useSongStatus.setState({ live: { beat: 12, bpm: 120, positionS: 6 } }));
     fireEvent.click(screen.getByText('Here'));
-    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(12));
+    await waitFor(() => expect(songStartBeat()).toBe(12));
     // Before the first tracked beat, "Here" is beat 0.
     act(() => useSongStatus.setState({ live: { beat: -2, bpm: 120, positionS: 0 } }));
     fireEvent.click(screen.getByText('Here'));
-    await waitFor(() => expect(useControls.getState().songStartBeat).toBe(0));
-    act(() => useControls.getState().setSongStartBeat(5));
+    await waitFor(() => expect(songStartBeat()).toBe(0));
+    act(() => setSongStartBeat(5));
     await loadSongFile(file, opts);
-    expect(useControls.getState().songStartBeat).toBe(0);
+    expect(songStartBeat()).toBe(0);
   });
 
   it('the Song tool says the conductor leads the song', async () => {
@@ -125,7 +130,7 @@ describe('Conduct a recording', () => {
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     useTools.setState({ open: 'song' });
-    render(<SongPanel />);
+    render(<ExtensionToolPanels />);
     await waitFor(() => expect(screen.getByTestId('song-conducted')).toBeTruthy());
   });
 

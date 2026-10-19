@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
-import { SONG_START_BEAT_MAX, SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
+import { SONG_START_BEAT_MAX, SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '../schema';
 import { songHost } from './songHost';
 
 const CATEGORY = 'Song';

@@ -15,7 +15,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI, GENERATIVE } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG } from './helpers/extensions';
 
 describe('production app graph', () => {
   it('builds with a valid topology', () => {
@@ -91,11 +91,15 @@ describe('production app graph', () => {
     // the faces extension its personal categorizer (#330 P4) and the category blend (#372). The #13 midi-out sink is the MIDI
     // slice's since #600 S13, counted with it (29 core nodes + 1).
     // The generative pair (indirect-map + lyria) is its slice's since #600 S14 (27 core nodes + 2).
-    expect(order).toHaveLength((AIR ? 38 : 27) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (ASL ? 2 : 0) + (FACES ? 4 : 0));
+    // The song player and the pace controller are the song slice's since #600 S15 (25 core nodes + 2).
+    expect(order).toHaveLength((AIR ? 36 : 25) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (SONG ? 2 : 0) + (ASL ? 2 : 0) + (FACES ? 4 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
-    expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
-    expect(order.indexOf('pace')).toBeLessThan(order.indexOf('songPlayer'));
+    // (Both are the song slice's since #600 S15: checked while it is listed.)
+    if (SONG) {
+      expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
+      expect(order.indexOf('pace')).toBeLessThan(order.indexOf('songPlayer'));
+    }
   });
 
   it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
