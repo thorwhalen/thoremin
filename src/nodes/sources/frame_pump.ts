@@ -524,3 +524,121 @@ export function createFramePump(
     },
   };
 }
+
+/** One shared pump for one element, and who listens to it. */
+interface Hub {
+  pump: FramePump;
+  listeners: Set<(stamp: FrameStamp, video: HTMLVideoElement) => boolean | void>;
+  /** The getters of the listeners, in the order they joined: the first one live names the element. */
+  getters: Set<() => HTMLVideoElement | undefined>;
+}
+
+const HUBS = new WeakMap<HTMLVideoElement, Hub>();
+
+/**
+ * A pump handle for one model that shares the element's single pump with the other models
+ * reading it (#570).
+ *
+ * Why. The hand, face and body models each ran their own pump, so each registered its own
+ * `requestVideoFrameCallback` and stamped the same camera frame on its own: one could
+ * re-deliver a held frame with an estimated stamp the other never saw, and the stamp-keyed
+ * frame copy of #495 (`model_input.ts`) then missed, copying the frame once per model. Here
+ * a frame is stamped ONCE and every listener gets that same stamp, so the copy is shared by
+ * all of them. The handle is a {@link FramePump} to its owner: `start` / `stop` join and
+ * leave the hub, and the element's pump runs while anyone is in it.
+ *
+ * A frame is `consumed` when any listener took it; a listener that refused (no model yet)
+ * simply misses this frame and gets the next, it does not hold the others back. Only when
+ * EVERY listener refuses is the frame offered again, as a lone pump does.
+ *
+ * Pumps with injected options (tests) are not shared: they get a private pump.
+ */
+export function acquireFramePump(
+  getVideo: () => HTMLVideoElement | undefined,
+  onFrame: (stamp: FrameStamp, video: HTMLVideoElement) => boolean | void,
+  options: FramePumpOptions = {},
+): FramePump {
+  if (Object.keys(options).length > 0) return createFramePump(getVideo, onFrame, options);
+  let hub: Hub | null = null;
+  let joined = false;
+  /** The element the hub was keyed by, for leaving it. */
+  let element: HTMLVideoElement | undefined;
+  const join = (h: Hub, video: HTMLVideoElement) => {
+    hub = h;
+    element = video;
+    h.listeners.add(onFrame);
+    h.getters.add(getVideo);
+    joined = true;
+    h.pump.start();
+  };
+  const leave = () => {
+    if (!hub || !joined) return;
+    joined = false;
+    hub.listeners.delete(onFrame);
+    hub.getters.delete(getVideo);
+    if (hub.listeners.size === 0) {
+      hub.pump.stop();
+      if (element && HUBS.get(element) === hub) HUBS.delete(element);
+    }
+    hub = null;
+    element = undefined;
+  };
+  let waiting: number | null = null;
+  let running = false;
+  /** The element may not exist at `start()` (the sources re-read it per tick): join when it does. */
+  const tryJoin = () => {
+    waiting = null;
+    if (!running || joined) return;
+    const video = getVideo();
+    if (!video) {
+      waiting = requestAnimationFrame(tryJoin);
+      return;
+    }
+    let h = HUBS.get(video);
+    if (!h) {
+      const listeners: Hub['listeners'] = new Set();
+      const getters: Hub['getters'] = new Set();
+      const pump = createFramePump(
+        () => {
+          for (const g of getters) {
+            const v = g();
+            if (v) return v;
+          }
+          return undefined;
+        },
+        (stamp, v) => {
+          let consumed = false;
+          for (const l of [...listeners]) if (l(stamp, v) !== false) consumed = true;
+          return consumed || listeners.size === 0;
+        },
+      );
+      h = { pump, listeners, getters };
+      HUBS.set(video, h);
+    }
+    join(h, video);
+  };
+  return {
+    get running() {
+      return running;
+    },
+    get metadataChannel() {
+      return hub?.pump.metadataChannel ?? false;
+    },
+    get driver() {
+      return hub?.pump.driver ?? 'raf';
+    },
+    start() {
+      if (running) return;
+      running = true;
+      tryJoin();
+    },
+    stop() {
+      running = false;
+      if (waiting !== null) {
+        cancelAnimationFrame(waiting);
+        waiting = null;
+      }
+      leave();
+    },
+  };
+}
