@@ -30,10 +30,10 @@
  * here it rejects (and times out), so the node reports `error` and a player can act.
  */
 import { GoogleGenAI, type LiveMusicSession, type LiveMusicServerMessage } from '@google/genai';
-import { getStoredKey } from '@/keys/providerKeys';
-import { LYRIA_KEY_PROVIDER } from './lyria.schema';
+import { providerKey } from '@thoremin/sdk-ui/keys';
+import { LYRIA_KEY_PROVIDER } from '../nodes/lyria.schema';
 import type { LoadResult } from '@thoremin/lazy';
-import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from './generative';
+import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from '../nodes/generative';
 
 function decodeBase64(base64: string): Uint8Array {
   const bin = atob(base64);
@@ -247,7 +247,7 @@ export class LyriaEngine implements GenerativeEngine {
   }
 }
 
-export { LYRIA_KEY_PROVIDER } from './lyria.schema';
+export { LYRIA_KEY_PROVIDER } from '../nodes/lyria.schema';
 
 /**
  * The default {@link GenerativeEngineFactory}: build a {@link LyriaEngine} from the
@@ -255,7 +255,7 @@ export { LYRIA_KEY_PROVIDER } from './lyria.schema';
  * result with an actionable reason when the key or the audio graph is missing.
  */
 export async function createLyriaEngine(opts: GenerativeEngineOpts): Promise<LoadResult<GenerativeEngine>> {
-  const apiKey = getStoredKey(LYRIA_KEY_PROVIDER);
+  const apiKey = providerKey(LYRIA_KEY_PROVIDER);
   if (!apiKey) {
     return {
       resource: null,

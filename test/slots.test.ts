@@ -26,6 +26,7 @@ import {
   MAPPING_SLOT_OUTPUT,
   MAPPING_SLOT_CONTRACT,
 } from '@/nodes/mapping/mapping_contract';
+import { GENERATIVE } from './helpers/extensions';
 
 const appRegistry = (): NodeRegistry => createAppRegistry();
 
@@ -75,7 +76,8 @@ describe('resolveSlot', () => {
     expect(warnings[0]).toContain('does not carry role "mapping"');
   });
 
-  it('falls back + warns when the type lacks the slot output port', () => {
+  // `indirect-map` is the generative slice's (#600 S14): only while it is listed.
+  it.runIf(GENERATIVE)('falls back + warns when the type lacks the slot output port', () => {
     // indirect-map IS role:mapping but emits `steer:generative-steer`, not `params`.
     const { type, warnings } = resolveWithWarn({ mapping: 'indirect-map' }, appRegistry());
     expect(type).toBe('voice-mapping');

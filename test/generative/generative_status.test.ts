@@ -5,10 +5,11 @@
  * teardown resets to the absent status.
  */
 import { describe, it, expect } from 'vitest';
-import { makeGenerativeReporter, useGenerativeStatus, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from '@/app/generativeStatus';
+import { makeGenerativeReporter, useGenerativeStatus, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from '@/slices/generative/app/generativeStatus';
+import { GENERATIVE } from '../helpers/extensions';
 import type { LoadStatus } from '@thoremin/lazy';
 
-describe('makeGenerativeReporter', () => {
+describe.runIf(GENERATIVE)('makeGenerativeReporter', () => {
   it('reports on change only, keyed by phase / reason / message / progress', () => {
     let current: LoadStatus | undefined = undefined;
     const reports: LoadStatus[] = [];

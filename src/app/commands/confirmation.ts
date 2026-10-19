@@ -37,9 +37,16 @@ export interface RiskMeta {
 const DESTRUCTIVE_COMMANDS = new Set<string>(['instrument.load', 'instrument.save', 'instrument.create']);
 
 /** The command-id prefixes whose commands WRITE the dials, so undo takes them back: the
- *  generic dial verbs, the per-dial ones and the `steer.*` verbs that write the steering
- *  dial (#188). */
-const UNDOABLE_WRITE_PREFIXES = ['dial.', 'steer.'] as const;
+ *  generic dial verbs and the per-dial ones. */
+const UNDOABLE_WRITE_PREFIXES = ['dial.'] as const;
+
+/** The extensions' commands that write the dials (#600 S14: the generative layer's `steer.*`
+ *  verbs, which write the steering dial), declared by each command (`writesDials`) and handed
+ *  over by the shell's contribution registry, so core names none of them. */
+const extensionDialWrites = new Set<string>();
+export function declareDialWritingCommands(ids: Iterable<string>): void {
+  for (const id of ids) extensionDialWrites.add(id);
+}
 
 /** The command-id prefixes whose commands write OUTSIDE the dials, so undo cannot take
  *  them back: the `recording.*` verbs write the recording config (#257). Still additive
@@ -52,7 +59,7 @@ const NOT_UNDOABLE_WRITE_PREFIXES = ['recording.'] as const;
 export function defaultGetRisk(id: string): RiskMeta {
   if (DESTRUCTIVE_COMMANDS.has(id)) return { sideEffect: 'destructive' };
   if (NOT_UNDOABLE_WRITE_PREFIXES.some((p) => id.startsWith(p))) return { sideEffect: 'additive', undoable: false };
-  return { sideEffect: UNDOABLE_WRITE_PREFIXES.some((p) => id.startsWith(p)) ? 'additive' : 'query' };
+  return { sideEffect: UNDOABLE_WRITE_PREFIXES.some((p) => id.startsWith(p)) || extensionDialWrites.has(id) ? 'additive' : 'query' };
 }
 
 /**

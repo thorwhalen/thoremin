@@ -5,7 +5,8 @@
  * store falls back to in-memory storage in the Node runtime, so this exercises the real
  * seeding path without a browser.
  */
-import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
+import { DEFAULT_STEER_CONFIG } from '@/slices/generative/nodes/indirect_map.schema';
+import { GENERATIVE } from './helpers/extensions';
 import type { Layer } from '@zodal/dials-core';
 import { describe, it, expect } from 'vitest';
 import {
@@ -99,7 +100,8 @@ describe('layers saved before a dial existed (the additive-dial dirty regression
 
 describe('instruments orchestration over the dials store', () => {
 
-  it('a pre-#188 instrument (no steer keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
+  // The generative slice's dials (#600 S14): only while it is listed.
+  it.runIf(GENERATIVE)('a pre-#188 instrument (no steer keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
     // getSelectedName/setSelectedName use localStorage, absent in the Node runtime —
     // stub it for this test (restored after) so the selected-name round-trip works.
     const orig = (globalThis as { localStorage?: unknown }).localStorage;
@@ -195,7 +197,7 @@ describe('instruments orchestration over the dials store', () => {
   });
 });
 
-describe('a partial steering config never reads as an unsaved edit (#188 PR 5 review)', () => {
+describe.runIf(GENERATIVE)('a partial steering config never reads as an unsaved edit (#188 PR 5 review)', () => {
   it('normalizeLayer completes a steerConfig that has no arrays, so a working layer healed by mergeControls and a saved instrument agree', () => {
     const partial = { steerConfig: { smoothing: 0.3, throttleSec: 0.2 } };
     const healed = normalizeLayer(partial as Layer);

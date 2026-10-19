@@ -79,6 +79,8 @@ export interface Contributions {
   nodeTypes: readonly string[];
   /** Every transient hot-store field; unique across extensions and dial keys. */
   transientFields: readonly string[];
+  /** Each transient field's initial value (#600 S14; `null` unless the port declares one). */
+  transientInitials: Readonly<Record<string, unknown>>;
   /** Every shipped instrument, seeded after core's own; names unique. */
   instruments: readonly ExtensionInstrument[];
   /** Every training route (ids unique) and the branch -> route table, tried before core's Trainer. */
@@ -233,7 +235,8 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
   for (const e of extensions) for (const slice of e.dials) checkFlatSlice(e.id, slice);
   const prefSlices = keyed('dial key, pref or transient field', extensions, (e) => e.prefs ?? [], (p) => p.key, storeFields);
   const branches = keyed('branch', extensions, (e) => e.branches, (b) => b.id);
-  const transientFields = keyed('dial key, pref or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields).map((t) => t.field);
+  const transients = keyed('dial key, pref or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields);
+  const transientFields = transients.map((t) => t.field);
   // A dial's derived store-controls ports share the bridge's port namespace with the dial keys,
   // the prefs and the transient fields (#600 S13).
   keyed('store-controls port', extensions, (e) => e.dials.flatMap((d) => (d.ports ?? []).map((p) => p.name)), (n) => n, new Map(storeFields));
@@ -242,6 +245,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     dialSlices,
     prefSlices,
     transientFields,
+    transientInitials: Object.fromEntries(transients.map((t) => [t.field, t.initial ?? null])),
     branches,
     nodeTypes: keyed('node type', extensions, (e) => [...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])], (t) => t),
     instruments: keyed('instrument', extensions, (e) => e.instruments ?? [], (i) => i.name),

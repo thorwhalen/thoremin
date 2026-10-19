@@ -36,9 +36,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { lazyResource, withActive, type LoadStatus } from '@thoremin/lazy';
-import { getStoredKey } from '@/keys/providerKeys';
 import type { GenerativeEngine, GenerativeEngineFactory, GenerativeSteer } from './generative';
-import { LYRIA_KEY_PROVIDER } from './lyria.schema';
 export { LYRIA_KEY_PROVIDER } from './lyria.schema';
 
 const Params = z.object({
@@ -53,28 +51,16 @@ type Params = z.infer<typeof Params>;
 export type GenerativeStatus = LoadStatus;
 
 /**
- * The default browser factory: lazy-load the Lyria adapter only when the layer is
- * enabled AND its prerequisites exist, so nothing generative is imported until it
- * could actually be used. A missing key or a not-yet-tapped audio graph is a
- * *transient* unavailability (`retry`): the resource asks again after a pause, so
- * pasting the key or tapping to play makes the layer come alive without the player
- * having to switch it off and on (a review catch on #188 PR 4).
+ * The browser's factory, PROVIDED by the slice's React half (`../ui.tsx`, #600 S14), which reads the
+ * key through the SDK's key seam and lazy-loads the Lyria adapter only when the layer is enabled
+ * AND its prerequisites exist: an extension's node is its pure side and imports no browser library
+ * (nor the app's key store). Without one, the layer reports itself unavailable.
  */
-const _defaultFactory: GenerativeEngineFactory = async (opts) => {
-  if (!getStoredKey(LYRIA_KEY_PROVIDER)) {
-    return {
-      resource: null,
-      reason: 'no-key',
-      retry: true,
-      message: 'Add a Gemini API key (the assistant\u2019s Google key) to enable the generative layer.',
-    };
-  }
-  if (!opts.audioContext || !opts.destination) {
-    return { resource: null, reason: 'no-audio', retry: true, message: 'Tap to play first: the generative layer needs the audio graph.' };
-  }
-  const { createLyriaEngine } = await import('./lyria_engine');
-  return createLyriaEngine(opts);
-};
+let browserFactory: GenerativeEngineFactory | null = null;
+export function provideGenerativeEngineFactory(factory: GenerativeEngineFactory | null): void {
+  browserFactory = factory;
+}
+const noFactory: GenerativeEngineFactory = async () => ({ resource: null, reason: 'unsupported', retry: true, message: 'No generative engine is installed in this host (yet).' });
 
 /** Resolve the factory for this tick: an injected factory wins; a pre-built engine
  *  on `resources.generativeEngine` is wrapped as an already-loaded result; otherwise
@@ -84,7 +70,7 @@ function _factoryFor(resources: Record<string, unknown>): GenerativeEngineFactor
   if (injected) return injected;
   const prebuilt = resources.generativeEngine as GenerativeEngine | undefined;
   if (prebuilt) return async () => ({ resource: prebuilt, message: 'Generative engine ready' });
-  return _defaultFactory;
+  return browserFactory ?? noFactory;
 }
 
 const _errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));

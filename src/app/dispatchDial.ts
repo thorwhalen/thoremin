@@ -34,6 +34,8 @@
  */
 import { isErr, type Result } from 'acture';
 import { registry } from './commands/registry';
+import { applyDialSet } from './commands/dials';
+import { dialsStore } from './dials/settingsStore';
 import { useToasts } from './toasts';
 import { provideDials } from '@thoremin/sdk-ui/host';
 
@@ -82,5 +84,5 @@ export function dispatchDialPatch(writes: ReadonlyArray<readonly [string, unknow
 
 // The extension SDK's dials seam (`@thoremin/sdk-ui/dials`): an extension's panels dispatch
 // through these same functions, by the same names, without importing the app.
-provideDials({ set: dispatchDialSet, setIn: dispatchDialSetIn, patch: dispatchDialPatch });
+provideDials({ set: dispatchDialSet, setIn: dispatchDialSetIn, patch: dispatchDialPatch, get: (key) => dialsStore.getState().effective[key], apply: applyDialSet, command: dispatchCommand });
 

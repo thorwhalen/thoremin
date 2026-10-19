@@ -18,11 +18,6 @@ import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES } from '@t
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
-import { SteerConfigSchema, defaultSteerConfig } from '@/nodes/mapping/indirect_map.schema';
-// Re-exported so the `steer.*` commands (whose import allowlist stops at `@/settings`)
-// validate against the node's own contract without reaching into `src/nodes`.
-export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map.schema';
-export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map.schema';
 import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor.schema';
 import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orchestra.schema';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
@@ -270,31 +265,6 @@ export const ConductorPrefsSchema = z.object({
 });
 export type ConductorPrefs = z.infer<typeof ConductorPrefsSchema>;
 export const DEFAULT_CONDUCTOR_PREFS: ConductorPrefs = { leadOffsets: {} };
-/**
- * The generative layer (#141 / #188): gesture features steering a cloud generative
- * engine (Lyria RealTime) through the `indirect-map → lyria` branch. A preset field:
- * "this instrument has a generative layer, at this level, driven by these strains"
- * is instrument identity, like "plays over MIDI". `config` is the node's own
- * {@link SteerConfigSchema}, imported rather than restated so the dial, the store and
- * the port can never disagree about the shape; `{}` means the branch's build-time
- * starter strains. The TRANSPORT (playing) is deliberately NOT here: a persisted
- * transport would ride a saved instrument and start a paid stream on load, so it is
- * transient hot-store state on the `muted` precedent (see `src/app/store.ts`).
- */
-export const SteerSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
-  volume: z.number().min(0).max(1).default(0.7),
-  config: SteerConfigSchema.default(() => defaultSteerConfig()),
-});
-export type SteerSettings = z.infer<typeof SteerSettingsSchema>;
-
-// The default steering config is the `indirect-map` node's own (it lives beside
-// `SteerConfigSchema`, below the settings, so `src/instruments/branches.ts` can name it
-// without importing the settings, which fold the extension list in).
-export { DEFAULT_STEER_CONFIG, defaultSteerConfig } from '@/nodes/mapping/indirect_map.schema';
-
-/** The shipped generative defaults: off, 0.7, the default steering config. */
-export const DEFAULT_STEER: SteerSettings = { enabled: false, volume: 0.7, config: defaultSteerConfig() };
 
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
@@ -344,7 +314,6 @@ export const CoreSettingsSchema = z.object({
   // keeps pre-routing presets valid (no routes = byte-identical sound).
   bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)),
   // The generative layer (#141 / #188). `.default(...)` keeps pre-#188 presets valid (off).
-  steer: SteerSettingsSchema.default(DEFAULT_STEER),
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
   // the `face-controls` node. The schema is the node's own params, imported rather
   // than restated (see FaceControlsDialSchema) so the two can never drift.
@@ -382,7 +351,7 @@ export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = SE
 export type { ExtensionTransients };
 /** Every extension transient field at its absent value (`null`). */
 export function extensionTransientDefaults(): ExtensionTransients {
-  return Object.fromEntries(CONTRIBUTIONS.transientFields.map((f) => [f, null])) as ExtensionTransients;
+  return Object.fromEntries(CONTRIBUTIONS.transientFields.map((f) => [f, CONTRIBUTIONS.transientInitials[f] ?? null])) as ExtensionTransients;
 }
 
 /** Fresh defaults of every extension dial: deep copies, so a store or a layer never shares

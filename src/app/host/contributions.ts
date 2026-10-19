@@ -31,6 +31,7 @@ import {
 
 import { checkUiDecls, CONTRIBUTIONS } from '@/host/contributions';
 import { registry } from '@/app/commands/registry';
+import { declareDialWritingCommands } from '@/app/commands/confirmation';
 
 export { extensionStatusHooks, loadExtensionUi, makeExtensionSinks };
 
@@ -103,3 +104,5 @@ export function registerExtensionCommands(target: Registry): void {
 // The app's registry gets them when this registry of contributions loads: every shell module that
 // lists or dispatches commands imports it.
 registerExtensionCommands(registry);
+// The extension commands that write the dials (#600 S14): undo takes them back.
+declareDialWritingCommands([...EXTENSION_COMMANDS.filter((c) => c.writesDials).map((c) => c.id), ...CONTRIBUTIONS.commandDecls.filter((d) => d.decl.writesDials).map((d) => d.decl.id)]);

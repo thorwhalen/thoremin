@@ -17,9 +17,8 @@
  * list shown is exactly the list a command will edit.
  */
 import { useState } from 'react';
-import { dispatchCommand } from '../../dispatchDial';
-import { currentSteerConfig } from '../../commands/steer';
-import { useDialsSettings } from '../useDialsSettings';
+import { dispatchCommand, useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { currentSteerConfig } from '../app/steerCommands';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import {
   STEER_HANDS,
@@ -28,7 +27,7 @@ import {
   STEER_DIAL_NAMES,
   type SteerStrain,
   type SteerDial,
-} from '@/settings/schema';
+} from '../nodes/indirect_map.schema';
 
 type Binding = Pick<SteerStrain, 'source' | 'hand' | 'feature' | 'inMin' | 'inMax'>;
 

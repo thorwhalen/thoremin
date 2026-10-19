@@ -17,7 +17,7 @@ import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } 
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { BodyMap } from '@/nodes/mapping/body_map.schema';
-import { DEFAULT_SONG, type FaceChord, type FaceExpr, type HandsSettings, type SteerSettings } from '@/settings/schema';
+import { DEFAULT_SONG, type FaceChord, type FaceExpr, type HandsSettings } from '@/settings/schema';
 import type { SongHandle } from '@/nodes/output/song_player.schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
@@ -89,12 +89,6 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   body?: { enabled: boolean; model: BodyModel };
   /** The body→sound routing (#186 PR E), fed to `body-route` as the `bodyMap` port. */
   bodyMap?: BodyMap;
-  /** The generative layer (#141 / #188): on/off + level + what the gestures mean. Fed
-   *  to `lyria`'s `enabled` / `volume` and `indirect-map`'s `steerConfig` live inputs. */
-  steer?: SteerSettings;
-  /** The generative TRANSPORT — transient store state (never persisted), fed to
-   *  `lyria`'s `playing` input. */
-  steerPlaying?: boolean;
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
@@ -223,13 +217,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
     // The handedness dwell (#148) → `hand-features`' `handednessDwell` input, so the
     // panel / palette / AI can steady (or un-steady) the hand routing without a rebuild.
     { name: 'handednessDwell', kind: 'number' },
-    // The generative layer (#141 / #188): the switch, the transport and the level for
-    // the `lyria` node, and what the gestures mean for `indirect-map` — all live, so the
-    // settings panel / palette / AI can steer the layer without a graph rebuild.
-    { name: 'steerEnabled', kind: 'boolean' },
-    { name: 'steerPlaying', kind: 'boolean' },
-    { name: 'steerVolume', kind: 'number' },
-    { name: 'steerConfig', kind: 'steer-config' },
     // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
@@ -301,11 +288,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
           muteAll: hush.muteAll,
           muteStrikes: hush.muteStrikes,
           claimed: hush.claimed,
-          steerEnabled: c.steer?.enabled ?? false,
-          steerPlaying: c.steerPlaying ?? false,
-          // A tool claim (the Trainer) quiets the generative layer too; it is not a voice
-          // at the merge, so the merge's mute cannot reach it.
-          steerVolume: hush.claimed ? 0 : c.steer?.volume ?? 0.7,
           rightSpec,
           chordSpec,
           chordScale: generateScale(chordSpec),
@@ -317,8 +299,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
         if (c.faceControls) out.faceControls = c.faceControls;
         if (c.hands) out.handednessDwell = c.hands.handednessDwell;
         if (c.bodyMap) out.bodyMap = c.bodyMap;
-        // Same rule as faceControls: absent → the node keeps its build-time starter strains.
-        if (c.steer?.config) out.steerConfig = c.steer.config;
         if (c.conductor) out.conductor = c.conductor;
         // The extensions' whole-object dials (absent → the node keeps its build-time params)
         // and their transient fields (always emitted, null included: clearing an enrolment
@@ -329,10 +309,10 @@ function defineStoreControls(extensions: readonly Extension[]) {
           // Its derived ports, always emitted, read from the dial or its default.
           if (slice.ports?.length) {
             const dial = snapshot[slice.key] ?? sliceDefault(slice);
-            for (const p of slice.ports) out[p.name] = p.read(dial as never);
+            for (const p of slice.ports) out[p.name] = p.read(dial as never, { claimed: hush.claimed });
           }
         }
-        for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? null;
+        for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? t.initial ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
         // Always emitted, `{}` included: clearing the offsets must reach the conductor.
         out.conductorLeadOffsets = c.conductorPrefs?.leadOffsets ?? {};

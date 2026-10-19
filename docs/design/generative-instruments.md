@@ -23,6 +23,8 @@ Two things are in the tree today, on opposite sides of the app split:
 | The legacy slider-steered AI-DJ (`LyriaSession`, `VibeEditor`, `AiDjOverlayPanel`, `ApiKeyDialog`) | `src/plugins/ai-dj/` | frozen, reachable only at `?engine=legacy` |
 | The BYO-key assistant (`getStoredKey`/`setStoredKey` per provider) | `src/plugins/assistant/providers.ts` | shipped (#133); the key store #141 says to reuse, not fork |
 
+(Since #600 S14 the generative layer is a slice: these files live in `src/slices/generative/` (`nodes/generative.ts`, `nodes/lyria.ts`, `nodes/indirect_map.ts`, `app/lyria_engine.ts`), the key is read through `@thoremin/sdk-ui/keys`, and the transport is still not a command: the `p` key runs it as a keybinding action.)
+
 So the *cloud* half is a wiring problem: the nodes exist, the write path exists (#126), the live override port exists (#169). What does not exist is the branch in the graph, the dials that switch it on, and the honest status readout that says *why* it is silent (no key, loading, connecting, playing). #141's definition of done names the trap this doc must not repeat: a partial build reproduces #137 (a capability in the bundle with no way to switch it on).
 
 The maintainer's direction adds a second axis the issues do not cover: **in-browser** generation, and the *rule* that nothing heavy loads before it is needed. §4 prices the in-browser options; §5 turns the rule into a pattern.

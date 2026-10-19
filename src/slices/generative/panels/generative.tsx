@@ -12,11 +12,12 @@
  * stream when a saved instrument loads. The write-path guard permits non-dial store
  * state by design.
  */
-import { LoadStatusReadout } from '../../LoadStatusReadout';
-import { dispatchDialSet } from '../../dispatchDial';
-import { useGenerativeStatus } from '../../generativeStatus';
-import { useControls } from '../../store';
-import { useDialsSettings } from '../useDialsSettings';
+import { useSyncExternalStore } from 'react';
+import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
+import { dispatchDialSet, useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { controls } from '@thoremin/sdk-ui/host';
+import { useGenerativeStatus } from '../app/generativeStatus';
+import { PLAYING_FIELD, togglePlaying } from '../app/transport';
 import { CollapsibleSection } from '@thoremin/sdk-ui/primitives';
 import { SteeringEditor } from './steering';
 
@@ -29,8 +30,11 @@ export function GenerativeControls() {
   const v = state.effective;
   const enabled = v['steer.enabled'] as boolean;
   const volume = (v['steer.volume'] as number) ?? 0.7;
-  const playing = useControls((s) => s.steerPlaying);
-  const toggleSteerPlaying = useControls((s) => s.toggleSteerPlaying);
+  const playing = useSyncExternalStore(
+    (listener) => controls().subscribe(listener),
+    () => controls().get()[PLAYING_FIELD] === true,
+  );
+  const toggleSteerPlaying = togglePlaying;
   const status = useGenerativeStatus((s) => s.status);
   const needsKey = enabled && status.phase === 'unavailable' && status.reason === 'no-key';
 

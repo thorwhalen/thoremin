@@ -18,7 +18,7 @@ import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
 import type { MusicalTime, PaceMode, PaceState } from '@thoremin/ictus';
-import type { OutputReader } from './generativeStatus';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 export const SONG_NODE_ID = TRUNK.song;
 /** The pace controller's id in the `song-pace` branch. */

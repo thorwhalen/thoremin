@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { SHIPPED_EXTENSION_DIRS, MIDI } from './helpers/extensions';
+import { SHIPPED_EXTENSION_DIRS, MIDI, GENERATIVE } from './helpers/extensions';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctxWith = (resources: Record<string, unknown>) =>
@@ -136,7 +136,7 @@ describe('every node that makes real-time output honours the boundary', () => {
     expect(synthNodes.length).toBeGreaterThanOrEqual(3);
     expect(synthNodes.map((d) => d.type).sort()).toEqual(
       // `midi-out` is the MIDI slice's (#600 S13): there while it is listed.
-      expect.arrayContaining(['lyria', ...(MIDI ? ['midi-out'] : []), 'webaudio-synth']),
+      expect.arrayContaining([...(GENERATIVE ? ['lyria'] : []), ...(MIDI ? ['midi-out'] : []), 'webaudio-synth']),
     );
   });
 
@@ -148,7 +148,8 @@ describe('every node that makes real-time output honours the boundary', () => {
       'midi-out': 'src/slices/midi/nodes/midi_out.ts',
       'drum-out': join(airDir, 'nodes/drum_out.ts'),
       'pluck-out': join(airDir, 'nodes/pluck_out.ts'),
-      lyria: 'src/nodes/output/lyria.ts',
+      // Moved with its slice (#600 S14).
+      lyria: 'src/slices/generative/nodes/lyria.ts',
       orchestra: 'src/nodes/output/orchestra.ts',
       'song-player': 'src/nodes/output/song_player.ts',
     };

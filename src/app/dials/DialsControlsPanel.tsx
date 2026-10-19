@@ -34,7 +34,6 @@ import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
 import { BodyControls } from './panels/body';
-import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
 import { LowLatencyAudioControl } from './panels/audio';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
@@ -105,11 +104,6 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
         <OverlayControls />
       </TopSection>
 
-      {/* The generative layer (#141 / #188): gestures steer a cloud generative engine. */}
-      <TopSection label="Generative">
-        <GenerativeControls />
-      </TopSection>
-
       {/* The Feature Lab is NOT here. It measures the instrument rather than being part
           of it, so it lives in the shell's tools bar with the other tools (#136); putting
           it in this editor is what made it unfindable in the first place. */}
@@ -119,7 +113,12 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
           <p>↑ / ↓ — octave shift</p>
           <p>← / → — less / more scale-snap</p>
           <p>m — mute</p>
-          <p>p — play / pause the generative layer (when it is on)</p>
+          {/* The extensions' keys, each with its own line (#600 S14: the generative layer's `p`). */}
+          {UI_CONTRIBUTIONS.keybindings.filter((k) => k.help).map((k) => (
+            <p key={k.key}>
+              {k.key} — {k.help}
+            </p>
+          ))}
           <p>⌘K / Ctrl-K — command palette (set any dial by name)</p>
         </div>
       </TopSection>

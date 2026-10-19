@@ -12,7 +12,7 @@
  */
 import { create } from 'zustand';
 import type { Pose } from '@/nodes';
-import type { OutputReader } from './generativeStatus';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 /** The classifier's per-hand pose snapshot (the `poses` output port shape). */
 export type HandPoses = Record<'left' | 'right', Pose>;

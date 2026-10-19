@@ -11,6 +11,7 @@
  * loaded its implementation is an error, one that names what is missing.
  */
 
+import type { Result } from 'acture';
 import type { z } from 'zod';
 import type { SettingKey } from '@zodal/dials-core';
 import type { SettingFieldState, SettingsForm, SettingsState } from '@zodal/dials-ui';
@@ -55,6 +56,16 @@ export interface DialsHost {
   setIn(path: string, value: unknown): void;
   /** Several dials atomically: all or nothing. */
   patch(writes: ReadonlyArray<readonly [string, unknown]>): void;
+  /** A dial's effective value (the working layer over the defaults), for a command to read (#600 S14). */
+  get(key: string): unknown;
+  /** One dial write applied synchronously and validated, WITHOUT a dispatch: the body of an
+   *  extension's command that writes a dial (a dispatch inside a dispatch would record it twice
+   *  in the undo history). A panel never calls it: a panel dispatches (`set`). */
+  apply(key: string, value: unknown): Result<{ key: string; value: unknown }>;
+  /** Dispatch one of the extension's own DOMAIN commands for a panel control (a command whose
+   *  parameters are scalars but whose effect is a whole structured dial), with the host's
+   *  refused-write toast (#600 S14). */
+  command(id: string, params: Record<string, unknown>): Promise<Result<unknown>>;
 }
 
 /** The dials FORM, a React hook over the live dials store (see `DialsSettings`). A seam of its

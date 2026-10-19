@@ -74,8 +74,8 @@ describe('the store claim set', () => {
     expect(tick()).toMatchObject({ hushVoices: false, muteAll: false, muteStrikes: false, mute: false });
     useControls.getState().setHush('trainer', true);
     expect(tick()).toMatchObject({ hushVoices: true, muteAll: true, muteStrikes: true, mute: false });
-    // The generative layer is not a merged voice: its level drops with the claim.
-    expect(tick().steerVolume).toBe(0);
+    // (The generative layer's level dropping with the claim moved with its slice, #600 S14:
+    // `test/generative/generative_switch.test.ts`.)
   });
 });
 

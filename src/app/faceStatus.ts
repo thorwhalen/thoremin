@@ -13,7 +13,7 @@ import { create } from 'zustand';
 import { ABSENT_FACE_STATUS, type FaceStatus } from '@thoremin/sdk/nodes/domain';
 import { readingName, type ExpressionLabel, type ExpressionScores } from '@/music/expression';
 import { useToasts } from './toasts';
-import type { OutputReader } from './generativeStatus';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 export interface FaceStatusState {
   status: FaceStatus;
@@ -50,7 +50,7 @@ const FACE_NODES = { status: 'camFace', expression: 'faceExpr', played: 'exprCho
  * Build the per-frame sink that bridges the face model's status and classified expression from
  * the DAG back to React for the indicator and readout (#65), throttled so the bars don't
  * re-render 60×/s. A transition into `error` surfaces a toast once. Pure over the reader (the
- * `makeGenerativeReporter` shape), so it is testable with a stub engine.
+ * `makeLoadStatusReporter` shape), so it is testable with a stub engine.
  *
  * @param now - the frame time in MILLISECONDS (the host converts the clock's seconds).
  */

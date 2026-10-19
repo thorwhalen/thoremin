@@ -22,7 +22,7 @@ The bugs #147's adversarial review found in the third copy (an open for a supers
 
 ### 1. Loader seam
 
-A heavy node never imports its implementation statically. It declares a factory type, reads it from `ctx.resources.<name>` when the host injects one (tests, headless runs, custom hosts), and otherwise uses a module-level default whose body is a dynamic `import()` of a **browser-only sibling module** (`midi_engine.ts`, `lyria_engine.ts`). Two consequences that are easy to get wrong:
+A heavy node never imports its implementation statically. It declares a factory type, reads it from `ctx.resources.<name>` when the host injects one (tests, headless runs, custom hosts), and otherwise uses a module-level default whose body is a dynamic `import()` of a **browser-only sibling module** (`midi_engine.ts`, `lyria_engine.ts`; for a slice's node, the factory its React half installs, #600 S13/S14). Two consequences that are easy to get wrong:
 
 - The sibling module is the only static importer of the vendor library, and **nothing in `src/nodes/index.ts` or `src/nodes/browser.ts` re-exports it**. A static re-export defeats the split: that is how `@google/genai` (207 kB raw, 38 kB gzip) sits in the main chunk today, through `browser.ts`'s `LyriaEngine` export; PR 3 of #188 removes it.
 - Loading is *requested* synchronously from `process()` and never awaited there. The node reads `current()` each tick and does its job when the thing is there.
@@ -44,7 +44,7 @@ Node-specific detail goes in `reason` (a cause for `unavailable` / `error`, or a
 
 ### 3. UI affordance
 
-`src/app/LoadStatusReadout.tsx` renders a `LoadStatus` as the dot + message the MIDI panel already draws (`PHASE_DOT` generalised), with a progress bar only while `loading` *and* the loader has reported progress (a permission prompt never shows a stuck bar). Two rules belong to the **panel** that mounts it, not to the component:
+`@thoremin/sdk-ui/loadStatus` (`packages/sdk-ui/src/LoadStatusReadout.tsx`, shared with the slices since #600 S14) renders a `LoadStatus` as the dot + message the MIDI panel already draws (`PHASE_DOT` generalised), with a progress bar only while `loading` *and* the loader has reported progress (a permission prompt never shows a stuck bar). Two rules belong to the **panel** that mounts it, not to the component:
 
 - Where the capability cannot exist on this host (`unavailable` with `unsupported`), the panel renders the reason instead of a dead toggle (the MIDI section's precedent). `reason` and the phase are exposed as data attributes so a panel test can pin that.
 - A multi-megabyte download is labelled as such *before* the player triggers it (the rule `formats.ts` states for an ffmpeg.wasm format, and `component-model.md`'s recording section). The readout shows progress; the enable control says the size.
@@ -89,7 +89,7 @@ Three idioms the existing sites need, stated so they are not re-derived:
 
 | Node / site | Status | Notes |
 |---|---|---|
-| `lyria` (`src/nodes/output/lyria.ts`) | **adopts in #188 PR 3** | `createGenerativeEngine` seam; default lazily imports `lyria_engine.ts`, which reads the BYO key from the assistant's provider-key store. `LyriaEngine` leaves `browser.ts`'s static exports. |
+| `lyria` (`src/slices/generative/nodes/lyria.ts`, the generative slice's since #600 S14) | **adopts in #188 PR 3** | `createGenerativeEngine` seam; the browser factory is installed by the slice's React half (`provideGenerativeEngineFactory`: the node, the slice's pure side, imports no browser library), which lazily imports `app/lyria_engine.ts`; the BYO key is read through `@thoremin/sdk-ui/keys`. `LyriaEngine` leaves `browser.ts`'s static exports. |
 | `midi-out` | reference site, not migrated | Mutation-verified as is; migrate when a change touches it. Its `MidiPhase` maps to `LoadStatus` as `connecting → loading`, `unsupported/no-ports/denied → unavailable + reason`. |
 | `webcam-body` (`src/nodes/sources/webcam_body.ts`) | **adopted (#186 PR B)** | `createBodyLandmarker` seam on `ctx.resources`; default lazily imports tasks-vision. Keyed by the `body.model` dial (release on change); `gate` reports `unavailable` / `no-camera` until the shared `<video>` has frames, and the node releases-and-retries when they arrive. `active` while a body is detected. |
 | `webcam-face`, `webcam-hands` | reference site, not migrated | Same family as `webcam-body`; migrate when a change touches them. |

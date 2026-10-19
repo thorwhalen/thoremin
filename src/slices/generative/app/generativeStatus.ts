@@ -5,13 +5,14 @@
  * panel turns into a key prompt. Ephemeral per-frame runtime state, exactly like
  * `midiStatus` and `faceStatus` — the DAG produces it; React only displays it.
  *
- * {@link makeGenerativeReporter} is the per-frame sink the host loop registers
- * beside `reportMidi` in `useEngine.ts`: it reads the node's `status` output and
- * reports it only when something changed, so the panel never re-renders 60×/s for
- * an unchanged phase.
+ * {@link makeGenerativeReporter} is the per-frame sink this slice's status hook gives the host
+ * loop (`../ui.tsx`; it was hand-wired in `useEngine.ts` before #600 S14): it reads the node's
+ * `status` output and reports it only when something changed.
  */
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
+import { makeLoadStatusReporter } from '@thoremin/lazy/status';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 /** The status before the engine has reported anything (or after teardown). */
 export const ABSENT_GENERATIVE_STATUS: LoadStatus = { phase: 'off', message: 'Generative layer off' };
@@ -31,28 +32,15 @@ export const useGenerativeStatus = create<GenerativeStatusState>((set) => ({
   reset: () => set({ status: ABSENT_GENERATIVE_STATUS }),
 }));
 
-/** The one thing the reporter needs from an engine: a node output read. */
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
-
 /**
- * Build the per-frame sink: read `gen.status`, report it to {@link useGenerativeStatus}
- * when its phase / reason / message / progress changed. Pure over the reader, so it is
- * testable with a stub engine.
+ * Build the per-frame sink: read `gen.status`, report it to {@link useGenerativeStatus} when its
+ * phase / reason / message / progress changed (`makeLoadStatusReporter`). Pure over the reader, so
+ * it is testable with a stub engine.
  */
 export function makeGenerativeReporter(
   engine: OutputReader,
   store: Pick<GenerativeStatusState, 'report'> = useGenerativeStatus.getState(),
   nodeId: string = GENERATIVE_NODE_ID,
 ): () => void {
-  let lastKey = '';
-  return () => {
-    const s = engine.getOutput(nodeId, 'status') as LoadStatus | undefined;
-    if (!s) return;
-    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${s.progress ?? ''}`;
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(s);
-  };
+  return makeLoadStatusReporter(engine, store, nodeId);
 }

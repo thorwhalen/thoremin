@@ -25,7 +25,7 @@
  */
 import { useRef, useState } from 'react';
 import { Disc3, X } from 'lucide-react';
-import { LoadStatusReadout } from './LoadStatusReadout';
+import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
 import { dispatchCommand } from './dispatchDial';
 import { useControls } from './store';
 import { useSongStatus, type PaceReadout, type SongLive } from './songStatus';
