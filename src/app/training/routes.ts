@@ -19,14 +19,14 @@
  */
 import type { InstrumentSpec } from '@/instruments/spec';
 import type { TrainingRoute } from '@thoremin/sdk/instruments/extension';
-import { EXTENSION_TRAINING_BY_BRANCH, EXTENSION_TRAINING_ROUTES } from '@/extensions';
+import { CONTRIBUTIONS } from '@/host/contributions';
 
 export type { TrainingRoute };
 
 /** Every route: the extensions' own (their instruments train in their settings sections),
  *  then core's Trainer tool, the fallback. */
 export const TRAINING_ROUTES: readonly TrainingRoute[] = [
-  ...EXTENSION_TRAINING_ROUTES,
+  ...CONTRIBUTIONS.trainingRoutes,
   {
     id: 'trainer',
     label: 'Open the Trainer',
@@ -39,7 +39,7 @@ export const routeById = (id: string): TrainingRoute | undefined => TRAINING_ROU
 
 /** The branch each section route trains, in the order a lead instrument is looked for
  *  (each extension's table, in extension order). */
-const BY_BRANCH = EXTENSION_TRAINING_BY_BRANCH;
+const BY_BRANCH = CONTRIBUTIONS.trainingByBranch;
 
 /**
  * The route for a spec: its declared `training.route` when it names a known route, else

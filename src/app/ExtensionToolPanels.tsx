@@ -6,13 +6,13 @@
  */
 import { Puzzle, X } from 'lucide-react';
 import { useTools } from './toolsStore';
-import { EXTENSION_TOOL_PANELS } from './extensions';
+import { UI_CONTRIBUTIONS } from './host/contributions';
 import { shellToolById } from './shellTools';
 
 export default function ExtensionToolPanels() {
   const open = useTools((s) => s.open);
   const close = useTools((s) => s.close);
-  const entry = EXTENSION_TOOL_PANELS.find((p) => p.id === open);
+  const entry = UI_CONTRIBUTIONS.toolPanels.find((p) => p.id === open);
   if (!entry) return null;
   const tool = shellToolById(entry.id);
   const label = tool?.label ?? entry.id;

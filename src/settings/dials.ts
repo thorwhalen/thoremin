@@ -22,19 +22,19 @@ import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
-import { EXTENSION_DIAL_SLICES } from '@/extensions';
+import { CONTRIBUTIONS } from '@/host/contributions';
 
 /** One dials-form field per extension dial slice, with the slice's metadata. */
 function extensionDialFields(): Record<string, z.ZodTypeAny> {
   const out: Record<string, z.ZodTypeAny> = {};
-  for (const slice of EXTENSION_DIAL_SLICES) out[slice.key] = (slice.schema as z.ZodTypeAny).meta(slice.meta);
+  for (const slice of CONTRIBUTIONS.dialSlices) out[slice.key] = (slice.schema as z.ZodTypeAny).meta(slice.meta);
   return out;
 }
 
 /** The extension slices of a settings-like object, verbatim (every slice is whole-object). */
 function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const slice of EXTENSION_DIAL_SLICES) out[slice.key] = o[slice.key];
+  for (const slice of CONTRIBUTIONS.dialSlices) out[slice.key] = o[slice.key];
   return out;
 }
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';

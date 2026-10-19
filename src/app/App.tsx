@@ -18,7 +18,7 @@ import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { installRecording } from './recording/configStore';
 import { startBodyRouteDemand } from './bodyRouteDemand';
-import { EXTENSION_MOUNT_EFFECTS } from './extensions';
+import { UI_CONTRIBUTIONS } from './host/contributions';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -149,7 +149,7 @@ export default function App({
   // The extensions' mount effects (the air instruments': the flute's breath demand, the
   // vocabulary loads, the fingering-prior sync, the drum-pattern sync), each with its cleanup.
   useEffect(() => {
-    const cleanups = EXTENSION_MOUNT_EFFECTS.map((effect) => effect());
+    const cleanups = UI_CONTRIBUTIONS.mountEffects.map((effect) => effect());
     return () => {
       for (const c of cleanups) if (typeof c === 'function') c();
     };

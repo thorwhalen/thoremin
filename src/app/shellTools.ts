@@ -10,7 +10,7 @@
  */
 import { ToolSchema, TOOLS, type Tool } from './tools';
 import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
-import { EXTENSION_TOOL_DECLS } from './extensions';
+import { UI_CONTRIBUTIONS } from './host/contributions';
 
 /** The core tools followed by the extensions' (validated, `kind: 'panel'`). Throws on a clash. */
 export function withExtensionTools(core: readonly Tool[], decls: readonly ExtensionToolDecl[]): Tool[] {
@@ -24,6 +24,6 @@ export function withExtensionTools(core: readonly Tool[], decls: readonly Extens
   return out;
 }
 
-export const SHELL_TOOLS: readonly Tool[] = withExtensionTools(TOOLS, EXTENSION_TOOL_DECLS);
+export const SHELL_TOOLS: readonly Tool[] = withExtensionTools(TOOLS, UI_CONTRIBUTIONS.toolDecls);
 
 export const shellToolById = (id: string): Tool | undefined => SHELL_TOOLS.find((t) => t.id === id);

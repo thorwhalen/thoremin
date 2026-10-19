@@ -26,6 +26,15 @@ const LISTED: readonly Listed[] = (listed as readonly Listed[]).map((u, i) => {
 /** Every listed extension's id, eager or lazy, in `extensions.json`'s order. */
 export const EXTENSION_UI_IDS: readonly string[] = LISTED.map((u) => u.id);
 
+/** What each listed extension declares to the shell, as data and with its id: the contribution
+ *  registry (`src/app/host/contributions.ts`) checks the keyed points against it, naming owners. */
+export const EXTENSION_UI_DECLS: readonly { id: string; sections: readonly string[]; tools: readonly string[]; entryPoints: readonly string[] }[] = LISTED.map((u) => ({
+  id: u.id,
+  sections: u.panels.map((p) => `${p.instrumentId} / ${p.section}`),
+  tools: (u.tools ?? []).map((t) => t.id),
+  entryPoints: (u.entryPoints ?? []).map((e) => e.id),
+}));
+
 /** The EAGER extensions' React halves (a lazy one's arrives through {@link loadExtensionUi}). */
 export const EXTENSION_UIS: readonly ExtensionUi[] = LISTED.filter((u): u is ExtensionUi => !isLazy(u));
 

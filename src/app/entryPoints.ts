@@ -6,7 +6,7 @@
  */
 import { requestCarve } from '@thoremin/sdk-ui/enroll/carveRequest';
 import type { ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
-import { EXTENSION_ENTRY_POINTS } from './extensions';
+import { UI_CONTRIBUTIONS } from './host/contributions';
 import { shellToolById } from './shellTools';
 import { useTools } from './toolsStore';
 
@@ -14,7 +14,7 @@ import { useTools } from './toolsStore';
 export type EntryContext = Readonly<Record<string, string | number | boolean>>;
 
 /** The entry points listed in tool `from`'s panel now: its tool is in the shell and `when` holds. */
-export function entryPointsFrom(from: string, context: EntryContext, all: readonly ToolEntryPointDecl[] = EXTENSION_ENTRY_POINTS): ToolEntryPointDecl[] {
+export function entryPointsFrom(from: string, context: EntryContext, all: readonly ToolEntryPointDecl[] = UI_CONTRIBUTIONS.entryPoints): ToolEntryPointDecl[] {
   return all.filter((e) => e.from === from && shellToolById(e.tool) && Object.entries(e.when ?? {}).every(([k, v]) => context[k] === v));
 }
 

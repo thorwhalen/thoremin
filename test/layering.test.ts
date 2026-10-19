@@ -23,7 +23,7 @@ const EXTENSION_PURE_DIRS = ALL_EXTENSION_DIRS.flatMap(({ dir }) => ['nodes', 'l
 });
 // The air extension's nodes and libraries, at least: a guard that finds none checks nothing.
 if (EXTENSION_PURE_DIRS.length === 0) throw new Error('layering: no extension nodes/lib directory found from extensions.json');
-const CORE_DIRS = ['packages/dag/src', 'src/nodes', 'packages/lazy/src', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
+const CORE_DIRS = ['packages/dag/src', 'src/host', 'src/nodes', 'packages/lazy/src', 'src/keys', 'src/music', 'src/settings', ...EXTENSION_PURE_DIRS];
 const FORBIDDEN = /from\s+['"](@\/(app|plugins)(\/|['"])|\.\.\/(\.\.\/)*(app|plugins)\/)/;
 
 function tsFiles(dir: string): string[] {

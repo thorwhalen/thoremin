@@ -66,7 +66,7 @@ import { getSelectedName } from '@/app/dials/instruments';
 /** A class's colour (the class registry's SSOT), for the row stripe and the heading swatch. */
 const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id === id)?.colour ?? 'rgba(255,255,255,0.3)';
 import { layerToSettings } from '@/settings/dials';
-import { EXTENSION_PANELS } from '@/app/extensions';
+import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import type { ExtensionPanel } from '@thoremin/sdk-ui/types';
 
 const cardFrame =
@@ -295,7 +295,7 @@ export default function InstrumentsPanel() {
   const liveAir = useMemo(() => airInstrumentsOf(liveSettings), [liveSettings]);
   const liveReadouts = useMemo(
     () =>
-      EXTENSION_PANELS.filter((p) =>
+      UI_CONTRIBUTIONS.panels.filter((p) =>
         p.readoutOn ? p.readoutOn(liveSettings as unknown as Record<string, unknown>) : (liveAir as readonly string[]).includes(p.instrumentId),
       ),
     [liveSettings, liveAir],
