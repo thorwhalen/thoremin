@@ -156,9 +156,10 @@ const REPLACED_BY_LATER_EXTENSIONS: EdgeSpec[] = hasExtension('faces')
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
     ]
   : [];
-/** Overlay ports of extension elements added after the snapshot (#600 S5): the chord wheel's,
- *  whose config edge the host wires from `ui`, so no node filter catches it. */
-const LATER_OVERLAY_PORT = /^air\.chordWheel\./;
+/** Overlay ports of extension elements added after the snapshot (#600 S5): the chord wheel's and
+ *  (#610 item 4) the chord map's, whose config edges the host wires from `ui`, so no node filter
+ *  catches them. */
+const LATER_OVERLAY_PORT = /^air\.(chordWheel|chordMap)\./;
 const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),
