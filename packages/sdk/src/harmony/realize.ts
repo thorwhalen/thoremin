@@ -65,9 +65,19 @@ export function createRealizationRegistry(): RealizationRegistry {
     reduction: byId<Reduction>([{ id: 'none', reduce: (tones) => [...tones] }]),
     bass: byId<BassRule>([{ id: 'root', bass: () => 0 }, smoothBass]),
     // The five idioms put the root in the bass an octave below the chord's register; they read
-    // the first three tones as root, second and third tone (`voiceTriad`). `voiceLed` (H3) leads
-    // from the previous chord, honouring the bass and any number of tones.
-    voicing: byId<Voicer>([...IDIOMS.map((id) => ({ id, voice: (tones: readonly Tone[], _bass: number, c: RealizationControls) => voiceTriad(tones.map((t) => t.midi), id, c.register) })), voiceLedVoicer]),
+    // the first three tones as root, second and third tone (`voiceTriad`) and keep any further
+    // tone (a seventh) where it is, shifted with the register. `voiceLed` (H3) leads from the
+    // previous chord, honouring the bass and any number of tones.
+    voicing: byId<Voicer>([
+      ...IDIOMS.map((id) => ({
+        id,
+        voice: (tones: readonly Tone[], _bass: number, c: RealizationControls) => {
+          const voiced = voiceTriad(tones.map((t) => t.midi), id, c.register);
+          return voiced.length ? [...voiced, ...tones.slice(3).map((t) => t.midi + 12 * c.register)] : voiced;
+        },
+      })),
+      voiceLedVoicer,
+    ]),
     figuration: byId<Figuration>(RENDERINGS.map((id) => ({ id, render: (n, clock) => ({ gains: renderGains(n, id, clock.beat, clock.sinceChange) }) }))),
   };
 }
@@ -104,6 +114,8 @@ export interface RealizeInput {
   silentSound: VoiceParams['sound'];
   /** Seconds since the last tick (a non-finite one counts as 0). */
   dt: number;
+  /** A live tone brightness the voices carry (the head-pose chord's smile), 0..1; absent: none. */
+  brightness?: number;
 }
 
 export interface RealizeOutput {
@@ -160,7 +172,7 @@ export function createRealizer({
     Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
 
   return {
-    render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt }) {
+    render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt, brightness }) {
       let voiced: number[] = [];
       const step = Number.isFinite(dt) ? dt : 0;
       if (tones.length === 0) {
@@ -203,7 +215,7 @@ export function createRealizer({
         const midi = voiced[i];
         const raw = gains[i];
         const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
-        voices.push({ id: idBase + i, present: g > 0, freq: midiToFreq(midi ?? 60), gain: g, sound });
+        voices.push(brightness === undefined ? { id: idBase + i, present: g > 0, freq: midiToFreq(midi ?? 60), gain: g, sound } : { id: idBase + i, present: g > 0, freq: midiToFreq(midi ?? 60), gain: g, sound, brightness });
       }
       return { voices, voiced, events: out.events ?? [] };
     },

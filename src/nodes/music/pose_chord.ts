@@ -13,8 +13,8 @@
  *  - **smile ↔ frown → brightness** — smiling opens the timbre, frowning darkens it;
  *  - **brow-raise → add the diatonic 7th** — a richer chord while both brows are up.
  *
- * It reuses the same voicing / rendering / beat-clock machinery as
- * `expression-chord` (via {@link voiceTriad} / {@link renderGains}) and the same
+ * It plays through the same realization pipeline as `expression-chord`
+ * (`@thoremin/sdk/harmony/realize`, since H4c of #613) and the same
  * live `chordConfig` settings (sound / volume / voicing / rendering / tempo), so
  * the two chord instruments sound consistent. Voices sit on ids ≥
  * {@link POSE_VOICE_ID_BASE} — above the hand voices (0, 1) AND the
@@ -32,9 +32,10 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import type { NodeContext } from '@thoremin/dag';
-import { diatonicChord, midiToFreq, SCALE_TYPES, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { diatonicChord, SCALE_TYPES, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '@thoremin/sdk/harmony/realize';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
-import { VOICINGS, RENDERINGS, voiceTriad, renderGains, type VoicingId, type RenderingId } from '@/music/voicing';
+import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import type { FaceControls, VoiceParams } from '@thoremin/sdk/nodes/domain';
 
 /** Pose-chord voices start here — above the hand voices (0, 1) and the
@@ -118,18 +119,9 @@ export const poseChordNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
-    let beat = 0;
-    let timeSinceChange = 0;
-    let lastKey = '';
-
-    const silent = (sound: VoiceParams['sound']): VoiceParams[] =>
-      Array.from({ length: MAX_POSE_VOICES }, (_, i) => ({
-        id: POSE_VOICE_ID_BASE + i,
-        present: false,
-        freq: midiToFreq(60),
-        gain: 0,
-        sound,
-      }));
+    // The realization pipeline (H4c of #613): the voicing and rendering are two of its seams, the
+    // brow's seventh rides as a fourth tone, the smile's brightness on every voice.
+    const realizer = createRealizer({ idBase: POSE_VOICE_ID_BASE, maxVoices: MAX_POSE_VOICES });
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -147,16 +139,24 @@ export const poseChordNode = defineNode<Params>({
 
         // The jaw gates play/rest: no sound until the mouth opens past the gate.
         const sounding = active && (controls as FaceControls).mouthOpen >= p.mouthGate;
-
         const dt = typeof ctx?.dt === 'number' && Number.isFinite(ctx.dt) ? ctx.dt : 0;
-        beat += (bpm / 60) * dt;
+        const render = (tones: readonly number[], octaveShift: number, brightness?: number) =>
+          realizer.render({
+            tones: tonesInRegister(tones),
+            spec: { ...DEFAULT_SPEC, voicing, figuration: rendering },
+            controls: { ...DEFAULT_CONTROLS, register: octaveShift },
+            bpm,
+            gain,
+            sound,
+            silentSound: sound,
+            dt,
+            brightness,
+          });
 
         if (!sounding) {
-          // Keep the clock running (so re-articulation stays phase-consistent) but
-          // reset the chord key so the next onset strums fresh.
-          lastKey = '';
-          timeSinceChange = 0;
-          return { params: { voices: silent(sound) }, chord: [] };
+          // The clock keeps running (re-articulation stays phase-consistent); the next onset
+          // strums fresh (a silence changes the sounding pitches).
+          return { params: { voices: render([], baseShift).voices }, chord: [] };
         }
 
         const c = controls as FaceControls;
@@ -170,43 +170,8 @@ export const poseChordNode = defineNode<Params>({
         const brightness = clamp01(0.5 + 0.5 * c.smileFrown);
 
         const tones = diatonicChord(spec!, degree, withSeventh ? 4 : 3);
-        const triad = tones.slice(0, 3);
-        let voiced = triad.length >= 3 ? voiceTriad(triad, voicing, octaveShift) : [];
-        if (withSeventh && tones.length >= 4) {
-          // Add the diatonic 7th one register up with the chord (kept in the voiced
-          // structure's octave via the same shift), then re-sort ascending so an
-          // arpeggio still traverses low→high by actual pitch.
-          voiced = [...voiced, tones[3] + 12 * octaveShift];
-        }
-        voiced = voiced.sort((a, b) => a - b);
-
-        if (voiced.length === 0) return { params: { voices: silent(sound) }, chord: [] };
-
-        // Restart the strum on any genuine chord change (the sounding pitches).
-        const key = voiced.join(',');
-        if (key !== lastKey) {
-          timeSinceChange = 0;
-          lastKey = key;
-        } else {
-          timeSinceChange += dt;
-        }
-
-        const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
-        const voices: VoiceParams[] = [];
-        for (let i = 0; i < MAX_POSE_VOICES; i++) {
-          const midi = voiced[i];
-          const raw = gains[i];
-          const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
-          voices.push({
-            id: POSE_VOICE_ID_BASE + i,
-            present: g > 0,
-            freq: midiToFreq(midi ?? 60),
-            gain: g,
-            sound,
-            brightness,
-          });
-        }
-        return { params: { voices }, chord: tones };
+        const { voices, voiced } = render(tones, octaveShift, brightness);
+        return { params: { voices }, chord: voiced.length ? tones : [] };
       },
     };
   },
