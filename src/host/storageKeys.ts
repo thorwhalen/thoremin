@@ -39,7 +39,6 @@ export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   // Named collections (the first five through the storage seam's default; #659 lists the stores
   // that still build their own localStorage provider).
   ls('thoremin-presets', 'core', 'settings presets'),
-  ls('thoremin-scores', 'core', 'the scores the conductor plays'),
   ls('thoremin-cues', 'core', 'the trainer\'s cues'),
   ls('thoremin-routines', 'core', 'the trainer\'s routines'),
   ls('thoremin-lab-views', 'core', 'the Feature Lab\'s saved views'),

@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES, type SynthParams } from '@/nodes';
-import { DEMO_SCORES, fetchDemo, flattenNotes, type ScoreDoc } from '@/score';
+import { DEMO_SCORES, fetchDemo, flattenNotes, type ScoreDoc } from '@/slices/conductor/score';
 
 const PUBLIC = join(__dirname, '..', 'public');
 const readPublic = async (path: string) => new Uint8Array(readFileSync(join(PUBLIC, path)));

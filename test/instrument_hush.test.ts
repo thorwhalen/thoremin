@@ -18,7 +18,11 @@ import type { SynthParams, VoiceParams } from '@/nodes';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { defaultGraph } from '@/app/graph';
 import { useControls, migrateControls } from '@/app/store';
-import { AIR } from './helpers/extensions';
+import { AIR, CONDUCTOR } from './helpers/extensions';
+import { CONTRIBUTIONS } from '@/host/contributions';
+
+/** What the listed extensions hush with (the conductor's score, #600 S18b). */
+const HUSHES = CONTRIBUTIONS.hushes;
 
 const voice = (id: number): VoiceParams => ({ id, present: true, freq: 440, gain: 0.5, sound: 'sine', brightness: 1, vibrato: 0, pan: 0 });
 const params = (...ids: number[]): SynthParams => ({ voices: ids.map(voice) });
@@ -30,17 +34,17 @@ afterEach(() => {
 describe('hushOf: when the instrument goes quiet', () => {
   it('nobody claims and no conductor: nothing is hushed', () => {
     expect(hushOf({})).toEqual({ hushVoices: false, muteAll: false, muteStrikes: false, claimed: false });
-    expect(hushOf({ hushedBy: [], conductor: { enabled: false } as never })).toEqual({ hushVoices: false, muteAll: false, muteStrikes: false, claimed: false });
+    expect(hushOf({ hushedBy: [], conductor: { enabled: false } } as never, HUSHES)).toEqual({ hushVoices: false, muteAll: false, muteStrikes: false, claimed: false });
   });
 
   it('a tool claim (the Trainer) silences everything: voices, the score, the struck instruments', () => {
     expect(hushOf({ hushedBy: ['trainer'] })).toEqual({ hushVoices: true, muteAll: true, muteStrikes: true, claimed: true });
     // Even with the conductor left on from earlier: its score must not play over the click.
-    expect(hushOf({ hushedBy: ['trainer'], conductor: { enabled: true } as never }).muteAll).toBe(true);
+    expect(hushOf({ hushedBy: ['trainer'], conductor: { enabled: true } } as never, HUSHES).muteAll).toBe(true);
   });
 
-  it('the conductor hushes the active instrument, field or air, but keeps the score (muteAll stays off)', () => {
-    expect(hushOf({ conductor: { enabled: true } as never })).toEqual({ hushVoices: true, muteAll: false, muteStrikes: true, claimed: false });
+  it.runIf(CONDUCTOR)('the conductor hushes the active instrument, field or air, but keeps the score (muteAll stays off)', () => {
+    expect(hushOf({ conductor: { enabled: true } } as never, HUSHES)).toEqual({ hushVoices: true, muteAll: false, muteStrikes: true, claimed: false });
   });
 
   it('the player\'s M silences the struck instruments too (muteStrikes), not only the voices', () => {
@@ -145,7 +149,7 @@ describe('the default graph wires the hush (a switch nothing reads is #120 again
     for (const out of AIR ? ['drumOut', 'bassOut', 'guitarOut'] : []) expect(has('ui', 'muteStrikes', out, 'mute')).toBe(true);
   });
 
-  it('the conducted score is on the merge port the hush spares', () => {
+  it.runIf(CONDUCTOR)('the conducted score is on the merge port the hush spares', () => {
     expect(has('score', 'params', 'merge', 'score1')).toBe(true);
   });
 });

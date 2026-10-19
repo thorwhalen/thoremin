@@ -23,7 +23,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@thoremin/dag';
-import { conductorNode, type HandsFrame } from '@/nodes';
+import { type HandsFrame } from '@/nodes';
+import { conductorNode } from '@/slices/conductor/nodes/conductor';
 import { wrapPhase } from '@thoremin/ictus';
 import { loadStream } from '../helpers/fixtures';
 

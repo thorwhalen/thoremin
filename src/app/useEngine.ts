@@ -41,9 +41,6 @@ import { latencyProbeRequested } from '@/latency/param';
 import { createTimingResource } from './timing/resource';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from './timingStatus';
-import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './conductorStatus';
-import { makeLeadCalibrationSink } from './conductorLead';
-import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
 import { extensionStatusHooks, makeExtensionSinks } from './host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
@@ -74,8 +71,6 @@ export type { RecordingPhase } from './recording/useRecordingController';
 function resetStatusesOf(removed: readonly string[]): void {
   for (const id of removed) {
     for (const hook of extensionStatusHooks()) if (hook.nodeId === id) hook.onRemoved();
-    if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
-    else if (id === ORCHESTRA_NODE_ID) useOrchestraStatus.getState().report(ABSENT_ORCHESTRA_STATUS);
   }
 }
 
@@ -354,16 +349,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         void useCategoryBinding.getState().load();
         const reportCategory = (now: number) => categoryDispatcher.tick(now);
 
-        // Bridge the `conductor` node's musical time to React (#187), for the Conductor
-        // tool panel's live readout. Change-gated inside the reporter, like the others.
-        const reportConductor = makeConductorReporter(engine);
-        // A 'Learn my timing' take (#427): the body frames against the click, while one runs.
-        const reportLeadTake = makeLeadCalibrationSink(engine, () => resources);
-        // The orchestra's load status (#187 PR 5), for the orchestra controls' readout.
-        const reportOrchestra = makeOrchestraReporter(engine);
-        // The extensions' status hooks (the air instruments' readouts and live shapes):
+        // The extensions' status hooks (the air instruments' readouts and live shapes, the
+        // conductor's musical time, its timing take and the orchestra's load status):
         // built once per engine, run as sinks below, reset on removal and teardown.
-        const extensionSinks = makeExtensionSinks(engine);
+        const extensionSinks = makeExtensionSinks(engine, () => resources);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -407,7 +396,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -439,8 +428,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useFaceStatus.getState().reset();
       resetLiveVector();
       useGestureStatus.getState().reset();
-      useConductorStatus.getState().reset();
-      useOrchestraStatus.getState().reset();
       useTimingStatus.getState().reset();
       for (const hook of extensionStatusHooks()) hook.reset();
       uninstallDebug();

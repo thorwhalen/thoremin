@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { loadScore } from '@/score/load';
+import { loadScore } from '@/slices/conductor/score/load';
 import { chartAt, chartOfScore } from '@thoremin/ext-air/lib/chord_chart';
 import { chordChartNode, CHORD_CHART_VOICE_ID_BASE, type ChordChartStatus } from '@thoremin/ext-air/nodes/chord_chart';
 import { freqToMidi } from '@thoremin/sdk/music/theory';

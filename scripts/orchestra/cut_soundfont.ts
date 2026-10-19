@@ -16,7 +16,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { BasicSoundBank, SoundBankLoader } from 'spessasynth_core';
-import { BANK_PROGRAMS } from '@/nodes/output/orchestra_map';
+import { BANK_PROGRAMS } from '@/slices/conductor/nodes/orchestra_map';
 
 const [src, out] = process.argv.slice(2).filter((a) => a !== '--');
 if (!src || !out) {

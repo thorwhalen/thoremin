@@ -26,7 +26,7 @@ import {
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
 import type { ZodTypeAny } from 'zod';
-import { ConductorSettingsSchema, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
+import { EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
@@ -409,27 +409,16 @@ export function normalizeLayer(layer: Layer): Layer {
       (out as Record<string, unknown>)[key] = next;
     }
   }
-  // The conductor's rhythm prior (#232) is a nested key whose default (`blend`) is a
-  // behaviour change: an instrument saved with a conductor but no `prior` was played by
-  // the oscillator, and keeps it; only an instrument made from now on takes the default.
-  const cond = out.conductor as Record<string, unknown> | undefined;
-  if (cond && typeof cond === 'object' && cond.prior === undefined) {
-    if (out === layer) out = { ...layer };
-    out.conductor = { ...cond, prior: LEGACY_CONDUCTOR_PRIOR };
-  }
   // A nested key a later release added INSIDE an extension's whole-object dial (#263:
   // `airFlute.prior`; #269: `airDrum.pattern`) is the same drift one level down: the working
   // layer's object always carries it, an instrument saved before it does not. Re-parse
   // through the dial's own schema (folded over the manifests, so the next added key heals
   // with no edit here), as `overlay` is, so the default is filled the way the hot store
   // fills it. Only when a key is actually missing: a complete dial is left as saved.
-  // The conductor dial drifts the same way (#336: `conductor.orchestra`, which
-  // `mergeControls` fills from its schema); its `prior` was healed to the legacy value
-  // above, so the re-parse cannot hand an old instrument the new default prior.
-  const wholeObjectDials: [string, ZodTypeAny][] = [
-    ['conductor', ConductorSettingsSchema],
-    ...Object.entries(EXTENSION_DIAL_SCHEMAS),
-  ];
+  // The conductor's `prior` (#232) was healed to the legacy value by its slice's own
+  // migration above (`migrateLayerSlices`), so the re-parse cannot hand an old instrument
+  // the new default prior.
+  const wholeObjectDials: [string, ZodTypeAny][] = Object.entries(EXTENSION_DIAL_SCHEMAS);
   for (const [key, schema] of wholeObjectDials) {
     const obj = out[key] as Record<string, unknown> | undefined;
     if (!obj || typeof obj !== 'object') continue;

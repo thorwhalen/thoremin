@@ -19,6 +19,10 @@ export interface ExtensionToolDecl {
   group: 'mode' | 'tool' | 'help';
   /** Whether it has its own bar button until the player says otherwise. */
   defaultPinned: boolean;
+  /** The tool it is listed before, in the bar and the launcher (#600 S18b: the Conductor keeps its
+   *  place ahead of the Trainer, where it was core's first tool). Absent, or a tool the shell does
+   *  not list: after every tool listed so far. */
+  before?: string;
 }
 
 /**

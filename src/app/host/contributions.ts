@@ -14,6 +14,11 @@
  */
 import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, ExtensionToolSection, KeybindingDecl, StillSounding, ToolDetached, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
 import { defineCommand, err, type Registry } from 'acture';
+// The SDK hosts an extension's React half writes and reads the dials through (the write path, the
+// dials form): installed before any extension half loads, so a shell surface that renders one (the
+// bar's stop control for a detached tool, a tool's panel) never relies on another module having loaded them.
+import '@/app/dispatchDial';
+import '@/app/dials/useDialsSettings';
 import {
   EXTENSION_COMMANDS,
   EXTENSION_ENTRY_POINTS,

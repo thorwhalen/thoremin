@@ -28,9 +28,9 @@ describe('assembleSpec', () => {
 
   it('branches are the explicit list when written, else the derived set, else absent; features are the closure minus the trunk', () => {
     const derived = { class: 'field' as const, branches: ['field-voices', 'face-chord'] };
-    const explicit = assembleSpec({ name: 'X', layer, meta: { branches: ['field-voices', 'conductor'] }, derived });
-    expect(explicit.branches).toEqual(['field-voices', 'conductor']);
-    expect(explicit.features).toEqual(['field-voices', 'conductor']);
+    const explicit = assembleSpec({ name: 'X', layer, meta: { branches: ['field-voices', 'face-source'] }, derived });
+    expect(explicit.branches).toEqual(['field-voices', 'face-source']);
+    expect(explicit.features).toEqual(['field-voices', 'face-source']);
     const derivedOnly = assembleSpec({ name: 'X', layer, derived });
     expect(derivedOnly.branches).toEqual(['field-voices', 'face-chord']);
     // `face-chord` requires its two pieces (#330 P4), which require `face-source`: the facet

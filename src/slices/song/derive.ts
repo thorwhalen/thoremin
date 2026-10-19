@@ -13,7 +13,7 @@
  * - A dancer leading needs the body's rhythm (`body.rhythm`): whatever measures it is composed with
  *   the pace controller.
  *
- * It reads the conductor's dial (`conductor.enabled` / `conducts` / `source`), core's until S18.
+ * It reads the conductor's dial (`conductor.enabled` / `conducts` / `source`) by name: the conductor slice's since #600 S18.
  */
 import type { ExtensionDerivationSettings, ToolDeriveContext } from '@thoremin/sdk/instruments/extension';
 

@@ -35,9 +35,9 @@ describe.runIf(FACES)('the faces extension contributes the Conductor to Your pos
   });
 });
 
-describe('the core Conductor panel', () => {
+describe('the Conductor panel (the conductor slice\'s since #600 S18b)', () => {
   it('names no extension tool or carve modality', () => {
-    const src = readFileSync('src/app/ConductorPanel.tsx', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const src = readFileSync('src/slices/conductor/panels/ConductorPanel.tsx', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(src).not.toMatch(/['"]poses['"]/);
     expect(src).not.toMatch(/requestCarve/);
   });

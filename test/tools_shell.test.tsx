@@ -20,14 +20,15 @@ import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
-import { SHELL_TOOLS } from '@/app/shellTools';
+import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
+import { CONDUCTOR } from './helpers/extensions';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
 import { useToolPins } from '@/app/toolPins';
 import { isPinned, TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
 import { dialsStore } from '@/app/dials/settingsStore';
-import type { ConductorSettings } from '@/settings/schema';
+import type { ConductorSettings } from '@/slices/conductor/schema';
 
 const conductorDial = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...conductorDial(), enabled });
@@ -96,10 +97,24 @@ describe('the tools bar and its launcher are the shell entry point for every too
   it('the bar shows exactly the pinned tools, each with a visible label', () => {
     render(<ToolsBar />);
     const bar = document.querySelector('[data-tools-bar]')!;
-    const pinned = TOOLS.filter((t) => isPinned(t, {}));
+    const pinned = SHELL_TOOLS.filter((t) => isPinned(t, {}));
     expect(pinned.length).toBeGreaterThan(0);
     for (const t of pinned) expect(bar.querySelector(`[data-tool="${t.id}"]`)?.textContent).toContain(t.label);
     expect(bar.querySelectorAll('[data-tool]')).toHaveLength(pinned.length);
+  });
+
+  it('an extension tool takes the place it names (`before`), else follows every tool listed', () => {
+    const decl = (id: string, before?: string) => ({ id, label: id, description: id, group: 'mode' as const, defaultPinned: false, ...(before ? { before } : {}) });
+    const ids = withExtensionTools(TOOLS, [decl('x', 'trainer'), decl('y'), decl('z', 'no-such-tool')]).map((t) => t.id);
+    expect(ids.indexOf('x')).toBe(ids.indexOf('trainer') - 1);
+    expect(ids.slice(-2)).toEqual(['y', 'z']);
+  });
+
+  it.runIf(CONDUCTOR)('the Conductor keeps its place ahead of the Trainer in the bar (core\'s first tool until #600 S18b)', () => {
+    render(<ToolsBar />);
+    const order = [...document.querySelectorAll('[data-tools-bar] [data-tool]')].map((b) => b.getAttribute('data-tool'));
+    expect(order.indexOf('conductor')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('conductor')).toBeLessThan(order.indexOf('trainer'));
   });
 
   it('shows the command palette hotkey, so ⌘K is discoverable without reading the source', () => {
@@ -108,10 +123,11 @@ describe('the tools bar and its launcher are the shell entry point for every too
   });
 
   it('clicking a pinned tool opens it (the button is wired, not decorative)', () => {
+    // The Trainer: core's own pinned tool (the Conductor is the conductor slice's since #600 S18b).
     render(<ToolsBar />);
-    fireEvent.click(screen.getByText('Conductor'));
-    expect(useTools.getState().open).toBe('conductor');
-    fireEvent.click(screen.getByText('Conductor'));
+    fireEvent.click(screen.getByText('Trainer'));
+    expect(useTools.getState().open).toBe('trainer');
+    fireEvent.click(screen.getByText('Trainer'));
     expect(useTools.getState().open).toBe(null); // and it toggles back closed
   });
 
@@ -125,7 +141,7 @@ describe('the tools bar and its launcher are the shell entry point for every too
 
   it('at most one tool is open at a time', () => {
     render(<ToolsBar />);
-    fireEvent.click(screen.getByText('Conductor'));
+    fireEvent.click(screen.getByText('Trainer'));
     fireEvent.click(screen.getByText('Commands'));
     expect(useTools.getState().open).toBe('commands');
   });

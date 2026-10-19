@@ -18,8 +18,7 @@ import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
-import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
-import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import type { ExtensionDials, ExtensionTransients } from '@/settings/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
 import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
@@ -85,16 +84,7 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
   faceControls?: FaceControlsDialParams;
-  /** The conductor dial (#187): fed to the `conductor` node's `config` input as a live
-   *  override of its build-time params, so turning conducting on needs no rebuild. */
-  conductor?: ConductorSettings;
-  /** The loaded score (#187 PR 3), fed to the `score` node's `doc` input. Absent / null →
-   *  the node plays its built-in demo. */
-  scoreDoc?: ScoreDoc | null;
   graphElements?: string[] | null;
-  /** The body conductor's lead offsets (#427, a per-device pref) → `conductor`'s
-   *  `leadOffsets`. */
-  conductorPrefs?: { leadOffsets: Record<string, number> };
 }
 
 const Params = z.object({});
@@ -108,7 +98,7 @@ const Params = z.object({});
  *   holds a claim (the Trainer: its click and spoken cues must be heard, and a conducted
  *   score left on from an earlier session is as loud as a theremin).
  * - `hushVoices` silences the continuous voices at `synth-merge` (the hands, both face
- *   chords, the air flute) but NOT the conducted score, while the conductor is on: then
+ *   chords, the air flute) but NOT the conducted score, while an extension's `hushes` rule holds (the conductor's, while it is on): then
  *   the score is the music, and the active instrument under it is what the player could
  *   not hear past.
  * - `muteStrikes` silences the struck instruments' schedulers (air drum, bass, guitar)
@@ -121,12 +111,12 @@ const Params = z.object({});
  * purpose stays muted when a hush lifts.
  */
 export function hushOf(
-  c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>,
+  c: Pick<ControlSnapshot, 'hushedBy' | 'muted'>,
   hushes: readonly HushDecl[] = [],
 ): { hushVoices: boolean; muteAll: boolean; muteStrikes: boolean; claimed: boolean } {
   const claimed = (c.hushedBy?.length ?? 0) > 0;
-  // The conductor's score is the music while it runs; an extension says the same of its own (#600 S18a).
-  const conducting = c.conductor?.enabled === true || hushes.some((h) => h.while(c as Readonly<Record<string, unknown>>));
+  // An extension's own music while it runs (the conductor's score: its `hushes`, #600 S18).
+  const conducting = hushes.some((h) => h.while(c as Readonly<Record<string, unknown>>));
   const muteAll = claimed || c.muted === true;
   return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
@@ -205,10 +195,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
     // The head/face control axis tuning (#76) → `face-controls`' `config` input, so
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
-    { name: 'conductor', kind: 'conductor-config' },
-    { name: 'scoreDoc', kind: 'score-doc' },
-    // The body conductor's lead offsets per joint (#427, a per-device pref) → `conductor`.
-    { name: 'conductorLeadOffsets', kind: 'lead-offsets' },
     // The composed graph's overlay element set (the instruments-as-graphs ADR, §3.2 rule
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
@@ -271,7 +257,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
         // be indistinguishable from that anyway — so skip the key entirely.
         if (c.faceControls) out.faceControls = c.faceControls;
         if (c.hands) out.handednessDwell = c.hands.handednessDwell;
-        if (c.conductor) out.conductor = c.conductor;
         // The extensions' whole-object dials (absent → the node keeps its build-time params)
         // and their transient fields (always emitted, null included: clearing an enrolment
         // must reach the node). Both lists are GENERATED from the manifests (seam 6).
@@ -291,9 +276,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
           for (const p of pref.ports) out[p.name] = p.read(value as never, { claimed: hush.claimed });
         }
         for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? t.initial ?? null;
-        if (c.scoreDoc) out.scoreDoc = c.scoreDoc;
-        // Always emitted, `{}` included: clearing the offsets must reach the conductor.
-        out.conductorLeadOffsets = c.conductorPrefs?.leadOffsets ?? {};
         if (c.graphElements) out.graphElements = c.graphElements;
         if (c.faceChord) {
           out.chordConfig = {

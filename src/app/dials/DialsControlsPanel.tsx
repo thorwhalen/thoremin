@@ -33,7 +33,6 @@ import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
-import { ConductorControls } from './panels/conductor';
 import { LowLatencyAudioControl } from './panels/audio';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import type { AirInstrumentId } from '@/app/library/category';
@@ -49,7 +48,7 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
   const { state, set } = useDialsSettings();
   const v = state.effective;
   const syncHands = v['master.syncHands'] as boolean;
-  // One section per instrument the extensions ship (the air instruments today): the ones
+  // One section per instrument the extensions ship (the air instruments, the conductor): the ones
   // this instrument plays first and open, the others after the core sections and closed.
   const airSections = (lead: boolean) =>
     UI_CONTRIBUTIONS.panels.filter((p) => (leadAir as readonly string[]).includes(p.instrumentId) === lead).map((p) => (
@@ -87,10 +86,6 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
         <FaceControls />
       </TopSection>
 
-      {/* The conductor (#187): conduct the score with a hand. Off by default. */}
-      <TopSection label="Conductor">
-        <ConductorControls />
-      </TopSection>
       {/* The air instruments (#233 drum, #249) not leading this instrument: add-ons, off by default. */}
       {airSections(false)}
 

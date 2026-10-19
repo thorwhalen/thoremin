@@ -35,9 +35,6 @@ import {
   type Settings,
   type FaceChord,
   type FaceExpr,
-  ConductorPrefsSchema,
-  DEFAULT_CONDUCTOR_PREFS,
-  type ConductorPrefs,
 } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map.schema';
 import {
@@ -45,8 +42,7 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls.schema';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
-import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
 import { CONTROLS_VERSION, migrateCoreControls } from './storeMigrations';
 import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
@@ -63,8 +59,6 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
  *  module-level constant itself, or an edit in one instrument would mutate the default. */
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
-/** A fresh copy of the shipped conductor dial (#187): off. */
-const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
 
 /** The preset keys (derived from the schema — the SSOT). Add a field to
  *  SettingsSchema (+ the store) and it is snapshotted, persisted, and restored
@@ -123,8 +117,8 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    * again the moment the last one is released, so "restore after" needs no memory of
    * what was playing. Distinct from {@link muted}: that is the PLAYER's switch (and
    * its badge says "press M"); a hush is the app's, and releasing it must never
-   * unmute a player who had muted on purpose. The conductor does not claim here — its
-   * hush is derived from `conductor.enabled` in `store-controls`, so it cannot leak.
+   * unmute a player who had muted on purpose. An extension that hushes while it runs
+   * does not claim here — its `hushes` rule is derived in `store-controls`, so it cannot leak.
    * Transient, like `muted`: never persisted.
    */
   hushedBy: readonly string[];
@@ -168,11 +162,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  label). A preset field (in {@link SETTINGS_KEYS}); read live by `hand-features` via
    *  `store-controls` → its `handednessDwell` input. */
   hands: HandsSettings;
-  /** The body conductor's per-DEVICE prefs (#427): the player's lead offset per joint,
-   *  learned in the Conductor tool. Persisted via `partialize` like {@link audioPrefs}, NOT
-   *  a preset field. Flows to the `conductor` node's `leadOffsets` input through
-   *  `store-controls`. */
-  conductorPrefs: ConductorPrefs;
   /**
    * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
    * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
@@ -183,17 +172,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    * rebuild or a face-model reload.
    */
   faceControls: FaceControlsDialParams;
-  /** The conductor dial (#187): on/off, hand, point, servo horizon, fallback and
-   *  dynamics ranges. A preset field, fed live to the `conductor` node's `config` port
-   *  through store-controls, so conducting starts with no rebuild. */
-  conductor: ConductorSettings;
-  /**
-   * The loaded score (#187 PR 3): the `ScoreDoc` the `score` node plays, handed to the
-   * graph through `store-controls` as the live `scoreDoc` port. TRANSIENT, like
-   * {@link muted}: never persisted (a parsed movement is hundreds of kilobytes; the
-   * `conductor.piece` dial remembers WHICH piece, and the app reloads it on demand).
-   */
-  scoreDoc: ScoreDoc | null;
   /**
    * The overlay elements the CURRENT graph's branches asked for (transient, never
    * persisted): written by the engine host just before it applies a composed graph,
@@ -238,11 +216,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   toggleMuted(): void;
   /** Take (`on`) or release a hush claim (see {@link hushedBy}). Idempotent per claimer. */
   setHush(claimer: string, on: boolean): void;
-  /** Replace the player's lead offsets (see {@link conductorPrefs}); `{}` clears them. An
-   *  invalid set is ignored. */
-  setConductorLeadOffsets(offsets: Record<string, number>): void;
-  /** Replace the loaded score (transient, see {@link scoreDoc}). */
-  setScoreDoc: (doc: ScoreDoc | null) => void;
   /** Replace the composed graph's overlay element set (transient, see {@link graphElements}). */
   setGraphElements: (elements: string[] | null) => void;
 
@@ -394,8 +367,6 @@ export const HEAL_RULES: CoreHealRules = {
   handMap: { schema: HandMapSchema },
   // The hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
   hands: { schema: HandsSettingsSchema, complete: overDefaults(DEFAULT_HANDS) },
-  // The body conductor's lead offsets (#427): a pre-#427 blob has none → no offset.
-  conductorPrefs: { schema: ConductorPrefsSchema, complete: overDefaults(DEFAULT_CONDUCTOR_PREFS) },
   // The face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning; a
   // partial one is completed; a corrupt one falls back whole rather than leaving the panel to
   // dereference an undefined into a NaN slider.
@@ -409,9 +380,6 @@ export const HEAL_RULES: CoreHealRules = {
   // a default. (A mutation test caught the spread: removing it left the suite fully green,
   // which is the definition of a guard that guards nothing.)
   faceControls: { schema: FaceControlsDialSchema },
-  // The conductor dial (#187): a pre-conductor blob has none → off; completed over the
-  // current value (which is how `conductor.orchestra`, #336, reaches an older blob).
-  conductor: { schema: ConductorSettingsSchema, complete: overCurrent },
   // The gesture prefs (#129), completed over the current (default) prefs. The blob's
   // `bindings` record replaces the default wholesale (an unbound-by-the-user gesture must
   // STAY unbound, not be re-seeded every load).
@@ -466,7 +434,7 @@ export function withExtensionPrefs<S extends object>(state: S, prefSlices: reado
  * prefs (core's below and every extension's pref slice: persisted, never in an instrument), and
  * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
  */
-const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs', 'conductorPrefs'] as const satisfies readonly (keyof ControlState)[];
+const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
 const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
 
 /** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
@@ -513,7 +481,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
     : legacyFaceToMapping(p.faceEnabled);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, scoreDoc: current.scoreDoc, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, ...keptTransients(current) };
 }
 
 
@@ -556,11 +524,8 @@ export const useControls = create<ControlState>()(
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       hands: { ...DEFAULT_HANDS },
-      conductorPrefs: { leadOffsets: {} },
-      scoreDoc: null,
       graphElements: null,
       faceControls: defaultFaceControls(),
-      conductor: defaultConductor(),
       ...extensionDialDefaults(),
       ...extensionTransientDefaults(),
       faceCalibration: null,
@@ -592,12 +557,6 @@ export const useControls = create<ControlState>()(
           if (on === held) return s;
           return { hushedBy: on ? [...s.hushedBy, claimer] : s.hushedBy.filter((c) => c !== claimer) };
         }),
-      setConductorLeadOffsets: (offsets) =>
-        set((s) => {
-          const r = ConductorPrefsSchema.safeParse({ ...s.conductorPrefs, leadOffsets: offsets });
-          return r.success ? { conductorPrefs: r.data } : s;
-        }),
-      setScoreDoc: (doc) => set({ scoreDoc: doc }),
       setGraphElements: (elements) => set({ graphElements: elements }),
 
       setTransient: (field, value) => set({ [field]: value } as Partial<ControlState>),

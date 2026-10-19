@@ -40,9 +40,7 @@ import { searchTools } from './toolsCatalog';
 import { useTools } from './toolsStore';
 import { publishHeight, TOOLS_BAR_HEIGHT_VAR } from './shellLayout';
 import { useControls } from './store';
-import { useDialsSettings } from './dials/useDialsSettings';
-import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
-import type { ConductorSettings } from '@/settings/schema';
+import { dispatchCommand } from './dispatchDial';
 import VersionBadge from './VersionBadge';
 
 /** The launcher's hotkey (bound in `keyboardShortcuts.ts`), shown on its button. */
@@ -153,20 +151,12 @@ function ToolButton({
 function useDetached(): Record<string, { running: boolean; stop: () => void; hint: string }> {
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
-  const { state } = useDialsSettings();
-  const conducting = ((state.effective.conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
   // An extension's detached tools (#600 S15): the list is fixed for the build, so the hooks run in
   // a stable order on every render.
   const contributed = Object.fromEntries(UI_CONTRIBUTIONS.toolDetached.map(({ id, detached }) => [id, { running: detached.useRunning(), stop: detached.stop, hint: detached.hint }]));
   return {
     ...contributed,
     lab: { running: metersOn, stop: () => setFeatureLab({ show: false }), hint: 'turn the meters off' },
-    // Through the single write path: `conductor.enabled` is a dial.
-    conductor: {
-      running: conducting,
-      stop: () => void dispatchDialSetIn('conductor.enabled', false),
-      hint: 'stop conducting (the instrument sounds again)',
-    },
   };
 }
 

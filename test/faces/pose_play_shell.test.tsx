@@ -11,7 +11,6 @@ import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-libra
 import ToolsBar from '@/app/ToolsBar';
 import ToolsLauncher from '@/app/ToolsLauncher';
 import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import ConductorPanel from '@/app/ConductorPanel';
 import { useTools } from '@/app/toolsStore';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
@@ -78,7 +77,6 @@ describe.runIf(FACES)('a saved pose categorizer plays in the instrument', () => 
     render(
       <>
         <ToolsBar />
-        <ConductorPanel />
         <ExtensionToolPanels />
       </>,
     );

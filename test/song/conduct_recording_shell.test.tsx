@@ -10,7 +10,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import ConductorPanel from '@/app/ConductorPanel';
 import { describeRecording } from '@/slices/song/panels/RecordingSection';
 // The Song tool's panel, in the frame the shell opens an extension's tool in (#600 S15).
 import ExtensionToolPanels from '@/app/ExtensionToolPanels';
@@ -23,10 +22,10 @@ import { makeSongReporter, PACE_NODE_ID, SONG_NODE_ID, useSongStatus } from '@/s
 import { branchIdsFor } from '@/app/graph';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import type { DerivationSettings } from '@/instruments/derive';
-import type { ConductorSettings } from '@/settings/schema';
+import type { ConductorSettings } from '@/slices/conductor/schema';
 import { renderClickTrack, SR } from '../helpers/clicks';
 import { setSongHandle, setSongStartBeat, songStartBeat } from '@/slices/song/app/state';
-import { SONG } from '../helpers/extensions';
+import { CONDUCTOR, SONG } from '../helpers/extensions';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -55,12 +54,13 @@ afterEach(async () => {
   setSongHandle(null);
 });
 
-describe.runIf(SONG)('Conduct a recording', () => {
+// The Conductor's panel hosts it: both slices must be listed (#600 S18b).
+describe.runIf(SONG && CONDUCTOR)('Conduct a recording', () => {
   it('four clicks from a cold load: Conductor, Conduct a recording, Choose a recording, Start conducting', async () => {
     render(
       <>
         <ToolsBar />
-        <ConductorPanel />
+        <ExtensionToolPanels />
       </>,
     );
     fireEvent.click(screen.getByText('Conductor'));
@@ -91,7 +91,7 @@ describe.runIf(SONG)('Conduct a recording', () => {
     await dispatchDialSetIn('conductor.enabled', true);
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
-    render(<ConductorPanel />);
+    render(<ExtensionToolPanels />);
     // The servo's reading reaches the section through the SONG's reporter (#600 S15: the
     // conductor's reporter read it before the song became a slice).
     const outputs: Record<string, Record<string, unknown>> = {
@@ -108,7 +108,7 @@ describe.runIf(SONG)('Conduct a recording', () => {
     await dispatchDialSetIn('conductor.conducts', 'recording');
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
-    render(<ConductorPanel />);
+    render(<ExtensionToolPanels />);
     expect(songStartBeat()).toBe(0);
     fireEvent.change(screen.getByLabelText("Song beat the conductor's first beat lands on"), { target: { value: '8' } });
     await waitFor(() => expect(songStartBeat()).toBe(8));

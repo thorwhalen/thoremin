@@ -16,7 +16,6 @@ import { handFeaturesNode } from './features/hand_features';
 import { handsDwellNode } from './features/hands_dwell';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
-import { conductorNode } from './features/conductor';
 import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
@@ -28,7 +27,6 @@ import { chordSelectNode } from './mapping/chord_select';
 import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
 import { delayNode } from './mapping/delay';
-import { orchestraNode } from './output/orchestra';
 import { chordNode } from './music/chord';
 import { expressionChordNode } from './music/expression_chord';
 import { poseChordNode } from './music/pose_chord';
@@ -59,17 +57,6 @@ export { handFeaturesNode } from './features/hand_features';
 export { handsDwellNode } from './features/hands_dwell';
 export { faceFeaturesNode } from './features/face_features';
 export { faceControlsNode } from './features/face_controls';
-export {
-  conductorNode,
-  ConductorDialSchema,
-  DEFAULT_CONDUCTOR_DIAL,
-} from './features/conductor';
-export {
-  MusicalTimeSchema,
-  CONDUCTOR_HANDS,
-  CONDUCTOR_POINTS,
-} from './features/conductor';
-export type { ConductorDialParams, ConductorHand, ConductorPoint } from './features/conductor';
 export { faceExpressionNode } from './features/face_expression';
 export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
@@ -86,8 +73,6 @@ export { chordSelectNode } from './mapping/chord_select';
 export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
 export { delayNode } from './mapping/delay';
-export { orchestraNode, OrchestraSettingsSchema, DEFAULT_ORCHESTRA } from './output/orchestra';
-export type { OrchestraSettings, OrchestraSynth, OrchestraEngineFactory, OrchestraEngineOpts } from './output/orchestra';
 export { chordNode, voiceChord } from './music/chord';
 export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
 export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
@@ -107,7 +92,6 @@ export const CORE_NODES = [
   handsDwellNode,
   faceFeaturesNode,
   faceControlsNode,
-  conductorNode,
   faceExpressionNode,
   gestureClassifierNode,
   faceFeatureVectorNode,
@@ -119,7 +103,6 @@ export const CORE_NODES = [
   pickNode,
   oneEuroNode,
   delayNode,
-  orchestraNode,
   chordNode,
   expressionChordNode,
   poseChordNode,

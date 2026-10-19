@@ -21,7 +21,6 @@ import { FACE_MAPPINGS, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { flatDialKey, flatFields } from '@/host/slices';
 
@@ -179,15 +178,6 @@ export const thoreminDials = defineDials(
       title: 'Face control axes',
       description: 'Per-axis gain / deadzone / neutral zero / smoothing for the head-pose control mode',
     }),
-    // The conductor (#187) — a whole-object dial like `faceControls`: `paths.ts` derives
-    // `conductor.enabled`, `conductor.hand`, `conductor.servoBeats`, … from the node's own
-    // schema, so the panel, the palette, a keybinding and the AI assistant can all start
-    // conducting or retune the follower. Off by default.
-    conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR).meta({
-      facets: ['Conductor'],
-      title: 'Conductor',
-      description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat',
-    }),
     // The extensions' whole-object dials (the air instruments'), one field per slice:
     // `paths.ts` derives `airDrum.enabled`, `airDrum.rightSound`, … from each node's own
     // schema, and the per-dial commands, the palette and the AI tool surface follow.
@@ -243,7 +233,6 @@ export function settingsToLayer(s: Settings): Layer {
     overlay: s.overlay,
     handMap: s.handMap,
     faceControls: s.faceControls,
-    conductor: s.conductor,
     ...extensionDialsOf(s),
   });
 }
@@ -278,7 +267,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     overlay: v.overlay,
     handMap: v.handMap,
     faceControls: v.faceControls,
-    conductor: v.conductor,
     ...extensionSettingsOf(v),
   });
 }

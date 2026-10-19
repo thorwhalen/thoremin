@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { SHIPPED_EXTENSION_DIRS, MIDI, GENERATIVE, SONG } from './helpers/extensions';
+import { SHIPPED_EXTENSION_DIRS, MIDI, GENERATIVE, SONG, CONDUCTOR } from './helpers/extensions';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctxWith = (resources: Record<string, unknown>) =>
@@ -133,11 +133,11 @@ describe('every node that makes real-time output honours the boundary', () => {
   const synthNodes = registry.list().filter((d) => (d.roles ?? []).includes('synth'));
 
   it('finds the synth nodes (the guard is not vacuous)', () => {
-    // Core alone has the synth and the orchestra; the song player is the song slice's (#600 S15).
-    expect(synthNodes.length).toBeGreaterThanOrEqual(SONG ? 3 : 2);
+    // Core alone has the synth; the song player is the song slice's (#600 S15), the orchestra the conductor's (S18b).
+    expect(synthNodes.length).toBeGreaterThanOrEqual(1 + (SONG ? 1 : 0) + (CONDUCTOR ? 1 : 0));
     expect(synthNodes.map((d) => d.type).sort()).toEqual(
       // `midi-out` is the MIDI slice's (#600 S13): there while it is listed.
-      expect.arrayContaining([...(GENERATIVE ? ['lyria'] : []), ...(MIDI ? ['midi-out'] : []), ...(SONG ? ['song-player'] : []), 'webaudio-synth']),
+      expect.arrayContaining([...(GENERATIVE ? ['lyria'] : []), ...(MIDI ? ['midi-out'] : []), ...(SONG ? ['song-player'] : []), ...(CONDUCTOR ? ['orchestra'] : []), 'webaudio-synth']),
     );
   });
 
@@ -151,7 +151,8 @@ describe('every node that makes real-time output honours the boundary', () => {
       'pluck-out': join(airDir, 'nodes/pluck_out.ts'),
       // Moved with its slice (#600 S14).
       lyria: 'src/slices/generative/nodes/lyria.ts',
-      orchestra: 'src/nodes/output/orchestra.ts',
+      // The conductor slice's (#600 S18b).
+      orchestra: 'src/slices/conductor/nodes/orchestra.ts',
       // The song slice's (#600 S15).
       'song-player': 'src/slices/song/nodes/song_player.ts',
     };

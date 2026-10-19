@@ -97,9 +97,10 @@ export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
 /** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */
 export const EXTENSION_TOOL_DECLS: readonly (ExtensionToolDecl & { runsDetached?: true })[] = LISTED.flatMap((u) =>
   (u.tools ?? []).map((t) => {
-    const { id, label, description, group, defaultPinned } = t;
+    const { id, label, description, group, defaultPinned, before } = t;
+    const decl = { id, label, description, group, defaultPinned, ...(before === undefined ? {} : { before }) };
     // An eager tool that keeps working with its panel closed (#600 S15) runs detached.
-    return 'detached' in t && t.detached ? { id, label, description, group, defaultPinned, runsDetached: true as const } : { id, label, description, group, defaultPinned };
+    return 'detached' in t && t.detached ? { ...decl, runsDetached: true as const } : decl;
   }),
 );
 
@@ -154,21 +155,21 @@ const NO_SINK = (): void => undefined;
  * tick only, and the hook keeps a no-op sink afterwards, instead of being rebuilt and rethrown
  * at the frame rate.
  */
-export function makeExtensionSinks(engine: OutputReader): () => void {
-  const made = new Map<StatusHook, () => void>();
-  return () => {
+export function makeExtensionSinks(engine: OutputReader, resources: () => Readonly<Record<string, unknown>> = () => ({})): (nowMs?: number) => void {
+  const made = new Map<StatusHook, (nowMs: number) => void>();
+  return (nowMs = 0) => {
     let failure: unknown = null;
     for (const hook of extensionStatusHooks()) {
       try {
         let sink = made.get(hook);
         if (!sink) {
           try {
-            sink = hook.make(engine);
+            sink = hook.make(engine, resources);
           } finally {
             made.set(hook, sink ?? NO_SINK);
           }
         }
-        sink();
+        sink(nowMs);
       } catch (err) {
         failure ??= err;
       }

@@ -5,7 +5,6 @@
  * own versions in the blob's `sliceVersions`. `store.ts` wraps {@link migrateCoreControls} as its typed `migrateControls`.
  */
 import { legacyFaceToMapping } from '@thoremin/sdk/nodes/domain';
-import { LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
 
 /** A copy of a settings sub-object with its legacy `instrument` timbre field renamed to
  *  `sound`, so a returning player keeps their selection after the rename. A copy, never an
@@ -66,7 +65,7 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  *   10, C4..C#6).
  * - v20 (#269): `airDrum.pattern` (the trained pattern in play, '' for none).
  * - v21 (#232): the conductor dial gained `prior`; a returning player's conductor stays on
- *   the oscillator (LEGACY_CONDUCTOR_PRIOR). Step.
+ *   the oscillator. Step; the conductor slice's own since #600 S18.
  * - v22 (#148): `hands` (the handedness dwell, default 0 = the raw per-frame label every
  *   earlier blob played by); healed after the v21 step runs.
  * - v23 (#168 Q3): `midi.muteFollowsMaster` (default true = the master mute silences MIDI,
@@ -153,13 +152,9 @@ const CONTROLS_MIGRATIONS: Readonly<Record<number, ControlsMigration>> = {
     const hud = s.trainerHud as Record<string, unknown> | undefined;
     return hud && hud.show === true ? { ...s, trainerHud: { ...hud, show: false } } : s;
   },
-  // → v21 (#232): the conductor dial gained `prior`, whose default (`blend`) is a behaviour
-  // change. A returning player's conductor was the oscillator; it stays so (as a saved
-  // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
-  20: (s) => {
-    const cond = s.conductor as Record<string, unknown> | undefined;
-    return cond && typeof cond === 'object' && cond.prior === undefined ? { ...s, conductor: { ...cond, prior: LEGACY_CONDUCTOR_PRIOR } } : s;
-  },
+  // → v21 (#232): the conductor dial gained `prior`. That step is the conductor slice's own
+  // (`migrateConductorV1`, its dial's v1 -> v2) since #600 S18: a blob that names no
+  // conductor version reads as v1, so a returning player's conductor still stays on the oscillator.
 };
 
 /** The steps as `[readVersion, step]`, oldest first: the order a chain must run in. */

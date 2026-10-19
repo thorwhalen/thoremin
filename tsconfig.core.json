@@ -9,7 +9,6 @@
     "packages/sdk-ui/src",
     "src/instruments",
     "packages/ictus/src",
-    "src/score",
     "packages/lazy/src",
     "packages/stats/src",
     "src/keys",

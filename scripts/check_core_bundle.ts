@@ -29,12 +29,13 @@ import { MIDI_EXTENSION } from '../src/slices/midi';
 import { GENERATIVE_EXTENSION } from '../src/slices/generative';
 import { SONG_EXTENSION } from '../src/slices/song';
 import { BODY_EXTENSION } from '../src/slices/body';
+import { CONDUCTOR_EXTENSION } from '../src/slices/conductor';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);
@@ -93,7 +94,10 @@ const needles = SHIPPED.flatMap((e) => [
   ...e.dials.map((d) => `"${d.kind}"`),
 ]);
 // A port KIND core still names as a string (the overlay reads the drum's config) is not code.
-const allowed = new Set(['"air-drum-config"']);
+// `"conductor"` is also a common word core says for other things (a tool id an entry point is
+// `from`, the SDK's chord clock and pose vocabulary), and the core `score` node still reads the
+// conductor dial's kind on its `config` port (#600 S18b; the score node is S19's to settle).
+const allowed = new Set(['"air-drum-config"', '"conductor"', '"conductor-config"']);
 
 /** Fail when a build carries a shipped extension's module or identifier. */
 function assertNoShipped(label: string, extensionModules: Set<string>, js: string): void {

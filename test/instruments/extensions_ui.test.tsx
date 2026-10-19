@@ -21,8 +21,9 @@ describe('the React halves of the extensions', () => {
     // An add-on section belongs to no instrument of its own: the faces extension's "Face
     // categorizer" is a section of the face chords (#330 P4); the MIDI slice's section (#600 S13) is
     // an output, not an instrument, and so is the generative layer's (#600 S14); the body slice's
-    // (#600 S17b) is a source the instruments share.
-    const ADD_ON_SECTIONS = new Set(['faces', 'midi', 'generative', 'body']);
+    // (#600 S17b) is a source the instruments share; the conductor's (#600 S18b) is a mode any
+    // instrument can be conducted in.
+    const ADD_ON_SECTIONS = new Set(['faces', 'midi', 'generative', 'body', 'conductor']);
     expect(EXTENSION_PANELS.map((p) => p.instrumentId).filter((id) => !ADD_ON_SECTIONS.has(id)).sort()).toEqual(INSTRUMENT_CATALOG.map((a) => a.id).sort());
     for (const p of EXTENSION_PANELS) {
       expect(p.section.length).toBeGreaterThan(0);
@@ -37,8 +38,8 @@ describe('the React halves of the extensions', () => {
     const nodeIds = new Set(EXTENSIONS.flatMap((e) => e.branches.flatMap((b) => b.nodes.map((n) => n.id))));
     for (const hook of extensionStatusHooks()) {
       expect(nodeIds.has(hook.nodeId), hook.nodeId).toBe(true);
-      const sink = hook.make({ getOutput: () => undefined });
-      expect(() => sink()).not.toThrow();
+      const sink = hook.make({ getOutput: () => undefined }, () => ({}));
+      expect(() => sink(0)).not.toThrow();
       expect(() => hook.onRemoved()).not.toThrow();
       expect(() => hook.reset()).not.toThrow();
     }

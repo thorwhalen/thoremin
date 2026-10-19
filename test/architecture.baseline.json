@@ -1,6 +1,6 @@
 {
   "//": "The architecture ratchet's baseline (#600 S1): test/architecture_ratchet.test.ts compares the tree with it. A number may only go down; the PR that lowers one runs `npm run ratchet:arch -- --update` and commits this file. What each number counts: scripts/lib_architecture.ts.",
-  "nodeImplementationImports": 1,
+  "nodeImplementationImports": 0,
   "extensionNamesInCore": {
     "air": 7,
     "asl": 0,
@@ -8,10 +8,11 @@
     "generative-layer": 0,
     "song-tool": 0,
     "body-tracking": 0,
-    "faces": 4
+    "conductor-tool": 4,
+    "faces": 3
   },
-  "storeControlsPorts": 26,
-  "useEngineReporters": 5,
+  "storeControlsPorts": 23,
+  "useEngineReporters": 3,
   "foldPoints": 2,
   "importCycles": 0,
   "runtimeImportCycles": 0,
