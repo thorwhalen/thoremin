@@ -28,13 +28,11 @@ import { bodyPulseNode } from './features/body_pulse';
 import { voiceMappingNode } from './mapping/voice_mapping';
 import { bodyRouteNode } from './mapping/body_route';
 import { keyboardControlNode } from './mapping/keyboard_control';
-import { indirectMapNode } from './mapping/indirect_map';
 import { synthMergeNode } from './mapping/synth_merge';
 import { chordSelectNode } from './mapping/chord_select';
 import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
 import { delayNode } from './mapping/delay';
-import { lyriaNode } from './output/lyria';
 import { orchestraNode } from './output/orchestra';
 import { songPlayerNode } from './output/song_player';
 import { chordNode } from './music/chord';
@@ -95,13 +93,11 @@ export { bodyRouteNode } from './mapping/body_route';
 export { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, BodyMapSchema, DEFAULT_BODY_MAP, NEUTRAL_MODS, bodyRouteMods } from './mapping/body_map';
 export type { BodyMap, BodyRoute, BodyRouteTarget, BodyRouteSlot, VoiceMods } from './mapping/body_map';
 export { keyboardControlNode } from './mapping/keyboard_control';
-export { indirectMapNode } from './mapping/indirect_map';
 export { synthMergeNode } from './mapping/synth_merge';
 export { chordSelectNode } from './mapping/chord_select';
 export { pickNode } from './mapping/pick';
 export { oneEuroNode } from './mapping/one_euro';
 export { delayNode } from './mapping/delay';
-export { lyriaNode } from './output/lyria';
 export { orchestraNode, OrchestraSettingsSchema, DEFAULT_ORCHESTRA } from './output/orchestra';
 export type { OrchestraSettings, OrchestraSynth, OrchestraEngineFactory, OrchestraEngineOpts } from './output/orchestra';
 export { songPlayerNode } from './output/song_player';
@@ -114,8 +110,6 @@ export { transportNode } from './music/transport';
 export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES, DEMO_LOOP_BEATS } from './music/score';
 export { performanceNode } from './music/performance';
 export { paceControllerNode } from './music/pace_controller';
-export type { GenerativeEngine, GenerativeSteer, GenerativeConfig, WeightedPrompt, GenerativeEngineFactory, GenerativeEngineOpts } from './output/generative';
-export type { GenerativeStatus } from './output/lyria';
 export * from '@thoremin/sdk/nodes/domain';
 
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */
@@ -140,13 +134,11 @@ export const CORE_NODES = [
   voiceMappingNode,
   bodyRouteNode,
   keyboardControlNode,
-  indirectMapNode,
   synthMergeNode,
   chordSelectNode,
   pickNode,
   oneEuroNode,
   delayNode,
-  lyriaNode,
   orchestraNode,
   songPlayerNode,
   paceControllerNode,

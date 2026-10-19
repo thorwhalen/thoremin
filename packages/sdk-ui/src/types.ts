@@ -76,9 +76,14 @@ export interface ExtensionTool extends ExtensionToolDecl {
 export interface KeybindingDecl {
   /** A tinykeys binding string (`Space`, `$mod+k`). */
   key: string;
-  command: string;
+  /** The command the key dispatches; or, for state that is deliberately NOT a command (a
+   *  transport, like the master mute: nothing but a human press may start a paid stream), `run`. */
+  command?: string;
+  run?: () => void;
   params?: Readonly<Record<string, unknown>>;
   when?: (e?: Pick<KeyboardEvent, 'repeat'>) => 'pass' | 'swallow' | 'dispatch';
+  /** What the key does, for the editor's Keyboard list (#600 S14: `p — play / pause ...`). */
+  help?: string;
 }
 
 /** A command implementation an extension provides (an acture `CommandRecord`), typed
@@ -86,6 +91,9 @@ export interface KeybindingDecl {
 export interface ExtensionCommand {
   readonly id: string;
   readonly execute: (params: never, ctx: never) => unknown;
+  /** It writes the dials (through `applyDial`), so undo takes it back and the assistant treats it
+   *  as a write (#600 S14). Absent: a query, or a write undo cannot reach. */
+  readonly writesDials?: boolean;
 }
 
 /**

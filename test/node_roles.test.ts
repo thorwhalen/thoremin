@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import type { Role } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { buildCatalog } from '@/catalog';
+import { GENERATIVE } from './helpers/extensions';
 
 const reg = createAppRegistry();
 const typesWithRole = (role: Role): string[] =>
@@ -27,9 +28,10 @@ describe('node roles', () => {
 
   it('listByRole filters by advisory role', () => {
     // generate is a rare modifier — only the AI engine carries it.
-    expect(typesWithRole('generate')).toEqual(['lyria']);
+    // `lyria` is the generative slice's (#600 S14): there while it is listed.
+    expect(typesWithRole('generate')).toEqual(GENERATIVE ? ['lyria'] : []);
     // synth includes both the deterministic synth and the generative one.
-    expect(typesWithRole('synth')).toEqual(expect.arrayContaining(['webaudio-synth', 'lyria']));
+    expect(typesWithRole('synth')).toEqual(expect.arrayContaining(['webaudio-synth', ...(GENERATIVE ? ['lyria'] : [])]));
     expect(typesWithRole('source')).toEqual(
       expect.arrayContaining(['webcam-hands', 'webcam-face', 'keyboard-source', 'store-controls']),
     );
@@ -44,7 +46,7 @@ describe('node roles', () => {
 
   it('surfaces roles in the catalog (docs/onboarding)', () => {
     const byType = Object.fromEntries(buildCatalog(reg).map((e) => [e.type, e]));
-    expect(byType['lyria'].roles).toEqual(['synth', 'generate']);
+    if (GENERATIVE) expect(byType['lyria'].roles).toEqual(['synth', 'generate']);
     expect(byType['canvas-overlay'].roles).toEqual(['overlay']);
     expect(byType['voice-mapping'].roles).toEqual(['mapping']);
   });

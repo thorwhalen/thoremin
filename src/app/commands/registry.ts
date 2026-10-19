@@ -26,7 +26,6 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { DIAL_COMMANDS } from './dials';
 import { DIAL_FIELD_COMMANDS } from './perDial';
 import { INSTRUMENT_COMMANDS } from './instruments';
-import { STEER_COMMANDS } from './steer';
 import { RECORDING_COMMANDS } from './recording';
 import { SONG_COMMANDS } from './song';
 import { CONDUCTOR_TIMING_COMMANDS } from './conductorLead';
@@ -37,7 +36,7 @@ import { installMiddleware } from './middleware';
 
 /** Build a registry with all of CORE's commands registered: the generic dial verbs,
  *  one typed `set` command per dial (generated from the dials SSOT), the instrument
- *  load/save/create commands, the generative steering commands (#188), the
+ *  load/save/create commands, the
  *  recording-location commands (#257), the song transport (#186 PR G) and the body
  *  conductor's timing (#427). The extensions' commands are registered by the shell's
  *  contribution registry (`src/app/host/contributions.ts`, #600 S11), which may name the
@@ -47,7 +46,6 @@ export function createThoreminRegistry(): Registry {
   r.registerAll(DIAL_COMMANDS);
   r.registerAll(DIAL_FIELD_COMMANDS);
   r.registerAll(INSTRUMENT_COMMANDS);
-  r.registerAll(STEER_COMMANDS);
   r.registerAll(RECORDING_COMMANDS);
   r.registerAll(SONG_COMMANDS);
   r.registerAll(CONDUCTOR_TIMING_COMMANDS);

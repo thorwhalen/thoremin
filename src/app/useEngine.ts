@@ -36,7 +36,6 @@ import { trainerHudResource } from './enroll/hud';
 import { useRecordingController } from './recording/useRecordingController';
 import { tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus, makeFaceReporter } from './faceStatus';
-import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
 import { createTimingResource } from './timing/resource';
@@ -75,8 +74,7 @@ export type { RecordingPhase } from './recording/useRecordingController';
 function resetStatusesOf(removed: readonly string[]): void {
   for (const id of removed) {
     for (const hook of extensionStatusHooks()) if (hook.nodeId === id) hook.onRemoved();
-    if (id === GENERATIVE_NODE_ID) useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS);
-    else if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
+    if (id === CONDUCTOR_NODE_ID) useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE);
     else if (id === ORCHESTRA_NODE_ID) useOrchestraStatus.getState().report(ABSENT_ORCHESTRA_STATUS);
   }
 }
@@ -353,10 +351,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         void useCategoryBinding.getState().load();
         const reportCategory = (now: number) => categoryDispatcher.tick(now);
 
-        // Bridge the `lyria` node's status to React (#188), so the Generative settings
-        // section can render an honest readout (loading / ready / playing / needs a
-        // key). Change-gated inside the reporter, like the others.
-        const reportGenerative = makeGenerativeReporter(engine);
         // Bridge the `conductor` node's musical time to React (#187), for the Conductor
         // tool panel's live readout. Change-gated inside the reporter, like the others.
         const reportConductor = makeConductorReporter(engine);
@@ -415,7 +409,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -447,7 +441,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       useFaceStatus.getState().reset();
       resetLiveVector();
       useGestureStatus.getState().reset();
-      useGenerativeStatus.getState().reset();
       useConductorStatus.getState().reset();
       useOrchestraStatus.getState().reset();
       useSongStatus.getState().reset();
@@ -459,8 +452,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       resetCategoryLive();
       timing?.dispose();
       timing = null;
-      // A rebuilt engine must not auto-start a paid stream from a stale transport flag.
-      useControls.getState().setSteerPlaying(false);
       // Nor start the song by itself on the next tap (#186 PR G): the new player has no
       // memory of the press that started the old one.
       useControls.getState().setSongPlaying(false);

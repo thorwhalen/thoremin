@@ -68,6 +68,11 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
   /** A flat slice's fields whose dial key is not `key.field` (#600 S13): a built-in feature whose
    *  field had another key keeps it (`{ config: 'steerConfig' }`). */
   flatKeys?: Readonly<Record<string, string>>;
+  /** A flat slice's fields completed after healing (#600 S14): a PARTIAL value (the shape an older
+   *  build saved) filled from the default, in the hot store and in a saved instrument alike, so
+   *  the two halves of the dirty compare can never differ by a key nobody edited. Returns the
+   *  value itself when nothing is missing. */
+  complete?: Readonly<Record<string, (value: unknown) => unknown>>;
   /**
    * `store-controls` ports derived from the dial (#600 S13), beside the whole-dial port `key`: each
    * reads one value out of the dial (healed, so never undefined), for a node whose live inputs
@@ -77,12 +82,18 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
   ports?: readonly DialPort[];
 }
 
+/** What a derived port may read besides its dial (#600 S14): the host's live state it needs. */
+export interface DialPortHost {
+  /** A tool holds the room (the trainer, the carve): an output that must go quiet reads it. */
+  claimed: boolean;
+}
+
 /** One `store-controls` port a dial slice derives (see {@link DialSlice.ports}). */
 export interface DialPort {
   name: string;
   kind: string;
-  /** The port's value, from the dial's value. */
-  read: (dial: never) => unknown;
+  /** The port's value, from the dial's value (and, when it needs one, the host's state). */
+  read: (dial: never, host: DialPortHost) => unknown;
 }
 
 /** One step of a slice's migration chain (see {@link DialSlice.migrations}). */
@@ -118,6 +129,8 @@ export interface CommandDecl {
   category: string;
   /** Its parameters' schema (a Zod object). */
   params: z.ZodTypeAny;
+  /** It writes the dials, so undo takes it back (#600 S14; see `ExtensionCommand.writesDials`). */
+  writesDials?: boolean;
 }
 
 /**
@@ -154,12 +167,15 @@ export interface TransientPort<F extends string = string, T = unknown> {
   /** Phantom: the field's value type (never set at runtime), so the hot store's TYPE can carry
    *  the field without core naming it. Build with {@link transientPort}. */
   readonly __value?: T;
+  /** Its value before anything sets it (#600 S14; default `null`): a built-in feature's transient
+   *  keeps the initial value it had in core (the generative transport, `false`). */
+  initial?: T;
 }
 
 /** A {@link TransientPort} with its field name literal and its value type kept:
  *  `transientPort<TrainedModel>()('airGuitarModel', 'shape-model')`. */
 export function transientPort<T>() {
-  return <const F extends string>(field: F, kind: string): TransientPort<F, T> => ({ field, kind });
+  return <const F extends string>(field: F, kind: string, initial?: T): TransientPort<F, T> => (initial === undefined ? { field, kind } : { field, kind, initial });
 }
 
 /**

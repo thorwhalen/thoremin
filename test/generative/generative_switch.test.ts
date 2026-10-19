@@ -11,10 +11,21 @@ import { describe, it, expect } from 'vitest';
 import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import type { ControlSnapshot } from '@/nodes/sources/store_controls';
-import type { GenerativeConfig, GenerativeEngine, GenerativeEngineFactory, GenerativeStatus, WeightedPrompt } from '@/nodes';
-import { defaultGraph, STARTER_STEER } from '@/app/graph';
+import type { GenerativeConfig, GenerativeEngine, GenerativeEngineFactory, WeightedPrompt } from '@/slices/generative/nodes/generative';
+import type { GenerativeStatus } from '@/slices/generative/nodes/lyria';
+import { defaultGraph } from '@/app/graph';
+// The starter strains were `graph.ts`'s `STARTER_STEER`, the same object (#600 S14: the slice's).
+import { DEFAULT_STEER_CONFIG as STARTER_STEER } from '@/slices/generative/nodes/indirect_map.schema';
 import { mergeControls, useControls, toSettings } from '@/app/store';
-import { DEFAULT_STEER, SettingsSchema } from '@/settings/schema';
+import { SettingsSchema } from '@/settings/schema';
+import { DEFAULT_STEER } from '@/slices/generative/schema';
+import { GENERATIVE } from '../helpers/extensions';
+import { controls } from '@thoremin/sdk-ui/host';
+import { pauseWhenDisabled } from '@/slices/generative/app/transport';
+
+type Playing = { steerPlaying?: boolean | null };
+const playing = () => (useControls.getState() as unknown as Playing).steerPlaying;
+const steerOf = () => (useControls.getState() as unknown as { steer: Record<string, unknown> }).steer;
 import { settingsToLayer, layerToSettings, thoreminDials } from '@/settings/dials';
 
 class MockEngine implements GenerativeEngine {
@@ -50,7 +61,7 @@ class MockEngine implements GenerativeEngine {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-describe('the store: the steer preset field and the transient transport', () => {
+describe.runIf(GENERATIVE)('the store: the steer preset field and the transient transport', () => {
   it('has the generative layer off by default, at 0.7, with the starter (empty) config', () => {
     const s = useControls.getState();
     expect(s.steer).toEqual({ enabled: false, volume: 0.7, config: DEFAULT_STEER.config });
@@ -77,31 +88,46 @@ describe('the store: the steer preset field and the transient transport', () => 
     expect(healed.config.dials).toEqual(DEFAULT_STEER.config.dials);
   });
 
-  it('the transport never resumes from storage, even from a hand-edited blob', () => {
+  // A flat slice heals field by field (#600 S14, as MIDI's always did): a corrupt field takes its
+  // default alone. Core healed the steer object WHOLE, so a corrupt config also switched the layer
+  // off; now the player's switch and level survive it. The transport still starts paused.
+  it('a corrupt field heals alone: the layer\'s switch and level survive a corrupt config', () => {
     const initial = useControls.getState();
-    expect(mergeControls({ steer: { enabled: true }, steerPlaying: true }, initial).steerPlaying).toBe(false);
+    const healed = mergeControls({ steer: { enabled: true, volume: 0.4, config: 'garbage' } }, initial) as unknown as { steer: { enabled: boolean; volume: number; config: unknown }; steerPlaying: boolean };
+    expect(healed.steer.enabled).toBe(true);
+    expect(healed.steer.volume).toBe(0.4);
+    expect(healed.steer.config).toEqual(DEFAULT_STEER.config);
+    expect(healed.steerPlaying).toBe(false);
   });
 
-  it('setSteerPlaying / toggleSteerPlaying flip the transient flag', () => {
-    useControls.getState().setSteerPlaying(true);
-    expect(useControls.getState().steerPlaying).toBe(true);
-    useControls.getState().toggleSteerPlaying();
-    expect(useControls.getState().steerPlaying).toBe(false);
+  it('the transport never resumes from storage, even from a hand-edited blob', () => {
+    const initial = useControls.getState();
+    expect((mergeControls({ steer: { enabled: true }, steerPlaying: true }, initial) as unknown as Playing).steerPlaying).toBe(false);
+  });
+
+  it('the slice flips the transient flag through the SDK\'s controls seam (#600 S14: was setSteerPlaying / toggleSteerPlaying)', () => {
+    controls().setTransient('steerPlaying', true);
+    expect(playing()).toBe(true);
+    controls().setTransient('steerPlaying', false);
+    expect(playing()).toBe(false);
   });
 
   it('switching the layer OFF (through the dials → store sync) pauses the transport, so re-enabling never auto-plays', () => {
-    const s = useControls.getState();
+    // The rule is the slice's mount effect since #600 S14 (it was in the store's applySettings).
+    const stop = pauseWhenDisabled();
+    const s = useControls.getState() as unknown as typeof useControls extends { getState(): infer T } ? T & { steer: { enabled: boolean } } : never;
     s.applySettings({ ...toSettings(s), steer: { ...s.steer, enabled: true } });
-    s.setSteerPlaying(true);
-    expect(useControls.getState().steerPlaying).toBe(true);
+    controls().setTransient('steerPlaying', true);
+    expect(playing()).toBe(true);
     // Unrelated settings changes leave the transport alone...
     s.applySettings({ ...toSettings(useControls.getState()), masterVolume: 0.3 });
-    expect(useControls.getState().steerPlaying).toBe(true);
+    expect(playing()).toBe(true);
     // ...switching the layer off pauses it.
-    s.applySettings({ ...toSettings(useControls.getState()), steer: { ...useControls.getState().steer, enabled: false } });
-    expect(useControls.getState().steerPlaying).toBe(false);
-    s.applySettings({ ...toSettings(useControls.getState()), steer: { ...useControls.getState().steer, enabled: true } });
-    expect(useControls.getState().steerPlaying).toBe(false);
+    s.applySettings({ ...toSettings(useControls.getState()), steer: { ...steerOf(), enabled: false } } as never);
+    expect(playing()).toBe(false);
+    s.applySettings({ ...toSettings(useControls.getState()), steer: { ...steerOf(), enabled: true } } as never);
+    expect(playing()).toBe(false);
+    stop();
   });
 
   it('the dials layer round-trips the steer field (schema ↔ flat keys), and the keys exist as dials', () => {
@@ -115,7 +141,7 @@ describe('the store: the steer preset field and the transient transport', () => 
   });
 });
 
-describe('the starter steering', () => {
+describe.runIf(GENERATIVE)('the starter steering', () => {
   it('reads "raise the hand" as MORE (image y is 0 at the top), matching the panel copy', () => {
     for (const ref of [...STARTER_STEER.strains!, ...STARTER_STEER.dials!]) {
       if (ref.feature === 'y') {
@@ -125,7 +151,7 @@ describe('the starter steering', () => {
   });
 });
 
-describe('store-controls emits the steer ports', () => {
+describe.runIf(GENERATIVE)('store-controls emits the steer ports', () => {
   const snapshot = (over: Partial<ControlSnapshot>): ControlSnapshot => ({
     right: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'warmPad' },
     left: { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3, sound: 'glass' },
@@ -142,12 +168,21 @@ describe('store-controls emits the steer ports', () => {
     return (port: string) => eng.getOutput('ui', port);
   };
 
-  it('defaults: off, not playing, 0.7, and no steerConfig when the snapshot has none', () => {
+  // With no dial in the snapshot the slice's derived port carries the dial's DEFAULT config
+  // (#600 S14), which is the node's build-time starter config: what "absent" meant before.
+  it('defaults: off, not playing, 0.7, and the starter steerConfig when the snapshot has none', () => {
     const out = tick(snapshot({}));
     expect(out('steerEnabled')).toBe(false);
     expect(out('steerPlaying')).toBe(false);
     expect(out('steerVolume')).toBe(0.7);
-    expect(out('steerConfig')).toBeUndefined();
+    expect(out('steerConfig')).toEqual(STARTER_STEER);
+  });
+
+  // Moved from `test/instrument_hush.test.ts` (#600 S14): the layer is not a merged voice, so its
+  // level drops with a tool's claim (the slice's derived port reads the host's claimed state).
+  it('a tool claim quiets the generative level', () => {
+    const out = tick(snapshot({ steer: { enabled: true, volume: 0.5, config: {} }, hushedBy: ['trainer'] } as Partial<ControlSnapshot>));
+    expect(out('steerVolume')).toBe(0);
   });
 
   it('carries the live values through', () => {
@@ -160,7 +195,7 @@ describe('store-controls emits the steer ports', () => {
   });
 });
 
-describe('the production graph, driven headlessly through the switch', () => {
+describe.runIf(GENERATIVE)('the production graph, driven headlessly through the switch', () => {
   it('enable + play reaches the engine with the starter strains, reports active, and disabling stops it', async () => {
     const control = {
       right: { root: 0, type: 'pentatonic' as const, octaves: 2, baseOctave: 3, sound: 'warmPad' as const },

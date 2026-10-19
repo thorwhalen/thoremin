@@ -11,6 +11,8 @@
  */
 // The app's storage target, installed before any store is used (#600 S12).
 import './host/storage';
+// The AI-provider key store, for an extension's engine (#600 S14).
+import './host/keys';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';

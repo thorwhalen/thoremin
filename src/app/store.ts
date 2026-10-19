@@ -31,17 +31,13 @@ import {
   DEFAULT_BODY,
   BodySettingsSchema,
   type BodySettings,
-  DEFAULT_STEER,
-  defaultSteerConfig,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
-  SteerSettingsSchema,
   SettingsSchema,
   type Settings,
   type FaceChord,
   type FaceExpr,
-  type SteerSettings,
   SongSettingsSchema,
   DEFAULT_SONG,
   type SongSettings,
@@ -75,7 +71,6 @@ const defaultHandMap = (): HandMap => structuredClone(DEFAULT_HAND_MAP);
  *  module-level constant itself, or an edit in one instrument would mutate the default. */
 const defaultFaceControls = (): FaceControlsDialParams => ({ ...DEFAULT_FACE_CONTROLS_DIAL });
 /** A fresh generative-layer default (the `config` object is cloned for the same reason). */
-const defaultSteer = (): SteerSettings => ({ ...DEFAULT_STEER, config: structuredClone(DEFAULT_STEER.config) });
 /** A fresh copy of the shipped conductor dial (#187): off. */
 const defaultConductor = (): ConductorSettings => ({ ...DEFAULT_CONDUCTOR });
 
@@ -205,7 +200,7 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    * tick until another song loads, so `song-player` detects a new song by identity.
    */
   songHandle: SongHandle | null;
-  /** The song's TRANSPORT, transient like {@link steerPlaying}: a saved instrument must
+  /** The song's TRANSPORT, transient like the generative layer's (`steerPlaying`): a saved instrument must
    *  never start playing on load. Written by the `song.play` / `song.pause` commands
    *  (through the song host), and back to false when the song plays to its end. */
   songPlaying: boolean;
@@ -217,19 +212,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  beat lands when he conducts the recording (#364): the way past an intro or a pickup.
    *  Transient: it belongs to THIS song, so loading another resets it to 0. */
   songStartBeat: number;
-  /** The generative layer (#141 / #188): on/off, level, and what the gestures mean
-   *  (`config`). A preset field (in {@link SETTINGS_KEYS}); read live by `indirect-map`
-   *  / `lyria` via `store-controls` → their `steerConfig` / `enabled` / `volume` inputs. */
-  steer: SteerSettings;
-  /**
-   * The generative TRANSPORT: is the engine streaming right now. Like {@link muted},
-   * deliberately NOT a dial and NOT persisted: a dial rides saved instruments, and an
-   * instrument saved while playing would start a paid cloud stream on load and flip
-   * dirty on every play/pause. Toggled directly by the Generative panel's button (the
-   * `m`-key precedent, #91); flows to the `lyria` node's `playing` input through
-   * `store-controls`. Always false after a reload.
-   */
-  steerPlaying: boolean;
   /**
    * The head/face CONTROL axis tuning (#76): per-axis gain (negative flips a
    * direction), deadzone, neutral zero and shared smoothing for the `face-controls`
@@ -317,9 +299,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** Replace an extension's transient field (a learned model, a pattern in play; see
    *  {@link ExtensionTransients}): never persisted, re-derived by the extension on load. */
   setTransient<K extends keyof ExtensionTransients & string>(field: K, value: ExtensionTransients[K]): void;
-  /** Set / toggle the generative transport (transient, see {@link steerPlaying}). */
-  setSteerPlaying(v: boolean): void;
-  toggleSteerPlaying(): void;
   setFaceMapping(v: FaceMapping): void;
   /** Patch the face-chord settings (e.g. setFaceChord({ voicing: 'spread' })). */
   setFaceChord(patch: Partial<FaceChord>): void;
@@ -473,18 +452,6 @@ export const HEAL_RULES: CoreHealRules = {
   conductorPrefs: { schema: ConductorPrefsSchema, complete: overDefaults(DEFAULT_CONDUCTOR_PREFS) },
   // The body map (#186): a pre-routing blob has none → no routes.
   bodyMap: { schema: BodyMapSchema },
-  // The generative layer (#188): a pre-#188 blob has none → off / 0.7 / starter strains; a
-  // partial one is completed; a corrupt one falls back whole.
-  steer: {
-    schema: SteerSettingsSchema,
-    complete: overDefaults(DEFAULT_STEER),
-    // A PARTIAL config (the shape #202 persisted: smoothing + cadence, no arrays) is
-    // completed from the default. Absent arrays already meant "the starter strains" to the
-    // node, so this is sound-identical; it exists so the working layer and a saved
-    // instrument (which `normalizeLayer` completes the same way) can never differ by a key
-    // nobody edited and flag a phantom "unsaved edits".
-    finish: (parsed) => ({ ...parsed, config: { ...defaultSteerConfig(), ...parsed.config } }),
-  },
   // The face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning; a
   // partial one is completed; a corrupt one falls back whole rather than leaving the panel to
   // dereference an undefined into a NaN slider.
@@ -518,6 +485,8 @@ const overCurrentFields = (slice: DialSlice) => (stored: unknown, current: unkno
     const parsed = schema.safeParse((stored as Record<string, unknown> | undefined)?.[field]);
     if (parsed.success) out[field] = parsed.data;
   }
+  // A partial field value completed from the default (#600 S14), as a saved instrument's is.
+  for (const [field, complete] of Object.entries(slice.complete ?? {})) out[field] = complete(out[field]);
   return out;
 };
 
@@ -600,7 +569,7 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
     : legacyFaceToMapping(p.faceEnabled);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
@@ -655,8 +624,6 @@ export const useControls = create<ControlState>()(
       songPlays: 0,
       songStartBeat: 0,
       bodyMap: structuredClone(DEFAULT_BODY_MAP),
-      steer: defaultSteer(),
-      steerPlaying: false,
       scoreDoc: null,
       graphElements: null,
       faceControls: defaultFaceControls(),
@@ -692,7 +659,6 @@ export const useControls = create<ControlState>()(
           if (on === held) return s;
           return { hushedBy: on ? [...s.hushedBy, claimer] : s.hushedBy.filter((c) => c !== claimer) };
         }),
-      setSteerPlaying: (v) => set({ steerPlaying: v }),
       setSongHandle: (song) =>
         set((s) => {
           if (s.songHandle === song) return s;
@@ -715,7 +681,6 @@ export const useControls = create<ControlState>()(
       setGraphElements: (elements) => set({ graphElements: elements }),
 
       setTransient: (field, value) => set({ [field]: value } as Partial<ControlState>),
-      toggleSteerPlaying: () => set((s) => ({ steerPlaying: !s.steerPlaying })),
       setFaceMapping: (v) => set({ faceMapping: v }),
       setFaceChord: (patch) => set((s) => ({ faceChord: { ...s.faceChord, ...patch } })),
       setExpressionSensitivity: (emotion, value) =>
@@ -744,15 +709,7 @@ export const useControls = create<ControlState>()(
       },
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
-      applySettings: (st) =>
-        set((s) => {
-          const next = pickSettings(st as unknown as Record<string, unknown>);
-          // Switching the generative layer OFF pauses its transport (#188): a stale
-          // `steerPlaying` would otherwise auto-start a paid stream on the next enable,
-          // with no Play press — within a session, the very thing "not a dial" prevents.
-          const steerOff = next.steer?.enabled === false && s.steer.enabled !== false;
-          return steerOff ? { ...next, steerPlaying: false } : next;
-        }),
+      applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
       name: 'thoremin-controls',

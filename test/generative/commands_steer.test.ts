@@ -9,19 +9,24 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createThoreminRegistry } from '@/app/commands/registry';
-import { currentSteerConfig, STEER_COMMANDS } from '@/app/commands/steer';
+import { currentSteerConfig, STEER_COMMANDS } from '@/slices/generative/app/steerCommands';
+// The dial write path the SDK's `applyDial` reaches (it installs its host).
+import '@/app/dispatchDial';
+import { GENERATIVE } from '../helpers/extensions';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { useControls } from '@/app/store';
-import { DEFAULT_STEER_CONFIG, defaultSteerConfig } from '@/settings/schema';
+import { DEFAULT_STEER_CONFIG, defaultSteerConfig } from '@/slices/generative/nodes/indirect_map.schema';
 
+// The steering commands are the generative slice's (#600 S14): registered beside core's.
 const reg = createThoreminRegistry();
+reg.registerAll(STEER_COMMANDS as never);
 const texts = () => currentSteerConfig().strains.map((s) => s.text);
 
 beforeEach(() => {
   dialsStore.set('steerConfig', defaultSteerConfig());
 });
 
-describe('steer.strain.*', () => {
+describe.runIf(GENERATIVE)('steer.strain.*', () => {
   it('starts from the complete default (the starter strains), never from an empty list', () => {
     expect(texts()).toEqual(DEFAULT_STEER_CONFIG.strains!.map((s) => s.text));
   });
@@ -87,7 +92,7 @@ describe('steer.strain.*', () => {
   });
 });
 
-  it('review catches: the last strain cannot be removed; an inverted weight range is refused; text is trimmed; duplicates edit one at a time', async () => {
+  it.runIf(GENERATIVE)('review catches: the last strain cannot be removed; an inverted weight range is refused; text is trimmed; duplicates edit one at a time', async () => {
     await reg.dispatch('steer.strain.remove', { text: 'bright plucked arpeggios' });
     const last = await reg.dispatch('steer.strain.remove', { text: 'warm ambient pads' });
     expect(last.ok).toBe(false);
@@ -113,7 +118,7 @@ describe('steer.strain.*', () => {
     expect(currentSteerConfig().strains[0].hand).toBe('right');
   });
 
-describe('steer.dial.*', () => {
+describe.runIf(GENERATIVE)('steer.dial.*', () => {
   it('set creates a binding with the knob’s natural range, then updates it in place', async () => {
     await reg.dispatch('steer.dial.set', { name: 'bpm', hand: 'left', feature: 'x' });
     let d = currentSteerConfig().dials.find((x) => x.name === 'bpm')!;
@@ -133,7 +138,7 @@ describe('steer.dial.*', () => {
   });
 });
 
-describe('the command surface', () => {
+describe.runIf(GENERATIVE)('the command surface', () => {
   it('registers every steer verb, in the Generative category, with scalar-only params (no object or array param reaches a tool schema)', () => {
     for (const cmd of STEER_COMMANDS) {
       expect(reg.has(cmd.id)).toBe(true);

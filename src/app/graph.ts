@@ -35,7 +35,6 @@ import type { SlotContract } from '@/nodes/slot_contract';
 import { synthMergePools } from '@/nodes/mapping/synth_merge.schema';
 import { chordPool } from '@/nodes/mapping/chord_select.schema';
 import { captionsPort, categoryPool } from '@/nodes/output/canvas_overlay.schema';
-import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type CategoryTarget, type ChordTarget, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 import { assertNoCoreClash, CONTRIBUTIONS, overlayConfigEdges } from '@/host/contributions';
@@ -86,14 +85,6 @@ export function assembleSpec(parts: SpecParts): InstrumentSpec {
   return assembleSpecWith(parts, ALL_BRANCHES);
 }
 
-/**
- * The generative branch's STARTER steering (#141 / #188): what the gestures mean to
- * the engine until the player edits `steerConfig`. Build-time params of `indirect-map`
- * (its `steerConfig` port overrides them live). The SAME object as the settings
- * default (`DEFAULT_STEER_CONFIG`), so an instrument that never touched the dial and
- * one that holds the default agree exactly. Exported for the tests.
- */
-export const STARTER_STEER = DEFAULT_STEER_CONFIG;
 
 /**
  * A slot is a named swap point in the graph: a role, a default node type, the candidate

@@ -28,7 +28,9 @@
     "./idbCollection": "./src/idbCollection.ts",
     "./primitives": "./src/primitives.tsx",
     "./tools": "./src/tools.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./keys": "./src/keys.ts",
+    "./loadStatus": "./src/LoadStatusReadout.tsx"
   },
   "dependencies": {
     "@thoremin/dag": "*",
@@ -38,7 +40,9 @@
     "@zodal/store": "^0.1.2",
     "@zodal/store-localstorage": "^0.1.0",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "acture": "^1.3.0",
+    "@thoremin/lazy": "*"
   },
   "peerDependencies": {
     "react": "*"

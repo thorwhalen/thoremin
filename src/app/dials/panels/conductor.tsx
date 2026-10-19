@@ -28,7 +28,7 @@ import { useEffect, useState } from 'react';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
-import { LoadStatusReadout } from '../../LoadStatusReadout';
+import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
 import { OrchestraControls } from './orchestra';
 import { PartsControls } from './parts';
 import { useScoreStatus, setScoreStatus } from '../../scoreStatus';

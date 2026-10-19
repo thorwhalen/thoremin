@@ -52,9 +52,9 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // A bridge dropped from this list stops updating its panel at frame rate while
     // nothing fails — the face readout, or (worst) the gesture dispatcher, which would
     // stop dispatching commands entirely — or (#188) the generative readout, which would
-    // show "off" while a paid stream plays. (The MIDI status is its slice's status hook
-    // since #600 S13, so it rides `extensionSinks`: `test/midi/midi_status.test.ts`.)
-    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportGesture[^\]]*reportGenerative[^\]]*extensionSinks[^\]]*\]/);
+    // show "off" while a paid stream plays. (The MIDI and generative statuses are their slices'
+    // status hooks since #600 S13 / S14, so they ride `extensionSinks`.)
+    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportGesture[^\]]*extensionSinks[^\]]*\]/);
   });
 
   it('converts the clock time to MILLISECONDS for every bridge', () => {
@@ -70,7 +70,7 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // (`...latencySinks` is the #227 probe's tick-end stamp: empty unless ?probe=latency.)
     // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
     // (`reportCategory` feeds the #160 category dispatcher, whose hold is in ms like the gestures'.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportGenerative\),\s*toMs\(reportConductor\),\s*toMs\(reportLeadTake\),\s*toMs\(reportOrchestra\),\s*toMs\(reportSong\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportConductor\),\s*toMs\(reportLeadTake\),\s*toMs\(reportOrchestra\),\s*toMs\(reportSong\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
     // from the manifests and converted the same way, in one place: one sink over every status
     // hook in hand, so a lazy extension that loads mid-session gets its readout.

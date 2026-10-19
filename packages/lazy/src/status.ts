@@ -52,3 +52,25 @@ export function withActive(status: LoadStatus, active: boolean, activeMessage?: 
   if (status.phase !== 'ready' || !active) return status;
   return { ...status, phase: 'active', message: activeMessage ?? status.message };
 }
+
+/**
+ * The per-frame sink that mirrors a heavy node's `status` output into a store (#600 S14: lifted
+ * from the generative layer's reporter, which the orchestra's reused): it reports only when the
+ * phase, reason, message or progress changed, so a readout never re-renders at frame rate for an
+ * unchanged phase. Pure over the reader.
+ */
+export function makeLoadStatusReporter(
+  engine: { getOutput(nodeId: string, port: string): unknown },
+  store: { report(status: LoadStatus): void },
+  nodeId: string,
+): () => void {
+  let lastKey = '';
+  return () => {
+    const s = engine.getOutput(nodeId, 'status') as LoadStatus | undefined;
+    if (!s) return;
+    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${s.progress ?? ''}`;
+    if (key === lastKey) return;
+    lastKey = key;
+    store.report(s);
+  };
+}

@@ -13,7 +13,7 @@
  */
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
-import { LoadStatusReadout } from '../../LoadStatusReadout';
+import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
 import { useOrchestraStatus } from '../../orchestraStatus';
 import { DEFAULT_ORCHESTRA, SOUNDFONT_SIZE_MB, type OrchestraSettings } from '@/nodes/output/orchestra.schema';
 import { SECTIONS, type Section } from '@/nodes/output/orchestra_map.schema';

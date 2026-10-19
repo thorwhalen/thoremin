@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { rangeMap } from '@thoremin/sdk/music/theory';
 import { ABSENT_FACE, ABSENT_HAND, type FaceFeatures, type HandFeatures, type SingleHandFeatures } from '@thoremin/sdk/nodes/domain';
-import type { GenerativeSteer, WeightedPrompt } from '../output/generative';
+import type { GenerativeSteer, WeightedPrompt } from './generative';
 import { FeatureRef, SteerStrainSchema, SteerDialSchema, SteerConfigSchema } from './indirect_map.schema';
 export { STEER_SOURCES, STEER_HANDS, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_FEATURES, STEER_DIAL_NAMES, SteerStrainSchema, SteerDialSchema, SteerConfigSchema, DEFAULT_STEER_CONFIG, defaultSteerConfig } from './indirect_map.schema';
 export type { SteerConfig, SteerStrain, SteerDial } from './indirect_map.schema';

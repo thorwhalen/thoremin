@@ -173,6 +173,8 @@ describe('command-dispatch import firewall (#87)', () => {
     expect(files.some((f) => /ext-probe/.test(f)), 'no command module found in the probe').toBe(true);
     for (const f of files) {
       for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {
+        // A node's CONTRACT module (`<node>.schema`, #600 S6) is the sanctioned import, never the node.
+        if (/(^|\/)nodes\/[^/]+\.schema$/.test(spec)) continue;
         expect(
           FORBIDDEN_FROM_EXTENSION_COMMANDS.some((re) => re.test(spec)),
           `${f} imports "${spec}" — an extension command must change sound by writing a dial, never the hot store / DAG / nodes / audio.`,

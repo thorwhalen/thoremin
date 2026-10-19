@@ -12,15 +12,18 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Engine, StreamRecorder } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createCoreRegistry, lyriaNode } from '@/nodes';
+import { createCoreRegistry } from '@/nodes';
+import { lyriaNode } from '@/slices/generative/nodes/lyria';
+import { indirectMapNode } from '@/slices/generative/nodes/indirect_map';
+import { GENERATIVE } from '../helpers/extensions';
 import type {
   GenerativeConfig,
   GenerativeEngine,
   GenerativeEngineFactory,
   GenerativeSteer,
-  GenerativeStatus,
   WeightedPrompt,
-} from '@/nodes';
+} from '@/slices/generative/nodes/generative';
+import type { GenerativeStatus } from '@/slices/generative/nodes/lyria';
 
 class MockEngine implements GenerativeEngine {
   calls: string[] = [];
@@ -68,7 +71,7 @@ const ctxAt = (tick: number, dt: number, resources: Record<string, unknown>): No
 });
 const statusOf = (out: Record<string, unknown>) => out.status as GenerativeStatus;
 
-describe('lyria node (contract logic, mock engine)', () => {
+describe.runIf(GENERATIVE)('lyria node (contract logic, mock engine)', () => {
   it('is off, loads nothing and reports phase off until enabled', () => {
     let loads = 0;
     const factory: GenerativeEngineFactory = async () => {
@@ -259,7 +262,7 @@ describe('lyria node (contract logic, mock engine)', () => {
     };
     const engine = new MockEngine();
     const rec = new StreamRecorder();
-    const eng = new Engine(spec, createCoreRegistry(), { resources: { generativeEngine: engine }, taps: [rec], nominalDt: 1 / 30 });
+    const eng = new Engine(spec, createCoreRegistry().register(lyriaNode, indirectMapNode) /* the slice's (#600 S14) */, { resources: { generativeEngine: engine }, taps: [rec], nominalDt: 1 / 30 });
     // 'enabled' / 'playing' are unconnected (default false) → lyria idles but the graph runs.
     expect(() => {
       for (let i = 0; i < 10; i++) eng.tick();
@@ -414,15 +417,17 @@ describe('lyria node (contract logic, mock engine)', () => {
 
   it('the vendor SDK is never statically re-exported by the registries (the bundle-split guard)', () => {
     // A static re-export of `lyria_engine` from either registry module puts
-    // `@google/genai` in the main bundle for every player (#188). Only the node's
-    // dynamic import() may reach it.
-    for (const f of ['src/nodes/index.ts', 'src/nodes/browser.ts']) {
+    // `@google/genai` in the main bundle for every player (#188). Only a dynamic import() may
+    // reach it: since #600 S14 the slice's React half's (it installs the engine factory), and
+    // the node, the slice's pure side, never names the engine at all.
+    for (const f of ['src/nodes/index.ts', 'src/nodes/browser.ts', 'src/slices/generative/index.ts']) {
       const src = readFileSync(f, 'utf8');
       expect(src, `${f} must not statically import the Lyria engine`).not.toMatch(/from ['"].*lyria_engine['"]/);
       expect(src).not.toMatch(/from ['"]@google\/genai['"]/);
     }
-    const node = readFileSync('src/nodes/output/lyria.ts', 'utf8');
-    expect(node).toMatch(/await import\(['"]\.\/lyria_engine['"]\)/);
-    expect(node).not.toMatch(/^import .* from ['"]\.\/lyria_engine['"]/m);
+    const ui = readFileSync('src/slices/generative/ui.tsx', 'utf8');
+    expect(ui).toMatch(/await import\(['"]\.\/app\/lyria_engine['"]\)/);
+    expect(ui).not.toMatch(/^import .* from ['"]\.\/app\/lyria_engine['"]/m);
+    expect(readFileSync('src/slices/generative/nodes/lyria.ts', 'utf8')).not.toMatch(/lyria_engine['"]/);
   });
 });

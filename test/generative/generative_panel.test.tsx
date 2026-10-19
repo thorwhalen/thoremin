@@ -10,16 +10,18 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
-import { GenerativeControls } from '@/app/dials/panels/generative';
-import { useGenerativeStatus } from '@/app/generativeStatus';
+import { GenerativeControls } from '@/slices/generative/panels/generative';
+import { useGenerativeStatus } from '@/slices/generative/app/generativeStatus';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
-import { SteeringEditor } from '@/app/dials/panels/steering';
-import { currentSteerConfig } from '@/app/commands/steer';
-import { defaultSteerConfig } from '@/settings/schema';
+import { SteeringEditor } from '@/slices/generative/panels/steering';
+import { currentSteerConfig } from '@/slices/generative/app/steerCommands';
+import { defaultSteerConfig } from '@/slices/generative/nodes/indirect_map.schema';
+import { GENERATIVE } from '../helpers/extensions';
 
 beforeEach(() => {
-  useControls.getState().setSteerPlaying(false);
+  // The transport is the slice's transient field since #600 S14 (no store action).
+  useControls.setState({ steerPlaying: false } as never);
   dialsStore.set('steer.enabled', false);
   dialsStore.set('steerConfig', defaultSteerConfig());
 });
@@ -28,14 +30,14 @@ afterEach(() => {
   useGenerativeStatus.getState().reset();
 });
 
-describe('the settings panel mounts the Generative section (#188 reachability)', () => {
+describe.runIf(GENERATIVE)('the settings panel mounts the Generative section (#188 reachability)', () => {
   it('renders a Generative section', () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('Generative')).toBeTruthy();
   });
 });
 
-describe('GenerativeControls', () => {
+describe.runIf(GENERATIVE)('GenerativeControls', () => {
   it('renders the enable toggle, a Play button disabled until enabled, and says the layer is off', () => {
     render(<GenerativeControls />);
     expect(screen.getByText('Generative layer')).toBeTruthy();
@@ -44,14 +46,15 @@ describe('GenerativeControls', () => {
     expect(screen.getByText('Generative layer off')).toBeTruthy();
   });
 
-  it('once enabled, the transport toggles the transient store flag (not a dial), Play ↔ Pause', () => {
+  it('once enabled, the transport toggles the transient store flag (not a dial), Play ↔ Pause', async () => {
     dialsStore.set('steer.enabled', true);
     render(<GenerativeControls />);
     const play = screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement;
     expect(play.disabled).toBe(false);
     fireEvent.click(play);
-    expect(useControls.getState().steerPlaying).toBe(true);
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    // The button dispatches the slice's transport command (#600 S14), which settles a tick later.
+    expect(await screen.findByRole('button', { name: 'Pause' })).toBeTruthy();
+    expect((useControls.getState() as unknown as { steerPlaying: boolean }).steerPlaying).toBe(true);
     // It is not in the dials layer: no `steer.playing` dial exists.
     expect(dialsStore.getState().effective).not.toHaveProperty('steer.playing');
   });
@@ -72,7 +75,7 @@ describe('GenerativeControls', () => {
   });
 });
 
-describe('SteeringEditor (#188 PR 5) — the strain editor on the command write path', () => {
+describe.runIf(GENERATIVE)('SteeringEditor (#188 PR 5) — the strain editor on the command write path', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it('is mounted inside the Generative section', () => {
@@ -119,7 +122,7 @@ describe('SteeringEditor (#188 PR 5) — the strain editor on the command write 
   });
 });
 
-describe('SteeringEditor — fields commit on blur and revert on refusal (#188 PR 5 review)', () => {
+describe.runIf(GENERATIVE)('SteeringEditor — fields commit on blur and revert on refusal (#188 PR 5 review)', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it('a weight typed halfway is not written; blur commits once; an emptied field reverts', async () => {

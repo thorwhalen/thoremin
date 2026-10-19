@@ -8,8 +8,8 @@
  * param emits a JSON Schema Gemini rejects). So the editor's operations are modelled
  * as commands over one named entry each — add / remove / rename / bind / range a
  * strain, set / remove a dial — every one of which computes the next whole config
- * and writes it through {@link applyDialSet}, the same validated path `dial.setIn`
- * uses. The palette, the AI assistant and the panel therefore all speak the same
+ * and writes it through `applyDial` (the SDK's validated, non-dispatching dial write: the
+ * same path `dial.setIn` uses). The palette, the AI assistant and the panel therefore all speak the same
  * verbs: "add a strain called warm pads driven by my left hand's openness" is a
  * real assistant capability rather than a JSON blob.
  *
@@ -23,7 +23,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err, type Result } from 'acture';
-import { dialsStore } from '@/app/dials/settingsStore';
+import { applyDial, dialValue } from '@thoremin/sdk-ui/dials';
 import {
   SteerConfigSchema,
   STEER_SOURCES,
@@ -35,8 +35,7 @@ import {
   type SteerConfig,
   type SteerStrain,
   type SteerDial,
-} from '@/settings/schema';
-import { applyDialSet } from './dials';
+} from '../nodes/indirect_map.schema';
 
 const DIAL_KEY = 'steerConfig';
 const CATEGORY = 'Generative';
@@ -44,7 +43,7 @@ const CATEGORY = 'Generative';
 /** A complete steering config: the current dial value, healed against the default so
  *  every array is present and every entry is fully specified. */
 export function currentSteerConfig(): Required<SteerConfig> {
-  const raw = dialsStore.getState().effective[DIAL_KEY];
+  const raw = dialValue(DIAL_KEY);
   const parsed = SteerConfigSchema.safeParse(raw);
   const base = defaultSteerConfig() as Required<SteerConfig>;
   const cfg = parsed.success ? parsed.data : {};
@@ -69,7 +68,7 @@ const withStrainAt = (cfg: Required<SteerConfig>, i: number, strain: SteerStrain
 
 /** Write a whole config through the validated dial path. */
 function write(next: SteerConfig): Result<{ key: string; value: unknown }> {
-  return applyDialSet(DIAL_KEY, next);
+  return applyDial(DIAL_KEY, next);
 }
 
 /** The feature set that makes sense for a source: hand features for a hand, face
@@ -257,4 +256,5 @@ export const removeDialCmd = defineCommand({
   },
 });
 
-export const STEER_COMMANDS = [addStrainCmd, removeStrainCmd, renameStrainCmd, bindStrainCmd, rangeStrainCmd, setDialCmd, removeDialCmd];
+/** The steering commands, each a write of the steering DIAL (`writesDials`: undo takes it back). */
+export const STEER_COMMANDS = [addStrainCmd, removeStrainCmd, renameStrainCmd, bindStrainCmd, rangeStrainCmd, setDialCmd, removeDialCmd].map((c) => ({ ...c, writesDials: true }));

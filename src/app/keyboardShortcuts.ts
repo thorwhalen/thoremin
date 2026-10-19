@@ -76,17 +76,6 @@ export function redoLastChange(): void {
   history.redo();
 }
 
-/**
- * Toggle the generative transport (#188) — a non-dial store flag like mute, toggled
- * directly. Only while the layer is enabled: a transport flag left true on a disabled
- * layer would make the next enable auto-start a paid stream with no Play press.
- */
-export function toggleGenerativePlaying(): void {
-  const s = useControls.getState();
-  if (!s.steer.enabled) return;
-  s.toggleSteerPlaying();
-}
-
 /** Open or close the Tools launcher — shell UI state, not a param, so not a command. */
 export function toggleToolsLauncher(): void {
   useTools.getState().toggleLauncher();
@@ -103,7 +92,6 @@ const CORE_KEYMAP: Keymap = {
   ArrowRight: () => adjustMagnetism(MAGNETISM_STEP),
   ArrowLeft: () => adjustMagnetism(-MAGNETISM_STEP),
   m: toggleMute,
-  p: toggleGenerativePlaying,
   // The Tools launcher (Round 4, #271): every shell tool, one key from anywhere.
   t: toggleToolsLauncher,
   // A carve tool's capture (#385 E2): start, pause, resume. Only while a carve is live.
@@ -117,7 +105,8 @@ const CORE_KEYMAP: Keymap = {
 };
 
 /**
- * Fold extension keybindings onto `base` (#600 S11). Each binding's command must be registered;
+ * Fold extension keybindings onto `base` (#600 S11). Each binding names a registered command, or
+ * runs an action (`run`, #600 S14: state deliberately not a command, like the master mute);
  * its `when` (default: dispatch) may say `pass` (the browser's key) or `swallow` (handled, nothing
  * dispatched). A key `base` binds, or one bound twice, is refused. Exported for direct testing.
  */
@@ -125,14 +114,20 @@ export function withKeybindings(base: Keymap, decls: readonly KeybindingDecl[], 
   const out: Keymap = { ...base };
   const owner = new Map<string, string>(Object.keys(base).map((k) => [k, 'core']));
   for (const decl of decls) {
+    const label = decl.command ?? `${decl.key} action`;
     const taken = owner.get(decl.key);
-    if (taken) throw new Error(`keybinding "${decl.key}" (to "${decl.command}") is already bound by ${taken === 'core' ? 'core' : `the binding to "${taken}"`}`);
-    if (!commands.has(decl.command)) throw new Error(`keybinding "${decl.key}" names "${decl.command}", which no command registers`);
-    owner.set(decl.key, decl.command);
+    if (taken) throw new Error(`keybinding "${decl.key}" (to "${label}") is already bound by ${taken === 'core' ? 'core' : `the binding to "${taken}"`}`);
+    if ((decl.command === undefined) === (decl.run === undefined)) throw new Error(`keybinding "${decl.key}" must name a command or a run action, not both or neither`);
+    if (decl.command !== undefined && !commands.has(decl.command)) throw new Error(`keybinding "${decl.key}" names "${decl.command}", which no command registers`);
+    owner.set(decl.key, label);
+    const { command, run } = decl;
     out[decl.key] = (e) => {
       const verdict = decl.when ? decl.when(e) : 'dispatch';
       if (verdict === 'pass') return false;
-      if (verdict === 'dispatch') void registry.dispatch(decl.command, { ...(decl.params ?? {}) });
+      if (verdict === 'dispatch') {
+        if (run) run();
+        else if (command) void registry.dispatch(command, { ...(decl.params ?? {}) });
+      }
       return true;
     };
   }

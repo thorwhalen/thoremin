@@ -335,6 +335,10 @@ export function measure({ root, extensions, foldPoints, largestFiles }: MeasureI
   };
 }
 
+/** Port kinds that are plain values (#600 S14: the generative transport is a `boolean`), not an
+ *  extension's own name: core spells them everywhere. */
+const GENERIC_KINDS: ReadonlySet<string> = new Set(['boolean', 'number', 'string', 'number[]', 'string[]']);
+
 /** The names an extension manifest declares: what core must not spell out. */
 export function extensionNames(ext: {
   id: string;
@@ -351,8 +355,8 @@ export function extensionNames(ext: {
     // A FLAT dial slice (#600 S13) is named by its member keys (`midi.enabled`), not its bare key:
     // a built-in feature's key is often a common word (`midi` is also a note number), and its
     // flat keys are what a saved instrument and a command name. Its derived ports count too.
-    ...ext.dials.flatMap((d) => [...(d.layout === 'flat' ? flatDialKeys(d as DialSlice) : [d.key]), d.kind, ...(d.ports ?? []).map((p) => p.name)]),
-    ...(ext.transient ?? []).flatMap((t) => [t.field, t.kind]),
+    ...ext.dials.flatMap((d) => [...(d.layout === 'flat' ? flatDialKeys(d as DialSlice) : [d.key]), ...(GENERIC_KINDS.has(d.kind) ? [] : [d.kind]), ...(d.ports ?? []).map((p) => p.name)]),
+    ...(ext.transient ?? []).flatMap((t) => [t.field, ...(GENERIC_KINDS.has(t.kind) ? [] : [t.kind])]),
   ]);
   return { id: ext.id, names: [...names].sort() };
 }

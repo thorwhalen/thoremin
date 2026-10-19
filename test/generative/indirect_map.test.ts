@@ -7,9 +7,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode } from '@thoremin/dag';
-import { loadStream } from './helpers/fixtures';
-import { indirectMapNode, ABSENT_HAND, ABSENT_FACE, type GenerativeSteer, type HandFeatures, type FaceFeatures } from '@/nodes';
-import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
+import { loadStream } from '../helpers/fixtures';
+import { GENERATIVE } from '../helpers/extensions';
+import { ABSENT_HAND, ABSENT_FACE, type HandFeatures, type FaceFeatures } from '@/nodes';
+import { indirectMapNode } from '@/slices/generative/nodes/indirect_map';
+import type { GenerativeSteer } from '@/slices/generative/nodes/generative';
+import { SteerConfigSchema } from '@/slices/generative/nodes/indirect_map';
 
 function feat(right: Partial<typeof ABSENT_HAND>): HandFeatures {
   return { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND, present: true, ...right } };
@@ -29,7 +32,7 @@ const PARAMS = {
 // as the engine does — make() expects the parsed shape.
 const P = indirectMapNode.params.parse(PARAMS);
 
-describe('indirect-map', () => {
+describe.runIf(GENERATIVE)('indirect-map', () => {
   it('maps openness → strain weight exactly (no smoothing)', async () => {
     const frames = [feat({ openness: 0 }), feat({ openness: 0.5 }), feat({ openness: 1 })];
     const outs = (await replayNode(indirectMapNode.make(P), { features: frames })).map((o) => o.steer as GenerativeSteer);
@@ -107,7 +110,7 @@ async function withConfig(
   return outs.map((o) => o.steer as GenerativeSteer);
 }
 
-describe('indirect-map steerConfig (the #141 prerequisite)', () => {
+describe.runIf(GENERATIVE)('indirect-map steerConfig (the #141 prerequisite)', () => {
   it('an UNCONNECTED port changes nothing — params stay the build-time default', async () => {
     // The repo's convention, and the reason this port is safe to add before
     // anything drives it: a node with no edge into `steerConfig` behaves exactly

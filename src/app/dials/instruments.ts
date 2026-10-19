@@ -26,11 +26,11 @@ import {
 import type { ProfileStorage } from '@zodal/dials-ui';
 import type { Layer } from '@zodal/dials-core';
 import type { ZodTypeAny } from 'zod';
-import { ConductorSettingsSchema, defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
+import { ConductorSettingsSchema, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
-import { migrateLayerSlices } from '@/host/slices';
+import { flatDialKey, migrateLayerSlices } from '@/host/slices';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map.schema';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
@@ -394,14 +394,20 @@ export function normalizeLayer(layer: Layer): Layer {
     // mutable sub-object with the defaults (the schema.ts HandMap lesson).
     out[key] = typeof dflt === 'object' && dflt !== null ? structuredClone(dflt) : dflt;
   }
-  // A partial steering config (#202 persisted smoothing + cadence with no arrays) is
-  // completed from the default, exactly as `mergeControls` completes the hot store's —
-  // both halves of the dirty compare must heal identically or a key nobody edited
-  // reads as an unsaved edit (#188 PR 5 review).
-  const sc = out.steerConfig as Record<string, unknown> | undefined;
-  if (sc && typeof sc === 'object' && (sc.strains === undefined || sc.dials === undefined)) {
-    if (out === layer) out = { ...layer };
-    out.steerConfig = { ...defaultSteerConfig(), ...sc };
+  // A flat slice's partial field (#600 S14: the generative layer's steering config, which #202
+  // persisted with no arrays) is completed from the default, exactly as `mergeControls` completes
+  // the hot store's: both halves of the dirty compare must heal identically or a key nobody
+  // edited reads as an unsaved edit (#188 PR 5 review).
+  for (const slice of CONTRIBUTIONS.dialSlices) {
+    if (slice.layout !== 'flat') continue;
+    for (const [field, complete] of Object.entries(slice.complete ?? {})) {
+      const key = flatDialKey(slice, field);
+      if (out[key] === undefined) continue;
+      const next = complete(out[key]);
+      if (next === out[key]) continue;
+      if (out === layer) out = { ...layer };
+      (out as Record<string, unknown>)[key] = next;
+    }
   }
   // The conductor's rhythm prior (#232) is a nested key whose default (`blend`) is a
   // behaviour change: an instrument saved with a conductor but no `prior` was played by

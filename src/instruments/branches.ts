@@ -29,7 +29,6 @@
  * The right-hand "derivation" (which dials imply which branch) is not in this file: it is
  * PR 3's `graphFor`, and until then every instrument composes every branch.
  */
-import { DEFAULT_STEER_CONFIG } from '@/nodes/mapping/indirect_map.schema';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@/nodes/music/score.schema';
 import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
@@ -347,24 +346,6 @@ export const conductor = defineBranch({
   hands: 1,
 });
 
-export const generative = defineBranch({
-  id: 'generative',
-  description: 'Gestures steer a generative model (indirect map into Lyria); the face input is a nicety.',
-  nodes: [
-    { id: 'imap', type: 'indirect-map', params: DEFAULT_STEER_CONFIG },
-    { id: 'gen', type: 'lyria', params: {} },
-  ],
-  edges: [
-    to({ node: TRUNK.feat, port: 'features' }, { node: 'imap', port: 'features' }),
-    to({ node: 'faceFeat', port: 'features' }, { node: 'imap', port: 'face' }, true),
-    to(ui('steerConfig'), { node: 'imap', port: 'steerConfig' }),
-    to({ node: 'imap', port: 'steer' }, { node: 'gen', port: 'steer' }),
-    to(ui('steerEnabled'), { node: 'gen', port: 'enabled' }),
-    to(ui('steerPlaying'), { node: 'gen', port: 'playing' }),
-    to(ui('steerVolume'), { node: 'gen', port: 'volume' }),
-  ],
-});
-
 /**
  * The CORE branches, in composition order. Extensions append theirs (`src/extensions`); the
  * full table an app composes from is `ALL_BRANCHES` in `src/app/graph.ts`.
@@ -383,7 +364,6 @@ export const BRANCHES: readonly GraphBranch[] = [
   bodyRoute,
   songPace,
   conductor,
-  generative,
 ];
 
 /** The core branch ids; an app's full list is the core plus every extension's. */

@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildCatalog } from '@/catalog';
 import { createCoreRegistry } from '@/nodes';
+import { indirectMapNode } from '@/slices/generative/nodes/indirect_map';
 
 const catalog = buildCatalog(createCoreRegistry());
 const byType = Object.fromEntries(catalog.map((e) => [e.type, e]));
@@ -26,7 +27,8 @@ describe('buildCatalog', () => {
     const vm = byType['voice-mapping'];
     expect(vm.inputs.map((p) => p.name)).toContain('features');
     expect(vm.outputs.map((p) => p.name)).toContain('params');
-    const ind = byType['indirect-map'];
+    // `indirect-map` is the generative slice's node since #600 S14: catalogued from it.
+    const ind = buildCatalog(createCoreRegistry().register(indirectMapNode)).find((e) => e.type === 'indirect-map')!;
     expect(ind.inputs.map((p) => p.name)).toEqual(expect.arrayContaining(['features', 'face']));
   });
 

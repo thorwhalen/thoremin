@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { LoadStatusReadout } from '@/app/LoadStatusReadout';
+import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
 import type { LoadStatus } from '@thoremin/lazy';
 
 afterEach(cleanup);

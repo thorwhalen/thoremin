@@ -3969,22 +3969,6 @@
         "kind": "number"
       },
       {
-        "name": "steerEnabled",
-        "kind": "boolean"
-      },
-      {
-        "name": "steerPlaying",
-        "kind": "boolean"
-      },
-      {
-        "name": "steerVolume",
-        "kind": "number"
-      },
-      {
-        "name": "steerConfig",
-        "kind": "steer-config"
-      },
-      {
         "name": "faceControls",
         "kind": "face-controls-config"
       },
@@ -4085,6 +4069,10 @@
         "kind": "midi-config"
       },
       {
+        "name": "steer",
+        "kind": "steer-settings"
+      },
+      {
         "name": "faceCategorizer",
         "kind": "face-categorizer-config"
       },
@@ -4109,6 +4097,18 @@
         "kind": "boolean"
       },
       {
+        "name": "steerEnabled",
+        "kind": "boolean"
+      },
+      {
+        "name": "steerVolume",
+        "kind": "number"
+      },
+      {
+        "name": "steerConfig",
+        "kind": "steer-config"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -4131,6 +4131,10 @@
       {
         "name": "chordMapAudio",
         "kind": "audio-chroma"
+      },
+      {
+        "name": "steerPlaying",
+        "kind": "boolean"
       },
       {
         "name": "faceCategorizerModel",

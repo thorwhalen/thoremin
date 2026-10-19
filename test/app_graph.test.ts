@@ -15,7 +15,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI, GENERATIVE } from './helpers/extensions';
 
 describe('production app graph', () => {
   it('builds with a valid topology', () => {
@@ -65,10 +65,13 @@ describe('production app graph', () => {
     expect(order.indexOf('score')).toBeLessThan(order.indexOf('merge'));
     // Generative layer (#141 / #188): indirect-map taps the hand + face features and
     // feeds the lyria sink; both sit after their sources and after the store node.
-    expect(order.indexOf('feat')).toBeLessThan(order.indexOf('imap'));
-    expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('imap'));
-    expect(order.indexOf('ui')).toBeLessThan(order.indexOf('imap'));
-    expect(order.indexOf('imap')).toBeLessThan(order.indexOf('gen'));
+    // (The generative slice's, #600 S14: only while it is listed.)
+    if (GENERATIVE) {
+      expect(order.indexOf('feat')).toBeLessThan(order.indexOf('imap'));
+      expect(order.indexOf('faceFeat')).toBeLessThan(order.indexOf('imap'));
+      expect(order.indexOf('ui')).toBeLessThan(order.indexOf('imap'));
+      expect(order.indexOf('imap')).toBeLessThan(order.indexOf('gen'));
+    }
     // The body vector tap (#186) sits between its source and the overlay.
     expect(order.indexOf('camBody')).toBeLessThan(order.indexOf('bodyVec'));
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('overlay'));
@@ -87,7 +90,8 @@ describe('production app graph', () => {
     // controller (#186 PR H) the 29th, the dwelled hands (#314) the 30th. The ASL extension adds its reader and its chord node,
     // the faces extension its personal categorizer (#330 P4) and the category blend (#372). The #13 midi-out sink is the MIDI
     // slice's since #600 S13, counted with it (29 core nodes + 1).
-    expect(order).toHaveLength((AIR ? 40 : 29) + (MIDI ? 1 : 0) + (ASL ? 2 : 0) + (FACES ? 4 : 0));
+    // The generative pair (indirect-map + lyria) is its slice's since #600 S14 (27 core nodes + 2).
+    expect(order).toHaveLength((AIR ? 38 : 27) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (ASL ? 2 : 0) + (FACES ? 4 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -108,7 +112,8 @@ describe('production app graph', () => {
     expect(edges.filter((e) => e.to.node === 'camBody')).toEqual([]);
   });
 
-  it('wires the generative layer enable/transport/level/steering live from the store — the #141/#188 guard', () => {
+  // The generative slice's (#600 S14): only while it is listed.
+  it.runIf(GENERATIVE)('wires the generative layer enable/transport/level/steering live from the store — the #141/#188 guard', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
