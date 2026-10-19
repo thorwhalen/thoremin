@@ -1324,6 +1324,10 @@
       {
         "name": "c",
         "kind": "number[]"
+      },
+      {
+        "name": "d",
+        "kind": "number[]"
       }
     ],
     "outputs": [

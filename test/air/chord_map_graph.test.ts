@@ -44,6 +44,17 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     expect([...inbound].sort()).toEqual(['chordConfig', 'config', 'hands', 'octaveShift', 'spec']);
   });
 
+  it('puts its chord on the shared chord display (the chord pool), after the face and pose chords', () => {
+    const g = defaultGraph();
+    const into = (from: string) => g.edges.find((e) => e.from.node === from && e.to.node === 'chordSel')?.to.port;
+    expect(into('chordMap')).toBeDefined();
+    expect(g.edges).toContainEqual({ from: { node: 'chordMap', port: 'triad' }, to: { node: 'chordSel', port: into('chordMap')! } });
+    // Inputs go by priority: the face (30) and pose (20) chords keep theirs, the map (10) follows.
+    expect([into('exprChord'), into('poseChord')]).toEqual(['a', 'b']);
+    const used = g.edges.filter((e) => e.to.node === 'chordSel' && e.from.node !== 'chordMap').map((e) => e.to.port);
+    expect(used).not.toContain(into('chordMap'));
+  });
+
   it('the shipped Chord Map instruments compose the branch and draw the grid; others do not', () => {
     for (const name of ['Chord Map', 'Chord Map Strum']) {
       const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -82,6 +93,21 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     expect(mine).toHaveLength(4);
     const pcs = new Set(mine.filter((v) => v.present && v.gain > 0).map((v) => ((Math.round(freqToMidi(v.freq)) % 12) + 12) % 12));
     expect([...pcs].sort((a, b) => a - b)).toEqual([0, 4, 7]);
+  });
+
+  it('headless: the chord display shows the chord the hand holds', async () => {
+    const frames = chordMapTake({ duration: 1, chordAt: () => tonic() });
+    const registry = createAppRegistry();
+    const g = defaultGraph({ source: 'replay-hands' }, registry);
+    g.nodes.find((n) => n.id === 'cam')!.params = { frames };
+    const { recorder } = await runHeadless(g, registry, {
+      ticks: frames.length,
+      nominalDt: 1 / 30,
+      resources: { controls: () => ({ right: VOICE, left: VOICE, chordMap: { ...DEFAULT_CHORD_MAP, enabled: true, mirrorHandedness: false } }) },
+      recordOnly: ['chordSel.chord'],
+    });
+    const shown = recorder.values('chordSel.chord') as number[][];
+    expect(new Set(shown.at(-1)!.map((n) => n % 12))).toEqual(new Set([0, 4, 7]));
   });
 
   it('headless: strumming asks the pluck sink for the C voicing', async () => {
