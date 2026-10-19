@@ -688,8 +688,7 @@ const faceExpressionCue: OverlayElement = {
       if (p.exprLabels) labels.push(name);
       if (p.chordLabels && chordMode) {
         // A target beyond the degree (H6 of #613) prints what it does, since the chord depends on the one in force.
-        const { categoryTargets: own, categoryDegrees: degrees, faceTargets: expressions } = view.inputs;
-        const target = targetText(parseTarget(categoryTarget(reading.ids[i], reading.standsFor[i], { own, degrees, expressions }), { moves: isDiatonicMove }));
+        const target = targetText(parseTarget(categoryTarget(reading.ids[i], reading.standsFor[i], { own: view.inputs.categoryTargets, degrees: view.inputs.categoryDegrees, expressions: view.inputs.faceTargets }), { moves: isDiatonicMove }));
         labels.push(target || chordLabel(personalDegree(reading, i, view.inputs.categoryDegrees, degreeFor)));
       }
       return {
