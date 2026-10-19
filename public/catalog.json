@@ -1875,6 +1875,10 @@
       {
         "name": "targets",
         "kind": "expression-targets"
+      },
+      {
+        "name": "categoryTargets",
+        "kind": "category-targets"
       }
     ],
     "outputs": [
@@ -1952,6 +1956,10 @@
       {
         "name": "degrees",
         "kind": "category-degrees"
+      },
+      {
+        "name": "targets",
+        "kind": "category-targets"
       }
     ],
     "params": [

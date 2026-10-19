@@ -20,6 +20,7 @@
  * resolved categorizer from {@link useCategorizerPlay}, which the extension's mount effect keeps.
  */
 import { useEffect, useRef, useState } from 'react';
+import { TARGET_CHOICES, targetChoice } from '@thoremin/sdk/harmony/target';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE, type ExpressionLabel } from '@thoremin/sdk/music/expression';
@@ -221,6 +222,21 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
                   <option value={SILENCE_DEGREE}>Silence</option>
                   {DEGREES.map((d) => (
                     <option key={d} value={d}>{`Degree ${d + 1}`}</option>
+                  ))}
+                </select>
+                <select
+                  className={selectCls}
+                  aria-label={`What ${c.name} does`}
+                  data-category-target={c.id}
+                  value={slot ? targetChoice((dial.targets as Record<string, string> | undefined)?.[slot]) : ''}
+                  disabled={!slot}
+                  title="What this category does: play its chord, or move from the chord in force, choose a function, or add the seventh while held"
+                  onChange={(e) => slot && void dispatchDialSetIn(`faceCategorizer.targets.${slot}`, e.target.value)}
+                >
+                  {TARGET_CHOICES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
               </div>

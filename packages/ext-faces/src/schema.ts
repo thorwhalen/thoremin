@@ -32,11 +32,24 @@ export const CATEGORY_SLOTS: readonly string[] = Array.from({ length: MAX_CATEGO
 
 const DegreeSchema = z.number().int().min(AUTO_DEGREE).max(6);
 
+/** A category's target beyond its degree (H6 of #613, `@thoremin/sdk/harmony/target` strings):
+ *  '' (the default) = its degree, as before; a move, a function or the seventh otherwise. One
+ *  slot per category, so each is a command-path leaf. Additive: every saved dial reads ''. */
+const TargetsSchema = z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, z.string().default('')])) as Record<string, z.ZodDefault<z.ZodString>>).prefault({});
+
+/** The dial's own targets, the empty ones dropped: what the chords read (`category-targets`). */
+export function ownTargets(dial: { targets?: Readonly<Record<string, unknown>> } | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [id, t] of Object.entries(dial?.targets ?? {})) if (typeof t === 'string' && t !== '') out[id] = t;
+  return out;
+}
+
 export const FaceCategorizerDialSchema = z.object({
   id: z.string().min(1).default(GENERAL_CATEGORIZER),
   // Defaulted as a whole too, so a partial value (`{ id }` alone: a hand-edited or older
   // instrument) parses rather than failing the settings schema.
   degrees: z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, DegreeSchema.default(AUTO_DEGREE)])) as Record<string, z.ZodDefault<typeof DegreeSchema>>).prefault({}),
+  targets: TargetsSchema,
 });
 export type FaceCategorizerDial = z.infer<typeof FaceCategorizerDialSchema>;
 
@@ -61,7 +74,7 @@ export const isPersonal = (dial: Partial<FaceCategorizerDial> | null | undefined
  */
 export function chooseCategorizerWrites(id: string, faceMapping: string): [string, unknown][] {
   const writes: [string, unknown][] = [['faceCategorizer.id', id]];
-  for (const slot of CATEGORY_SLOTS) writes.push([`faceCategorizer.degrees.${slot}`, AUTO_DEGREE]);
+  for (const slot of CATEGORY_SLOTS) writes.push([`faceCategorizer.degrees.${slot}`, AUTO_DEGREE], [`faceCategorizer.targets.${slot}`, '']);
   if (id !== GENERAL_CATEGORIZER && faceMapping === 'none') writes.push(['face.mapping', 'chord']);
   return writes;
 }
@@ -95,6 +108,7 @@ export const playsPoses = (dial: Partial<PoseCategorizerDial> | null | undefined
 export const CategorizerChordsDialSchema = z.object({
   id: z.string().default(''),
   degrees: z.object(Object.fromEntries(CATEGORY_SLOTS.map((s) => [s, DegreeSchema.default(AUTO_DEGREE)])) as Record<string, z.ZodDefault<typeof DegreeSchema>>).prefault({}),
+  targets: TargetsSchema,
 });
 export type CategorizerChordsDial = z.infer<typeof CategorizerChordsDialSchema>;
 export const DEFAULT_CATEGORIZER_CHORDS: CategorizerChordsDial = CategorizerChordsDialSchema.parse({ degrees: {} });
@@ -128,6 +142,6 @@ export function chordDegreeOf(dial: Partial<CategorizerChordsDial> | null | unde
  *  one `dial.patch`: the id and every slot back to Auto. */
 export function chooseCategorizerChordsWrites(id: string): [string, unknown][] {
   const writes: [string, unknown][] = [['categorizerChords.id', id]];
-  for (const slot of CATEGORY_SLOTS) writes.push([`categorizerChords.degrees.${slot}`, AUTO_DEGREE]);
+  for (const slot of CATEGORY_SLOTS) writes.push([`categorizerChords.degrees.${slot}`, AUTO_DEGREE], [`categorizerChords.targets.${slot}`, '']);
   return writes;
 }

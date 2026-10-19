@@ -216,7 +216,7 @@ Your own face categorizer (#330), read live: the face to one of your categories,
 
 - **roles:** feature
 - **in:** face:face-frame, general:face-expression, model:face-categorizer-model, config:face-categorizer-config
-- **out:** expression:face-expression, degrees:category-degrees
+- **out:** expression:face-expression, degrees:category-degrees, targets:category-targets
 - **params:** holdOnReject (boolean=false), enterFrames (number=3), exitFrames (number=8), minPresent (number=0.9)
 
 #### `pose-categorizer` — Pose Categorizer
@@ -365,7 +365,7 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).
 
 - **roles:** music
-- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets, categoryTargets:category-targets
 - **out:** params:synth-params, triad:number[], played:face-expression
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 

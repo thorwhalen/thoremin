@@ -60,6 +60,21 @@ export function targetText(t: Target): string {
   }
 }
 
+/** What a one-key category instrument offers as targets, with the words its editors show: its
+ *  degree, the key's six diatonic moves, the three functions, the seventh. One list, so the face
+ *  chord's editor and the personal categorizers' say the same thing. */
+export const TARGET_CHOICES: readonly { value: string; label: string }[] = [
+  { value: '', label: 'plays its chord' },
+  ...['dia+3', 'dia-3', 'dia+2', 'dia-2', 'dia+1', 'dia-1'].map((m) => ({ value: `move:${m}`, label: `moves a ${RELATIONS.get(m)?.label ?? m}` })),
+  { value: 'fn:T', label: 'goes to a tonic chord' },
+  { value: 'fn:S', label: 'goes to a subdominant chord' },
+  { value: 'fn:D', label: 'goes to a dominant chord' },
+  { value: 'ctl:seventh', label: 'adds the seventh' },
+];
+
+/** The stored string's choice, as the editors show it (a move outside the key reads as the degree). */
+export const targetChoice = (raw: string | undefined | null): string => formatTarget(parseTarget(raw, { moves: isDiatonicMove }));
+
 /** The string a target is stored as. */
 export function formatTarget(t: Target): string {
   switch (t.kind) {

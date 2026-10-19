@@ -30,7 +30,7 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { ABSENT_EXPRESSION, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { DISTANCE_PROXIES, LIVE_DEFAULTS, tuneVector } from '@thoremin/sdk/enroll/live';
 import { absentReading, toExpressionScores, type FaceCategorizerPlay } from '../lib/play';
-import { ownDegrees, type FaceCategorizerDial } from '../schema';
+import { ownDegrees, ownTargets, type FaceCategorizerDial } from '../schema';
 
 const Params = z.object({
   /** Keep the last category while the face is none of these (else play what neutral plays). */
@@ -71,6 +71,8 @@ export const faceCategorizerNode = defineNode<Params>({
     { name: 'expression', kind: 'face-expression' },
     // The player's own degree per category id (no entry: the stand-in's degree).
     { name: 'degrees', kind: 'category-degrees' },
+    // The player's own target per category id (H6 of #613; no entry: its degree).
+    { name: 'targets', kind: 'category-targets' },
   ],
   params: Params,
   make(p) {
@@ -117,18 +119,19 @@ export const faceCategorizerNode = defineNode<Params>({
         const config = inputs.config as Partial<FaceCategorizerDial> | undefined;
         const model = (inputs.model as FaceCategorizerPlay | null | undefined) ?? null;
         const degrees = ownDegrees(config);
+        const targets = ownTargets(config);
         // Only the model the dial names plays: a stale one (a switch in flight) never does.
         bind(model && config?.id === model.id ? model : null);
         if (!current || !tracker) {
           const general = (inputs.general as ExpressionScores | undefined) ?? ABSENT_EXPRESSION;
-          return { expression: general, degrees };
+          return { expression: general, degrees, targets };
         }
         const frame = inputs.face as FaceFrame | undefined;
         if (!frame || frame !== lastFrame) {
           lastFrame = frame;
           lastExpression = read(frame);
         }
-        return { expression: lastExpression, degrees };
+        return { expression: lastExpression, degrees, targets };
       },
     };
   },

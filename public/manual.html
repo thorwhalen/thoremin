@@ -252,7 +252,7 @@
       <dl>
         <dt>roles</dt><dd>feature</dd>
         <dt>in</dt><dd>face:face-frame, general:face-expression, model:face-categorizer-model, config:face-categorizer-config</dd>
-        <dt>out</dt><dd>expression:face-expression, degrees:category-degrees</dd>
+        <dt>out</dt><dd>expression:face-expression, degrees:category-degrees, targets:category-targets</dd>
         <dt>params</dt><dd>holdOnReject (boolean=false), enterFrames (number=3), exitFrames (number=8), minPresent (number=0.9)</dd>
       </dl>
     </div>
@@ -433,7 +433,7 @@
       <p>Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
-        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets</dd>
+        <dt>in</dt><dd>expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets, categoryTargets:category-targets</dd>
         <dt>out</dt><dd>params:synth-params, triad:number[], played:face-expression</dd>
         <dt>params</dt><dd>gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)</dd>
       </dl>

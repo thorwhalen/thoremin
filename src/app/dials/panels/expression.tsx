@@ -12,19 +12,9 @@ import { CalibrationWizard } from '../../CalibrationWizard';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';
-import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { formatTarget, isDiatonicMove, parseTarget } from '@thoremin/sdk/harmony/target';
+import { TARGET_CHOICES, targetChoice } from '@thoremin/sdk/harmony/target';
 
-/** What an expression can stand for (H6 of #613, `@thoremin/sdk/harmony/target`): its degree,
- *  a move from the chord in force (the key's six diatonic moves), a function, or the seventh. */
-const TARGET_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: '', label: 'plays its chord' },
-  ...['dia+3', 'dia-3', 'dia+2', 'dia-2', 'dia+1', 'dia-1'].map((m) => ({ value: `move:${m}`, label: `moves a ${RELATIONS.get(m)?.label ?? m}` })),
-  { value: 'fn:T', label: 'goes to a tonic chord' },
-  { value: 'fn:S', label: 'goes to a subdominant chord' },
-  { value: 'fn:D', label: 'goes to a dominant chord' },
-  { value: 'ctl:seventh', label: 'adds the seventh' },
-];
+const TARGET_OPTIONS = TARGET_CHOICES;
 const describeTarget = (t: string) => TARGET_OPTIONS.find((o) => o.value === t)?.label ?? '';
 
 /**
@@ -140,7 +130,7 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
         {rows.map((label) => {
           const isEmotion = label !== 'neutral';
           const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-          const target = formatTarget(parseTarget(targets?.[label], { moves: isDiatonicMove }));
+          const target = targetChoice(targets?.[label]);
           const midi = chordMode ? chordMidi(degree) : [];
           return (
             <div key={label} className="space-y-1">

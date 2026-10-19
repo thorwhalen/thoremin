@@ -36,6 +36,7 @@ export const faceCategorizer = defineBranch({
     to(ui('faceCategorizer'), { node: FACE_CATEGORIZER_NODE_ID, port: 'config' }),
     to({ node: FACE_CATEGORIZER_NODE_ID, port: 'expression' }, { node: CHORD, port: 'expression' }),
     to({ node: FACE_CATEGORIZER_NODE_ID, port: 'degrees' }, { node: CHORD, port: 'categoryDegrees' }),
+    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'targets' }, { node: CHORD, port: 'categoryTargets' }),
     to({ node: FACE_CATEGORIZER_NODE_ID, port: 'expression' }, overlay('expression')),
     to({ node: FACE_CATEGORIZER_NODE_ID, port: 'degrees' }, overlay('categoryDegrees')),
   ],

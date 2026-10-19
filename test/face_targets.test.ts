@@ -89,6 +89,18 @@ describe('the face chord with targets', () => {
     expect(play(['neutral', 'happy'], { happy: 'move:P' })).toEqual(play(['neutral', 'happy'], {}));
   });
 
+  it('a personal category\'s own target wins over its own degree (H6 of #613, the faces extension\'s targets)', () => {
+    const personal = (label: ExpressionLabel) => ({ categorizer: 'mine', noneName: 'rest', id: label === 'neutral' ? null : 'a', name: null, ids: ['a'], names: ['A'], standsFor: ['happy'] as ExpressionLabel[] });
+    const h = expressionChordNode.make(expressionChordNode.params.parse({}));
+    let out: { params: SynthParams } | undefined;
+    for (let i = 0; i < 12; i++) {
+      const label: ExpressionLabel = i < 2 ? 'neutral' : 'happy';
+      out = h.process({ expression: expr(label, personal(label)), spec: C, faceMapping: 'chord', octaveShift: 0, categoryDegrees: { a: 1 }, categoryTargets: { a: 'move:dia+3' } }, { time: i / 30, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as { params: SynthParams };
+    }
+    const pcs = [...new Set(out!.params.voices.filter((v) => v.present && v.gain > 0).map((v) => Math.round(freqToMidi(v.freq)) % 12))].sort((a, b) => a - b);
+    expect(pcs).toEqual(F_MAJ); // the move from the tonic, not Dm (its own degree)
+  });
+
   it('plays degrees only on a five-note chord source', () => {
     const pent: ScaleSpec = { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3 };
     const withTargets = play(['neutral', 'happy'], { happy: 'move:dia+3' }, { spec: pent });

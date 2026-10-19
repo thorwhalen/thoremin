@@ -59,7 +59,8 @@ describe('the dial (pure)', () => {
     expect(chordDegreeOf(dial, 'cat-9', 7)).toBe(ORDER_DEGREES[0]);
     const writes = chooseCategorizerChordsWrites('hand:x');
     expect(writes[0]).toEqual(['categorizerChords.id', 'hand:x']);
-    expect(writes.slice(1).every(([, v]) => v === AUTO_DEGREE)).toBe(true);
+    // Every slot back to Auto, and its target back to '' (its degree, H6 of #613).
+    expect(writes.slice(1).every(([k, v]) => (k.startsWith('categorizerChords.degrees.') ? v === AUTO_DEGREE : k.startsWith('categorizerChords.targets.') && v === ''))).toBe(true);
   });
 });
 
@@ -221,6 +222,17 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     for (const x of fists) expect(x.triad).toEqual(diatonicTriad(cMajor, 6));
     const quiet = { ...own, degrees: { ...own.degrees, [fist.id]: -1 } };
     for (const x of settled(await replay(quiet)).filter((y) => y.shape === 'fist')) expect(x.params.voices.every((v) => !v.present)).toBe(true);
+  });
+
+  it('a category\'s own target plays (H6 of #613): adding the seventh to the chord in force while held', async () => {
+    const fist = categorizer.categories.find((c) => c.label === 'fist')!;
+    const own = { ...DEFAULT_CATEGORIZER_CHORDS, id: record.id, targets: { ...DEFAULT_CATEGORIZER_CHORDS.targets, [fist.id]: 'ctl:seventh' } };
+    const fists = settled(await replay(own)).filter((x) => x.shape === 'fist');
+    expect(fists.length).toBeGreaterThan(0);
+    for (const x of fists) {
+      const pcs = new Set(x.params.voices.filter((v) => v.present).map((v) => Math.round(12 * Math.log2(v.freq / 440) + 69) % 12));
+      expect(pcs.size, `fist at ${x.ms} ms`).toBe(4); // a seventh chord
+    }
   });
 
   it('a model the dial does not name, or no hand in view, plays nothing', async () => {

@@ -6,6 +6,7 @@
  * resolved categorizer from {@link useCategorizerChords}, which the extension's mount effect keeps.
  */
 import { useEffect, useState } from 'react';
+import { TARGET_CHOICES, targetChoice } from '@thoremin/sdk/harmony/target';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
@@ -99,6 +100,21 @@ export default function CategorizerChordsSection() {
                   <option value={-1}>Silence</option>
                   {DEGREES.map((d) => (
                     <option key={d} value={d}>{`Degree ${ROMAN[d]}`}</option>
+                  ))}
+                </select>
+                <select
+                  className={selectCls}
+                  aria-label={`What ${c.name} does`}
+                  data-category-target={c.id}
+                  value={slot ? targetChoice((dial.targets as Record<string, string> | undefined)?.[slot]) : ''}
+                  disabled={!slot}
+                  title="What this category does: play its chord, or move from the chord in force, choose a function, or add the seventh while held"
+                  onChange={(e) => slot && void dispatchDialSetIn(`categorizerChords.targets.${slot}`, e.target.value)}
+                >
+                  {TARGET_CHOICES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
               </div>
