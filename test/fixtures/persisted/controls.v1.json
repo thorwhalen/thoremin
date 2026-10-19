@@ -1,0 +1,111 @@
+{
+  "state": {
+    "right": {
+      "root": 1,
+      "type": "pentatonic",
+      "octaves": 2,
+      "baseOctave": 3,
+      "instrument": "bell"
+    },
+    "left": {
+      "root": 0,
+      "type": "pentatonic",
+      "octaves": 2,
+      "baseOctave": 3,
+      "instrument": "reed"
+    },
+    "syncHands": true,
+    "masterVolume": 0.55,
+    "faceEnabled": true,
+    "overlay": {
+      "video": {
+        "show": true,
+        "alpha": 0.35
+      },
+      "scaleGuide": {
+        "show": true,
+        "showLabels": true
+      },
+      "chordGuide": {
+        "show": true
+      },
+      "indexGuide": {
+        "show": false,
+        "dashed": true
+      },
+      "landmarks": {
+        "show": true
+      },
+      "markers": {
+        "show": true,
+        "showNotes": true
+      },
+      "fingerLines": {
+        "show": false,
+        "showLabels": true
+      },
+      "faceLandmarks": {
+        "show": true
+      },
+      "bodySkeleton": {
+        "show": true
+      },
+      "conductorHud": {
+        "show": true
+      },
+      "drumPads": {
+        "show": true
+      },
+      "timbreLevels": {
+        "show": false
+      },
+      "mouthCue": {
+        "show": true,
+        "position": "left"
+      },
+      "faceExpression": {
+        "show": true,
+        "position": "left",
+        "topLabel": false,
+        "exprLabels": true,
+        "chordLabels": true
+      },
+      "categoryLabel": {
+        "show": true,
+        "position": "top",
+        "size": 0.45
+      },
+      "categoryBars": {
+        "show": true,
+        "position": "bottom",
+        "captions": true
+      },
+      "fingerBars": {
+        "show": false,
+        "position": "left"
+      },
+      "chordName": {
+        "show": true,
+        "position": "top",
+        "roman": true,
+        "nashville": false
+      },
+      "keyboardStrip": {
+        "show": false,
+        "scaleMode": false,
+        "height": 0.1,
+        "showLabels": false,
+        "showChordTones": true,
+        "showScaleRoot": true
+      },
+      "tagHud": {
+        "show": true,
+        "position": "right"
+      }
+    },
+    "recordingFormats": [
+      "webm"
+    ]
+  },
+  "version": 1
+}
