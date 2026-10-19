@@ -12,14 +12,18 @@ import { ToolSchema, TOOLS, type Tool } from './tools';
 import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 
-/** The core tools followed by the extensions' (validated, `kind: 'panel'`). Throws on a clash. */
+/** The core tools followed by the extensions' (validated, `kind: 'panel'`), each placed before the
+ *  tool it names (`before`) when the list has it. Throws on a clash. */
 export function withExtensionTools(core: readonly Tool[], decls: readonly ExtensionToolDecl[]): Tool[] {
   const out = [...core];
   const ids = new Set(core.map((t) => t.id));
   for (const d of decls) {
     if (ids.has(d.id)) throw new Error(`extensions.json: an extension declares the tool "${d.id}", which another tool already uses`);
     ids.add(d.id);
-    out.push(ToolSchema.parse({ ...d, kind: 'panel' }));
+    const tool = ToolSchema.parse({ ...d, kind: 'panel' });
+    const at = d.before === undefined ? -1 : out.findIndex((t) => t.id === d.before);
+    if (at < 0) out.push(tool);
+    else out.splice(at, 0, tool);
   }
   return out;
 }

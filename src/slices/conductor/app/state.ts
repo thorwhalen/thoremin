@@ -10,8 +10,11 @@ import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 /** A React hook over one reading of the store: re-renders when the reading changes. The reading
  *  must return a stable value (a field, a primitive). */
 export function useControlsField<T>(read: () => T): T {
-  return useSyncExternalStore((listener) => controls().subscribe(listener), read, read);
+  return useSyncExternalStore(subscribe, read, read);
 }
+
+/** One subscription function for every render (a new one each render would resubscribe). */
+const subscribe = (listener: () => void): (() => void) => controls().subscribe(listener);
 
 /** The loaded score the `score` node and the orchestra play (null: none). */
 export const scoreDoc = (): ScoreDoc | null => (controls().get().scoreDoc as ScoreDoc | null | undefined) ?? null;

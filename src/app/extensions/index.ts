@@ -97,9 +97,10 @@ export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
 /** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */
 export const EXTENSION_TOOL_DECLS: readonly (ExtensionToolDecl & { runsDetached?: true })[] = LISTED.flatMap((u) =>
   (u.tools ?? []).map((t) => {
-    const { id, label, description, group, defaultPinned } = t;
+    const { id, label, description, group, defaultPinned, before } = t;
+    const decl = { id, label, description, group, defaultPinned, ...(before === undefined ? {} : { before }) };
     // An eager tool that keeps working with its panel closed (#600 S15) runs detached.
-    return 'detached' in t && t.detached ? { id, label, description, group, defaultPinned, runsDetached: true as const } : { id, label, description, group, defaultPinned };
+    return 'detached' in t && t.detached ? { ...decl, runsDetached: true as const } : decl;
   }),
 );
 

@@ -20,7 +20,8 @@ import LabPanel from '@/app/LabPanel';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
-import { SHELL_TOOLS } from '@/app/shellTools';
+import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
+import { CONDUCTOR } from './helpers/extensions';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
@@ -100,6 +101,20 @@ describe('the tools bar and its launcher are the shell entry point for every too
     expect(pinned.length).toBeGreaterThan(0);
     for (const t of pinned) expect(bar.querySelector(`[data-tool="${t.id}"]`)?.textContent).toContain(t.label);
     expect(bar.querySelectorAll('[data-tool]')).toHaveLength(pinned.length);
+  });
+
+  it('an extension tool takes the place it names (`before`), else follows every tool listed', () => {
+    const decl = (id: string, before?: string) => ({ id, label: id, description: id, group: 'mode' as const, defaultPinned: false, ...(before ? { before } : {}) });
+    const ids = withExtensionTools(TOOLS, [decl('x', 'trainer'), decl('y'), decl('z', 'no-such-tool')]).map((t) => t.id);
+    expect(ids.indexOf('x')).toBe(ids.indexOf('trainer') - 1);
+    expect(ids.slice(-2)).toEqual(['y', 'z']);
+  });
+
+  it.runIf(CONDUCTOR)('the Conductor keeps its place ahead of the Trainer in the bar (core\'s first tool until #600 S18b)', () => {
+    render(<ToolsBar />);
+    const order = [...document.querySelectorAll('[data-tools-bar] [data-tool]')].map((b) => b.getAttribute('data-tool'));
+    expect(order.indexOf('conductor')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('conductor')).toBeLessThan(order.indexOf('trainer'));
   });
 
   it('shows the command palette hotkey, so ⌘K is discoverable without reading the source', () => {

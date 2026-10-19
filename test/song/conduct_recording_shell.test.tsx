@@ -25,7 +25,7 @@ import type { DerivationSettings } from '@/instruments/derive';
 import type { ConductorSettings } from '@/slices/conductor/schema';
 import { renderClickTrack, SR } from '../helpers/clicks';
 import { setSongHandle, setSongStartBeat, songStartBeat } from '@/slices/song/app/state';
-import { SONG } from '../helpers/extensions';
+import { CONDUCTOR, SONG } from '../helpers/extensions';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -54,7 +54,8 @@ afterEach(async () => {
   setSongHandle(null);
 });
 
-describe.runIf(SONG)('Conduct a recording', () => {
+// The Conductor's panel hosts it: both slices must be listed (#600 S18b).
+describe.runIf(SONG && CONDUCTOR)('Conduct a recording', () => {
   it('four clicks from a cold load: Conductor, Conduct a recording, Choose a recording, Start conducting', async () => {
     render(
       <>
