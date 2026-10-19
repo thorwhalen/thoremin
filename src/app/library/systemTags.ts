@@ -21,7 +21,7 @@ import {
 } from './summarize';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource } from '@/nodes/mapping/hand_map.schema';
-import { AIR_INSTRUMENTS, classOfEntry } from './category';
+import { INSTRUMENT_CATALOG, classOfEntry } from './category';
 
 /** A derived, read-only tag: a `sys:*` id, an emoji, and a tooltip label. Shape-
  *  compatible with how custom tags render (emoji + tooltip), differing only in source. */
@@ -70,7 +70,7 @@ export function deriveSystemTags(sum: InstrumentSummary): SystemTag[] {
   const tags: SystemTag[] = [];
 
   // The air instruments first (#249): what you mime is the most distinguishing fact.
-  for (const a of AIR_INSTRUMENTS) {
+  for (const a of INSTRUMENT_CATALOG) {
     if ((sum.air as readonly string[]).includes(a.id)) {
       tags.push({ id: `${SYSTEM_TAG_PREFIX}${classOfEntry(a)}:${a.id}`, emoji: a.emoji, label: a.label });
     }

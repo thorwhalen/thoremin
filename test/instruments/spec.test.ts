@@ -18,7 +18,8 @@ import { AIR } from '../helpers/extensions';
 const layer = { 'master.volume': 0.5 };
 
 describe('assembleSpec', () => {
-  it('the derived class wins over a stale cache; a legacy cached id is normalised when there is no derivation', () => {
+  // `air` is the air extension's class (#600 S8).
+  it.runIf(AIR)('the derived class wins over a stale cache; a legacy cached id is normalised when there is no derivation', () => {
     const derived = { class: 'air' as const, branches: ['air-drum'] };
     expect(assembleSpec({ name: 'X', layer, meta: { class: 'field' }, derived }).class).toBe('air');
     expect(assembleSpec({ name: 'X', layer, meta: { class: 'theremin' } }).class).toBe('field');

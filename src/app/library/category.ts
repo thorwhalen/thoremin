@@ -11,58 +11,33 @@
  * shipped that way or a player ticked "Drum in the air" on their own theremin and saved
  * it. A stale category is therefore impossible, and there is no field to migrate.
  *
- * Adding an air instrument is one entry in {@link AIR_INSTRUMENTS}: an id, its label and
- * emoji (they become the system tag), and the predicate that reads its dial. The list
- * grouping, the tag, the tooltip line and the reachability test all follow from it.
+ * Adding an instrument is one row of its extension's `catalog` (#600 S8): an id, its label and
+ * emoji (they become the system tag), its class, and the predicate that reads its dial. The list
+ * grouping, the tag, the tooltip line and the reachability test all follow from it; core names
+ * no extension's instrument.
  */
+import type { CatalogEntry } from '@thoremin/sdk/instruments/extension';
 import type { Settings } from '@/settings/schema';
+import { CONTRIBUTIONS } from '@/host/contributions';
 
-/** One air instrument: a thing you play by miming it, detected from its dial. */
-export interface AirInstrument {
-  id: string;
-  /** Shown as the system tag's tooltip and in the parametrization tooltip. */
-  label: string;
-  emoji: string;
-  /** Whether it plays the instrument's scale (the Sound section's scale, root and range),
-   *  so the list keeps describing the scale even with the theremin voices silent. */
-  usesScale: boolean;
-  /** True when these settings play this air instrument. */
-  on: (s: Settings) => boolean;
-  /** The class an instrument playing it is listed under (default: air). */
-  class?: InstrumentClassId;
-}
+/** One catalog row: an instrument an extension contributes, detected from its dial
+ *  (`Extension.catalog`, #600 S8). */
+export type AirInstrument = CatalogEntry;
 
 /** The class an entry lists its instruments under. */
-export const classOfEntry = (a: AirInstrument): InstrumentClassId => a.class ?? 'air';
+export const classOfEntry = (a: AirInstrument): InstrumentClassId => a.class;
 
-/** Whether the extension dial `key` is on. Read structurally: the dial exists only in a build
- *  whose extension list declares it, so a build without the air extension reads "off". */
-const dialOn = (key: string) => (s: Settings): boolean => {
-  const dial = (s as unknown as Record<string, { enabled?: unknown } | undefined>)[key];
-  return dial?.enabled === true;
-};
+/** The instrument catalog, in display order: every listed extension's rows (the air
+ *  instruments', the sign reader's), folded by the contribution registry. A build without an
+ *  extension has none of its rows. SSOT for everything instrument-specific in the library. */
+export const INSTRUMENT_CATALOG: readonly AirInstrument[] = CONTRIBUTIONS.catalog;
 
-/** The air instruments, in display order. SSOT for everything air-specific in the library. */
-export const AIR_INSTRUMENTS = [
-  { id: 'drum', label: 'Air drum', emoji: '🥁', usesScale: false, on: dialOn('airDrum') },
-  // 🎸 for the bass; 🤘 for the air guitar (the air guitarist's own sign).
-  { id: 'bass', label: 'Air bass', emoji: '🎸', usesScale: true, on: dialOn('airBass') },
-  // The guitar plays the chords the player enrolled, not the scale.
-  { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: dialOn('airGuitar') },
-  // The flute plays the notes the player named when enrolling fingerings, not the scale.
-  { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: dialOn('airFlute') },
-  // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
-  { id: 'chords', label: 'Chord map', emoji: '🎼', usesScale: true, on: dialOn('chordMap') },
-  // Not an air instrument but the same kind of entry: an extension's instrument, detected
-  // from its dial. The ASL reader (and its chords) is listed under the sign instruments.
-  { id: 'asl', label: 'Sign language', emoji: '🤟', usesScale: false, on: dialOn('asl'), class: 'sign' },
-] as const satisfies readonly AirInstrument[];
+/** A catalog row's id. */
+export type AirInstrumentId = string;
 
-export type AirInstrumentId = (typeof AIR_INSTRUMENTS)[number]['id'];
-
-/** The air instruments these settings play, in {@link AIR_INSTRUMENTS} order. */
+/** The catalog rows these settings play, in {@link INSTRUMENT_CATALOG} order. */
 export function airInstrumentsOf(s: Settings): AirInstrumentId[] {
-  return AIR_INSTRUMENTS.filter((a) => a.on(s)).map((a) => a.id);
+  return INSTRUMENT_CATALOG.filter((a) => a.on(s as unknown as Readonly<Record<string, unknown>>)).map((a) => a.id);
 }
 
 export {
@@ -82,10 +57,10 @@ export type InstrumentCategory = InstrumentClassId;
 
 /** The class an instrument that plays these air instruments belongs to. An air
  *  instrument wins: a field instrument with a drum added is found where the drums are.
- *  Among several, the first in {@link AIR_INSTRUMENTS} order decides (the air ones lead). */
+ *  Among several, the first in {@link INSTRUMENT_CATALOG} order decides (the air ones lead). */
 export function categoryOfAir(air: readonly AirInstrumentId[]): InstrumentClassId {
-  const first = (AIR_INSTRUMENTS as readonly AirInstrument[]).find((a) => (air as readonly string[]).includes(a.id));
-  return first ? (first.class ?? 'air') : DEFAULT_CLASS;
+  const first = INSTRUMENT_CATALOG.find((a) => air.includes(a.id));
+  return first ? first.class : DEFAULT_CLASS;
 }
 
 /** The class of an instrument's settings. */

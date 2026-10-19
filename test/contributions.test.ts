@@ -98,6 +98,26 @@ describe('foldContributions', () => {
     expect(() => overlayConfigEdges({ elements: ['probe/meter'], edges: [stray] }, [meter], nodes)).toThrow(/feeds the overlay element config port "probe\.meter\.config"/);
   });
 
+  it('folds classes and catalog rows (#600 S8), and refuses a class core owns, a row twice, or a row of an unknown class', () => {
+    const c = foldContributions([probe]);
+    expect(c.classes.map((k) => k.id)).toEqual(['probe-class']);
+    expect(c.catalog.map((r) => r.id)).toEqual(['probe']);
+    const field = { id: 'field', label: 'F', emoji: 'f', colour: 'red' };
+    expect(() => foldContributions([twin({ classes: [field] })])).toThrow(/declares the instrument class "field", which core already declares/);
+    expect(() => foldContributions([probe, twin({ catalog: probe.catalog })])).toThrow(/both declare the catalog row "probe"/);
+    expect(() => foldContributions([twin({ catalog: [{ ...probe.catalog![0], id: 'x', class: 'brass' }] })])).toThrow(/the class "brass", which no extension and not core declares/);
+  });
+
+  it('an extension pinned before the library rows were contributions gets core\'s fallback, only until it declares its own', () => {
+    const asl = (over: Partial<Extension> = {}): Extension => ({ ...empty('asl'), ...over });
+    expect(foldContributions([asl()]).classes.map((k) => k.id)).toEqual(['sign']);
+    expect(foldContributions([asl()]).catalog.map((r) => r.id)).toEqual(['asl']);
+    const own = foldContributions([asl({ classes: [{ id: 'sign', label: 'Signs', emoji: 's', colour: 'x' }], catalog: [] })]);
+    expect(own.classes.map((k) => k.label)).toEqual(['Signs']);
+    expect(own.catalog).toEqual([]);
+    expect(foldContributions([]).classes).toEqual([]);
+  });
+
   it('refuses a key one extension declares twice', () => {
     expect(() => foldContributions([twin({ nodes: [node('a'), node('a')] })])).toThrow(/extension "probe-twin" declares the node type "a" twice/);
   });

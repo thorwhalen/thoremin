@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { assembleSpec } from '@/app/graph';
+import { AIR } from './helpers/extensions';
 import {
   createSpecsSource,
   instrumentsCollection,
@@ -50,9 +51,11 @@ describe('the instruments collection declares the view', () => {
   });
 });
 
-describe('the specs provider answers the queries', () => {
+// The fixture lists an air instrument: `air` is the air extension's class (#600 S8).
+describe.runIf(AIR)('the specs provider answers the queries', () => {
   const src = createSpecsSource();
-  src.set([
+  // Built only where it runs: a skipped describe's body still runs at collection.
+  if (AIR) src.set([
     spec('Pentatonic'),
     spec('Air Drum', { air: true, starred: true }),
     spec('Wrist Theremin', { searchText: 'note source: wrist' }),

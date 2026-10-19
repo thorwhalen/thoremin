@@ -20,7 +20,7 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { TOOLS } from '@/app/tools';
 import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive, describeMagnet } from '@thoremin/ext-air/app/airDrumStatus';
 import { AirDrumReadout } from '@thoremin/ext-air/panels/airDrum';
-import { AIR_INSTRUMENTS } from '@/app/library/category';
+import { INSTRUMENT_CATALOG } from '@/app/library/category';
 import type { AirDrumSettings, AirBassSettings, AirGuitarSettings, AirFluteSettings } from '@thoremin/ext-air/dials';
 import type { HandMap } from '@/nodes/mapping/hand_map';
 import { AIR, ASL } from './helpers/extensions';
@@ -173,7 +173,7 @@ describe('the Air instruments category (#249)', () => {
 
   it('keeps instruments out of the tools bar: no shell tool is an air instrument', () => {
     const toolWords = TOOLS.map((t) => `${t.id} ${t.label}`.toLowerCase());
-    for (const a of AIR_INSTRUMENTS) {
+    for (const a of INSTRUMENT_CATALOG) {
       for (const w of toolWords) expect(w).not.toContain(a.label.toLowerCase());
     }
     expect(TOOLS.find((t) => t.id === 'airDrum')).toBeUndefined();

@@ -3,9 +3,9 @@
  * and the flute as ONE manifest. The app folds over `EXTENSIONS` for its node registry, its
  * branch table, its dials form, its settings schema and type (`defineExtension` keeps the
  * slices' keys literal, so the `Settings` type computed from the generated list declaration
- * knows `airDrum`), its `store-controls` ports and its derivation. Still named in core, as
- * strings, not imports: `AIR_INSTRUMENTS` (the library's class derivation), the overlay's
- * drum and breath ports, and the catalog script's category row. The four shipped
+ * knows `airDrum`), its `store-controls` ports and its derivation; its class and catalog rows
+ * are contributions too (#600 S8). Still named in core, as strings, not imports: the overlay's
+ * drum and breath ports (S10 moves them), and the catalog script's category row. The four shipped
  * air instruments are this manifest's `instruments`, seeded by core after its own, and
  * their training routes its `training` (`./training.ts`).
  *
@@ -43,8 +43,26 @@ const SILENT_THEREMIN = {
 
 const on = (x: unknown): boolean => !!x && typeof x === 'object' && (x as { enabled?: boolean }).enabled === true;
 
+/** Whether one of this extension's dials is on, read from the whole settings object. */
+const dialOn = (key: string) => (s: Readonly<Record<string, unknown>>): boolean => on(s[key]);
+
 export const AIR_EXTENSION = defineExtension({
   id: 'air',
+  // The class the air instruments are listed under (#600 S8: a contribution; core owns `field`).
+  classes: [{ id: 'air', label: 'Air instruments', emoji: '🌬️', colour: 'hsl(32 75% 50%)' }],
+  // Its rows of the Instruments view's catalog, in display order: the id and emoji become the
+  // system tag; the first row an instrument plays decides its class.
+  catalog: [
+    { id: 'drum', label: 'Air drum', emoji: '🥁', class: 'air', usesScale: false, on: dialOn('airDrum') },
+    // 🎸 for the bass; 🤘 for the air guitar (the air guitarist's own sign).
+    { id: 'bass', label: 'Air bass', emoji: '🎸', class: 'air', usesScale: true, on: dialOn('airBass') },
+    // The guitar plays the chords the player enrolled, not the scale.
+    { id: 'guitar', label: 'Air guitar', emoji: '🤘', class: 'air', usesScale: false, on: dialOn('airGuitar') },
+    // The flute plays the notes the player named when enrolling fingerings, not the scale.
+    { id: 'flute', label: 'Air flute', emoji: '🪈', class: 'air', usesScale: false, on: dialOn('airFlute') },
+    // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
+    { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'air', usesScale: true, on: dialOn('chordMap') },
+  ],
   nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
   dials: AIR_DIAL_SLICES,

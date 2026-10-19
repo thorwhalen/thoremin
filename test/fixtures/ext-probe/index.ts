@@ -5,7 +5,7 @@
  * carries them and nothing of the shipped extensions (`scripts/check_core_bundle.ts`).
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
- * branch with a voice, a chord producer and an overlay element, a dial slice, a transient port, a seed instrument, a training route);
+ * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a dial slice, a transient port, a seed instrument, a training route);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -108,6 +108,10 @@ export const PROBE_EXTENSION = defineExtension({
     }),
   ] as const,
   transient: [transientPort<ProbeModel>()('probeModel', 'probe-model')] as const,
+  // A class of its own and a catalog row under it (#600 S8): the Instruments view lists the probe
+  // instrument there, with its emoji as a system tag.
+  classes: [{ id: 'probe-class', label: 'Probe instruments', emoji: '🧪', colour: 'hsl(300 50% 50%)' }],
+  catalog: [{ id: 'probe', label: 'Probe', emoji: '🧪', class: 'probe-class', usesScale: true, on: (s) => (s.probe as Partial<ProbeDial> | undefined)?.enabled === true }],
   overlay: [{ name: PROBE_ELEMENT, category: 'output', inputs: [{ name: 'level', kind: 'number' }], config: { dialKey: 'probe' } }],
   overlayElements: [probeMeter],
   instruments: [{ name: PROBE_INSTRUMENT, patch: { probe: { enabled: true, freq: 330 } } }],
