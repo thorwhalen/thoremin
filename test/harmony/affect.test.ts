@@ -5,7 +5,7 @@
  * (`video_face_expressions`: neutral, a smile, a smile with the mouth open and the brows up).
  */
 import { describe, it, expect } from 'vitest';
-import { AFFECT_WEIGHTS, arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS } from '@thoremin/sdk/harmony/affect';
+import { AFFECT_WEIGHTS, arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenceOf, VALENCE_LEVELS } from '@thoremin/sdk/harmony/affect';
 import { byTension, tensionSteps } from '@thoremin/sdk/harmony/coloration';
 import { DEFAULT_CONTROLS, tonesInRegister } from '@thoremin/sdk/harmony/realize';
 import { scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -59,6 +59,21 @@ describe('valence and arousal', () => {
   });
 });
 
+describe('the face from its own rest (#673)', () => {
+  it('takes away what a control reads at rest and its jitter; a held expression is not learned as rest', () => {
+    const b = createRestBaseline();
+    let rel = b.push(face({ browRaise: 0.6, mouthOpen: 0.1 }), 1 / 30)!;
+    for (let i = 0; i < 30; i++) rel = b.push(face({ browRaise: 0.6, mouthOpen: 0.1 }), 1 / 30)!;
+    expect(rel.browRaise).toBe(0); // brows that rest high read as nothing
+    rel = b.push(face({ browRaise: 0.95, mouthOpen: 0.1 }), 1 / 30)!;
+    expect(rel.browRaise).toBeCloseTo(0.35, 1);
+    for (let i = 0; i < 150; i++) rel = b.push(face({ browRaise: 0.95, mouthOpen: 0.1 }), 1 / 30)!; // held five seconds
+    expect(rel.browRaise).toBeGreaterThan(0.3); // still read as raised
+    expect(b.push(face({ browRaise: 0.4 }), 1 / 30)!.browRaise).toBe(0); // anything lower is the new rest at once
+    expect(b.push(undefined, 1 / 30)).toBeUndefined();
+  });
+});
+
 describe('the byTension coloration', () => {
   const color = (notes: number[], tension: number, spec = C) => byTension.color(tonesInRegister(notes), { ...DEFAULT_CONTROLS, tension }, scale(spec)).map((t) => t.midi - notes[0]);
 
@@ -81,6 +96,16 @@ describe('the recorded face', () => {
   // Through the face-features node the face source composes, with its smoothing (0.3).
   const node = faceFeaturesNode.make(faceFeaturesNode.params.parse({ smoothing: 0.3 }));
   const features = (f: (typeof frames)[number]): FaceFeatures => (node.process({ face: f }, { time: 0, dt: 1 / 24, tick: 0, resources: {} } as never) as { features: FaceFeatures }).features;
+
+  it('read from its own rest, the resting face reads no arousal and the open-mouthed smile does', () => {
+    const base = createRestBaseline();
+    const arousal = createLevelTracker({ edges: [0.25, 0.45], hysteresis: 0.05, dwellS: 0.25, rest: 0 });
+    const read = frames.map((f, i) => ({ t: i / 24, level: arousal.push(arousalOf(base.push(features(f), 1 / 24)), i / 24) }));
+    const at = (t: number) => read.find((r) => r.t >= t)!;
+    expect(at(0.4).level).toBe(0);
+    expect(at(1.5).level).toBe(0); // a closed smile is calm
+    expect(at(3.3).level).toBeGreaterThan(0);
+  });
 
   it('turns a minor key major a second into the smile, and adds tensions to the open-mouthed smile only', () => {
     const valence = createLevelTracker({ edges: [-0.3, 0.3], hysteresis: 0.08, dwellS: 1, rest: 1 });

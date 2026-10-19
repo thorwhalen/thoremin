@@ -6,6 +6,10 @@
  * mouth, raised brows) changes the COLOUR, not the chord: AffectMachine found arousal chose no
  * chord and drove density, so here it adds the key's tensions (the seventh, then the ninth).
  *
+ * Read from the player's own rest by default (`createRestBaseline`, #673): what each control
+ * reads at rest, and how much it wanders, is learned and taken away first, so resting brows that
+ * sit high, or a furrow the lighting makes, read as nothing.
+ *
  * Both are levels, not raw numbers: a reading crosses an edge by a margin (hysteresis) and must
  * stay past it for a dwell before the level changes, so a passing smile does not modulate. The
  * weights are data (`AFFECT_WEIGHTS`), so a calibration swaps them without touching the code.
@@ -117,4 +121,65 @@ export const VALENCE_LEVELS = { darker: 0, key: 1, brighter: 2 } as const;
 export function parallelSpec<S extends Pick<ScaleSpec, 'type'>>(spec: S, level: number): S {
   const to = level === VALENCE_LEVELS.darker ? DARKER[spec.type] : level === VALENCE_LEVELS.brighter ? BRIGHTER[spec.type] : undefined;
   return to ? { ...spec, type: to } : spec;
+}
+
+/** The face controls a baseline learns (every `FaceFeatures` number). */
+const CONTROLS = ['smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'] as const;
+
+export interface RestBaselineOptions {
+  /** How fast a control's rest creeps up toward a level held above it, per second (a fraction of
+   *  the gap): slow, so a smile held for seconds is not learned as the face at rest. */
+  rise?: number;
+  /** A control's own jitter, as an exponential mean of its frame-to-frame change, times this, is
+   *  how far above rest it must be before it counts (the noise units of the trainer). */
+  jitterK?: number;
+  /** The jitter's smoothing per reading (0..1). */
+  jitterSmoothing?: number;
+}
+
+export interface RestBaseline {
+  /** One reading of the face (dt: seconds since the last): the same controls, each measured
+   *  above the player's own rest and jitter (0 at rest), and absent while the face is. */
+  push(face: FaceFeatures | undefined, dt: number): FaceFeatures | undefined;
+  reset(): void;
+}
+
+/**
+ * The player's own face at rest (#673): what each control reads when nothing is meant, and how much
+ * it wanders. Resting brows already read 0.2 to 0.5 on the face fixture, a furrow can come from the
+ * lighting, and absolute thresholds would read either as an expression. Each control's rest falls at
+ * once to anything lower and rises slowly toward a level held above it; what counts is the part
+ * above rest plus `jitterK` of its own jitter, so a resting face reads nothing on every control,
+ * whatever this player's face and room. Pure.
+ */
+export function createRestBaseline({ rise = 0.02, jitterK = 2, jitterSmoothing = 0.1 }: RestBaselineOptions = {}): RestBaseline {
+  const rest: Partial<Record<(typeof CONTROLS)[number], number>> = {};
+  const jitter: Partial<Record<(typeof CONTROLS)[number], number>> = {};
+  const last: Partial<Record<(typeof CONTROLS)[number], number>> = {};
+  return {
+    push(face, dt) {
+      if (!face?.present) return face;
+      const step = Number.isFinite(dt) && dt > 0 ? dt : 0;
+      const out: FaceFeatures = { ...face };
+      for (const k of CONTROLS) {
+        const v = face[k];
+        if (!Number.isFinite(v)) continue;
+        const r = rest[k];
+        rest[k] = r === undefined || v < r ? v : r + (v - r) * Math.min(1, rise * step);
+        // Measured against the jitter learned so far, then the jitter learns this frame's change.
+        out[k] = Math.max(0, v - (rest[k] ?? v) - jitterK * (jitter[k] ?? 0));
+        const prev = last[k];
+        if (prev !== undefined) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
+        last[k] = v;
+      }
+      return out;
+    },
+    reset() {
+      for (const k of CONTROLS) {
+        delete rest[k];
+        delete jitter[k];
+        delete last[k];
+      }
+    },
+  };
 }

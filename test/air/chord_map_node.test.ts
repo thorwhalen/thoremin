@@ -156,8 +156,8 @@ describe('the chord-map node, coloured by the face (H7 of #613)', () => {
     ...ABSENT_FACE,
     present: true,
     smile: t >= 0.5 ? 0.9 : 0,
-    mouthOpen: t >= 2.2 ? 0.6 : 0.1,
-    browRaise: t >= 2.2 ? 0.7 : 0.3,
+    mouthOpen: t >= 2.2 ? 0.8 : 0.1,
+    browRaise: t >= 2.2 ? 0.9 : 0.3,
   });
   const take = () => chordMapTake({ duration: 3.2, chordAt: () => cellOf(0) });
 
@@ -170,6 +170,14 @@ describe('the chord-map node, coloured by the face (H7 of #613)', () => {
     expect(at(1.8).status).toMatchObject({ mode: 'brighter', key: 'A', tension: 0 });
     expect(soundingPcs(at(3.0).params)).toEqual([1, 4, 8, 9, 11]); // Amaj9: G# and B added
     expect(at(3.0).status.tension).toBe(2);
+  });
+
+  it('a player whose brows rest high reaches no seventh at rest, read from their own rest (#673)', () => {
+    const highBrows = (): FaceFeatures => ({ ...ABSENT_FACE, present: true, smile: 0, mouthOpen: 0.2, browRaise: 0.8 });
+    const fromRest = play(take(), { ...ON, face: true }, A_MINOR, highBrows);
+    expect(fromRest[fromRest.length - 1].out.status.tension).toBe(0);
+    const absolute = play(take(), { ...ON, face: true, faceFromRest: false }, A_MINOR, highBrows);
+    expect(absolute[absolute.length - 1].out.status.tension).toBeGreaterThan(0); // what #673 fixes
   });
 
   it('plays the same with the seed\'s voice-led voicing', () => {

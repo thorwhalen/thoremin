@@ -1506,6 +1506,11 @@
         "default": true
       },
       {
+        "name": "faceFromRest",
+        "type": "boolean",
+        "default": true
+      },
+      {
         "name": "modeDwellS",
         "type": "number",
         "default": 1

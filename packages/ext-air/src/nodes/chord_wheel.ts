@@ -33,7 +33,7 @@ import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/mus
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
 import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
-import { arousalOf, createLevelTracker } from '@thoremin/sdk/harmony/affect';
+import { arousalOf, createLevelTracker, createRestBaseline } from '@thoremin/sdk/harmony/affect';
 import { CLOCKS, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -269,6 +269,8 @@ export const chordWheelNode = defineNode<Params>({
      *  no push is under way, so the move under a wedge never changes beneath the hand. */
     let surpriseLevel = 0;
     let surpriseRead = 0;
+    /** The face's arousal is read from the player's own rest (#673), as the chord map's is. */
+    const faceRest = createRestBaseline();
     const surpriseTracker = createLevelTracker({ edges: SURPRISE_EDGES, hysteresis: SURPRISE_MARGIN, dwellS: SURPRISE_DWELL_S, rest: 0 });
     /** The wedges' moves when the walk started (the ranked wheel keeps them while walking). */
     let walkMoves: readonly string[] | null = null;
@@ -293,6 +295,7 @@ export const chordWheelNode = defineNode<Params>({
       pointing = null;
       walker.reset();
       surpriseTracker.reset();
+      faceRest.reset();
       surpriseLevel = surpriseRead = 0;
       status = { ...IDLE_CHORD_WHEEL_STATUS };
     };
@@ -417,7 +420,7 @@ export const chordWheelNode = defineNode<Params>({
         // The setting is a level as it stands (no hysteresis: a saved value always loads the same);
         // the face moves through the tracker, a lost face reading as at rest.
         if (c.surpriseFrom === 'dial') surpriseRead = Math.round(Math.max(0, Math.min(1, c.surprise)) * (SURPRISE_WORDS.length - 1));
-        else if (c.surpriseFrom === 'face') surpriseRead = surpriseTracker.push(arousalOf(inputs.face as FaceFeatures | undefined), ctx.time);
+        else if (c.surpriseFrom === 'face') surpriseRead = surpriseTracker.push(arousalOf(faceRest.push(inputs.face as FaceFeatures | undefined, dt)), ctx.time);
         if (pointing === null) surpriseLevel = surpriseRead;
         const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
         const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;

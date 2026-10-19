@@ -47,7 +47,7 @@ import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
 import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
-import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
+import { arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
@@ -113,6 +113,9 @@ const VALENCE_MARGIN = 0.08;
  *  reads about 0.1 on the face fixture, a resting face 0.25, an open-mouthed one with the brows
  *  up 0.6. Quicker than a modulation: a colour, not a key. */
 const AROUSAL_EDGES = [0.35, 0.55] as const;
+/** The same, read from the player's own rest (#673): a resting face reads about 0 there, a closed
+ *  smile about 0.15, an open-mouthed one with the brows up 0.45 to 0.5 (the face fixture). */
+const AROUSAL_EDGES_FROM_REST = [0.25, 0.45] as const;
 const AROUSAL_MARGIN = 0.05;
 const AROUSAL_DWELL_S = 0.25;
 /** The microphone (H8): the template fit a chord must reach, and its lead over the best different
@@ -207,6 +210,9 @@ const Params = z.object({
   faceMode: z.boolean().default(true),
   /** With the face: an open mouth and raised brows add the seventh, then the ninth. */
   faceTension: z.boolean().default(true),
+  /** With the face: read it from the player's own rest (learned as they play: what each control
+   *  reads at rest and how much it wanders), not against fixed levels (#673). */
+  faceFromRest: z.boolean().default(true),
   /** With the face: seconds a smile or a frown must last before the key changes. */
   modeDwellS: z.number().min(0).max(4).default(1),
 });
@@ -405,7 +411,9 @@ export const chordMapNode = defineNode<Params>({
     let letterNames: string[] = [];
     let changedLetters = new Set<number>();
     let changedUntil = -Infinity;
-    const arousal = createLevelTracker({ edges: AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
+    let arousal = createLevelTracker({ edges: AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
+    let arousalFromRest = false;
+    const restBaseline = createRestBaseline();
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -446,6 +454,7 @@ export const chordMapNode = defineNode<Params>({
       status = { ...IDLE_CHORD_MAP_STATUS };
       valence?.reset();
       arousal.reset();
+      restBaseline.reset();
     };
 
     return {
@@ -455,7 +464,14 @@ export const chordMapNode = defineNode<Params>({
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
         // The face's affect (H7): the mode in force and the tension steps, both levels with a dwell.
         const now = typeof ctx?.time === 'number' ? ctx.time : 0;
-        const face = c.enabled && c.face ? (inputs.face as FaceFeatures | undefined) : undefined;
+        const rawFace = c.enabled && c.face ? (inputs.face as FaceFeatures | undefined) : undefined;
+        // From the player's own rest (#673): the face as it differs from this player's resting face.
+        if (!rawFace || !c.faceFromRest) restBaseline.reset();
+        const face = c.faceFromRest ? restBaseline.push(rawFace, typeof ctx?.dt === 'number' ? ctx.dt : 0) : rawFace;
+        if (c.faceFromRest !== arousalFromRest) {
+          arousal = createLevelTracker({ edges: c.faceFromRest ? AROUSAL_EDGES_FROM_REST : AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
+          arousalFromRest = c.faceFromRest;
+        }
         valence ??= createLevelTracker({ edges: VALENCE_EDGES, hysteresis: VALENCE_MARGIN, dwellS: c.modeDwellS, rest: VALENCE_LEVELS.key });
         valence.setDwell(c.modeDwellS);
         // A gate turned off forgets its level, so turning it back on starts from the key. Tensions
