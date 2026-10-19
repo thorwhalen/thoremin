@@ -202,6 +202,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // scale-degree map (→ expression-chord).
     { name: 'expressionSensitivity', kind: 'expression-sensitivity' },
     { name: 'expressionDegrees', kind: 'expression-degrees' },
+    // What each expression stands for beyond a degree (H6 of #613): moves, functions, the seventh.
+    { name: 'expressionTargets', kind: 'expression-targets' },
     // MIDI output (#137): the on/off switch + target port for the `midi-out` node,
     // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
     { name: 'midiEnabled', kind: 'boolean' },
@@ -346,6 +348,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
             ? { ...c.faceExpr.sensitivity, ...c.faceCalibration }
             : c.faceExpr.sensitivity;
           out.expressionDegrees = c.faceExpr.degrees;
+          out.expressionTargets = c.faceExpr.targets ?? {};
         }
         // Recompose the overlay node's params: the instrument's overlay elements plus
         // the per-device Feature Lab config, which is owned outside the instrument (#136).

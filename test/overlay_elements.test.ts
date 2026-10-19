@@ -434,6 +434,19 @@ describe('canvas-overlay composable elements', () => {
     expect(rc.calls.some((c) => c.m === 'fillText' && c.args[0] === 'C')).toBe(true);
   });
 
+  it('faceExpression: an expression with a target names what it does in place of a chord (H6 of #613)', () => {
+    const expression = { present: true, label: 'happy', scores: [0.7, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1], thresholds: [0.4, 0.4, 0.45, 0.4, 0.4, 0.4, 0.375], fired: [true, false, false, false, false, false, false] };
+    const rc = makeRecordingCanvas();
+    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(onlyElement('faceExpression')));
+    const controls = () => ({ faceMapping: 'chord', faceExpr: { degrees: { happy: 0, sad: 5 }, targets: { happy: 'move:dia+3', surprised: 'fn:D', kiss: 'ctl:seventh', angry: 'move:P' } } });
+    const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video, controls } };
+    handlers.process({ ...fullInputs(), expression, scale: [48, 50, 52, 53, 55, 57, 59, 60, 62, 64] }, ctx);
+    const texts = rc.texts();
+    expect(texts).toEqual(expect.arrayContaining(['4th up', 'D', '+7', 'Am']));
+    expect(texts).not.toContain('C'); // happy's degree chord is not printed: it moves
+    expect(texts).not.toContain('parallel'); // a move the face chord cannot make reads as the degree
+  });
+
   it('faceExpression: nothing when the expression is absent or toggled off', () => {
     expect(drawWith(onlyElement('faceExpression'), {}).count('fillText')).toBe(0); // no expression
     expect(

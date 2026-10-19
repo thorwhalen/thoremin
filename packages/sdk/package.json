@@ -68,6 +68,7 @@
     "./harmony/realize": "./src/harmony/realize.ts",
     "./harmony/space": "./src/harmony/space.ts",
     "./harmony/state": "./src/harmony/state.ts",
+    "./harmony/target": "./src/harmony/target.ts",
     "./harmony/strategies": "./src/harmony/strategies.ts",
     "./harmony/voice_leading": "./src/harmony/voice_leading.ts",
     "./music/voicing": "./src/music/voicing.ts",

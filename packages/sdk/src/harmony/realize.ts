@@ -131,6 +131,21 @@ export interface Realizer {
   render(input: RealizeInput): RealizeOutput;
 }
 
+/**
+ * A voicing longer than the voice block sheds its doublings before anything else (from the top,
+ * never the bass), so a seventh added to an open triad keeps the seventh and drops the doubled
+ * root. Only then is it cut to the block. A voicing that fits is returned as it is.
+ */
+export function fitVoices(voiced: number[], maxVoices: number): number[] {
+  if (voiced.length <= maxVoices) return voiced;
+  const out = [...voiced];
+  for (let i = out.length - 1; i > 0 && out.length > maxVoices; i--) {
+    const pc = ((out[i] % 12) + 12) % 12;
+    if (out.slice(0, i).some((n) => ((n % 12) + 12) % 12 === pc)) out.splice(i, 1);
+  }
+  return out.slice(0, maxVoices);
+}
+
 const NO_MEMORY: VoicingMemory = { last: [], bass: null };
 /** The default silence after which the voicing memory is forgotten, seconds. */
 const MEMORY_RESET_S = 4;
@@ -192,7 +207,7 @@ export function createRealizer({
         const colored = pick(registry.coloration, spec.coloration, DEFAULT_SPEC.coloration).color(tones, controls, context);
         const reduced = pick(registry.reduction, spec.reduction, DEFAULT_SPEC.reduction).reduce(colored, controls);
         const bass = pick(registry.bass, spec.bass, DEFAULT_SPEC.bass).bass(reduced, memory);
-        voiced = pick(registry.voicing, spec.voicing, DEFAULT_SPEC.voicing).voice(reduced, bass, controls, memory).sort((a, b) => a - b);
+        voiced = fitVoices(pick(registry.voicing, spec.voicing, DEFAULT_SPEC.voicing).voice(reduced, bass, controls, memory).sort((a, b) => a - b), maxVoices);
         if (voiced.length) {
           current = { last: voiced, bass: voiced[0] };
           currentRegister = controls.register;

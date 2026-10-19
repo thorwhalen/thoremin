@@ -409,6 +409,16 @@
       "kiss": 0.5,
       "sad": 0.5,
       "surprised": 0.5
+    },
+    "targets": {
+      "angry": "",
+      "disgusted": "",
+      "fearful": "",
+      "happy": "",
+      "kiss": "",
+      "neutral": "",
+      "sad": "",
+      "surprised": ""
     }
   },
   "faceMapping": "chord",
