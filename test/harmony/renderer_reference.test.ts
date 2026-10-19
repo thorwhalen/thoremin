@@ -21,6 +21,8 @@ function referenceRenderer({ idBase, maxVoices }: { idBase: number; maxVoices: n
     Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
 
   return {
+    // The beat getter (H9) postdates this reference; the render below is verbatim.
+    beat: () => beat,
     render({ degree, spec, voicing, rendering, bpm, octaveShift, gain, sound, silentSound, dt }) {
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
       const voiced = (triad.length ? voiceTriad(triad, voicing, octaveShift) : []).sort((a, b) => a - b);

@@ -311,6 +311,34 @@ describe('the chord-map node, chords from MIDI (H8 of #613)', () => {
   });
 });
 
+describe('the chord-map node, on musical time (H9 of #613)', () => {
+  const changeAt = (outs: { t: number; out: Out }[]) => outs.find((o, i) => i > 0 && o.out.status.chord !== outs[i - 1].out.status.chord && o.out.status.chord === 'Am')!.t;
+
+  it('commits a held change on the next beat of the tempo, not when the frame arrived', () => {
+    const c = cellOf(0);
+    const am = cellOf(5);
+    const take = chordMapTake({ duration: 2.5, chordAt: (t) => (t < 1.05 ? c : am) });
+    const now = changeAt(play(take, { ...ON, bpm: 120 }));
+    const onBeat = changeAt(play(take, { ...ON, bpm: 120, commit: 'beat' }));
+    expect(now).toBeLessThan(1.2); // as soon as the dwell allows
+    expect(onBeat).toBeCloseTo(1.5, 1); // beat 3 at 120 bpm
+  });
+
+  it('keeps time with the song: a held change lands on the song\'s beat', () => {
+    const c = cellOf(0);
+    const am = cellOf(5);
+    const take = chordMapTake({ duration: 2.5, chordAt: (t) => (t < 1.05 ? c : am) });
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    // A song at 90 bpm whose beat 0 fell at t = 0.2.
+    const song = (t: number) => ({ t, beat: ((t - 0.2) * 90) / 60, tempo: 90, state: 'running', phase: 0, period: 60 / 90, confidence: 1, nextBeatAt: 0, beatsPerBar: 4, beatInBar: 0, anchors: 0 });
+    const outs = take.map((fr) => ({ t: fr.t!, out: h.process({ hands: fr, config: { ...ON, clock: 'song', commit: 'beat' }, spec: C_MAJOR, octaveShift: 0, time: song(fr.t!) }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out }));
+    const t = changeAt(outs);
+    const beat = ((t - 0.2) * 90) / 60;
+    expect(Math.abs(beat - Math.round(beat))).toBeLessThan(0.06); // on a song beat (within a tick)
+    expect(t).toBeGreaterThan(1.1);
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {

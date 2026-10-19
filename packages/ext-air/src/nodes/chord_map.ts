@@ -28,6 +28,11 @@
  * a short dwell, lights its cell; the hands then play the melody over it or strum it (a chord
  * outside the key is strummed by its name and named in the status).
  *
+ * It keeps time with the Chord sound's tempo or with the loaded song (`clock`, H9 of #613): the
+ * arpeggio steps on the song's beats, and with `commit` = `beat` a held change waits for the
+ * next beat (a change made just after one takes it), so the harmony moves where the music does
+ * rather than when the camera frame arrived (#610 item 3).
+ *
  * The face can colour it (`face`, H7 of #613, `docs/design/harmonic-layers.md` §5.4): valence
  * (a smile against a furrowed brow) moves the key to its parallel major or minor after a dwell,
  * so a passing smile does not modulate, and arousal (an open mouth, raised brows) adds the key's
@@ -40,6 +45,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
+import { CLOCKS, beatAt, createBeatQuantizer, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -166,6 +172,12 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.7),
   /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
   mirrorHandedness: z.boolean().default(true),
+  /** Where the beat comes from: the Chord sound's tempo, or the loaded song while it plays. */
+  clock: z.enum(CLOCKS).default('tempo'),
+  /** Hold mode: a new chord sounds at once, or on the next beat of the clock. */
+  commit: z.enum(['now', 'beat']).default('now'),
+  /** With commit on the beat: beats between the moments a change may land (2 = every other beat). */
+  commitBeats: z.number().int().min(1).max(4).default(1),
   /** What chooses the chord: the pointing hand, or the chord a MIDI keyboard holds. */
   follow: z.enum(['hands', 'midi']).default('hands'),
   /** With MIDI: seconds a new chord must be held before it is the harmony (passing tones pass). */
@@ -317,6 +329,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'spec', kind: 'scale-spec' },
     { name: 'chordConfig', kind: 'chord-config' },
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // The song's musical time, while the map keeps time with the song (`clock`).
+    { name: 'time', kind: 'musical-time' },
     // The notes a MIDI keyboard holds, while the map follows MIDI (`follow`).
     { name: 'midi', kind: 'held-notes' },
     // The face's smoothed controls, while the face colours the map (`face`).
@@ -351,6 +365,7 @@ export const chordMapNode = defineNode<Params>({
     let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
     let valence: LevelTracker | null = null;
+    const quantizer = createBeatQuantizer(-1);
     let follower: ChordFollower | null = null;
     let followerDwell = -1;
     /** The letters map: the anchor it was read under, each letter's chord as shown, what changed. */
@@ -387,6 +402,7 @@ export const chordMapNode = defineNode<Params>({
       chordPoint = null;
       otherPoint = null;
       lastCell = -1;
+      quantizer.reset(-1);
       follower = null;
       followerDwell = -1;
       letterAnchor = '';
@@ -424,8 +440,11 @@ export const chordMapNode = defineNode<Params>({
         // The parallel of the key's seven-note form, so every scale (a pentatonic, the blues) has one.
         const ownSpec = rawSpec ? letterChordSpec(rawSpec) : undefined;
         const spec = ownSpec ? parallelSpec(ownSpec, modeLevel) : undefined;
+        // The song's beat now, while the map keeps time with it and the song plays (else the tempo's).
+        const songBeat = c.clock === 'song' ? beatAt(inputs.time as BeatSource | undefined, typeof ctx?.time === 'number' ? ctx.time : 0) : null;
         const render = (degree: number) =>
           renderer.render({
+            beat: songBeat ?? undefined,
             degree,
             spec,
             voicing: chordCfg.voicing ?? c.voicing,
@@ -556,7 +575,10 @@ export const chordMapNode = defineNode<Params>({
 
         const degree = choice.active !== null && placed[choice.active] ? placed[choice.active].degree : -1;
         if (degree >= 0) lastCell = choice.active!;
-        const held = c.play === 'hold' ? degree : -1;
+        // On the beat (H9): the change waits for the clock's next beat, the end of this tick's.
+        const beatNow = songBeat ?? renderer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * (typeof ctx?.dt === 'number' ? ctx.dt : 0);
+        const wanted = c.play === 'hold' ? degree : -1;
+        const held = c.commit === 'beat' ? quantizer.push(wanted, beatNow, c.commitBeats) : (quantizer.reset(wanted), wanted);
         const { voices } = render(held);
 
         // The melody: the other hand's height over the chord's tones (the last chord's while
@@ -579,7 +601,9 @@ export const chordMapNode = defineNode<Params>({
           }
         }
 
-        const active = degree >= 0 ? chords[degree] : null;
+        // What sounds (held on the beat) is what the status names; strumming, what is pointed at.
+        const shown = c.play === 'hold' ? held : degree;
+        const active = shown >= 0 ? chords[shown] : null;
         status = {
           ...status,
           enabled: true,

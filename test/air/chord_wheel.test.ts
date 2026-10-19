@@ -167,6 +167,26 @@ describe('the chord-wheel node', () => {
     expect(g.cells.slice(1).map((c) => c.sub)).toEqual(['4th up', '3rd up', '2nd up', '4th down', '3rd down', '2nd down']);
   });
 
+  it('walks on the song\'s beat when it keeps time with the song (H9 of #613)', () => {
+    const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+    const song = (t: number) => ({ t, beat: ((t - 0.1) * 100) / 60, tempo: 100, state: 'running', phase: 0, period: 0.6, confidence: 1, nextBeatAt: 0, beatsPerBar: 4, beatInBar: 0, anchors: 0 });
+    const script = [at(null), ...Array.from({ length: 22 }, () => at(0))];
+    const outs: Out[] = [];
+    let i = 0;
+    for (const p of script)
+      for (let f = 0; f < 5; f++, i++) {
+        const t = i / 30;
+        const frame: HandsFrame = { t, width: W, height: H, hands: p ? [palmAt(p, 'Left')] : [] };
+        outs.push(h.process({ hands: frame, config: { enabled: true, mirrorHandedness: false, walk: true, clock: 'song' }, spec: C, octaveShift: 0, time: song(t) }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out);
+      }
+    const changes = outs.map((o, k) => (k > 0 && o.status.chord !== outs[k - 1].status.chord ? k / 30 : -1)).filter((t) => t >= 0);
+    expect(changes.length).toBeGreaterThan(3);
+    for (const t of changes.slice(1)) {
+      const beat = ((t - 0.1) * 100) / 60;
+      expect(Math.abs(beat - Math.round(beat))).toBeLessThan(0.06);
+    }
+  });
+
   it('shows each chord\'s tension with the model named over the wheel (H10 of #613), and nothing with it off', () => {
     const shown = play([at(null)], { tension: 'tps' });
     const grid = shown[shown.length - 1].grid;

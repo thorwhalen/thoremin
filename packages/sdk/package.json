@@ -62,6 +62,7 @@
     "./music/theory": "./src/music/theory.ts",
     "./harmony/affect": "./src/harmony/affect.ts",
     "./harmony/chord_in": "./src/harmony/chord_in.ts",
+    "./harmony/clock": "./src/harmony/clock.ts",
     "./harmony/chord": "./src/harmony/chord.ts",
     "./harmony/coloration": "./src/harmony/coloration.ts",
     "./harmony/prior": "./src/harmony/prior.ts",

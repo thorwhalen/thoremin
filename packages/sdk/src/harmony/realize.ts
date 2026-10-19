@@ -117,6 +117,10 @@ export interface RealizeInput {
   dt: number;
   /** A live tone brightness the voices carry (the head-pose chord's smile), 0..1; absent: none. */
   brightness?: number;
+  /** The figuration's beat from outside (a song's or the conductor's musical time, H9 of #613):
+   *  when given, the clock is set to it instead of counting `bpm`, so an arpeggio steps on the
+   *  music's beats; absent, the clock counts the tempo as before. */
+  beat?: number;
 }
 
 export interface RealizeOutput {
@@ -192,7 +196,7 @@ export function createRealizer({
 
   return {
     beat: () => beat,
-    render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt, brightness }) {
+    render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt, brightness, beat: outside }) {
       let voiced: number[] = [];
       const step = Number.isFinite(dt) ? dt : 0;
       if (tones.length === 0) {
@@ -218,7 +222,7 @@ export function createRealizer({
           currentRegister = controls.register;
         }
       }
-      beat += (bpm / 60) * step;
+      beat = outside !== undefined && Number.isFinite(outside) ? outside : beat + (bpm / 60) * step;
       // The key is the sounding pitches, so any genuine chord change restarts the figuration.
       const key = voiced.length ? voiced.join(',') : '';
       if (key !== lastKey) {

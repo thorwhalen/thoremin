@@ -57,7 +57,7 @@ export const trunk = defineBranch({
     { id: TRUNK.overlay, type: 'canvas-overlay', params: {} },
     // The song the player loaded in the Song tool (#186 PR G): idle (an early return)
     // until there is one.
-    { id: 'songPlayer', type: 'song-player', params: {} },
+    { id: TRUNK.song, type: 'song-player', params: {} },
   ],
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.feat, port: 'hands' }),

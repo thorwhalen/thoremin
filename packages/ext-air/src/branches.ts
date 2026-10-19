@@ -107,6 +107,8 @@ export const chordMap = defineBranch({
     to(ui('chordConfig'), { node: 'chordMap', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
     to(ui('chordMapMidi'), { node: 'chordMap', port: 'midi' }),
+    // The song's beat (H9 of #613), read while the map keeps time with the song.
+    to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordMap', port: 'time' }),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
     to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
     to({ node: 'chordMap', port: 'grid' }, overlay('cellGrid')),
@@ -132,6 +134,7 @@ export const chordWheel = defineBranch({
     to(ui('chordSpec'), { node: 'chordWheel', port: 'spec' }),
     to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordWheel', port: 'octaveShift' }),
+    to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordWheel', port: 'time' }),
     to({ node: 'chordWheel', port: 'grid' }, overlay(overlayPortName('air', CHORD_WHEEL_ELEMENT, 'grid'))),
   ],
   voices: [{ from: { node: 'chordWheel', port: 'params' }, role: 'instrument' }],

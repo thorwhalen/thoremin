@@ -33,6 +33,7 @@ import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/mus
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
 import { TRANSITION_PRIORS, rankByPrior } from '@thoremin/sdk/harmony/prior';
+import { CLOCKS, beatAt, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -127,6 +128,9 @@ const Params = z.object({
    *  chord on top, then clockwise by a transition prior (Piston's usual root progressions), so the
    *  wheel reorders as the chord changes (H10 of #613). */
   order: z.enum(['fixed', 'likely']).default('fixed'),
+  /** Where the beat comes from (the arpeggio's and a walk's): the Chord sound's tempo, or the
+   *  loaded song while it plays (H9 of #613). */
+  clock: z.enum(CLOCKS).default('tempo'),
 });
 type Params = z.infer<typeof Params>;
 export const ChordWheelDialSchema = Params;
@@ -208,6 +212,8 @@ export const chordWheelNode = defineNode<Params>({
     // The face's expression (the general model, or a personal categorizer's reading), when the
     // face steers: an optional edge, composed only then.
     { name: 'expression', kind: 'face-expression' },
+    // The song's musical time, while the wheel keeps time with the song (`clock`).
+    { name: 'time', kind: 'musical-time' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -266,8 +272,10 @@ export const chordWheelNode = defineNode<Params>({
         const spec = rawSpec ? letterChordSpec(rawSpec) : undefined;
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
         const dt = typeof ctx?.dt === 'number' ? ctx.dt : 0;
+        const songBeat = c.clock === 'song' ? beatAt(inputs.time as BeatSource | undefined, typeof ctx?.time === 'number' ? ctx.time : 0) : null;
         const render = (chord: Chord | null) =>
           realizer.render({
+            beat: songBeat ?? undefined,
             tones: chord && spec ? tonesInRegister(tonesOf(chord, spec)) : [],
             context: spec ? { scale: [...scalePitchClasses(spec.root, spec.type)] } : undefined,
             spec: { ...DEFAULT_SPEC, voicing: chordCfg.voicing ?? c.voicing, figuration: chordCfg.rendering ?? c.rendering },
@@ -323,7 +331,7 @@ export const chordWheelNode = defineNode<Params>({
         }
         // A walk repeats the held push's move on the figuration's beats, checked every tick
         // against the beat the realizer reaches this tick, so the change sounds on the beat.
-        const beatNext = realizer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * dt;
+        const beatNext = songBeat ?? realizer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * dt;
         const repeat = walker.step({ committed, pointing, seen: pointer !== null, now: ctx.time, beat: beatNext, beats: c.walk ? c.walkBeats : 0 });
         const made = committed ?? repeat;
         // A walk keeps the order it started from, so a held push walks one move's cycle (the
