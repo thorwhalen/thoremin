@@ -151,6 +151,9 @@ export const AIR_EXTENSION = defineExtension({
     // Walk a cycle on the beat (H11 of #613): hold a push out and the wheel keeps making that
     // move, one per beat, arpeggiated so the beat is heard: up walks the cycle of fourths.
     { name: 'Wheel Walk', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed', rendering: 'arpUp', bpm: 90 }, chordWheel: { enabled: true, walk: true } } },
+    // The design's next-chord wheel (§6.2, H10 of #613): the likeliest next chord on top (Piston's
+    // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space.
+    { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps' } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,

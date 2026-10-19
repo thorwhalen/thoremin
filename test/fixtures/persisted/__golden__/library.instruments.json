@@ -25,6 +25,7 @@
     "Face Wheel",
     "Tonnetz Wheel",
     "Wheel Walk",
+    "Next-Chord Wheel",
     "Chord Map Strum",
     "ASL Viewer",
     "ASL Chords"
@@ -315,6 +316,7 @@
         "hand": "left",
         "mirrorHandedness": true,
         "moves": "diatonic",
+        "order": "fixed",
         "point": "palm",
         "radius": 0.3,
         "reach": 0.14,
@@ -955,6 +957,7 @@
         "hand": "left",
         "mirrorHandedness": true,
         "moves": "diatonic",
+        "order": "fixed",
         "point": "palm",
         "radius": 0.3,
         "reach": 0.14,

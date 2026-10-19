@@ -26,12 +26,13 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '@thoremin/sdk/harmony/realize';
-import { chordName, functionOf, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
+import { chordName, diatonicChords, functionOf, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { radial, type Region } from '@thoremin/sdk/harmony/layout';
 import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
+import { TRANSITION_PRIORS, rankByPrior } from '@thoremin/sdk/harmony/prior';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -122,6 +123,10 @@ const Params = z.object({
   /** Show each chord's tension under it, by this model, named on the wheel (H10 of #613):
    *  the models rank the chords differently, so a number never appears without its model. */
   tension: z.enum(['off', ...TENSION_MODEL_IDS]).default('off'),
+  /** Where each move sits: always the same place, or (the key's moves only) the likeliest next
+   *  chord on top, then clockwise by a transition prior (Piston's usual root progressions), so the
+   *  wheel reorders as the chord changes (H10 of #613). */
+  order: z.enum(['fixed', 'likely']).default('fixed'),
 });
 type Params = z.infer<typeof Params>;
 export const ChordWheelDialSchema = Params;
@@ -159,6 +164,12 @@ export interface ChordWheelStatus {
 }
 
 export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand', walking: false };
+
+/** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
+function diatonicTarget(d: number, relation: string): number | null {
+  const m = /^dia([+-])(\d)$/.exec(relation);
+  return m ? (((d + (m[1] === '+' ? 1 : -1) * Number(m[2])) % 7) + 7) % 7 : null;
+}
 
 /** How far above the wheel's top the tension model's name sits, in frame heights. */
 const TENSION_CAPTION_GAP = 0.08;
@@ -222,6 +233,8 @@ export const chordWheelNode = defineNode<Params>({
     let pointing: number | null = null;
     let status: ChordWheelStatus = { ...IDLE_CHORD_WHEEL_STATUS };
     const walker = createBeatWalk();
+    /** The wedges' moves when the walk started (the ranked wheel keeps them while walking). */
+    let walkMoves: readonly string[] | null = null;
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -276,6 +289,13 @@ export const chordWheelNode = defineNode<Params>({
         else if (!sameKey(state.key, key)) state = applyIntents(state, [{ kind: 'modulate', key, at: ctx.time }]);
 
         const moves = WHEEL_MOVES[c.moves];
+        // The moves by wedge: fixed, or ranked by the prior from the chord in force (the key's moves).
+        const prior = c.order === 'likely' && c.moves === 'diatonic' ? TRANSITION_PRIORS.piston : null;
+        const degreeIn = (from: Chord) => (prior ? diatonicChords(state!.key).findIndex((x) => x.root === from.root && x.quality === from.quality) : -1);
+        const movesFrom = (from: Chord): readonly string[] => {
+          const d = degreeIn(from);
+          return d < 0 ? moves : rankByPrior(prior!, d, moves.map((m) => diatonicTarget(d, m))).map((i) => moves[i]);
+        };
         const sKey = `${c.moves}|${c.dead}|${c.reach}|${c.enterFrames}`;
         if (!stepper || sKey !== stepperKey) {
           stepper = createDirectionStepper({ wedges: moves.length, dead: c.dead, reach: c.reach, enterFrames: c.enterFrames });
@@ -306,8 +326,11 @@ export const chordWheelNode = defineNode<Params>({
         const beatNext = realizer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * dt;
         const repeat = walker.step({ committed, pointing, seen: pointer !== null, now: ctx.time, beat: beatNext, beats: c.walk ? c.walkBeats : 0 });
         const made = committed ?? repeat;
+        // A walk keeps the order it started from, so a held push walks one move's cycle (the
+        // cycle of fourths) rather than the ranked wheel's loop.
+        if (committed !== null) walkMoves = state.chord ? movesFrom(state.chord) : moves;
         if (made !== null) {
-          const move = moves[made];
+          const move = (repeat !== null && walkMoves ? walkMoves : state.chord ? movesFrom(state.chord) : moves)[made];
           const before = state.chord;
           state = applyIntents(state, [{ kind: 'step', relation: move, at: ctx.time }]);
           if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
@@ -344,10 +367,12 @@ export const chordWheelNode = defineNode<Params>({
           const t = model && target ? tensionText(model, target, k) : '';
           return t ? `${sub} · ${t}` : sub;
         };
+        const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
+        const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;
         const gridCells: GridCell[] = chord
           ? cells.map((cell, i) => {
               if (i === 0) return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape: 'hex', label: chordName(chord, k), sub: withTension(state!.fn?.numeral ?? '', chord), color: colorOf(chord, k), state: sounding ? 'active' : 'idle' };
-              const move = moves[i - 1];
+              const move = wedgeMoves[i - 1];
               const target = RELATIONS.get(move)?.apply(chord, k)[0];
               return {
                 x: cell.x,
@@ -364,6 +389,7 @@ export const chordWheelNode = defineNode<Params>({
           : [];
         // The model's name over the wheel, whenever a number is shown.
         const captions = model && gridCells.length ? [{ x: cells[0].x, y: Math.max(0.03, cells[0].y - c.radius - TENSION_CAPTION_GAP), text: `Tension: ${model.name}` }] : [];
+        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `Most likely on top: ${prior.name}` });
         const grid: CellGrid = { cells: gridCells, captions, pointers: pointer ? [pointer] : [] };
         status = {
           ...status,
