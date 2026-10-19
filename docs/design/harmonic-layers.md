@@ -284,7 +284,7 @@ export interface RealizationControls {
 
 export interface Coloration { id: string; color(chord: Chord, key: Key, c: RealizationControls): Tone[] }
 export interface Reduction  { id: string; reduce(tones: Tone[], c: RealizationControls): Tone[] }
-export interface BassRule   { id: string; bass(tones: Tone[], chord: Chord, memory: VoicingMemory): PitchClass }
+export interface BassRule   { id: string; bass(tones: Tone[], memory: VoicingMemory): number } // an index into tones: the tone to sound lowest
 export interface Voicer     { id: string; voice(tones: Tone[], bass: PitchClass, c: RealizationControls, memory: VoicingMemory): number[] } // MIDI, ascending
 export interface Figuration {
   id: string;
@@ -297,7 +297,8 @@ export interface RealizationSpec {
   coloration: string; reduction: string; bass: string; voicing: string; figuration: string;
 }
 /** The pipeline: stateful only in its voicing memory and its figuration clock; deterministic given the ticks. */
-export function createRealizer(spec: RealizationSpec, opts: { idBase: number; maxVoices: number; registry?: RealizationRegistry }): Realizer;
+export function createRealizer(opts: { idBase: number; maxVoices: number; registry?: RealizationRegistry; resetAfterS?: number }): Realizer;
+// The spec is passed with each render (the instrument's dials change live); see packages/sdk/src/harmony/realize.ts.
 ```
 
 Why five seams and not one "voicing" setting: learned jazz voicing works better split into colouring and voicing than end to end (Chen et al.), and the tools players already use keep chord memory, voicing, inversion and arpeggio pattern as separate settings (Cthulhu, Scaler, Logic's Chord Trigger, Ableton's arpeggiator; R§5.2, R§5.5). The bass is its own seam because it is expressive on its own: a major triad's rated valence rises from root position to first to second inversion (R§5.4).
@@ -312,7 +313,9 @@ Each aspect is a registry of named strategies (a keyed map, the #600 combination
 | **Voicing** | `idiom(spread | bassTriad | close | shell | power)`: today's `voiceTriad`, unchanged | `voiceLed`: the voicing of the upper tones nearest the previous one, common tones held. Between chords of the same size a minimal voice leading with no crossed voices always exists, so it is found by sorting both chords and trying the n rotations with octave offsets, no general assignment solver needed (Tymoczko; R§5.3); a change of size (a seventh added) falls back to trying the few doublings and omissions; `fretboard(tuning)`: the air guitar's open-chord rule (`guitarVoicing`), moved from ext-air | tonal's `Voicing` dictionaries (`lefthand`, `triads`) with its `topNoteDiff` |
 | **Figuration** | `gains(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)`: today's `renderGains` on the node's own BPM | `strumEvents`: timed note events with a spread per string (the air guitar's `strumNotes`); clock = `musical-time` (the conductor's or song's beat) instead of a private BPM | `pattern(steps)`: broken-chord patterns as data (a step grid of voice index and velocity, like `drum_patterns.ts`), a zodal collection |
 
-**Voice-leading memory** (`VoicingMemory`: the last voicing, the last bass, the time) is the only state the voicer keeps, and it is reset on a long silence (a parameter), so the first chord after a rest is voiced from the register window rather than from a voicing heard a minute ago. Memory lives in the realizer instance, not in the harmonic state, because two realizers on one state (a pad and a strum) voice independently.
+**Voice-leading memory** (`VoicingMemory`: the previous chord's voicing and bass) is the only state the voicer keeps. It changes only when the chord to realize changes (its tones, the strategies or the controls), never from the voicer's own output, so within a held chord a voicer always sees the same memory and voices it the same way; it is forgotten after a silence of `resetAfterS` (4 s by default), so the first chord after a rest is voiced from the register window rather than from a voicing heard a minute ago. Memory lives in the realizer instance, not in the harmonic state, because two realizers on one state (a pad and a strum) voice independently.
+
+**Contracts H3 must keep** (from the H2 review): a voicer must honour the bass index and accept any number of tones (today's five idioms wrap `voiceTriad`, which reads the first three tones as root, third and fifth and ignores the bass, so a seventh added by coloration or a reduction to two tones does not survive them); an event figuration (a strum) needs per-realizer state and the engine time of the tick, so the `Figuration` seam gains a factory and a tick window before strums move onto it.
 
 **Today's ids stay valid.** `faceChord.voicing` and `faceChord.rendering` are stored in every instrument. Their values remain ids of the voicing and figuration registries, so nothing stored changes. `shell` and `power` are, strictly, a reduction plus a voicing; they stay voicing ids (each one's recipe is a fixed reduction followed by a fixed spacing inside the strategy), because renaming stored values buys nothing.
 
