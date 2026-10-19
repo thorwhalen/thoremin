@@ -51,7 +51,7 @@ import {
 } from '@thoremin/sdk/enroll/categorizer';
 import { neutralIndices } from '@thoremin/sdk/enroll/carve';
 import { TRAIN_DEFAULTS } from '@thoremin/sdk/enroll/classify';
-import { createLightJudge } from '@thoremin/sdk/enroll/light';
+import { createLightWatch, createRestWatch } from './sessionWatches';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
 import type { ForestPrefetcher } from '../lib/forest_prefetch';
 import {
@@ -458,8 +458,6 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let source: FaceSource | null = null;
   /** The source's stream, open for stills while recording (null: no pictures this take). */
   let frames: LiveFrames | null = null;
-  const light = createLightJudge();
-  let lightAt = Number.NEGATIVE_INFINITY;
   let takeId: string | null = null;
   /** Holds of the take whose still was asked for (the take's point count, as last seen). */
   let stilled = 0;
@@ -627,41 +625,15 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return createLiveBars(context);
     };
 
-    /** The rest ring and "stay relaxed" (#403), told to the store only when they change. A
-     *  movement counts once it has lasted `restMovingForMs` (a blink is not one), and shows for
-     *  `restMovingHoldMs` after it ends. */
-    let overSince: number | null = null;
-    let movedAt = Number.NEGATIVE_INFINITY;
-    const resetRestWatch = () => {
-      overSince = null;
-      movedAt = Number.NEGATIVE_INFINITY;
-    };
-    const restWatch = (progress: number | null, motion: number | null, tMs: number) => {
-      const step = FACE_SESSION_DEFAULTS.restProgressStep;
-      const shown = progress === null ? null : Math.floor(progress / step + 1e-9) * step;
-      if (progress === null) resetRestWatch();
-      else if (motion === null || motion < FACE_SESSION_DEFAULTS.restMovingAt) overSince = null;
-      else {
-        overSince ??= tMs;
-        if (tMs - overSince >= FACE_SESSION_DEFAULTS.restMovingForMs) movedAt = tMs;
-      }
-      const moving = tMs - movedAt < FACE_SESSION_DEFAULTS.restMovingHoldMs;
-      const s = get();
-      if (s.restProgress !== shown || s.restMoving !== moving) set({ restProgress: shown, restMoving: moving });
-    };
+    const rest = createRestWatch(
+      { get, set },
+      { progressStep: FACE_SESSION_DEFAULTS.restProgressStep, movingAt: FACE_SESSION_DEFAULTS.restMovingAt, movingForMs: FACE_SESSION_DEFAULTS.restMovingForMs, movingHoldMs: FACE_SESSION_DEFAULTS.restMovingHoldMs },
+    );
+    const light = createLightWatch({ get, set }, { everyMs: FACE_SESSION_DEFAULTS.lightMs, frames: () => frames, region: deps.region });
 
     /** How the source is read: a merge reads with its base's hand, a fresh take with the chosen. */
     const readOptions = (): ModalityOptions =>
       mergeBase ? { hand: mergeBase.working.hand ?? 'either', mirror: mergeBase.working.mirror === true } : { hand: get().hand, mirror: get().mirror };
-    /** Read the room's light from the frame showing, once per `lightMs` (#348): the crop the
-     *  modality places the part in, judged over a few readings; the status line follows. */
-    const watchLight = (vector: FeatureVector | null, nowMs: number) => {
-      if (!frames?.luma || nowMs - lightAt < FACE_SESSION_DEFAULTS.lightMs) return;
-      lightAt = nowMs;
-      const v = vector;
-      const dark = light.push(frames.luma(deps.region && v ? (size) => deps.region!({ vector: v, ...size }) : null));
-      if (get().tooDark !== dark) set({ tooDark: dark });
-    };
     /** Read the source into the take every `pollMs`, telling the store only what a person can
      *  see change (the phase, the count of held faces, the ring, a coarse elapsed time). */
     const poll = (t0: number) => {
@@ -697,7 +669,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const hold = take.hold();
         const step = take.setupStep();
         if (step !== get().setupStep) set({ setupStep: step });
-        restWatch(take.restProgress(), take.restMotion(), live?.t ?? deps.now());
+        rest.watch(take.restProgress(), take.restMotion(), live?.t ?? deps.now());
         const b = take.burst();
         // The burst's frames coarsely (a person sees it grow, not every frame).
         const burst = b ? { label: b.label, frames: b.frames - (b.frames % FACE_SESSION_DEFAULTS.burstShowStep) } : null;
@@ -709,7 +681,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         refreshStrip();
         refreshGhost(live?.vector ?? null, live?.t ?? deps.now());
-        watchLight(live?.vector ?? lastVector, deps.now());
+        light.watch(live?.vector ?? lastVector, deps.now());
       }, deps.pollMs);
     };
     /** A new take's strip: nothing deleted, named or shown yet. */
@@ -1155,10 +1127,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const stream = get().keepStills ? source!.video() : null;
         frames = stream ? deps.frames(stream) : null;
         light.reset();
-        lightAt = Number.NEGATIVE_INFINITY;
         const t0 = deps.now();
         take!.start(t0);
-        resetRestWatch();
+        rest.reset();
         set({ phase: 'rest', setupStep: 0, restProgress: 0, restMoving: false, tooDark: false, points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         provideCapture();
         poll(t0);
