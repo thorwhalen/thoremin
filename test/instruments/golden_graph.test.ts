@@ -133,6 +133,7 @@ const LATER_EXTENSION_NODES = new Set([
   // The chord map (air), added after the snapshot; its own wiring is `test/air/chord_map_graph.test.ts`.
   'chordMap',
   'chordStrumOut',
+  'chordWheel',
   ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
@@ -143,11 +144,14 @@ const REPLACED_BY_LATER_EXTENSIONS: EdgeSpec[] = hasExtension('faces')
       { from: { node: 'faceExpr', port: 'expression' }, to: { node: 'overlay', port: 'expression' } },
     ]
   : [];
+/** Overlay ports of extension elements added after the snapshot (#600 S5): the chord wheel's,
+ *  whose config edge the host wires from `ui`, so no node filter catches it. */
+const LATER_OVERLAY_PORT = /^air\.chordWheel\./;
 const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),
   edges: [
-    ...spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node)),
+    ...spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node) && !LATER_OVERLAY_PORT.test(e.to.port)),
     ...REPLACED_BY_LATER_EXTENSIONS,
   ],
 });

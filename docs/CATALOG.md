@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (56)
+## Nodes (57)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -117,7 +117,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, conductorLeadOffsets:lead-offsets, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songFollowRange:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, asl:asl-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, midiEnabled:boolean, midiPort:string, handednessDwell:number, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerPlaying:boolean, steerVolume:number, steerConfig:steer-config, faceControls:face-controls-config, conductor:conductor-config, bodyMap:body-map, scoreDoc:score-doc, conductorLeadOffsets:lead-offsets, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songFollowRange:number, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, chordWheel:chord-wheel-config, asl:asl-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -314,7 +314,7 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 Union the synth-params voice streams into one: a pool of instrument inputs (hushable; eight at least) and of score inputs (kept under hush; two at least); master mute. `unmuted` is the same stream before the master mute (for MIDI out).
 
 - **roles:** mapping
-- **in:** voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean
+- **in:** voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, voice9:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean
 - **out:** params:synth-params, unmuted:synth-params
 - **params:** —
 
@@ -471,6 +471,14 @@ Play a key's chords by pointing at them: the seven diatonic chords laid out on t
 - **out:** params:synth-params, notes:note-events, grid:cell-grid, status:chord-map-status, triad:number[]
 - **params:** enabled (boolean=false), layout (enum(harmonic | fifths | scale)="harmonic"), play (enum(hold | strum)="hold"), chordHand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), split (number=0.65), cellSize (number=0.2), enterFrames (number=2), hysteresis (number=0.12), releaseS (number=0.3), captions (boolean=true), melody (boolean=true), melodyNotes (enum(chord | pentatonic | scale | tilt)="chord"), sevenths (boolean=false), melodyVolume (number=0.45), melodyOctaves (number=2), melodySound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), strumPoint (enum(wrist | indexTip)="wrist"), strumSpread (number=0.012), minLead (number=0.05), minStroke (number=0.03), minSpeed (number=0.5), volume (number=0.7), mirrorHandedness (boolean=true)
 
+#### `chord-wheel` — Chord wheel
+A next-chord wheel: the chord in force in the centre, one move per wedge at a fixed angle (the key's diatonic moves, or the Tonnetz's P, L, R and their compounds); push the hand toward a move and hold it, the wheel recentres on the new chord. Off by default.
+
+- **roles:** feature, mapping, music
+- **in:** hands:hands-frame, config:chord-wheel-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number
+- **out:** params:synth-params, grid:cell-grid, status:chord-wheel-status, triad:number[]
+- **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true)
+
 ### Sign language
 _Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key._
 
@@ -551,7 +559,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, airDrumConfig:air-drum-config, drumHits:drum-hits, airFluteStatus:air-flute-status
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, airDrumConfig:air-drum-config, drumHits:drum-hits, airFluteStatus:air-flute-status, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), cellGrid (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 

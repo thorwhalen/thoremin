@@ -20,6 +20,8 @@
     "Air Guitar",
     "Air Flute",
     "Chord Map",
+    "Chord Wheel",
+    "Tonnetz Wheel",
     "Chord Map Strum",
     "ASL Viewer",
     "ASL Chords"
@@ -264,6 +266,23 @@
         "strumSpread": 0.012,
         "voicing": "spread",
         "volume": 0.7
+      },
+      "chordWheel": {
+        "bpm": 100,
+        "dead": 0.07,
+        "enabled": false,
+        "enterFrames": 3,
+        "gain": 0.22,
+        "hand": "left",
+        "mirrorHandedness": true,
+        "moves": "diatonic",
+        "point": "palm",
+        "radius": 0.3,
+        "reach": 0.14,
+        "releaseS": 0.4,
+        "rendering": "sustained",
+        "sound": "warmPad",
+        "voicing": "voiceLed"
       },
       "conductor": {
         "articulationFrom": "sharpness",
@@ -815,6 +834,23 @@
         "strumSpread": 0.012,
         "voicing": "spread",
         "volume": 0.7
+      },
+      "chordWheel": {
+        "bpm": 100,
+        "dead": 0.07,
+        "enabled": false,
+        "enterFrames": 3,
+        "gain": 0.22,
+        "hand": "left",
+        "mirrorHandedness": true,
+        "moves": "diatonic",
+        "point": "palm",
+        "radius": 0.3,
+        "reach": 0.14,
+        "releaseS": 0.4,
+        "rendering": "sustained",
+        "sound": "warmPad",
+        "voicing": "voiceLed"
       },
       "conductor": {
         "articulationFrom": "sharpness",

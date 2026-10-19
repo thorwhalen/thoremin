@@ -54,3 +54,26 @@ test('the Chord Map instrument loads, emits its grid of chords and asks the over
   await page.waitForTimeout(1000);
   expect(errors).toEqual([]);
 });
+
+test('the Chord Wheel instrument loads and draws its wheel through its own overlay element', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  await page.goto(SYNTHETIC);
+  await booted(page);
+  expect(await page.evaluate(() => window.thoremin!.getOutput('chordWheel', 'grid'))).toBeUndefined();
+
+  await choose(page, 'Chord Wheel');
+  // The centre (the tonic) and a wedge per move, with the moves' targets.
+  await expect
+    .poll(() => page.evaluate(() => ((window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? []).map((c) => c.label)), { timeout: 20_000 })
+    .toEqual(['C', 'F', 'Em', 'Dm', 'G', 'Am', 'B°']);
+  const elements = await page.evaluate(() => window.thoremin!.getOutput('ui', 'graphElements') as string[] | undefined);
+  expect(elements).toContain('air/chordWheel');
+  await expect(page.getByTestId('chord-wheel-live')).toBeVisible();
+
+  await choose(page, 'Tonnetz Wheel');
+  await expect
+    .poll(() => page.evaluate(() => ((window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? []).slice(1, 4).map((c) => c.label)), { timeout: 20_000 })
+    .toEqual(['Cm', 'Em', 'Am']);
+  expect(errors).toEqual([]);
+});

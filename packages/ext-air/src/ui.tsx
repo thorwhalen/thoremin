@@ -11,11 +11,14 @@ import { AirBassControls, AirBassReadout } from './panels/airBass';
 import { AirGuitarControls, AirGuitarReadout } from './panels/airGuitar';
 import { AirFluteControls, AirFluteReadout } from './panels/airFlute';
 import { ChordMapControls, ChordMapReadout } from './panels/chordMap';
+import { ChordWheelControls, ChordWheelReadout } from './panels/chordWheel';
 import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './app/airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './app/airBassStatus';
 import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from './app/airGuitarStatus';
 import { useAirFluteStatus, makeAirFluteReporter, ABSENT_AIR_FLUTE_LIVE, AIR_FLUTE_NODE_ID } from './app/airFluteStatus';
 import { useChordMapStatus, makeChordMapReporter, ABSENT_CHORD_MAP_LIVE, CHORD_MAP_NODE_ID } from './app/chordMapStatus';
+import { useChordWheelStatus, makeChordWheelReporter, CHORD_WHEEL_NODE_ID } from './app/chordWheelStatus';
+import { IDLE_CHORD_WHEEL_STATUS } from './nodes/chord_wheel';
 import { makeShapeTap, clearShapes, setShape } from './app/shapeTap';
 import { loadAirVocabularies, startFlutePriorSync } from './app/vocabularyStore';
 import { startAirFluteDemand } from './app/airFluteDemand';
@@ -42,6 +45,7 @@ export const AIR_UI: ExtensionUi = {
     { instrumentId: 'guitar', section: 'Air guitar', Controls: AirGuitarControls, Readout: AirGuitarReadout },
     { instrumentId: 'flute', section: 'Air flute', Controls: AirFluteControls, Readout: AirFluteReadout },
     { instrumentId: 'chords', section: 'Chord map', Controls: ChordMapControls, Readout: ChordMapReadout },
+    { instrumentId: 'wheel', section: 'Chord wheel', Controls: ChordWheelControls, Readout: ChordWheelReadout },
   ],
   statusHooks: [
     {
@@ -78,6 +82,12 @@ export const AIR_UI: ExtensionUi = {
       make: (engine) => makeChordMapReporter(engine),
       onRemoved: () => useChordMapStatus.getState().report(ABSENT_CHORD_MAP_LIVE),
       reset: () => useChordMapStatus.getState().reset(),
+    },
+    {
+      nodeId: CHORD_WHEEL_NODE_ID,
+      make: (engine) => makeChordWheelReporter(engine),
+      onRemoved: () => useChordWheelStatus.getState().report(IDLE_CHORD_WHEEL_STATUS),
+      reset: () => useChordWheelStatus.getState().reset(),
     },
   ],
   onMount: [
