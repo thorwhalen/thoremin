@@ -69,7 +69,7 @@ export function branchIdsWithout(branchIds: readonly string[], types: ReadonlySe
 }
 
 /** What the derivation knows in THIS build: every branch id, and each extension's derivation. */
-export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: CONTRIBUTIONS.extensions };
+export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: CONTRIBUTIONS.extensions, implying: ALL_BRANCHES };
 
 /**
  * The branch ids the settings and the live demand imply, in this build (core plus every
@@ -98,7 +98,9 @@ export interface SlotDef {
   contract: SlotContract;
 }
 
-export const SLOTS: Record<string, SlotDef> = {
+/** The slots the shell declares, with core's own candidates; an extension adds candidates (and a
+ *  default) through `slotCandidates` (#600 S17), folded in {@link SLOTS}. */
+const CORE_SLOTS: Record<string, SlotDef> = {
   mapping: {
     role: 'mapping',
     default: 'voice-mapping',
@@ -127,6 +129,25 @@ export const SLOTS: Record<string, SlotDef> = {
     contract: EXPRESSION_SLOT_CONTRACT,
   },
 };
+
+/** The shell's slots with the extensions' candidates folded in (#600 S17). A slot an extension
+ *  names that the shell does not declare is refused: the shell owns the slots and contracts. */
+export function withSlotCandidates(core: Record<string, SlotDef>, contributed: Readonly<Record<string, { types: readonly string[]; default?: string }>>): Record<string, SlotDef> {
+  const out: Record<string, SlotDef> = {};
+  for (const [k, def] of Object.entries(core)) out[k] = { ...def, candidates: [...def.candidates] };
+  for (const [slot, c] of Object.entries(contributed)) {
+    const def = out[slot];
+    if (!def) throw new Error(`extensions: no slot "${slot}" is declared by the shell (declared: ${Object.keys(core).join(', ')})`);
+    for (const t of c.types) if (!def.candidates.includes(t)) def.candidates.push(t);
+    if (c.default !== undefined) {
+      if (def.default) throw new Error(`extensions: the slot "${slot}" already has core's default "${def.default}"`);
+      def.default = c.default;
+    }
+  }
+  return out;
+}
+
+export const SLOTS: Record<string, SlotDef> = withSlotCandidates(CORE_SLOTS, CONTRIBUTIONS.slotCandidates);
 
 export type SlotSelection = Partial<Record<keyof typeof SLOTS, string>>;
 

@@ -245,7 +245,12 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // (PR 4 routes it through `liveBranchIds`, whose demand defaults to the live resource.)
     expect(liveApply).toMatch(/demanded = featureDemandResource\(\)/);
     expect(liveApply).toMatch(/branchIdsFor\(\{ \.\.\.controls \}, \{ demanded/);
-    expect(read('src/instruments/derive.ts')).toMatch(/demandWantsFace\(/);
+    // Since #600 S17 by the face source's declared `demands`, not a hand-written face rule:
+    // a claim on any face group composes it (and nothing else claimed does).
+    const { branchIdsFor } = await import('@/app/graph');
+    const { FACE_GROUP_IDS } = await import('@/features/labConfig');
+    expect(branchIdsFor({} as never, { demanded: new Set([FACE_GROUP_IDS[0]]) })).toContain('face-source');
+    expect(branchIdsFor({ faceMapping: 'none' } as never, { demanded: new Set() })).not.toContain('face-source');
   });
 });
 

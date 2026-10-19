@@ -113,6 +113,32 @@ export const probeMeter: OverlayElementImpl = {
   },
 };
 
+/** A candidate for the shell's `body` slot (#600 S17): a camera-free source that emits nothing. */
+export const PROBE_BODY_TYPE = 'probe-body';
+export const probeBodyNode = defineNode({
+  type: PROBE_BODY_TYPE,
+  roles: ['source'],
+  title: 'Probe body',
+  description: 'A test-only body source that sees nobody.',
+  inputs: [],
+  outputs: [{ name: 'body', kind: 'body-frame' }],
+  params: z.object({}),
+  process: () => ({ body: undefined }),
+});
+
+/** A branch a live claim implies by the feature groups it declares (#600 S17): no dial turns it on. */
+export const PROBE_SENSE_BRANCH_ID = 'probe-sense';
+export const PROBE_SENSE_GROUP = 'probe.sense';
+export const PROBE_SENSE_BRANCH = defineBranch({
+  id: PROBE_SENSE_BRANCH_ID,
+  description: 'Test-only: composed while something claims the probe\'s feature group.',
+  nodes: [],
+  edges: [],
+  demands: [PROBE_SENSE_GROUP],
+});
+/** What the probe's `derive` was last told is implied (a test reads it). */
+export const probeDeriveSaw: { implied: string[] } = { implied: [] };
+
 export const PROBE_BRANCH = defineBranch({
   id: PROBE_BRANCH_ID,
   description: 'The probe voice (test-only).',
@@ -135,8 +161,9 @@ export const PROBE_BRANCH = defineBranch({
 
 export const PROBE_EXTENSION = defineExtension({
   id: 'probe',
-  nodes: [probeNode as unknown as NodeDef<unknown>],
-  branches: [PROBE_BRANCH],
+  nodes: [probeNode as unknown as NodeDef<unknown>, probeBodyNode as unknown as NodeDef<unknown>],
+  branches: [PROBE_BRANCH, PROBE_SENSE_BRANCH],
+  slotCandidates: [{ slot: 'body', types: [PROBE_BODY_TYPE] }],
   dials: [
     dialSlice({
       key: 'probe',
@@ -170,7 +197,10 @@ export const PROBE_EXTENSION = defineExtension({
     routes: [{ id: 'probe', label: 'Train the probe', hint: 'Test-only.', tool: PROBE_TOOL_ID }],
     byBranch: [[PROBE_BRANCH_ID, 'probe']],
   },
-  derive: (s) => ((s as { probe?: Partial<ProbeDial> }).probe?.enabled === true ? [PROBE_BRANCH_ID] : []),
+  derive: (s, context) => {
+    probeDeriveSaw.implied = [...(context?.implied ?? [])].sort();
+    return (s as { probe?: Partial<ProbeDial> }).probe?.enabled === true ? [PROBE_BRANCH_ID] : [];
+  },
   // A tool's need (#600 S15): a probe model in hand composes the probe's branch even into an
   // explicit set that leaves it out. It records what was composed before it, for the test.
   toolDerive: (s, composed) => {

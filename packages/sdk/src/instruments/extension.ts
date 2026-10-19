@@ -162,6 +162,22 @@ export function dialSlice<const K extends string, S extends z.ZodTypeAny>(slice:
  *  knows their types: they are its dial slices). */
 export type ExtensionDerivationSettings = Readonly<Record<string, unknown>>;
 
+/** An extension's candidates for one of the shell's slots (#600 S17). */
+export interface SlotCandidates {
+  /** The shell's slot name (`body`). */
+  slot: string;
+  /** Node types of this extension that fill it (each must satisfy the slot's contract). */
+  types: readonly string[];
+  /** The slot's default, when this extension provides it (one of `types`). */
+  default?: string;
+}
+
+/** What else an extension's `derive` may read beside the settings (#600 S17). */
+export interface ExtensionDerivationContext {
+  /** The branches a live feature claim implies by their declared `demands`. */
+  implied: ReadonlySet<string>;
+}
+
 /** A transient hot-store field the extension reads through a `store-controls` port
  *  (a learned model, a status): always emitted, `null` when absent, so a clear reaches
  *  the node. */
@@ -373,6 +389,11 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   classes?: readonly InstrumentClass[];
   /** Its rows of the instrument catalog (#600 S8), in display order. */
   catalog?: readonly CatalogEntry[];
+  /** Candidates for the shell's slots (#600 S17): node types of its own that can fill a slot the
+   *  shell declares (`body`, `source`, ...), and, for at most one extension per slot, the
+   *  slot's default. The shell keeps the slot and its contract; a URL picks a candidate
+   *  (`?slot.body=synthetic-body`). */
+  slotCandidates?: readonly SlotCandidates[];
   /** Overlay elements it contributes, as data (#600 S5): ports, category, config. */
   overlay?: readonly OverlayElementDecl[];
   /** An EAGER extension's overlay drawing code (a lazy one's arrives with {@link load}). */
@@ -380,8 +401,11 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   /**
    * Which of this extension's branches the settings imply (the derivation column of the ADR,
    * §3.4, for this extension). Called by `branchIdsFor` when no explicit set is given.
+   * `context.implied` holds the branches a live claim (the Lab, a tool's demand) implies by
+   * their declared `demands` (#600 S17): already composed; read it when one of this
+   * extension's branches depends on a source being there for a reason other than its dial.
    */
-  derive: (settings: ExtensionDerivationSettings) => readonly string[];
+  derive: (settings: ExtensionDerivationSettings, context?: ExtensionDerivationContext) => readonly string[];
   /**
    * Which of this extension's branches a TOOL's need implies (#600 S15): the player's per-device
    * prefs or live state (a loaded song, a follow switch), never the instrument's dials. Unlike

@@ -103,6 +103,9 @@ export interface Contributions {
   storageKeys: readonly StorageKeyEntry[];
   /** Every contributed carve modality (#600 S11); ids unique, and none of the SDK's own. */
   modalities: readonly CarveModality[];
+  /** Candidates for the shell's slots (#600 S17), per slot: the types, and the default when one
+   *  extension provides it. */
+  slotCandidates: Readonly<Record<string, { types: readonly string[]; default?: string }>>;
 }
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
@@ -256,8 +259,30 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     commandDecls: keyed('command', extensions, (e) => (e.commandDecls ?? []).map((decl) => ({ extension: e.id, decl })), (c) => c.decl.id),
     storageKeys: [...CORE_STORAGE_KEYS, ...extensionStorageKeys(extensions)],
     modalities: keyed('carve modality', extensions, (e) => e.modalities ?? [], (m) => m.id, new Map(SDK_MODALITY_IDS.map((id) => [id, 'core']))),
+    slotCandidates: slotCandidatesOf(extensions),
     ...libraryFold(extensions),
   };
+}
+
+/** The slot candidates, per slot (#600 S17): a type listed once, a default only among its own
+ *  extension's types, and at most one default per slot. */
+export function slotCandidatesOf(extensions: readonly Extension[]): Record<string, { types: string[]; default?: string }> {
+  const out: Record<string, { types: string[]; default?: string; defaultOwner?: string }> = {};
+  for (const e of extensions) {
+    for (const c of e.slotCandidates ?? []) {
+      const slot = (out[c.slot] ??= { types: [] });
+      for (const t of c.types) {
+        if (slot.types.includes(t)) throw new Error(`extensions: the slot "${c.slot}" lists the candidate "${t}" twice`);
+        slot.types.push(t);
+      }
+      if (c.default === undefined) continue;
+      if (!c.types.includes(c.default)) throw new Error(`extension "${e.id}": the default "${c.default}" of the slot "${c.slot}" is not one of its own candidates`);
+      if (slot.default !== undefined) throw new Error(`extensions "${slot.defaultOwner}" and "${e.id}" both provide the default of the slot "${c.slot}"`);
+      slot.default = c.default;
+      slot.defaultOwner = e.id;
+    }
+  }
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, { types: v.types, ...(v.default === undefined ? {} : { default: v.default }) }]));
 }
 
 /** The classes and catalog rows, checked: a class id once (core's `field` included), a row id

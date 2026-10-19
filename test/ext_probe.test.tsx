@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
+import { PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -118,6 +118,23 @@ describe('the probe reaches every pure contribution point', () => {
     expect(explicit).toEqual(['field-voices', PROBE_BRANCH_ID]);
     expect(probeToolNeeds.composed).toEqual(['field-voices']);
     expect(app.graph.branchIdsFor({ ...defaults, probeModel: null } as never, { explicit: ['field-voices'] })).toEqual(['field-voices']);
+  });
+
+  it('slots (#600 S17): the probe\'s body source joins the shell\'s body slot and a URL picks it', () => {
+    expect(app.graph.SLOTS.body.candidates).toContain(PROBE_BODY_TYPE);
+    const registry = app.registry.createAppRegistry();
+    expect(app.graph.resolveSlot('body', { body: PROBE_BODY_TYPE }, registry, () => {})).toBe(PROBE_BODY_TYPE);
+    expect(app.graph.resolveSlot('body', undefined, registry, () => {})).toBe(app.graph.SLOTS.body.default);
+  });
+
+  it('demands (#600 S17): a claim on a group the probe\'s branch declares composes it, and the probe\'s derive is told', () => {
+    expect(app.graph.branchIdsFor({} as never)).not.toContain(PROBE_SENSE_BRANCH_ID);
+    expect(probeDeriveSaw.implied).toEqual([]);
+    expect(app.graph.branchIdsFor({} as never, { demanded: new Set([PROBE_SENSE_GROUP]) })).toContain(PROBE_SENSE_BRANCH_ID);
+    expect(probeDeriveSaw.implied).toEqual([PROBE_SENSE_BRANCH_ID]);
+    // The Lab showing the group does the same while it is open, and nothing once closed.
+    expect(app.graph.branchIdsFor({} as never, { featureLab: { show: true, groups: [PROBE_SENSE_GROUP] } as never })).toContain(PROBE_SENSE_BRANCH_ID);
+    expect(app.graph.branchIdsFor({} as never, { featureLab: { show: false, groups: [PROBE_SENSE_GROUP] } as never })).not.toContain(PROBE_SENSE_BRANCH_ID);
   });
 
   it('instruments: the probe seed is seeded after core, with its patch applied', () => {

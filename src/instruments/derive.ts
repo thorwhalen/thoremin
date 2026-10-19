@@ -23,7 +23,7 @@
  * node is simply absent when unwanted.
  */
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
-import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type FeatureLabConfig } from '../features/labConfig';
+import type { FeatureLabConfig } from '../features/labConfig';
 /**
  * What the derivation needs to know about the build it runs in: which branch ids exist,
  * and each extension's own derivation. A PARAMETER, never an import: this package stays
@@ -33,7 +33,32 @@ import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type Feat
  */
 export interface DerivationTable {
   knownBranchIds: ReadonlySet<string>;
-  extensions: readonly { id: string; derive: (settings: DerivationSettings) => readonly string[]; toolDerive?: (settings: DerivationSettings, composed: readonly string[]) => readonly string[] }[];
+  extensions: readonly { id: string; derive: (settings: DerivationSettings, context: { implied: ReadonlySet<string> }) => readonly string[]; toolDerive?: (settings: DerivationSettings, composed: readonly string[]) => readonly string[] }[];
+  /** The branches that declare feature `demands` (#600 S17): one is implied while a live claim
+   *  (the Lab's shown groups, a tool's demand) wants any group it declares. A source branch
+   *  says what it measures; nothing names it to turn it on. */
+  implying?: readonly { id: string; demands?: readonly string[] }[];
+}
+
+/** The groups a dancer leading the song needs (#186 PR H): the pulse, from the body. Said as
+ *  a group, not a branch, so core names no source branch (#600 S17). */
+const DANCER_NEEDS = ['body.rhythm'] as const;
+/** The groups the body conductor needs (#375): the pose stream, from the body. */
+const BODY_CONDUCTOR_NEEDS = ['body.pos'] as const;
+
+/** The groups a live claim wants: the Lab's shown groups while it is open, and the demand. */
+function claimedGroups(ctx: DerivationContext): Set<string> {
+  const groups = new Set<string>(ctx.demanded ?? []);
+  if (ctx.featureLab?.show) for (const g of ctx.featureLab.groups) groups.add(g);
+  return groups;
+}
+
+/** The branches whose declared `demands` meet `groups`. */
+function impliedBy(groups: ReadonlySet<string>, table: DerivationTable): Set<string> {
+  const out = new Set<string>();
+  if (groups.size === 0) return out;
+  for (const b of table.implying ?? []) if (b.demands?.some((g) => groups.has(g))) out.add(b.id);
+  return out;
 }
 
 /**
@@ -84,8 +109,6 @@ export interface DerivationContext {
   explicit?: readonly string[] | null;
 }
 
-const NO_DEMAND: DemandedGroups = new Set();
-
 /** Whether any body route is live (a target other than `none`, with a feature). */
 export function bodyMapRoutesAnything(bodyMap: DerivationSettings['bodyMap']): boolean {
   return Object.values(bodyMap?.routes ?? {}).some((r) => !!r && r.target !== undefined && r.target !== 'none' && !!r.feature);
@@ -135,7 +158,6 @@ export function conductorReadsBody(settings: Pick<DerivationSettings, 'conductor
  * The trunk is implied by the composer and not listed here.
  */
 export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationContext, table: DerivationTable): string[] {
-  const demanded = ctx.demanded ?? NO_DEMAND;
   const ids: string[] = [];
   const add = (id: string, on: boolean): void => {
     if (on && !ids.includes(id)) ids.push(id);
@@ -145,13 +167,19 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   const addToolNeeds = (): void => {
     for (const ext of table.extensions) for (const id of ext.toolDerive?.(settings, [...ids]) ?? []) add(id, table.knownBranchIds.has(id));
   };
+  // What a live claim implies (the Lab, a tool's demand): each source branch by its `demands`.
+  const claimed = impliedBy(claimedGroups(ctx), table);
+  /** Core's own needs, said as feature groups (the dancer's pulse, the body conductor's pose). */
+  const needs = (groups: readonly string[], on: boolean): void => {
+    if (on) for (const id of impliedBy(new Set(groups), table)) add(id, true);
+  };
 
   if (ctx.explicit) {
     // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
     // rather than thrown: the derivation runs inside the host's selector and must not take
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
     for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
-    add('face-source', labWantsFace(ctx.featureLab) || demandWantsFace(demanded));
+    for (const id of claimed) add(id, true);
     // The conductor is the instrument's (an explicit set lists it); the recording it leads
     // is the player's, like the dancer's song.
     const listed = ids.includes('conductor');
@@ -161,7 +189,8 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // As below: only while the conductor (or its orchestra) is on, not for a saved set
     // that merely lists an idle conductor.
     const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
-    add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads || bodyConducts);
+    needs(DANCER_NEEDS, dancerLeads);
+    needs(BODY_CONDUCTOR_NEEDS, bodyConducts);
     add('song-pace', dancerLeads || conducted);
     addToolNeeds();
     return ids;
@@ -172,21 +201,22 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   const fieldVoices = (settings.handMap?.maxGain ?? 1) > 0;
   add('field-voices', fieldVoices);
 
+  for (const id of claimed) add(id, true);
   const faceMapping = settings.faceMapping ?? 'none';
-  const faceWanted = faceMapping !== 'none' || labWantsFace(ctx.featureLab) || demandWantsFace(demanded);
-  add('face-source', faceWanted);
+  add('face-source', faceMapping !== 'none');
   // The timbre branch colours the hand voices; without them it has nothing to colour.
   add('face-timbre', faceMapping === 'timbre' && fieldVoices);
   add('face-chord', faceMapping === 'chord');
   add('face-controls', faceMapping === 'controls');
 
-  const bodyWanted = on(settings.body) || labWantsBody(ctx.featureLab) || demandWantsBody(demanded);
+  const bodyWanted = on(settings.body) || claimed.has('body-source');
   // Following the dancer (#186 PR H) needs the body; it does not make the body ROUTE
   // anything onto the voices, so `bodyWanted` (which gates the router) leaves it out.
   // A conductor leading the song replaces the dancer (one leader for one song): the pace
   // node prefers his time, and the body is not started for a dancer nobody follows.
   const dancerLeads = songDanced(settings);
-  add('body-source', bodyWanted || dancerLeads);
+  add('body-source', on(settings.body));
+  needs(DANCER_NEEDS, dancerLeads);
   add('song-pace', dancerLeads || songConducted(settings));
   // The router modulates the hand voices: it needs the body AND the voices.
   add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
@@ -197,11 +227,11 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('conductor', conducting);
   // The body conductor (#375) reads the pose stream: the body source comes with him. It
   // routes nothing onto the voices (`bodyWanted` gates the router and leaves this out).
-  add('body-source', conducting && conductorReadsBody(settings));
+  needs(BODY_CONDUCTOR_NEEDS, conducting && conductorReadsBody(settings));
   // The extensions' branches: each manifest says which of its branches its dials imply.
   // An id the table does not know (a typo in a manifest) is dropped, like an unknown
   // explicit id: the derivation must not take the app down.
-  for (const ext of table.extensions) for (const id of ext.derive(settings)) add(id, table.knownBranchIds.has(id));
+  for (const ext of table.extensions) for (const id of ext.derive(settings, { implied: claimed })) add(id, table.knownBranchIds.has(id));
   addToolNeeds();
   return ids;
 }
