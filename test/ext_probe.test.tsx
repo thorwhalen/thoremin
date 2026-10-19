@@ -174,6 +174,39 @@ describe('the probe contributes a chord producer (#600 S4)', () => {
   });
 });
 
+describe('the probe contributes category readers (#600 S10b)', () => {
+  it('the overlay\'s pools are sized for them, and the composer wires each reader and the captions into them', async () => {
+    const reg = app.registry.createAppRegistry();
+    await reg.ensure([PROBE_LAZY_NODE_TYPE]);
+    const overlayPorts = reg.get('canvas-overlay').inputs.map((p) => p.name);
+    expect(overlayPorts).toEqual(expect.arrayContaining(['classifier1', 'classifier1Captions', 'categorizer1']));
+    expect(overlayPorts).not.toContain('classifier2');
+    const { spec } = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID, PROBE_LAZY_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    const into = (port: string) => spec.edges.filter((e) => e.to.node === 'overlay' && e.to.port === port).map((e) => `${e.from.node}.${e.from.port}`);
+    expect(into('classifier1')).toEqual([`${PROBE_NODE_ID}.reading`]);
+    expect(into('classifier1Captions')).toEqual([`${PROBE_NODE_ID}.captions`]);
+    expect(into('categorizer1')).toEqual([`${PROBE_LAZY_NODE_ID}.category`]);
+  });
+
+  it('the category cues draw the classifier while it reads, else the categorizer', async () => {
+    const reg = app.registry.createAppRegistry();
+    await reg.ensure([PROBE_LAZY_NODE_TYPE]);
+    const composed = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID, PROBE_LAZY_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    const drawnWith = (gain: number) => {
+      const rc = makeRecordingCanvas();
+      const controls = { ...app.store.useControls.getState(), probe: { enabled: true, freq: 440 }, probeLazy: { enabled: true }, probeModel: { gain }, graphElements: [...composed.elements, 'categoryLabel', 'categoryBars'] };
+      const engine = new Engine(composed.spec, reg, { resources: { controls: () => controls, canvas: rc.canvas, video: rc.video }, validatePorts: true });
+      engine.tick(0);
+      engine.tick(1 / 30);
+      return rc.texts();
+    };
+    const reading = drawnWith(0.5);
+    expect(reading).toContain('P');
+    expect(reading).toContain('probe P');
+    expect(drawnWith(0)).toContain('mine');
+  });
+});
+
 describe('the probe draws overlay elements (#600 S5)', () => {
   it('the overlay grows the probes\' ports, and both elements draw in the composed graph from their own inputs', async () => {
     const reg = app.registry.createAppRegistry();

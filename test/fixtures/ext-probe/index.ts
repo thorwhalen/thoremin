@@ -20,7 +20,7 @@ import { defineNode, type NodeDef } from '@thoremin/dag';
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { defineExtension, dialSlice, overlayElementId, overlayPortName, transientPort, type OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
-import type { SynthParams } from '@thoremin/sdk/nodes/domain';
+import type { CategoryScores, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 
 export const PROBE_NODE_TYPE = 'probe-tone';
@@ -38,6 +38,10 @@ export const PROBE_MODALITY_ID = 'probe-part';
 export const ProbeDialSchema = z.object({ enabled: z.boolean(), freq: z.number().positive() });
 export type ProbeDial = z.infer<typeof ProbeDialSchema>;
 export const DEFAULT_PROBE: ProbeDial = { enabled: false, freq: 440 };
+
+/** The probe's classifier reading (#600 S10b): one class while it sounds, with a caption. */
+export const PROBE_LABELS = ['P', 'Q'];
+export const PROBE_CAPTIONS = ['probe P', 'probe Q'];
 
 /** The chord tones the probe contributes to the chord display while it sounds. */
 export const PROBE_CHORD = [61, 65, 68];
@@ -75,6 +79,8 @@ export const probeNode = defineNode<Record<string, never>>({
     { name: 'params', kind: 'synth-params' },
     { name: 'level', kind: 'number' },
     { name: 'chord', kind: 'number[]' },
+    { name: 'reading', kind: 'category-scores' },
+    { name: 'captions', kind: 'string[]' },
   ],
   params: z.object({}),
   process(inputs) {
@@ -82,7 +88,9 @@ export const probeNode = defineNode<Record<string, never>>({
     const gain = (inputs.model as ProbeModel | null | undefined)?.gain ?? 0;
     const params: SynthParams = { voices: [{ id: PROBE_VOICE_ID, present: gain > 0, freq: cfg.freq, gain, sound: 'sine' }] };
     // A chord the overlay's chord display shows while the probe sounds (#600 S4: a chord producer).
-    return { params, level: gain, chord: gain > 0 ? PROBE_CHORD : [] };
+    // A classifier's reading the category cues draw (#600 S10b: a category reader), captioned.
+    const reading: CategoryScores = { present: gain > 0, label: gain > 0 ? PROBE_LABELS[0] : null, labels: PROBE_LABELS, scores: [gain, 0] };
+    return { params, level: gain, chord: gain > 0 ? PROBE_CHORD : [], reading, captions: PROBE_CAPTIONS };
   },
 });
 
@@ -114,6 +122,9 @@ export const PROBE_BRANCH = defineBranch({
   voices: [{ from: { node: PROBE_NODE_ID, port: 'params' }, role: 'instrument' }],
   // Below the face's chords (30, 20): shown when neither sounds.
   chords: [{ from: { node: PROBE_NODE_ID, port: 'chord' }, priority: 5 }],
+  // A classifier on the category cues, and its classes' captions (#600 S10b).
+  categories: [{ from: { node: PROBE_NODE_ID, port: 'reading' }, kind: 'classifier', priority: 5 }],
+  categoryCaptions: [{ from: { node: PROBE_NODE_ID, port: 'captions' }, for: { node: PROBE_NODE_ID, port: 'reading' } }],
 });
 
 export const PROBE_EXTENSION = defineExtension({

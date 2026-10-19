@@ -34,6 +34,8 @@ export const PROBE_LAZY_BRANCH = defineBranch({
   ],
   overlay: [PROBE_LAZY_ELEMENT_ID],
   voices: [{ from: { node: PROBE_LAZY_NODE_ID, port: 'params' }, role: 'instrument' }],
+  // A categorizer on the category cues (#600 S10b), whose node loads on first use.
+  categories: [{ from: { node: PROBE_LAZY_NODE_ID, port: 'category' }, kind: 'categorizer', priority: 5 }],
 });
 
 export const PROBE_LAZY_EXTENSION = defineExtension({

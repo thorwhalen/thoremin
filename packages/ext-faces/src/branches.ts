@@ -49,8 +49,8 @@ export const POSE_CATEGORIZER_BRANCH_ID = 'pose-categorizer';
 
 /**
  * A saved pose categorizer, read live (#384): the body source's vector to one of the player's
- * poses, drawn by the overlay's category cues (its own `learnedCategories` input, so it never
- * fans in with the ASL reader's `categories`), and, when the conductor is composed, its
+ * poses, drawn by the overlay's category cues (a categorizer reader, #600 S10b: the composer gives
+ * it an input of the overlay's pool, so it never fans in with another reader), and, when the conductor is composed, its
  * transport override (`conductor.transportPose`, optional: absent without the conductor).
  */
 export const poseCategorizer = defineBranch({
@@ -62,9 +62,10 @@ export const poseCategorizer = defineBranch({
     to({ node: BODY_VECTOR, port: 'vector' }, { node: POSE_CATEGORIZER_NODE_ID, port: 'vector' }),
     to(ui('poseCategorizerModel'), { node: POSE_CATEGORIZER_NODE_ID, port: 'model' }),
     to(ui('poseCategorizer'), { node: POSE_CATEGORIZER_NODE_ID, port: 'config' }),
-    to({ node: POSE_CATEGORIZER_NODE_ID, port: 'category' }, overlay('learnedCategories')),
     { ...to({ node: POSE_CATEGORIZER_NODE_ID, port: 'transportPose' }, { node: CONDUCTOR, port: 'transportPose' }), optional: true },
   ],
+  // Above the categorizer chord's reading while both read (the order the cues always had).
+  categories: [{ from: { node: POSE_CATEGORIZER_NODE_ID, port: 'category' }, kind: 'categorizer', priority: 20 }],
   overlay: ['categoryLabel', 'categoryBars'],
 });
 
@@ -82,11 +83,19 @@ const chordEdges = (vector: { node: string; port: string }, frame: { node: strin
   to(ui('chordSpec'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'spec' }),
   to(ui('chordConfig'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'chordConfig' }),
   to(ui('octaveShift'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'octaveShift' }),
-  // Its own overlay input: never a fan-in with the pose categorizer's or ASL's categories.
-  to({ node: CATEGORIZER_CHORD_NODE_ID, port: 'category' }, overlay('chordCategories')),
-  // The chord it plays, for the chord name and the chord guide (#491): its own port too.
-  to({ node: CATEGORIZER_CHORD_NODE_ID, port: 'triad' }, overlay('categorizerChord')),
 ];
+
+/** The categorizer chord's priority on the chord display: below every other producer's (the face
+ *  chords 30 and 20, the sign and map chords 10, the wheel 8), so it shows only while none sounds,
+ *  as it always did (#491). A test keeps it the lowest declared. */
+export const CATEGORIZER_CHORD_PRIORITY = 0;
+
+/** What the categorizer chord shows (#600 S10b): its reading on the category cues, below the pose
+ *  categorizer's, and the chord it plays on the chord display (#491), below every other chord. */
+const chordShows = {
+  categories: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'category' }, kind: 'categorizer' as const, priority: 10 }],
+  chords: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'triad' }, priority: CATEGORIZER_CHORD_PRIORITY }],
+};
 
 /**
  * A saved hand-shape categorizer plays chords (#450): the trunk's hand feature vector to one of
@@ -98,6 +107,7 @@ export const handChords = defineBranch({
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: 'handVec', port: 'vector' }, { node: TRUNK.cam, port: 'hands' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
+  ...chordShows,
   overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 
@@ -112,6 +122,7 @@ export const poseChords = defineBranch({
   nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }, { node: 'camBody', port: 'body' }),
   voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
+  ...chordShows,
   overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 

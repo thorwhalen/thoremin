@@ -49,7 +49,8 @@ describe.runIf(FACES)('the poseCategorizer dial composes the pose branch', () =>
     expect(composed.branches).toEqual(expect.arrayContaining(['pose-categorizer', 'body-source']));
     expect(into(composed.spec, 'poseCat', 'vector')).toEqual(['bodyVec.vector']);
     expect(into(composed.spec, 'poseCat', 'model')).toEqual(['ui.poseCategorizerModel']);
-    expect(into(composed.spec, 'overlay', 'learnedCategories')).toEqual(['poseCat.category']);
+    // Its reading takes the overlay's first categorizer input (#600 S10b: a pool, was `learnedCategories`).
+    expect(into(composed.spec, 'overlay', 'categorizer1')).toEqual(['poseCat.category']);
     expect(composed.elements).toEqual(expect.arrayContaining(['categoryLabel', 'categoryBars']));
     // No conductor composed: the transport edge is dropped, not an error.
     expect(into(composed.spec, 'conductor', 'transportPose')).toEqual([]);
@@ -125,12 +126,12 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
     const out = await replay({ id: 'mine' });
     expect(ends(out).map((o) => o.category.label)).toEqual([null, 'ready', null, 'fermata', null, 'cut-off', null]);
     for (const o of out) expect(o.category.present).toBe(true);
-    const drawn = pickCategories(undefined, undefined, ends(out)[1].category);
+    const drawn = pickCategories([], [{ scores: ends(out)[1].category }]);
     expect(drawn.categories?.label).toBe('ready');
     expect(drawn.categories?.title).toBe('Conducting');
     // The ASL reader, while it reads, keeps the cues.
     const asl: CategoryScores = { present: true, label: 'A', labels: ['A'], scores: [1] };
-    expect(pickCategories(asl, ['C'], ends(out)[1].category)).toEqual({ categories: asl, categoryCaptions: ['C'] });
+    expect(pickCategories([{ scores: asl, captions: ['C'] }], [{ scores: ends(out)[1].category }])).toEqual({ categories: asl, categoryCaptions: ['C'] });
     // Transport off: the conductor's rules decide.
     for (const o of out) expect(o.transport).toBeUndefined();
   });

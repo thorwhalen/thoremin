@@ -834,18 +834,6 @@
         "kind": "string[]"
       },
       {
-        "name": "learnedCategories",
-        "kind": "category-scores"
-      },
-      {
-        "name": "chordCategories",
-        "kind": "category-scores"
-      },
-      {
-        "name": "categorizerChord",
-        "kind": "number[]"
-      },
-      {
         "name": "elements",
         "kind": "string[]"
       },
@@ -860,6 +848,18 @@
       {
         "name": "bodyVector",
         "kind": "feature-vector"
+      },
+      {
+        "name": "categorizer1",
+        "kind": "category-scores"
+      },
+      {
+        "name": "categorizer2",
+        "kind": "category-scores"
+      },
+      {
+        "name": "categorizer3",
+        "kind": "category-scores"
       },
       {
         "name": "air.chordWheel.grid",
@@ -1365,6 +1365,14 @@
       },
       {
         "name": "f",
+        "kind": "number[]"
+      },
+      {
+        "name": "g",
+        "kind": "number[]"
+      },
+      {
+        "name": "h",
         "kind": "number[]"
       }
     ],

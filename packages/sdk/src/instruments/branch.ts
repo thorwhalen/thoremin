@@ -68,6 +68,33 @@ export type BranchVoice = z.infer<typeof BranchVoiceSchema>;
 export const BranchChordSchema = z.object({ from: PortRefSchema, priority: z.number() });
 export type BranchChord = z.infer<typeof BranchChordSchema>;
 
+/**
+ * How a category reader behaves on the overlay's category cues (#600 S10b). A `classifier` (a
+ * general recogniser, such as the ASL reader) is drawn first while it reads but yields to a
+ * player's own categorizer at rest; a `categorizer` (one the player carved) is drawn at rest too.
+ */
+export const CATEGORY_KINDS = ['classifier', 'categorizer'] as const;
+export type CategoryKind = (typeof CATEGORY_KINDS)[number];
+
+/**
+ * A category reader a branch contributes (#600 S10b): a `category-scores` stream the composer wires
+ * into a free input of the overlay's category pool for its `kind`, so the generic category cues
+ * (`categoryLabel`, `categoryBars`) draw it. While several read, the first present wins: the
+ * classifiers before the categorizers, each pool by `priority` (higher first; ties by branch
+ * order); with none present, the first wired categorizer, else the first classifier. A pool, like
+ * `chords`: no branch names the overlay's inputs, so two readers never fan in.
+ */
+export const BranchCategorySchema = z.object({ from: PortRefSchema, kind: z.enum(CATEGORY_KINDS), priority: z.number() });
+export type BranchCategory = z.infer<typeof BranchCategorySchema>;
+
+/**
+ * Captions for a classifier's classes (#600 S10b): a `string[]` stream aligned with the labels of
+ * the category reader `for` names (the chord each ASL letter plays), drawn as the bars' second
+ * label. It may come from another branch than the reader's (the reader's branch is then required).
+ */
+export const BranchCategoryCaptionsSchema = z.object({ from: PortRefSchema, for: PortRefSchema });
+export type BranchCategoryCaptions = z.infer<typeof BranchCategoryCaptionsSchema>;
+
 export const GraphBranchSchema = z.object({
   id: z.string().min(1),
   /** One line for the catalog and the composer's error messages. */
@@ -88,6 +115,10 @@ export const GraphBranchSchema = z.object({
   voices: z.array(BranchVoiceSchema).default([]),
   /** Chord-tone streams this branch contributes; the composer allocates chord-selector inputs. */
   chords: z.array(BranchChordSchema).default([]),
+  /** Category readers this branch contributes; the composer allocates the overlay's category pools. */
+  categories: z.array(BranchCategorySchema).default([]),
+  /** Captions for a classifier's classes, wired beside the slot its reader was given. */
+  categoryCaptions: z.array(BranchCategoryCaptionsSchema).default([]),
   /** Overlay element ids this branch wants drawn (the overlay intersects with its dials). */
   overlay: z.array(z.string()).default([]),
   /** Feature-catalog group ids whose live demand implies this branch at runtime. */

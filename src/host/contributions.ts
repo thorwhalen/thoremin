@@ -29,6 +29,7 @@ import { CARVE_MODALITIES, registerCarveModalities } from '@thoremin/sdk/feature
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
 import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
+import type { CategoryPoolSizes } from '@/nodes/output/canvas_overlay.schema';
 import {
   EXTENSIONS,
   EXTENSION_SETTINGS_SHAPE,
@@ -82,8 +83,9 @@ export interface Contributions {
   trainingRoutes: readonly TrainingRoute[];
   trainingByBranch: readonly (readonly [branch: string, route: string])[];
   /** The fan-in pools sized for every branch there is, core's and the extensions' (#600 S4): the
-   *  merge's voice pools and the chord selector's, never below today's 8 + 2 and 3. */
-  pools: { merge: PoolSizes; chords: number };
+   *  merge's voice pools and the chord selector's, never below today's 8 + 2 and 3, and the
+   *  overlay's category pools (#600 S10b), one input per declared reader of each kind. */
+  pools: { merge: PoolSizes; chords: number; categories: CategoryPoolSizes };
   /** Every extension overlay element (#600 S5), in list order; ids unique. */
   overlayElements: readonly ContributedOverlayElement[];
   /** Every instrument class the extensions contribute (#600 S8), after core's; ids unique. */
@@ -163,14 +165,19 @@ export function overlayConfigEdges(
 /**
  * Pool sizes that fit every branch composed at once: one input per declared voice of each role,
  * and per declared chord producer plus one for an explicit edge into the selector (an extension
- * that predates the chord pool wires its own), never below the defaults.
+ * that predates the chord pool wires its own), never below the defaults; and one overlay
+ * category input per declared reader of each kind. Branches that replace one another are all
+ * counted (the faces' hand and pose chords share one reader), so a pool can carry an input no
+ * composed graph feeds: harmless, and simpler than resolving `replaces` here.
  */
-export function poolSizesFor(branches: readonly GraphBranch[]): { merge: PoolSizes; chords: number } {
+export function poolSizesFor(branches: readonly GraphBranch[]): { merge: PoolSizes; chords: number; categories: CategoryPoolSizes } {
   const count = (role: 'instrument' | 'score') => branches.reduce((n, b) => n + b.voices.filter((v) => v.role === role).length, 0);
   const chords = branches.reduce((n, b) => n + b.chords.length, 0);
+  const readers = (kind: keyof CategoryPoolSizes) => branches.reduce((n, b) => n + b.categories.filter((c) => c.kind === kind).length, 0);
   return {
     merge: { instrument: Math.max(DEFAULT_MERGE_POOL_SIZES.instrument, count('instrument')), score: Math.max(DEFAULT_MERGE_POOL_SIZES.score, count('score')) },
     chords: Math.max(DEFAULT_CHORD_POOL_SIZE, chords + 1),
+    categories: { classifier: readers('classifier'), categorizer: readers('categorizer') },
   };
 }
 

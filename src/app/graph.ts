@@ -34,8 +34,9 @@ import { EXPRESSION_SLOT_CONTRACT } from '@/nodes/features/expression_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
 import { synthMergePools } from '@/nodes/mapping/synth_merge.schema';
 import { chordPool } from '@/nodes/mapping/chord_select.schema';
+import { captionsPort, categoryPool } from '@/nodes/output/canvas_overlay.schema';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
-import { composeGraph, type ChordTarget, type Composed } from '@/instruments/compose';
+import { composeGraph, type CategoryTarget, type ChordTarget, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 import { assertNoCoreClash, CONTRIBUTIONS, overlayConfigEdges } from '@/host/contributions';
 import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
@@ -231,6 +232,14 @@ export const CHORD_TARGET: ChordTarget = {
   outputs: [{ port: 'chord', to: { node: TRUNK.overlay, port: 'chord' } }],
 };
 
+/** Where declared category readers go (#600 S10b): the overlay's two pools, sized like the
+ *  registry's overlay, for the generic category cues. */
+export const CATEGORY_TARGET: CategoryTarget = {
+  node: TRUNK.overlay,
+  pools: { classifier: categoryPool('classifier', CONTRIBUTIONS.pools.categories.classifier), categorizer: categoryPool('categorizer', CONTRIBUTIONS.pools.categories.categorizer) },
+  captions: captionsPort,
+};
+
 /**
  * Compose the named branches (requirements included) for a slot selection. The general
  * form of {@link defaultGraph}; PR 3 of the ADR feeds it the branch set an instrument's
@@ -243,7 +252,7 @@ export function composeInstrumentGraph(
 ): Composed {
   // The trunk is implied: every instrument shares it, so no spec has to name it.
   const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
-  const composed = composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET });
+  const composed = composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET, categories: CATEGORY_TARGET });
   // A contributed overlay element's config dial reaches it from the host, never a branch (#600 S5).
   const config = overlayConfigEdges({ elements: composed.elements, edges: composed.spec.edges }, CONTRIBUTIONS.overlayElements, { ui: TRUNK.ui, overlay: TRUNK.overlay });
   return config.length ? { ...composed, spec: { ...composed.spec, edges: [...composed.spec.edges, ...config] } } : composed;

@@ -10,8 +10,9 @@
  * chords. Its voices are a block of their own ({@link CATEGORIZER_CHORD_VOICE_ID_BASE}), so it can
  * play under the face chords and the score.
  *
- * Outputs: the voices (`params`), the reading for the overlay's category cues (`category`, on its
- * own `chordCategories` input) and the un-voiced triad. The model is a transient the host resolves
+ * Outputs: the voices (`params`), the reading for the overlay's category cues (`category`, a
+ * categorizer reader its branches declare, #600 S10b) and the un-voiced triad (a chord producer, on
+ * the chord display while no other chord sounds). The model is a transient the host resolves
  * off the tick; only the model the dial names plays. The engine ticks faster than the camera, so a
  * camera frame seen already is not a new reading (the hysteresis counts camera frames; `frame` is
  * the frame, since the hand vector node builds a new vector every tick; the body's keeps its vector

@@ -330,7 +330,7 @@ Union the synth-params voice streams into one: a pool of instrument inputs (hush
 Pick the first non-empty of a pool of chord-tone streams (the face chord, the pose chord, the sign chord, and any an extension declares), highest priority first, for the overlay.
 
 - **roles:** mapping
-- **in:** a:number[], b:number[], c:number[], d:number[], e:number[], f:number[]
+- **in:** a:number[], b:number[], c:number[], d:number[], e:number[], f:number[], g:number[], h:number[]
 - **out:** chord:number[]
 - **params:** —
 
@@ -567,7 +567,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), cellGrid (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 
