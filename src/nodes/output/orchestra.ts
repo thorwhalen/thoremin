@@ -26,7 +26,7 @@
  * by default): the synth comes from an {@link OrchestraEngineFactory}, injected by a host
  * as `ctx.resources.createOrchestraEngine` (tests, headless runs), or the default here,
  * which dynamically imports `./orchestra_engine` (and with it `spessasynth_lib`, its
- * worklet and the 3.7 MB soundfont) the first time. The `status` port speaks the shared
+ * worklet and the 6.0 MB soundfont) the first time. The `status` port speaks the shared
  * `LoadStatus` (`docs/design/lazy-loading.md`), with download progress.
  *
  * **Handing the piece over.** `playing` is true while the orchestra is loaded and the

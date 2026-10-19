@@ -9,7 +9,7 @@ import { SECTIONS, type Section } from './orchestra_map.schema';
 
 /** The shipped soundfont's size in MB, stated on the toggle before the download (the
  *  lazy-loading rule); `test/orchestra_bank.test.ts` pins it to the committed file. */
-export const SOUNDFONT_SIZE_MB = 3.7;
+export const SOUNDFONT_SIZE_MB = 6.0;
 
 /**
  * The player's orchestra settings: a structured leaf of the `conductor` dial

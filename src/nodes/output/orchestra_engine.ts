@@ -13,7 +13,7 @@
  * then).
  *
  * The load, in order, each step abortable: the worklet module, then the soundfont (the
- * self-hosted cut SF3, 3.7 MB, D10 on #168: under the 15 MB threshold, so served from
+ * self-hosted cut SF3, 6.0 MB (22 programs, #334), D10 on #168: under the 15 MB threshold, so served from
  * the app's own static files with its licence beside it, and cached by the browser's
  * HTTP cache like any static file), with download progress for the readout, then the
  * synth and the bank. Every event method passes `{ time }` in `AudioContext` seconds, so

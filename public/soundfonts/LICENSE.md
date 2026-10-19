@@ -1,6 +1,6 @@
 # The orchestra's soundfont
 
-`orchestra.sf3` (3.68 MB) is a cut of **MuseScore_General.sf3, version 0.2.0** (S. Christian Collins, from FluidR3Mono and FluidR3 GM), fetched from <https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/>. It keeps only the General MIDI programs the shipped scores use (`BANK_PROGRAMS` in `src/nodes/output/orchestra_map.ts`: violin, viola, cello, contrabass, timpani, string ensemble, oboe, English horn, bassoon, clarinet, flute), with the source's Ogg-compressed samples unchanged. It was cut by `scripts/orchestra/cut_soundfont.ts` (#187 PR 5; the hosting rule is D10 on #168).
+`orchestra.sf3` (6.00 MB) is a cut of **MuseScore_General.sf3, version 0.2.0** (S. Christian Collins, from FluidR3Mono and FluidR3 GM), fetched from <https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/>. It keeps only the General MIDI programs of the orchestral set (`BANK_PROGRAMS` in `src/nodes/output/orchestra_map.ts`: violin, viola, cello, contrabass, tremolo and pizzicato strings, harp, timpani, the string ensembles, trumpet, trombone, tuba, muted trumpet, horns, brass section, oboe, English horn, bassoon, clarinet, piccolo, flute; no piano), with the source's Ogg-compressed samples unchanged. It was cut by `scripts/orchestra/cut_soundfont.ts` (#187 PR 5; the hosting rule is D10 on #168).
 
 The bank is MIT-licensed. Its licence notice, which must travel with any derivative, is reproduced verbatim below.
 

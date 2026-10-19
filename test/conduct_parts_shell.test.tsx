@@ -18,7 +18,7 @@ import type { ScoreDoc } from '@/score';
 import type { ConductorSettings } from '@/settings/schema';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
-const part = (id: string, midi: number, percussion = false) => ({ id, name: id.toUpperCase(), percussion, notes: [{ midi, start: 0, duration: 1, velocity: 0.8 }] });
+const part = (id: string, midi: number, percussion = false, program?: number) => ({ id, name: id.toUpperCase(), percussion, ...(program === undefined ? {} : { program }), notes: [{ midi, start: 0, duration: 1, velocity: 0.8 }] });
 const docOf = (...parts: ReturnType<typeof part>[]) => ({ v: 1, title: 't', source: 'midi', parts, tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 1 }) as unknown as ScoreDoc;
 
 beforeEach(async () => {
@@ -57,6 +57,26 @@ describe('Parts that play', () => {
     fireEvent.click(cello);
     fireEvent.click(screen.getByTestId('conductor-part-drums'));
     await waitFor(() => expect(conductor().parts).toBe(''));
+  });
+
+  it('says which parts the orchestra plays as another instrument (#334), only with the orchestra on', async () => {
+    // A violin (kept), a horn (kept since #334), a piano and a guitar (no such program in the cut).
+    act(() => useControls.getState().setScoreDoc(docOf(part('violin', 67, false, 40), part('horn', 55, false, 60), part('piano', 60, false, 0), part('guitar', 52, false, 24))));
+    render(
+      <>
+        <ToolsBar />
+        <ConductorPanel />
+      </>,
+    );
+    fireEvent.click(screen.getByText('Conductor'));
+    expect(screen.getByTestId('conductor-part-piano')).toBeTruthy();
+    expect(screen.queryByTestId('conductor-part-standin-piano')).toBeNull(); // orchestra off
+    await dispatchDialSetIn('conductor.orchestra.enabled', true);
+    await waitFor(() => expect(screen.getByTestId('conductor-part-standin-piano').textContent).toContain('string ensemble'));
+    expect(screen.getByTestId('conductor-part-standin-guitar').textContent).toContain('string ensemble');
+    expect(screen.queryByTestId('conductor-part-standin-violin')).toBeNull();
+    expect(screen.queryByTestId('conductor-part-standin-horn')).toBeNull();
+    await dispatchDialSetIn('conductor.orchestra.enabled', false);
   });
 
   it('shows no control for a single-part piece', () => {

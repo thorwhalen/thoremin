@@ -62,9 +62,13 @@ describe('the orchestra map', () => {
   it('plays a program the bank lacks with its nearest family member, else the default', () => {
     expect(bankProgramFor(41)).toBe(41);
     expect(bankProgramFor(undefined)).toBe(DEFAULT_PROGRAM);
-    expect(bankProgramFor(72)).toBe(73); // piccolo -> flute
-    expect(bankProgramFor(44)).toBe(43); // tremolo strings -> contrabass (nearest in the family)
-    expect(bankProgramFor(60)).toBe(DEFAULT_PROGRAM); // no brass in the cut
+    // The research map's orchestral set is kept (#334 b): a horn plays a horn.
+    for (const p of [44, 45, 46, 56, 57, 58, 59, 60, 61, 72]) expect(bankProgramFor(p), `GM ${p}`).toBe(p);
+    // What the bank lacks plays the nearest kept program of its family, else the default.
+    expect(bankProgramFor(62)).toBe(61); // synth brass -> brass section
+    expect(bankProgramFor(52)).toBe(49); // choir aahs -> slow strings (nearest in its family)
+    expect(bankProgramFor(0)).toBe(DEFAULT_PROGRAM); // the piano's samples alone are 15 MB: left out
+    expect(bankProgramFor(24)).toBe(DEFAULT_PROGRAM); // a guitar
   });
 
   it('shares a channel per program, keeps channel 10 for percussion, and never drops a part', () => {
