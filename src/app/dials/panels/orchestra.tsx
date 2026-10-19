@@ -70,6 +70,18 @@ export function OrchestraControls() {
       {o.enabled && (
         <div className="space-y-1.5">
           <Level label="Orchestra volume" path="conductor.orchestra.volume" value={o.volume} testId="orchestra-volume" />
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={o.pizzicato}
+              aria-label="Strings pizzicato on a sharp stroke"
+              data-testid="orchestra-pizzicato"
+              onChange={(e) => dispatchDialSetIn('conductor.orchestra.pizzicato', e.target.checked)}
+            />
+            <span>
+              Strings pizzicato on a sharp stroke <span className="text-white/40">(back to the bow on a smooth one)</span>
+            </span>
+          </label>
           {SECTIONS.map((s) => (
             <Level key={s} label={SECTION_LABEL[s]} path={`conductor.orchestra.sections.${s}`} value={sections[s]} testId={`orchestra-section-${s}`} />
           ))}

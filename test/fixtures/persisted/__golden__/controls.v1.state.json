@@ -296,6 +296,7 @@
     "mirrorX": true,
     "orchestra": {
       "enabled": false,
+      "pizzicato": false,
       "sections": {
         "brass": 1,
         "other": 1,
