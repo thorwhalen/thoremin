@@ -38,6 +38,31 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
   kind: string;
   /** The dials metadata the settings form and the palette show. */
   meta: { facets: string[]; title: string; description: string };
+  /** This slice's own schema version (#600 S9; default 1). Bump it with a migration when the
+   *  stored shape changes; the host records it per slice beside the hot store's global version. */
+  version?: number;
+  /** `[n]` takes a version-n stored value to version n + 1 (a NEW value; never edit the old).
+   *  The host runs the chain on rehydrate, before healing, from the stored version to
+   *  {@link version}. A value an older blob lacks is not migrated (the heal fills it). */
+  migrations?: Readonly<Record<number, (old: unknown) => unknown>>;
+  /** Settings paths this slice ADOPTS on read when its own key is absent (an expand step that
+   *  moves a value out of another dial: `'overlay.drumPads'`). The first present one is the
+   *  slice's stored value, at version 1; its migrations then reshape it. */
+  legacyKeys?: readonly string[];
+}
+
+/**
+ * A per-DEVICE preference an extension keeps in the hot store (#600 S9): persisted with the
+ * player's other device prefs, NEVER saved in an instrument (the difference from a dial slice).
+ * Versioned and migrated like a dial slice; healed through its schema on rehydrate.
+ */
+export interface PrefSlice<K extends string = string, S extends z.ZodTypeAny = z.ZodTypeAny> {
+  /** The hot-store field. Shares one namespace with dial keys and transient fields. */
+  key: K;
+  /** Its schema, with a `.default(...)`: the default is the pref's value on a first load. */
+  schema: S;
+  version?: number;
+  migrations?: Readonly<Record<number, (old: unknown) => unknown>>;
 }
 
 /** A {@link DialSlice} with its key kept literal (`'airDrum'`, not `string`). */
@@ -229,6 +254,8 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   branches: readonly GraphBranch[];
   /** The settings keys this extension owns, one per whole-object dial. */
   dials: D;
+  /** Its per-device preferences (#600 S9): persisted, never part of an instrument. */
+  prefs?: readonly PrefSlice[];
   transient?: Tr;
   /** The instruments it ships, appended to core's seeds in this order. */
   instruments?: readonly ExtensionInstrument[];

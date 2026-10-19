@@ -15,7 +15,7 @@
     "src/nodes/output/canvas_overlay.ts": 2104,
     "packages/ext-faces/src/app/sessionStore.ts": 1765,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
-    "src/app/store.ts": 905,
-    "packages/ictus/src/impact.ts": 904
+    "packages/ictus/src/impact.ts": 904,
+    "src/app/dials/InstrumentsPanel.tsx": 850
   }
 }

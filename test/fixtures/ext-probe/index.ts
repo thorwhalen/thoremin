@@ -5,7 +5,8 @@
  * carries them and nothing of the shipped extensions (`scripts/check_core_bundle.ts`).
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
- * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a dial slice, a transient port, a seed instrument, a training route);
+ * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
+ * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -34,6 +35,20 @@ export const DEFAULT_PROBE: ProbeDial = { enabled: false, freq: 440 };
 
 /** The chord tones the probe contributes to the chord display while it sounds. */
 export const PROBE_CHORD = [61, 65, 68];
+
+/** The probe's device pref: how loud it is on this device. */
+export const ProbePrefSchema = z.object({ volume: z.number().min(0).max(1) });
+
+/** How many times the probe's v1 -> v2 migration ran (a test checks it runs exactly once). */
+export const probeMigrations = { runs: 0 };
+
+/** v1 stored the frequency as `hz`; v2 calls it `freq`. Returns a new value. */
+export function migrateProbeV1(old: unknown): unknown {
+  probeMigrations.runs += 1;
+  if (!old || typeof old !== 'object') return old;
+  const { hz, ...rest } = old as Record<string, unknown>;
+  return hz === undefined ? rest : { ...rest, freq: hz };
+}
 
 /** What the transient port carries (set by the host's hot store, off the tick). */
 export interface ProbeModel {
@@ -105,8 +120,15 @@ export const PROBE_EXTENSION = defineExtension({
       schema: ProbeDialSchema.default(DEFAULT_PROBE),
       kind: 'probe-config',
       meta: { facets: ['Probe'], title: 'Probe', description: 'The probe voice (test-only)' },
+      // Version 2 renamed the stored `hz` to `freq` (#600 S9): its own migration, no core edit.
+      version: 2,
+      migrations: { 1: migrateProbeV1 },
+      // An expand step's adoption (#600 S9): a value an older build kept under `probeOld`.
+      legacyKeys: ['probeOld'],
     }),
   ] as const,
+  // A per-device pref (#600 S9): persisted, never saved in an instrument.
+  prefs: [{ key: 'probePref', schema: ProbePrefSchema.default({ volume: 0.5 }) }],
   transient: [transientPort<ProbeModel>()('probeModel', 'probe-model')] as const,
   // A class of its own and a catalog row under it (#600 S8): the Instruments view lists the probe
   // instrument there, with its emoji as a system tag.

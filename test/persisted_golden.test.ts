@@ -72,6 +72,18 @@ describe.runIf(SHIPPED)('a returning player at every persist version', () => {
   }
 });
 
+describe.runIf(SHIPPED)('what the store writes back (#600 S9)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('after the newest blob, the written blob keeps every preset and device-pref field and records each slice\'s version', async () => {
+    const { useControls, persistedControls } = store;
+    useControls.setState(useControls.getInitialState(), true);
+    localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8'));
+    await useControls.persist.rehydrate();
+    await expect(pretty(persistedControls(useControls.getState()))).toMatchFileSnapshot(golden('controls.written.json'));
+  });
+});
+
 describe.runIf(SHIPPED)('a returning player\'s instrument library', () => {
   beforeEach(() => {
     localStorage.clear();

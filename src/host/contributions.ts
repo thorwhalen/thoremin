@@ -21,7 +21,7 @@
  * settings schema (`src/settings`) read it, and those are Node-safe core that never imports the
  * app shell (`test/layering.test.ts`).
  */
-import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type DialSlice, type InstrumentClass, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
+import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type DialSlice, type InstrumentClass, type PrefSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { CORE_CLASSES, registerInstrumentClasses } from '@/instruments/classes';
@@ -61,8 +61,10 @@ export interface ContributedOverlayElement {
 export interface Contributions {
   /** The extensions themselves (the derivation and the node registry walk them). */
   extensions: readonly Extension[];
-  /** Every dial slice; keys unique across extensions and transient fields. */
+  /** Every dial slice; keys unique across extensions, prefs and transient fields. */
   dialSlices: readonly DialSlice[];
+  /** Every per-device pref slice (#600 S9); keys unique in the same namespace. */
+  prefSlices: readonly PrefSlice[];
   /** Every branch; ids unique across extensions. */
   branches: readonly GraphBranch[];
   /** Every node type an extension defines (eager) or declares (lazy); unique. */
@@ -191,15 +193,17 @@ function keyed<T>(point: string, extensions: readonly Extension[], items: (e: Ex
 
 /** Fold a list of extensions into the app's contribution views (pure; throws on a clash). */
 export function foldContributions(extensions: readonly Extension[]): Contributions {
-  // A dial key and a transient field are both a `store-controls` port and a hot-store field,
-  // so they share one namespace.
+  // A dial key, a pref and a transient field are each a hot-store field (the dial and the
+  // transient a `store-controls` port too), so they share one namespace.
   const storeFields = new Map<string, string>();
-  const dialSlices = keyed('dial key or transient field', extensions, (e) => e.dials, (d) => d.key, storeFields);
+  const dialSlices = keyed('dial key, pref or transient field', extensions, (e) => e.dials, (d) => d.key, storeFields);
+  const prefSlices = keyed('dial key, pref or transient field', extensions, (e) => e.prefs ?? [], (p) => p.key, storeFields);
   const branches = keyed('branch', extensions, (e) => e.branches, (b) => b.id);
-  const transientFields = keyed('dial key or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields).map((t) => t.field);
+  const transientFields = keyed('dial key, pref or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields).map((t) => t.field);
   return {
     extensions,
     dialSlices,
+    prefSlices,
     transientFields,
     branches,
     nodeTypes: keyed('node type', extensions, (e) => [...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])], (t) => t),

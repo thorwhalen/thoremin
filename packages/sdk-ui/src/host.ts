@@ -40,6 +40,8 @@ export interface ControlsHost {
   setTransient(field: string, value: unknown): void;
   /** Take (`on`) or release a hush claim: the instrument goes quiet while a tool needs the room. */
   setHush(claimer: string, on: boolean): void;
+  /** Replace one of the extension's per-device prefs (#600 S9), validated by its slice's schema. */
+  setPref(key: string, value: unknown): void;
   /** Subscribe to every change; returns the unsubscribe. */
   subscribe(listener: () => void): () => void;
 }
