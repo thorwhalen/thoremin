@@ -32,9 +32,10 @@ import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
 import { EXPRESSION_SLOT_CONTRACT } from '@/nodes/features/expression_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
-import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
+import { synthMergePools } from '@/nodes/mapping/synth_merge.schema';
+import { chordPool } from '@/nodes/mapping/chord_select.schema';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
-import { composeGraph, type Composed } from '@/instruments/compose';
+import { composeGraph, type ChordTarget, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
 import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
 import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
@@ -218,7 +219,17 @@ export function resolveSlots(selection?: SlotSelection, registry?: NodeRegistry)
 }
 
 /** Where declared voices go: the trunk's merge node and its role pools. */
-export const MERGE_TARGET = { node: TRUNK.merge, pools: SYNTH_MERGE_POOLS } as const;
+export const MERGE_TARGET = { node: TRUNK.merge, pools: synthMergePools(CONTRIBUTIONS.pools.merge) } as const;
+
+/** Where declared chord producers go (#600 S4): the selector the face branches share, sized like
+ *  the registry's (`src/nodes/browser.ts`), feeding the overlay's chord display. */
+export const CHORD_TARGET: ChordTarget = {
+  node: 'chordSel',
+  type: 'chord-select',
+  params: {},
+  pool: chordPool(CONTRIBUTIONS.pools.chords),
+  outputs: [{ port: 'chord', to: { node: TRUNK.overlay, port: 'chord' } }],
+};
 
 /**
  * Compose the named branches (requirements included) for a slot selection. The general
@@ -232,7 +243,7 @@ export function composeInstrumentGraph(
 ): Composed {
   // The trunk is implied: every instrument shares it, so no spec has to name it.
   const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
-  return composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET });
+  return composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET });
 }
 
 /** The full graph: every branch. The selection swaps node types inside it (see SLOTS). */

@@ -46,25 +46,27 @@ const asParams = (v: unknown): SynthParams =>
     ? (v as SynthParams)
     : EMPTY;
 
-/** The merge's input pools by voice role, in allocation order. The composer reads this. */
-export const SYNTH_MERGE_POOLS = {
-  instrument: ['voice1', 'voice2', 'voice3', 'voice4', 'voice5', 'voice6', 'voice7', 'voice8'],
-  score: ['score1', 'score2'],
-} as const;
+import { DEFAULT_MERGE_POOL_SIZES, synthMergePools, type PoolSizes } from './synth_merge.schema';
+
+export { DEFAULT_MERGE_POOL_SIZES, SYNTH_MERGE_POOLS, synthMergePools, type PoolSizes } from './synth_merge.schema';
 
 const silence = (p: SynthParams): SynthParams['voices'] =>
   p.voices.map((v) => ({ ...v, gain: 0, present: false }));
 
-export const synthMergeNode = defineNode({
+/** A merge with pools of the given sizes; the app registry builds the one its contributions
+ *  need (`src/nodes/browser.ts`), never fewer than {@link DEFAULT_MERGE_POOL_SIZES}. */
+export function makeSynthMergeNode(sizes: PoolSizes = DEFAULT_MERGE_POOL_SIZES) {
+  const pools = synthMergePools(sizes);
+  return defineNode({
   type: 'synth-merge',
   roles: ['mapping'],
   title: 'Synth Merge',
   description:
-    'Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute. ' +
+    'Union the synth-params voice streams into one: a pool of instrument inputs (hushable; eight at least) and of score inputs (kept under hush; two at least); master mute. ' +
     '`unmuted` is the same stream before the master mute (for MIDI out).',
   inputs: [
-    ...SYNTH_MERGE_POOLS.instrument.map((name) => ({ name, kind: 'synth-params' })),
-    ...SYNTH_MERGE_POOLS.score.map((name) => ({ name, kind: 'synth-params' })),
+    ...pools.instrument.map((name) => ({ name, kind: 'synth-params' })),
+    ...pools.score.map((name) => ({ name, kind: 'synth-params' })),
     // Master mute: true → silence every merged voice at this single convergence
     // point (all producers pass through here). Absent → false (passthrough).
     { name: 'mute', kind: 'boolean', default: false },
@@ -80,11 +82,11 @@ export const synthMergeNode = defineNode({
   process(inputs) {
     const hushed = inputs.hush === true;
     const voices: SynthParams['voices'] = [];
-    for (const name of SYNTH_MERGE_POOLS.instrument) {
+    for (const name of pools.instrument) {
       const p = asParams(inputs[name]);
       voices.push(...(hushed ? silence(p) : p.voices));
     }
-    for (const name of SYNTH_MERGE_POOLS.score) voices.push(...asParams(inputs[name]).voices);
+    for (const name of pools.score) voices.push(...asParams(inputs[name]).voices);
     const unmuted: SynthParams = { voices };
     // Master mute: zero every voice (and mark it absent) so every producer goes quiet
     // together. The synth's per-voice release ramp makes this a smooth fade.
@@ -94,3 +96,7 @@ export const synthMergeNode = defineNode({
     return { params: unmuted, unmuted };
   },
 });
+}
+
+/** The default-sized merge (the core node library's). */
+export const synthMergeNode = makeSynthMergeNode();

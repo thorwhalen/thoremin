@@ -5,7 +5,7 @@
  * carries them and nothing of the shipped extensions (`scripts/check_core_bundle.ts`).
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
- * branch with a voice, a dial slice, a transient port, a seed instrument, a training route);
+ * branch with a voice and a chord producer, a dial slice, a transient port, a seed instrument, a training route);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -32,6 +32,9 @@ export const ProbeDialSchema = z.object({ enabled: z.boolean(), freq: z.number()
 export type ProbeDial = z.infer<typeof ProbeDialSchema>;
 export const DEFAULT_PROBE: ProbeDial = { enabled: false, freq: 440 };
 
+/** The chord tones the probe contributes to the chord display while it sounds. */
+export const PROBE_CHORD = [61, 65, 68];
+
 /** What the transient port carries (set by the host's hot store, off the tick). */
 export interface ProbeModel {
   gain: number;
@@ -50,13 +53,15 @@ export const probeNode = defineNode<Record<string, never>>({
   outputs: [
     { name: 'params', kind: 'synth-params' },
     { name: 'level', kind: 'number' },
+    { name: 'chord', kind: 'number[]' },
   ],
   params: z.object({}),
   process(inputs) {
     const cfg = (inputs.cfg as ProbeDial | undefined) ?? DEFAULT_PROBE;
     const gain = (inputs.model as ProbeModel | null | undefined)?.gain ?? 0;
     const params: SynthParams = { voices: [{ id: PROBE_VOICE_ID, present: gain > 0, freq: cfg.freq, gain, sound: 'sine' }] };
-    return { params, level: gain };
+    // A chord the overlay's chord display shows while the probe sounds (#600 S4: a chord producer).
+    return { params, level: gain, chord: gain > 0 ? PROBE_CHORD : [] };
   },
 });
 
@@ -69,6 +74,8 @@ export const PROBE_BRANCH = defineBranch({
     { from: { node: TRUNK.ui, port: 'probeModel' }, to: { node: PROBE_NODE_ID, port: 'model' } },
   ],
   voices: [{ from: { node: PROBE_NODE_ID, port: 'params' }, role: 'instrument' }],
+  // Below the face's chords (30, 20): shown when neither sounds.
+  chords: [{ from: { node: PROBE_NODE_ID, port: 'chord' }, priority: 5 }],
 });
 
 export const PROBE_EXTENSION = defineExtension({

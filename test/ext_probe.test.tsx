@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
+import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
@@ -134,6 +134,28 @@ describe('the composed graph runs the probe headlessly', () => {
     expect(probeSeen.levels.slice(-5)).toEqual([0.25, 0.25, 0.25, 0.25, 0.25]);
     expect(lazyUi.probeLazySeen.ticks.slice(-1)).toEqual([engine.getOutput(PROBE_LAZY_NODE_ID, 'ticks')]);
     expect(lazyUi.probeLazySeen.mounts).toBe(1);
+  });
+});
+
+describe('the probe contributes a chord producer (#600 S4)', () => {
+  it('alone, the composer adds the chord selector and the probe takes its first input', async () => {
+    const reg = app.registry.createAppRegistry();
+    const { spec } = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    expect(spec.edges).toContainEqual({ from: { node: PROBE_NODE_ID, port: 'chord' }, to: { node: 'chordSel', port: 'a' } });
+    expect(spec.edges).toContainEqual({ from: { node: 'chordSel', port: 'chord' }, to: { node: 'overlay', port: 'chord' } });
+    const controls = { ...app.store.useControls.getState(), probe: { enabled: true, freq: 440 }, probeModel: { gain: 0.5 } };
+    const engine = new Engine(spec, reg, { resources: { controls: () => controls }, validatePorts: true });
+    engine.tick(0);
+    expect(engine.getOutput('chordSel', 'chord')).toEqual(PROBE_CHORD);
+  });
+
+  it('beside the face chords, it takes the next input after them (no core edit)', () => {
+    const reg = app.registry.createAppRegistry();
+    const { spec } = app.graph.composeInstrumentGraph(['face-chord', 'face-controls', PROBE_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    const into = (from: string) => spec.edges.find((e) => e.from.node === from && e.to.node === 'chordSel')?.to.port;
+    expect([into('exprChord'), into('poseChord'), into(PROBE_NODE_ID)]).toEqual(['a', 'b', 'c']);
+    // The registry sized the selector for every producer there is (two core, the probe, one spare).
+    expect(reg.get('chord-select').inputs.map((p) => p.name)).toEqual(['a', 'b', 'c', 'd']);
   });
 });
 

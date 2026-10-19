@@ -11,7 +11,9 @@
  *    here too, earlier and with branch names, rather than in the engine.
  * 3. Voices are allocated by role. Each declared voice gets the next free input of the merge
  *    pool for its role (`instrument` inputs are hushed, `score` inputs kept), so which input
- *    a stream arrives on is never remembered anywhere.
+ *    a stream arrives on is never remembered anywhere. Chord producers (`chords`, #600 S4) are
+ *    a second pool: each gets the next free input of the chord selector, highest priority
+ *    first, and the selector (with its edge to the overlay) is composed when any is declared.
  * 4. The overlay element set is data: the composer returns the union of the branches'
  *    `overlay` lists; the host delivers it to the overlay through a port, never a param
  *    (a param change would rebuild the overlay node on every switch).
@@ -38,11 +40,25 @@ export interface MergeTarget {
   pools: Readonly<Record<VoiceRole, readonly string[]>>;
 }
 
+/**
+ * Where declared chord producers go (#600 S4): the chord selector's node, its type and params
+ * (the composer adds it when no branch declares it), its input pool in priority order, and the
+ * edges from its output (added when their target is composed).
+ */
+export interface ChordTarget {
+  node: string;
+  type: string;
+  params?: unknown;
+  pool: readonly string[];
+  outputs: readonly { port: string; to: { node: string; port: string } }[];
+}
+
 export interface ComposeOptions {
   /** Resolved slot selection: slot name → node type (`source` → `webcam-hands`). */
   slots?: Readonly<Record<string, string>>;
   /** Where declared voices go. Required when any composed branch declares a voice. */
   merge?: MergeTarget;
+  chords?: ChordTarget;
 }
 
 export interface Composed {
@@ -231,6 +247,28 @@ export function composeGraph(
       }
       used[v.role] += 1;
       addEdge({ from: v.from, to: { node: opts.merge.node, port } }, b.id);
+    }
+  }
+
+  // Rule 3b: chord producers, allocated by priority into the chord selector's free inputs (an
+  // explicit edge into the pool, such as an extension that predates the pool, keeps its input).
+  const chordDecls = branches.flatMap((b, bi) => b.chords.map((c, ci) => ({ ...c, owner: b.id, order: bi * 1000 + ci })));
+  if (chordDecls.length) {
+    const target = opts.chords;
+    if (!target) throw new ComposeError(`branch "${chordDecls[0].owner}" declares a chord producer but no chord target was given`);
+    const existing = nodes.get(target.node);
+    if (!existing) nodes.set(target.node, { spec: target.params === undefined ? { id: target.node, type: target.type } : { id: target.node, type: target.type, params: target.params }, owner: 'chords' });
+    else if (existing.spec.type !== target.type) throw new ComposeError(`node "${target.node}" is the chord target but branch "${existing.owner}" declares it as "${existing.spec.type}"`);
+    for (const out of target.outputs) if (nodes.has(out.to.node)) addEdge({ from: { node: target.node, port: out.port }, to: out.to }, 'chords');
+    const declaredChords = new Map<string, string>();
+    for (const c of [...chordDecls].sort((x, y) => y.priority - x.priority || x.order - y.order)) {
+      const prior = declaredChords.get(portKey(c.from));
+      if (prior) throw new ComposeError(`chord ${portKey(c.from)} is declared by branches "${prior}" and "${c.owner}"; a chord has one owner`);
+      declaredChords.set(portKey(c.from), c.owner);
+      if (!nodes.has(c.from.node)) throw new ComposeError(`branch "${c.owner}" declares chord ${portKey(c.from)} but node "${c.from.node}" is not in it`);
+      const port = target.pool.find((p) => !takenInputs.has(portKey({ node: target.node, port: p })));
+      if (!port) throw new ComposeError(`chord pool is full (${target.pool.length} inputs) at branch "${c.owner}"; widen the pool on the chord selector`);
+      addEdge({ from: c.from, to: { node: target.node, port } }, c.owner);
     }
   }
 

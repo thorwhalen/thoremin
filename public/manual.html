@@ -369,7 +369,7 @@
     </div>
     <div class="node">
       <h4><code>synth-merge</code> <span class="title">Synth Merge</span></h4>
-      <p>Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute. `unmuted` is the same stream before the master mute (for MIDI out).</p>
+      <p>Union the synth-params voice streams into one: a pool of instrument inputs (hushable; eight at least) and of score inputs (kept under hush; two at least); master mute. `unmuted` is the same stream before the master mute (for MIDI out).</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean</dd>
@@ -379,7 +379,7 @@
     </div>
     <div class="node">
       <h4><code>chord-select</code> <span class="title">Chord Select</span></h4>
-      <p>Pick the first non-empty of up to three chord-tone streams (emotion triad, pose chord, sign chord) for the overlay.</p>
+      <p>Pick the first non-empty of a pool of chord-tone streams (the face chord, the pose chord, the sign chord, and any an extension declares), highest priority first, for the overlay.</p>
       <dl>
         <dt>roles</dt><dd>mapping</dd>
         <dt>in</dt><dd>a:number[], b:number[], c:number[]</dd>

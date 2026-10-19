@@ -11,8 +11,10 @@ import { webcamFaceNode } from './sources/webcam_face';
 import { webcamBodyNode } from './sources/webcam_body';
 import { keyboardSourceNode } from './sources/keyboard';
 import { makeStoreControlsNode } from './sources/store_controls';
+import { makeSynthMergeNode } from './mapping/synth_merge';
+import { makeChordSelectNode } from './mapping/chord_select';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
-import { CONTRIBUTIONS, loadExtensionNodes, loadedExtensionNodes } from '@/host/contributions';
+import { CONTRIBUTIONS, foldContributions, loadExtensionNodes, loadedExtensionNodes } from '@/host/contributions';
 import type { NodeDef } from '@thoremin/dag';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
@@ -57,7 +59,12 @@ export const BROWSER_NODES = [
  * GENERATED from the extensions' dial slices and transient fields (the ADR's seam 6).
  */
 export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIONS.extensions): NodeRegistry {
-  const registry = createRegistry([...CORE_NODES, ...BROWSER_NODES, makeStoreControlsNode(extensions)]);
+  // The fan-in nodes are sized for what this list of extensions can compose (#600 S4); the core
+  // library's default-sized ones are left out in their favour.
+  const { pools } = extensions === CONTRIBUTIONS.extensions ? CONTRIBUTIONS : foldContributions(extensions);
+  const sized = [makeSynthMergeNode(pools.merge), makeChordSelectNode(pools.chords)];
+  const core = CORE_NODES.filter((n) => !sized.some((s) => s.type === n.type));
+  const registry = createRegistry([...core, ...BROWSER_NODES, makeStoreControlsNode(extensions), ...sized]);
   for (const e of extensions) {
     if (e.provides && !e.load) {
       throw new Error(`createAppRegistry: extension "${e.id}" is a lazy stub (it names \`provides\`) with no \`load\`: pass the list from '@/host/contributions', which the build gives a loader, not the package's own export`);
