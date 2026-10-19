@@ -243,6 +243,23 @@
     "voicing": "spread",
     "volume": 0.7
   },
+  "chordWheel": {
+    "bpm": 100,
+    "dead": 0.07,
+    "enabled": false,
+    "enterFrames": 3,
+    "gain": 0.22,
+    "hand": "left",
+    "mirrorHandedness": true,
+    "moves": "diatonic",
+    "point": "palm",
+    "radius": 0.3,
+    "reach": 0.14,
+    "releaseS": 0.4,
+    "rendering": "sustained",
+    "sound": "warmPad",
+    "voicing": "voiceLed"
+  },
   "conductor": {
     "articulationFrom": "sharpness",
     "beatsPerBar": 4,
@@ -582,6 +599,7 @@
     "asl": 1,
     "categorizerChords": 1,
     "chordMap": 1,
+    "chordWheel": 1,
     "faceCategorizer": 1,
     "poseCategorizer": 1
   },
