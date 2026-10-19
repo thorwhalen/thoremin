@@ -73,18 +73,45 @@ function play(script: ({ x: number; y: number } | null)[], config: Record<string
 const pcs = (p: SynthParams) => [...new Set(p.voices.filter((v) => v.id >= CHORD_WHEEL_VOICE_ID_BASE && v.present && v.gain > 0).map((v) => Math.round(freqToMidi(v.freq)) % 12))].sort((a, b) => a - b);
 
 describe('the beat walk (H11 of #613)', () => {
-  it('repeats a held move once per period from the push, keeps the grid through a late frame, re-anchors after a gap', () => {
+  const step = (w: ReturnType<typeof createBeatWalk>, beat: number, o: { committed?: number | null; pointing?: number | null; seen?: boolean; now?: number; beats?: number } = {}) =>
+    w.step({ committed: o.committed ?? null, pointing: o.pointing === undefined ? 0 : o.pointing, seen: o.seen ?? true, now: o.now ?? beat / 2, beat, beats: o.beats ?? 1 });
+
+  it('repeats a held move on the beats, the first at least half a step after the push', () => {
     const w = createBeatWalk();
-    expect(w.push({ committed: 0, pointing: 0, now: 0, periodS: 0.5 })).toBeNull(); // the push itself is the stepper's
+    expect(step(w, 2.7, { committed: 0 })).toBeNull(); // the push itself is the stepper's
     expect(w.walking()).toBe(true);
-    expect(w.push({ committed: null, pointing: 0, now: 0.4, periodS: 0.5 })).toBeNull();
-    expect(w.push({ committed: null, pointing: 0, now: 0.52, periodS: 0.5 })).toBe(0); // a frame late
-    expect(w.push({ committed: null, pointing: 0, now: 0.98, periodS: 0.5 })).toBeNull(); // the grid held: next at 1.0
-    expect(w.push({ committed: null, pointing: 0, now: 1.01, periodS: 0.5 })).toBe(0);
-    expect(w.push({ committed: null, pointing: 0, now: 2.6, periodS: 0.5 })).toBe(0); // after a gap: one move, not three
-    expect(w.push({ committed: null, pointing: 0, now: 2.9, periodS: 0.5 })).toBeNull(); // re-anchored at 3.1
-    expect(w.push({ committed: null, pointing: 1, now: 3.2, periodS: 0.5 })).toBeNull(); // another wedge ends the walk
+    expect(step(w, 3.05)).toBeNull(); // beat 3 is too close to the push
+    expect(step(w, 3.99)).toBeNull();
+    expect(step(w, 4.0)).toBe(0);
+    expect(step(w, 4.06)).toBeNull();
+    expect(step(w, 5.01)).toBe(0);
+  });
+
+  it('skips a missed beat rather than making it up, keeping the grid', () => {
+    const w = createBeatWalk();
+    step(w, 0, { committed: 0 });
+    expect(step(w, 1.0)).toBe(0);
+    expect(step(w, 2.96)).toBe(0); // a stall past beat 2: one move now
+    expect(step(w, 3.02)).toBe(0); // and beat 3 is still on the grid, not two moves for one
+    expect(step(w, 3.5)).toBeNull();
+  });
+
+  it('holds through a hand lost for a moment, ends on another wedge, the dead zone or a long loss', () => {
+    const w = createBeatWalk();
+    step(w, 0, { committed: 0, now: 0 });
+    expect(step(w, 1.0, { seen: false, pointing: null, now: 0.5 })).toBeNull(); // lost 0.5 s: over the grace
     expect(w.walking()).toBe(false);
+    step(w, 0, { committed: 0, now: 0 });
+    expect(step(w, 1.0, { seen: false, pointing: null, now: 0.1 })).toBe(0); // a dropped frame
+    expect(step(w, 1.5, { pointing: null, now: 0.2 })).toBeNull(); // back in the dead zone
+    expect(w.walking()).toBe(false);
+  });
+
+  it('never walks with the walk off', () => {
+    const w = createBeatWalk();
+    step(w, 0, { committed: 0, beats: 0 });
+    expect(w.walking()).toBe(false);
+    expect(step(w, 1, { beats: 0 })).toBeNull();
   });
 });
 
@@ -92,12 +119,13 @@ describe('the chord-wheel node', () => {
   it('walks the cycle of fourths on the beat while a push is held (walk on), one move per push with it off', () => {
     const hold = [at(null), ...Array.from({ length: 22 }, () => at(0))];
     const chordsOf = (outs: Out[]) => outs.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1]);
-    const walked = play(hold, { walk: true, bpm: 120 });
-    expect(chordsOf(walked)).toEqual(['C', 'F', 'B°', 'Em', 'Am', 'Dm', 'G', 'C', 'F']);
+    const walked = play(hold, { walk: true, bpm: 120, rendering: 'arpUp' });
+    expect(chordsOf(walked)).toEqual(['C', 'F', 'B°', 'Em', 'Am', 'Dm', 'G', 'C']);
     expect(walked[walked.length - 1].status.walking).toBe(true);
-    // One move per 0.5 s beat: the frames on which the chord changed are 15 frames apart.
+    // Each walked change lands on the tick where the realizer's beat (120 bpm, 1/15 beat a tick)
+    // reaches a whole beat: the arpeggio's beat, not the camera's.
     const changes = walked.map((o, i) => (i > 0 && o.status.chord !== walked[i - 1].status.chord ? i : -1)).filter((i) => i >= 0);
-    expect(changes.slice(1).map((i, k) => i - changes[k])).toEqual(changes.slice(1).map(() => 15));
+    expect(changes.slice(1).every((i) => (i + 1) % 15 === 0)).toBe(true);
     expect(chordsOf(play(hold, { bpm: 120 }))).toEqual(['C', 'F']);
     // Two beats a step: half as many moves.
     expect(chordsOf(play(hold, { walk: true, bpm: 120, walkBeats: 2 }))).toEqual(['C', 'F', 'B°', 'Em', 'Am']);

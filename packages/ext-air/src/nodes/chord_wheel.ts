@@ -15,9 +15,9 @@
  * shipped instruments). The wheel is drawn by the air extension's own overlay element (#600 S5).
  *
  * With `walk` on (H11 of #613), a push held out in its wedge keeps making that move, one per beat
- * of the instrument's tempo counted from the push (`harmony/navigate`'s beat walk): a held fourth
- * walks the cycle of fourths through all seven chords, a held third the cycle of thirds, a held
- * second the scale. Leaving the wedge stops the walk.
+ * of the figuration's own clock (`harmony/navigate`'s beat walk), so a change lands on the beat
+ * the arpeggio plays: a held fourth walks the cycle of fourths through all seven chords, a held
+ * third the cycle of thirds, a held second the scale. Leaving the wedge stops the walk.
  *
  * The chord sounds while the chord hand is seen, and a moment after it is lost. Off by default;
  * pure and Node-safe.
@@ -273,6 +273,7 @@ export const chordWheelNode = defineNode<Params>({
         if (!stepper || sKey !== stepperKey) {
           stepper = createDirectionStepper({ wedges: moves.length, dead: c.dead, reach: c.reach, enterFrames: c.enterFrames });
           stepperKey = sKey;
+          walker.reset();
         }
 
         const frame = inputs.hands as HandsFrame | undefined;
@@ -281,6 +282,7 @@ export const chordWheelNode = defineNode<Params>({
         const cells = aspect > 0 ? radial(region, moves.length, { aspect, radius: c.radius }) : [];
         const fresh = !!frame && frame !== lastFrame && !(lastFrame && frame.t !== undefined && frame.t === lastFrame.t);
         lastFrame = frame;
+        let committed: number | null = null;
         if (frame && fresh && aspect > 0 && cells.length) {
           const t = captureTime(frame, ctx);
           const hand = frame.hands.find((h) => h.handedness === labelFor(c.hand, c.mirrorHandedness));
@@ -289,18 +291,21 @@ export const chordWheelNode = defineNode<Params>({
           const centre = cells[0];
           const choice = stepper.push(pointer ? { dx: (pointer.x - centre.x) * aspect, dy: pointer.y - centre.y } : null);
           pointing = choice.pointing;
-          // A walk repeats the held push's move on the beat; off, it never fires.
-          const bpm = chordCfg.bpm ?? c.bpm;
-          const repeat = walker.push({ committed: choice.committed, pointing: choice.pointing, now: t, periodS: c.walk ? (60 / bpm) * c.walkBeats : 0 });
-          const made = choice.committed ?? repeat;
-          if (made !== null) {
-            const move = moves[made];
-            const before = state.chord;
-            state = applyIntents(state, [{ kind: 'step', relation: move, at: t }]);
-            if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
-          }
-          status = { ...status, armed: choice.armed, steering: !!hand, walking: walker.walking() };
+          committed = choice.committed;
+          status = { ...status, armed: choice.armed, steering: !!hand };
         }
+        // A walk repeats the held push's move on the figuration's beats, checked every tick
+        // against the beat the realizer reaches this tick, so the change sounds on the beat.
+        const beatNext = realizer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * dt;
+        const repeat = walker.step({ committed, pointing, seen: pointer !== null, now: ctx.time, beat: beatNext, beats: c.walk ? c.walkBeats : 0 });
+        const made = committed ?? repeat;
+        if (made !== null) {
+          const move = moves[made];
+          const before = state.chord;
+          state = applyIntents(state, [{ kind: 'step', relation: move, at: ctx.time }]);
+          if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
+        }
+        status = { ...status, walking: walker.walking() };
 
         // The face: each expression held a moment makes its move once; a neutral face re-arms.
         let face: string | null = null;
