@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 // The browser stretcher, replaced: every test here injects its own except the lazy-load one.
 const defaultStretcher = vi.hoisted(() => vi.fn());
-vi.mock('@/nodes/output/song_stretcher', () => ({
+vi.mock('@/slices/song/app/song_stretcher', () => ({
   createMediaElementStretcher: (...a: unknown[]) => {
     defaultStretcher(...a);
     return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 0, playing: () => false, ended: () => false, dispose() {} };
@@ -23,20 +23,24 @@ vi.mock('@/nodes/output/song_stretcher', () => ({
 }));
 // The default (Signalsmith) stretcher, replaced the same way (#187 PR 7).
 const signalsmithStretcher = vi.hoisted(() => vi.fn());
-vi.mock('@/nodes/output/song_stretcher_signalsmith', () => ({
+vi.mock('@/slices/song/app/song_stretcher_signalsmith', () => ({
   createSignalsmithStretcher: (...a: unknown[]) => {
     signalsmithStretcher(...a);
     return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 0, playing: () => false, ended: () => false, dispose() {} };
   },
 }));
+// The browser defaults' loader, as the slice's app half installs it (#600 S15).
+import '@/slices/song/app/stretchers';
 import type { NodeContext, NodeHandlers, PortValues } from '@thoremin/dag';
 import { trackSongGrid, PULSE_TRUSTED_CONFIDENCE, type MusicalTime, type PulseState, type SongGrid } from '@thoremin/ictus';
 import type { LoadStatus } from '@thoremin/lazy';
-import { bodyPulseNode, songPlayerNode, type BodyFrame, type SongHandle, type Stretcher } from '@/nodes';
+import { bodyPulseNode, type BodyFrame } from '@/nodes';
+import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
-import { loadStream } from './helpers/fixtures';
-import { renderClickTrack, SR } from './helpers/clicks';
+import { loadStream } from '../helpers/fixtures';
+import { renderClickTrack, SR } from '../helpers/clicks';
+import { SONG } from '../helpers/extensions';
 
 /** A stretcher whose position is the test's clock times the rate while it plays. */
 function fakeStretcher(opts: { failLoad?: boolean; durationS?: number } = {}) {
@@ -107,7 +111,7 @@ const grid120: SongGrid = trackSongGrid(renderClickTrack({ bpm: 120, seconds: 12
 const song = (id = 's1', grid = grid120): SongHandle => ({ id, name: `${id}.mp3`, url: `blob:${id}`, durationS: 12, grid });
 const statusOf = (o: PortValues) => o.status as LoadStatus;
 
-describe('song-player', () => {
+describe.runIf(SONG)('song-player', () => {
   const make = () => songPlayerNode.make(songPlayerNode.params.parse({}));
 
   it('is off with no song, and waits for the audio before it loads anything', async () => {
@@ -295,7 +299,7 @@ describe('song-player', () => {
   });
 });
 
-describe('the trunk wires the song player to the store and the claim (a structural guard)', () => {
+describe.runIf(SONG)('the trunk wires the song player to the store and the claim (a structural guard)', () => {
   it('every input that makes the Song tool audible is connected', () => {
     const g = defaultGraph();
     expect(g.nodes.find((n) => n.id === 'songPlayer')?.type).toBe('song-player');
@@ -312,7 +316,7 @@ describe('the trunk wires the song player to the store and the claim (a structur
   });
 });
 
-describe('the real dancer against a tracked song grid (video_body_que_calor)', () => {
+describe.runIf(SONG)('the real dancer against a tracked song grid (video_body_que_calor)', () => {
   // What this does and does not show: the song is a click track at the clip's STATED
   // tempo (the fixture has no audio), so it checks that the tracker, the player's
   // songTime and the pulse share one timeline and relate by an integer ratio. The bar
@@ -358,9 +362,9 @@ describe('the real dancer against a tracked song grid (video_body_que_calor)', (
   });
 });
 
-describe('the song reporter', () => {
+describe.runIf(SONG)('the song reporter', () => {
   it('turns the transport off once per end or refusal, and writes only on a change', async () => {
-    const { makeSongReporter } = await import('@/app/songStatus');
+    const { makeSongReporter } = await import('@/slices/song/app/songStatus');
     const outputs: Record<string, unknown> = { status: { phase: 'active', message: 'Playing' }, position: 1.2 };
     const engine = { getOutput: (_n: string, port: string) => outputs[port] };
     const reports: unknown[] = [];

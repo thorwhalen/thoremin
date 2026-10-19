@@ -1,10 +1,10 @@
 /**
- * The song host (#186 PR G) — what the song commands (`./song`) act on, by dependency
- * inversion, the shape of `./recordingHost`.
+ * The song host (#186 PR G) — what the song commands (`./songCommands`) act on, by dependency
+ * inversion, the shape of core's `recordingHost`.
  *
  * The command import firewall (`test/commands_firewall.test.ts`) keeps a command away
  * from the hot store, and the song (`songHandle`), its transport (`songPlaying`) and its
- * level and tempo (`songPrefs`, a per-device pref) are hot-store state, not dials. So the song module (`src/app/song/host.ts`)
+ * level and tempo (`songPrefs`, a per-device pref) are hot-store state, not dials. So the song module (`./host.ts`)
  * installs an implementation when it loads, and a command resolves it at dispatch time:
  * the registry can be built, listed and described (the palette, the AI tool surface)
  * before the host exists, and only DISPATCHING a song command before the app has loaded
@@ -41,6 +41,6 @@ export function provideSongHost(next: SongHost | null): void {
 
 /** The installed host; throws, naming the seam, when none is. */
 export function songHost(): SongHost {
-  if (!host) throw new Error('song host not installed: load src/app/song/host before dispatching a song command');
+  if (!host) throw new Error('song host not installed: load the song slice host (src/slices/song/app/host) before dispatching a song command');
   return host;
 }

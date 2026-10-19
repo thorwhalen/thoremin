@@ -11,9 +11,10 @@
  * it without a graph rebuild.
  *
  * Playback is behind the {@link Stretcher} seam: Signalsmith Stretch (an AudioWorklet,
- * `./song_stretcher_signalsmith`, #187 PR 7) by default, loaded the first time a song
+ * `../app/song_stretcher_signalsmith`, #187 PR 7, installed by the slice's app half through
+ * `provideStretcherLoader`) by default, loaded the first time a song
  * needs it, which falls back by itself to the browser's own media element (`playbackRate`
- * with `preservesPitch`, `./song_stretcher`) where the worklet cannot start; the
+ * with `preservesPitch`, `../app/song_stretcher`) where the worklet cannot start; the
  * `stretcher` param picks the element outright; a host's own comes through
  * `ctx.resources.createStretcher` (the tests). Like
  * every audio node it is a no-op without an `AudioContext` (created on the player's
@@ -43,7 +44,7 @@ import { defineNode, realtimeOutputAllowed } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import type { LoadStatus } from '@thoremin/lazy';
 import { songTimeAt, songTimeOfBeat, EMPTY_SONG_GRID, type MusicalTime, type SongGrid } from '@thoremin/ictus';
-import { type SongHandle, type Stretcher, LIVE, unlockSongPlayback } from './song_player.schema';
+import { type SongHandle, type Stretcher, LIVE, installedStretcherLoader, unlockSongPlayback } from './song_player.schema';
 import { type StretcherOptions, type StretcherFactory } from './song_player.schema';
 export type { StretcherOptions, StretcherFactory } from './song_player.schema';
 export { unlockSongPlayback } from './song_player.schema';
@@ -172,12 +173,17 @@ export const songPlayerNode = defineNode<Params>({
         LIVE.add(stretcher);
         return stretcher;
       }
-      // The default is browser-only (a DOM audio element): loaded once, on first need.
+      // The default is browser-only (a DOM audio element, a worklet): loaded once, on first need,
+      // through the loader the slice's app half installs.
+      const load = installedStretcherLoader();
+      if (!load) {
+        failed = true;
+        failedFor = songId;
+        (ctx.log ?? console.warn)('[song-player] no stretcher: the song slice installs its loader (provideStretcherLoader)');
+        return null;
+      }
       starting = true;
-      const factory: Promise<StretcherFactory> =
-        p.stretcher === 'element'
-          ? import('./song_stretcher').then((m) => m.createMediaElementStretcher)
-          : import('./song_stretcher_signalsmith').then((m) => m.createSignalsmithStretcher);
+      const factory: Promise<StretcherFactory> = load(p.stretcher === 'element' ? 'element' : 'signalsmith');
       void factory
         .then((create) => {
           // A node disposed while the module loaded must not leave an element behind.

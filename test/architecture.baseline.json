@@ -6,10 +6,11 @@
     "asl": 0,
     "midi-output": 0,
     "generative-layer": 0,
+    "song-tool": 0,
     "faces": 4
   },
-  "storeControlsPorts": 37,
-  "useEngineReporters": 6,
+  "storeControlsPorts": 27,
+  "useEngineReporters": 5,
   "foldPoints": 2,
   "importCycles": 0,
   "runtimeImportCycles": 0,

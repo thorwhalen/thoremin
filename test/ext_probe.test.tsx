@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
+import { PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -135,6 +135,13 @@ describe('the probe reaches every pure contribution point', () => {
     // The Lab showing the group does the same while it is open, and nothing once closed.
     expect(app.graph.branchIdsFor({} as never, { featureLab: { show: true, groups: [PROBE_SENSE_GROUP] } as never })).toContain(PROBE_SENSE_BRANCH_ID);
     expect(app.graph.branchIdsFor({} as never, { featureLab: { show: false, groups: [PROBE_SENSE_GROUP] } as never })).not.toContain(PROBE_SENSE_BRANCH_ID);
+  });
+
+  it('trunk (#600 S15): the probe\'s trunk branch is composed into every instrument, and never derived or listed', () => {
+    const defaults = app.store.toSettings(app.store.useControls.getState()) as Record<string, unknown>;
+    expect(app.graph.branchIdsFor(defaults as never)).not.toContain(PROBE_TRUNK_BRANCH_ID);
+    expect(app.graph.composeInstrumentGraph([]).spec.nodes.map((n) => n.id)).toContain(PROBE_TRUNK_NODE_ID);
+    expect(app.graph.composeInstrumentGraph(['field-voices']).spec.nodes.map((n) => n.id)).toContain(PROBE_TRUNK_NODE_ID);
   });
 
   it('instruments: the probe seed is seeded after core, with its patch applied', () => {

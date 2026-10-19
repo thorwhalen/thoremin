@@ -12,13 +12,14 @@ const h = vi.hoisted(() => ({
   node: null as null | Record<string, unknown>,
   element: vi.fn(),
 }));
-vi.mock('@/nodes/output/song_stretcher', () => ({
+vi.mock('@/slices/song/app/song_stretcher', () => ({
   createMediaElementStretcher: (...a: unknown[]) => {
     h.element(...a);
     return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 42, playing: () => true, ended: () => false, dispose() {} };
   },
 }));
-import { createSignalsmithStretcherWith, type SignalsmithFactory } from '@/nodes/output/song_stretcher_signalsmith';
+import { createSignalsmithStretcherWith, type SignalsmithFactory } from '@/slices/song/app/song_stretcher_signalsmith';
+import { SONG } from '../helpers/extensions';
 
 /** The package, replaced: a node factory that fails like a missing AudioWorklet when asked. */
 const load = async (): Promise<SignalsmithFactory> => async () => {
@@ -69,7 +70,7 @@ beforeEach(() => {
   globalThis.fetch = (async () => ({ arrayBuffer: async () => new ArrayBuffer(8) })) as unknown as typeof fetch;
 });
 
-describe('the Signalsmith stretcher', () => {
+describe.runIf(SONG)('the Signalsmith stretcher', () => {
   it('loads the decoded song into the worklet, plays, and extrapolates its position at the rate', async () => {
     const f = fakes();
     const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });

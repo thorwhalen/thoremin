@@ -8,6 +8,7 @@ import { Puzzle, X } from 'lucide-react';
 import { useTools } from './toolsStore';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 import { shellToolById } from './shellTools';
+import { TOOL_ICONS } from './toolIcons';
 
 export default function ExtensionToolPanels() {
   const open = useTools((s) => s.open);
@@ -17,13 +18,14 @@ export default function ExtensionToolPanels() {
   const tool = shellToolById(entry.id);
   const label = tool?.label ?? entry.id;
   const { Panel } = entry;
+  const Icon = TOOL_ICONS[entry.id] ?? Puzzle;
   return (
     <div
       data-tool={entry.id}
       className="shell-tool-panel absolute left-3 z-40 flex w-[min(34rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur"
     >
       <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
-        <Puzzle className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
+        <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
         <span className="flex-1 text-[11px] font-bold uppercase tracking-widest text-white/70">{label}</span>
         <button
           type="button"

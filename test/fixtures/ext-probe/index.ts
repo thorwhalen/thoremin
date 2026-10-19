@@ -8,7 +8,7 @@
  * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
  * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command,
  * a carve modality, a declared store, a derived store-controls port from a dial and from a pref,
- * and a tool's need);
+ * a tool's need and a branch that joins the trunk);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -159,10 +159,21 @@ export const PROBE_BRANCH = defineBranch({
   categoryCaptions: [{ from: { node: PROBE_NODE_ID, port: 'captions' }, for: { node: PROBE_NODE_ID, port: 'reading' } }],
 });
 
+/** A branch that joins the trunk (#600 S15): composed into every instrument, never derived or listed. */
+export const PROBE_TRUNK_BRANCH_ID = 'probe-trunk';
+export const PROBE_TRUNK_NODE_ID = 'probeTrunk';
+export const PROBE_TRUNK_BRANCH = defineBranch({
+  id: PROBE_TRUNK_BRANCH_ID,
+  description: 'An idle probe node every instrument carries (test-only).',
+  nodes: [{ id: PROBE_TRUNK_NODE_ID, type: PROBE_NODE_TYPE }],
+  edges: [],
+});
+
 export const PROBE_EXTENSION = defineExtension({
   id: 'probe',
   nodes: [probeNode as unknown as NodeDef<unknown>, probeBodyNode as unknown as NodeDef<unknown>],
-  branches: [PROBE_BRANCH, PROBE_SENSE_BRANCH],
+  branches: [PROBE_BRANCH, PROBE_SENSE_BRANCH, PROBE_TRUNK_BRANCH],
+  trunk: [PROBE_TRUNK_BRANCH_ID],
   slotCandidates: [{ slot: 'body', types: [PROBE_BODY_TYPE] }],
   dials: [
     dialSlice({
@@ -203,7 +214,7 @@ export const PROBE_EXTENSION = defineExtension({
   },
   // A tool's need (#600 S15): a probe model in hand composes the probe's branch even into an
   // explicit set that leaves it out. It records what was composed before it, for the test.
-  toolDerive: (s, composed) => {
+  toolDerive: (s, { composed }) => {
     probeToolNeeds.composed = composed;
     return ((s as { probeModel?: ProbeModel | null }).probeModel?.gain ?? 0) > 0 ? [PROBE_BRANCH_ID] : [];
   },

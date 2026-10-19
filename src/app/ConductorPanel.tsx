@@ -16,8 +16,9 @@
  * "Conduct a recording" (#187 PR 7): the panel's second mode. The beat then leads a song
  * instead of the score (the `conductor.conducts` dial), through the same song player,
  * beat grid and pace-controller node the dancer's "Follow the dancer" uses (#186). The
- * song is chosen right here (the Song tool's own loader), so a cold load is four clicks:
- * Conductor, Conduct a recording, Choose a recording, Start conducting.
+ * song is chosen right here, in the section the song slice contributes to this panel (#600
+ * S15: `ExtensionUi.toolSections`, which also hears Start and Stop inside the click), so a
+ * cold load is four clicks: Conductor, Conduct a recording, Choose a recording, Start conducting.
  *
  * "Conduct with" (#375): hands or body, the `conductor.source` dial. Body composes the
  * pose camera branch and the conductor reads it; from a cold load that is three clicks:
@@ -34,14 +35,8 @@
  * again, read as the dancer's pulse; the score starts on the dancer's step once the
  * rhythm has held for a few seconds. Three clicks: Conductor, Dance the orchestra, Start.
  */
-import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
-import { unlockSongPlayback } from '@/nodes/output/song_player.schema';
-import { loadSongFile } from './song/host';
-import { useSongStatus } from './songStatus';
-import type { LoadStatus } from '@thoremin/lazy';
-import { useControls } from './store';
-import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
+import { dispatchDialSetIn } from './dispatchDial';
 import { ConductorControls } from './dials/panels/conductor';
 import ConductorTiming from './ConductorTiming';
 import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor.schema';
@@ -51,7 +46,7 @@ import { toolById } from './tools';
 import { entryPointsFrom, openEntryPoint } from './entryPoints';
 import { raiseToolEvent, ToolSections } from './toolSections';
 import { useTools } from './toolsStore';
-import { SONG_START_BEAT_MAX, type ConductorSettings } from '@/settings/schema';
+import type { ConductorSettings } from '@/settings/schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
 /** The entry point an extension declares for choosing the poses to play (#465): the checkbox below
@@ -102,87 +97,6 @@ export function describeLive(live: ConductorLive, source: ConductorSettings['sou
   if (live.state === 'hold') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Holding. Beat once to go on.';
   if (live.state === 'ready') return live.anchors === 0 ? 'Waiting for your first beat.' : 'Finding your tempo...';
   return `Following at ${Math.round(live.tempo)} bpm.`;
-}
-
-/** What the recording is doing while the beat leads it (#187 PR 7). */
-export function describeRecording(rec: ConductorLive['recording'], status?: LoadStatus): string {
-  if (!rec || rec.mode === 'idle') {
-    // The servo leads no song that is not playable yet (#500): say why, from the player's own status (#502).
-    if (status?.phase === 'loading' || status?.phase === 'error') return status.message;
-    if (status?.phase === 'unavailable' && status.reason === 'no-audio') return 'Tap to play, then beat.';
-    return 'The recording has no beat to follow.';
-  }
-  if (rec.mode === 'cueing') return 'The recording waits on its first beat for yours.';
-  if (rec.mode === 'holding') return 'The recording waits for your next beat.';
-  const off = Math.round(rec.error * 100);
-  return `Playing at ${Math.round(rec.rate * 100)} % speed, ${off === 0 ? 'on your beat' : `${Math.abs(off)} % of a beat ${off > 0 ? 'ahead' : 'behind'}`}.`;
-}
-
-/** The second mode: the beat leads a recording (#187 PR 7). */
-function RecordingChooser({ live }: { live: ConductorLive }) {
-  const song = useControls((s) => s.songHandle);
-  const songLoad = useSongStatus((s) => s.status);
-  const songBeat = useSongStatus((s) => s.live.beat);
-  const startBeat = useControls((s) => s.songStartBeat);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await loadSongFile(file);
-    } catch {
-      setError(`${file.name} could not be decoded. Try an MP3, M4A, WAV, OGG or FLAC file.`);
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-  return (
-    <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2 text-xs" data-testid="conductor-recording">
-      <input ref={fileRef} type="file" accept="audio/*" className="hidden" data-testid="conductor-recording-file" onChange={(e) => void onFile(e.target.files?.[0])} />
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={busy}
-        className="w-full rounded bg-white/10 px-2 py-1.5 font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
-      >
-        {busy ? 'Finding the beat...' : song ? 'Choose another recording...' : 'Choose a recording...'}
-      </button>
-      {error && <p className="text-[11px] text-amber-300/90">{error}</p>}
-      {song ? (
-        <>
-          <div className="truncate text-white/80" title={song.name}>{song.name}</div>
-          <div className="flex items-center justify-between gap-2 text-white/80" data-testid="conductor-start-beat">
-            <label className="flex items-center gap-1.5">
-              My first beat lands on song beat
-              <input
-                type="number"
-                min={0}
-                max={SONG_START_BEAT_MAX}
-                step={1}
-                value={startBeat}
-                aria-label="Song beat the conductor's first beat lands on"
-                className="w-16 rounded bg-white/10 px-1 py-0.5 text-right font-mono"
-                onChange={(e) => void dispatchCommand('song.startBeat.set', { beat: Math.min(SONG_START_BEAT_MAX, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
-              />
-            </label>
-            <button
-              onClick={() => void dispatchCommand('song.startBeat.set', { beat: Math.max(0, songBeat) })}
-              title="Play the song in the Song tool and press this where the piece starts"
-              className="rounded bg-white/10 px-2 py-0.5 font-semibold text-white/80 transition hover:bg-white/20"
-            >
-              Here
-            </button>
-          </div>
-          {live.enabled && <div className="text-white/60" data-testid="conductor-recording-live">{describeRecording(live.recording, songLoad)}</div>}
-        </>
-      ) : (
-        <p className="text-white/50">Any song: its beat is found when it loads, and it follows yours.</p>
-      )}
-    </div>
-  );
 }
 
 function LiveReadout({ live, source, recording }: { live: ConductorLive; source: ConductorSettings['source']; recording: boolean }) {
@@ -284,18 +198,11 @@ export default function ConductorPanel() {
             </button>
           ))}
         </div>
-        {recording && <RecordingChooser live={live} />}
         <ToolSections from={CONDUCTOR_TOOL_ID} context={sectionContext} />
         <button
           onClick={() => {
             // Inside the click (#600 S15): a contributed section may unlock its media here.
             raiseToolEvent(CONDUCTOR_TOOL_ID, enabled ? 'stop' : 'start', sectionContext);
-            // Inside the click, before the tick that plays it: the media-element fallback's
-            // autoplay policy (the Signalsmith worklet needs none).
-            if (!enabled && recording) unlockSongPlayback();
-            // Stopping hands the song back to the Song tool, paused, not to whatever its
-            // transport said before the conductor took it.
-            if (enabled && recording) void dispatchCommand('song.pause', {});
             void dispatchDialSetIn('conductor.enabled', !enabled);
           }}
           className={`w-full rounded-lg px-3 py-2 text-sm font-semibold transition ${

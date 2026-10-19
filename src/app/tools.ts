@@ -139,18 +139,6 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     defaultPinned: true,
   },
   {
-    // #186 PR G: the song the player dances to. A tool, not a mode: it does not take the
-    // instrument over (the song plays under whatever instrument is loaded). It plays on
-    // with its panel closed, so it runs detached and the bar carries its stop control.
-    id: 'song',
-    label: 'Song',
-    description: 'Load a song to dance or play along to: its beat is tracked in the browser, and it plays at any tempo without changing pitch.',
-    kind: 'panel',
-    group: 'tool',
-    defaultPinned: false,
-    runsDetached: true,
-  },
-  {
     id: 'commands',
     label: 'Commands',
     description: 'Search every dial by name and set it — the same command path the AI assistant uses.',

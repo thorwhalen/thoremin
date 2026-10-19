@@ -20,7 +20,6 @@ const CORE_HEALED = [
   'handMap',
   'hands',
   'body',
-  'songPrefs',
   'conductorPrefs',
   'bodyMap',
   'faceControls',
@@ -32,10 +31,11 @@ const CORE_HEALED = [
 /** The fields mergeControls sets outside the table (after it, so they win). */
 // `midi` left this list with its slice (#600 S13): an extension dial now, healed by its slice.
 // `steer` / `steerPlaying` left with the generative slice (#600 S14): its dial and transient.
-const MERGE_EXPLICIT = ['faceMapping', 'scoreDoc', 'songHandle', 'songPlaying', 'songPlays'];
+// `songPrefs` and the song's transients left with the song slice (#600 S15): its pref and transients.
+const MERGE_EXPLICIT = ['faceMapping', 'scoreDoc'];
 
 describe('the heal table', () => {
-  it('heals exactly the fifteen core whole-object fields (the generative `steer` is its slice\'s since #600 S14)', () => {
+  it('heals exactly the fourteen core whole-object fields (the generative `steer` is its slice\'s since #600 S14, the song\'s `songPrefs` since S15)', () => {
     expect(Object.keys(HEAL_RULES).sort()).toEqual([...CORE_HEALED].sort());
   });
 

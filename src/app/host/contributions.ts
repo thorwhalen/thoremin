@@ -23,6 +23,7 @@ import {
   EXTENSION_STILL_SOUNDING,
   EXTENSION_TOOL_DECLS,
   EXTENSION_TOOL_DETACHED,
+  EXTENSION_TOOL_ICONS,
   EXTENSION_TOOL_PANELS,
   EXTENSION_TOOL_SECTIONS,
   EXTENSION_UI_DECLS,
@@ -47,6 +48,8 @@ export interface UiContributions {
   toolPanels: typeof EXTENSION_TOOL_PANELS;
   /** The tools that keep working with their panel closed (#600 S15): the bar's running mark and stop. */
   toolDetached: readonly { id: string; detached: ToolDetached }[];
+  /** The extension tools' icons (#600 S15), by tool id. */
+  toolIcons: typeof EXTENSION_TOOL_ICONS;
   /** Sections contributed to another tool's panel (#600 S15). */
   toolSections: readonly ExtensionToolSection[];
   entryPoints: readonly ToolEntryPointDecl[];
@@ -64,6 +67,7 @@ export const UI_CONTRIBUTIONS: UiContributions = {
   toolDecls: EXTENSION_TOOL_DECLS,
   toolPanels: EXTENSION_TOOL_PANELS,
   toolDetached: EXTENSION_TOOL_DETACHED,
+  toolIcons: EXTENSION_TOOL_ICONS,
   toolSections: EXTENSION_TOOL_SECTIONS,
   entryPoints: EXTENSION_ENTRY_POINTS,
   mountEffects: EXTENSION_MOUNT_EFFECTS,

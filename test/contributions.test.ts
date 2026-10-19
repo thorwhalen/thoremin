@@ -23,8 +23,9 @@ describe('foldContributions', () => {
     const c = foldContributions([probe, { ...PROBE_LAZY_EXTENSION, load: async () => ({ nodes: [] }) }]);
     expect(c.dialSlices.map((d) => d.key)).toEqual(['probe', 'probeLazy']);
     expect(c.nodeTypes).toEqual(['probe-tone', 'probe-body', 'probe-lazy-tone']);
-    expect(c.branches.map((b) => b.id)).toEqual(['probe-branch', 'probe-sense', 'probe-lazy-branch']);
+    expect(c.branches.map((b) => b.id)).toEqual(['probe-branch', 'probe-sense', 'probe-trunk', 'probe-lazy-branch']);
     expect(c.slotCandidates).toEqual({ body: { types: ['probe-body'] } });
+    expect(c.trunkBranches).toEqual(['probe-trunk']);
     expect(c.transientFields).toEqual(['probeModel']);
     expect(c.instruments.map((i) => i.name)).toEqual(['Probe Instrument']);
     expect(c.trainingRoutes.map((r) => r.id)).toEqual(['probe']);
@@ -41,6 +42,7 @@ describe('foldContributions', () => {
     { point: 'a transient named like a dial', other: twin({ transient: [{ field: 'probe', kind: 'x' }] }), message: /both declare the dial key, pref or transient field "probe"/ },
     // A pref's derived port shares the bridge's port namespace with every dial's (#600 S15).
     { point: "pref port named like another's dial port", other: twin({ prefs: [{ key: 'twinPref', schema: z.object({}).default({}), ports: [{ name: 'probeFreq', kind: 'number', read: () => 1 }] }] }), message: /both declare the store-controls port "probeFreq"/ },
+    { point: 'trunk branch that is not its own', other: twin({ trunk: ['probe-branch'] }), message: /extension "probe-twin" names "probe-branch" as a trunk branch, which is not one of its branches/ },
     { point: 'instrument', other: twin({ instruments: probe.instruments }), message: /both declare the instrument "Probe Instrument"/ },
     { point: 'training route', other: twin({ training: { routes: probe.training!.routes, byBranch: [] } }), message: /both declare the training route "probe"/ },
   ];

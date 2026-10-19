@@ -18,13 +18,15 @@ import { Engine, type GraphSpec } from '@thoremin/dag';
 import { trackSongGrid, type MusicalTime, type PaceState, type PulseState, type SongGrid } from '@thoremin/ictus';
 import { createAppRegistry } from '@/nodes/browser';
 import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
-import { DEFAULT_SONG } from '@/settings/schema';
+import { DEFAULT_SONG } from '@/slices/song/schema';
 import { useControls } from '@/app/store';
-import { songPlayerNode, type BodyFrame, type SongHandle, type Stretcher } from '@/nodes';
-import { loadStream, FIXTURES } from './helpers/fixtures';
+import { type BodyFrame } from '@/nodes';
+import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
+import { loadStream, FIXTURES } from '../helpers/fixtures';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderClickTrack, SR } from './helpers/clicks';
+import { renderClickTrack, SR } from '../helpers/clicks';
+import { SONG } from '../helpers/extensions';
 
 const HZ = 30;
 const REGISTRY = createAppRegistry();
@@ -113,7 +115,7 @@ function anchorR(run: Run, fromS: number): { R: number; n: number } {
   return { R, n: ph.length };
 }
 
-describe('the real dancer leads the song (video_body_que_calor)', () => {
+describe.runIf(SONG)('the real dancer leads the song (video_body_que_calor)', () => {
   // The clip is 20 s and the pulse needs about 6 s before it is trusted and the lock 3 s
   // more, so it is played twice through; the seam is a jump in the dance, which the
   // follower answers by dropping its pulse (the controller holds) and finding it again.
@@ -169,7 +171,7 @@ describe('the real dancer leads the song (video_body_que_calor)', () => {
   }
 });
 
-describe("a real song's beat jitter (#346 item 4: song_grid_budots, the tracker's own grid of a Commons track)", () => {
+describe.runIf(SONG)("a real song's beat jitter (#346 item 4: song_grid_budots, the tracker's own grid of a Commons track)", () => {
   // The tracker snaps a beat to an onset within a tenth of a period, so the real grid's
   // intervals have an sd of 2.1 % (single ones 0.90 to 1.11 of the period) where a click
   // track's are exact. The grid is stretched in time to the click songs' tempos (keeping
@@ -207,7 +209,7 @@ describe("a real song's beat jitter (#346 item 4: song_grid_budots, the tracker'
   }
 });
 
-describe('the synthetic dancer (synthetic-body), a known answer', () => {
+describe.runIf(SONG)('the synthetic dancer (synthetic-body), a known answer', () => {
   it('steps every 1.2 s against a song whose beat is 0.6 s at 1.05x: locks on two beats and plays at 1.05', async () => {
     const st = clockStretcher();
     // The song's own beat is 0.63 s; two of them at 1.05x are the dancer's 1.2 s step.
@@ -234,7 +236,7 @@ describe('the synthetic dancer (synthetic-body), a known answer', () => {
   });
 });
 
-describe('when the song follows (the derivation)', () => {
+describe.runIf(SONG)('when the song follows (the derivation)', () => {
   it('following composes the pace branch and the body it needs, only while a song is loaded', () => {
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: {} })).toEqual(expect.arrayContaining(['song-pace', 'body-source']));
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: null })).not.toContain('song-pace');
@@ -250,7 +252,7 @@ describe('when the song follows (the derivation)', () => {
   });
 });
 
-describe('following stops mid-song', () => {
+describe.runIf(SONG)('following stops mid-song', () => {
   it('the player glides back to its own tempo over 2 s instead of jumping', async () => {
     const st = clockStretcher();
     const grid = trackSongGrid(renderClickTrack({ bpm: 120, seconds: 12 }).samples, { sampleRate: SR });

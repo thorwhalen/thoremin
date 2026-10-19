@@ -3989,46 +3989,6 @@
         "kind": "lead-offsets"
       },
       {
-        "name": "songHandle",
-        "kind": "song-handle"
-      },
-      {
-        "name": "songPlaying",
-        "kind": "boolean"
-      },
-      {
-        "name": "songPlays",
-        "kind": "number"
-      },
-      {
-        "name": "songStartBeat",
-        "kind": "number"
-      },
-      {
-        "name": "songVolume",
-        "kind": "number"
-      },
-      {
-        "name": "songRate",
-        "kind": "number"
-      },
-      {
-        "name": "songHoldFade",
-        "kind": "number"
-      },
-      {
-        "name": "songHoldSlow",
-        "kind": "number"
-      },
-      {
-        "name": "songAlignStart",
-        "kind": "boolean"
-      },
-      {
-        "name": "songFollowRange",
-        "kind": "number"
-      },
-      {
         "name": "graphElements",
         "kind": "string[]"
       },
@@ -4109,6 +4069,30 @@
         "kind": "steer-config"
       },
       {
+        "name": "songVolume",
+        "kind": "number"
+      },
+      {
+        "name": "songRate",
+        "kind": "number"
+      },
+      {
+        "name": "songHoldFade",
+        "kind": "number"
+      },
+      {
+        "name": "songHoldSlow",
+        "kind": "number"
+      },
+      {
+        "name": "songAlignStart",
+        "kind": "boolean"
+      },
+      {
+        "name": "songFollowRange",
+        "kind": "number"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -4135,6 +4119,22 @@
       {
         "name": "steerPlaying",
         "kind": "boolean"
+      },
+      {
+        "name": "songHandle",
+        "kind": "song-handle"
+      },
+      {
+        "name": "songPlaying",
+        "kind": "boolean"
+      },
+      {
+        "name": "songPlays",
+        "kind": "number"
+      },
+      {
+        "name": "songStartBeat",
+        "kind": "number"
       },
       {
         "name": "faceCategorizerModel",

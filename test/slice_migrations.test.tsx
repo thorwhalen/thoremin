@@ -68,8 +68,9 @@ describe('a slice\'s own migration chain', () => {
 describe('the store refuses a pref named like a core field (#600 S9 review)', () => {
   it('a pref that would replace a core field\'s default and heal is refused when the store is built', () => {
     const state = store.useControls.getInitialState() as unknown as Record<string, unknown>;
-    const clash = [{ key: 'songPrefs', schema: { parse: () => ({}) } as never }];
-    expect(() => store.withExtensionPrefs(state, clash)).toThrow(/"songPrefs", which core already uses/);
+    // `conductorPrefs`: a core device pref (`songPrefs`, the example before, is the song slice's since #600 S15).
+    const clash = [{ key: 'conductorPrefs', schema: { parse: () => ({}) } as never }];
+    expect(() => store.withExtensionPrefs(state, clash)).toThrow(/"conductorPrefs", which core already uses/);
     expect(store.withExtensionPrefs({ a: 1 }, [{ key: 'fresh', schema: { parse: () => 2 } as never }])).toEqual({ a: 1, fresh: 2 });
   });
 });

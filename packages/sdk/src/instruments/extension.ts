@@ -178,6 +178,15 @@ export interface ExtensionDerivationContext {
   implied: ReadonlySet<string>;
 }
 
+/** What an extension's `toolDerive` reads beside the settings (#600 S15, S17). */
+export interface ToolDeriveContext {
+  /** The branch ids implied so far (a recording led by a composed conductor rides `conductor`). */
+  composed: readonly string[];
+  /** The branches that measure these feature groups (by their declared `demands`): how a tool's
+   *  need names what it reads (`body.rhythm`), never a source branch. */
+  implying: (groups: readonly string[]) => readonly string[];
+}
+
 /** A transient hot-store field the extension reads through a `store-controls` port
  *  (a learned model, a status): always emitted, `null` when absent, so a clear reaches
  *  the node. */
@@ -411,11 +420,19 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
    * prefs or live state (a loaded song, a follow switch), never the instrument's dials. Unlike
    * {@link derive} it is also unioned into an instrument's EXPLICIT branch set, as the Lab's and a
    * feature claim's needs are: a tool's need is not the instrument's to veto. Called last, with the
-   * branch ids implied so far (`composed`), so a need that rides another branch (a recording led
-   * by a composed conductor) can say so. It may name a core branch it needs beside its own (the
-   * body source for a follower of the dancer).
+   * branch ids implied so far (`context.composed`), so a need that rides another branch (a recording
+   * led by a composed conductor) can say so; what it needs measured it names as feature groups,
+   * resolved to the branches that declare them (`context.implying(['body.rhythm'])`, #600 S17).
    */
-  toolDerive?: (settings: ExtensionDerivationSettings, composed: readonly string[]) => readonly string[];
+  toolDerive?: (settings: ExtensionDerivationSettings, context: ToolDeriveContext) => readonly string[];
+  /**
+   * Its branches EVERY instrument composes, as the composer composes the trunk (#600 S15): not
+   * derived and never listed in a branch set, so a saved set, a derivation and a branch-set key
+   * are what they were. For what was a trunk node before it became an extension's (the song
+   * player: idle, an early return per tick, until its tool gives it work). Each id must be one of
+   * {@link branches}.
+   */
+  trunk?: readonly string[];
 }
 
 /** An {@link Extension} with its dial slices' types kept, so the settings type can read them. */

@@ -34,7 +34,6 @@ import { pickNode } from './mapping/pick';
 import { oneEuroNode } from './mapping/one_euro';
 import { delayNode } from './mapping/delay';
 import { orchestraNode } from './output/orchestra';
-import { songPlayerNode } from './output/song_player';
 import { chordNode } from './music/chord';
 import { expressionChordNode } from './music/expression_chord';
 import { poseChordNode } from './music/pose_chord';
@@ -42,7 +41,6 @@ import { progressionNode } from './music/progression';
 import { transportNode } from './music/transport';
 import { scoreNode } from './music/score';
 import { performanceNode } from './music/performance';
-import { paceControllerNode } from './music/pace_controller';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
 export { replaySourceNode } from './sources/replay';
@@ -100,8 +98,6 @@ export { oneEuroNode } from './mapping/one_euro';
 export { delayNode } from './mapping/delay';
 export { orchestraNode, OrchestraSettingsSchema, DEFAULT_ORCHESTRA } from './output/orchestra';
 export type { OrchestraSettings, OrchestraSynth, OrchestraEngineFactory, OrchestraEngineOpts } from './output/orchestra';
-export { songPlayerNode } from './output/song_player';
-export type { SongHandle, Stretcher, StretcherFactory, StretcherOptions } from './output/song_player';
 export { chordNode, voiceChord } from './music/chord';
 export { expressionChordNode, CHORD_VOICE_ID_BASE, MAX_CHORD_VOICES } from './music/expression_chord';
 export { poseChordNode, POSE_VOICE_ID_BASE, MAX_POSE_VOICES, yawToDegree } from './music/pose_chord';
@@ -109,7 +105,6 @@ export { progressionNode } from './music/progression';
 export { transportNode } from './music/transport';
 export { scoreNode, SCORE_VOICE_ID_BASE, DEMO_SCALE_NOTES, DEMO_LOOP_BEATS } from './music/score';
 export { performanceNode } from './music/performance';
-export { paceControllerNode } from './music/pace_controller';
 export * from '@thoremin/sdk/nodes/domain';
 
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */
@@ -140,8 +135,6 @@ export const CORE_NODES = [
   oneEuroNode,
   delayNode,
   orchestraNode,
-  songPlayerNode,
-  paceControllerNode,
   chordNode,
   expressionChordNode,
   poseChordNode,

@@ -10,16 +10,28 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
 import ToolsLauncher from '@/app/ToolsLauncher';
-import SongPanel, { describePace, describeRatio } from '@/app/SongPanel';
+import { describePace, describeRatio } from '@/slices/song/panels/SongPanel';
+// The Song tool's panel, in the frame the shell opens an extension's tool in (#600 S15).
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
 import { useControls } from '@/app/store';
-import { loadSongFile } from '@/app/song/host';
-import { makeSongReporter, useSongStatus, PACE_NODE_ID } from '@/app/songStatus';
+import { loadSongFile } from '@/slices/song/app/host';
+import { makeSongReporter, useSongStatus, PACE_NODE_ID } from '@/slices/song/app/songStatus';
 import { createThoreminRegistry } from '@/app/commands/registry';
 import { branchIdsFor } from '@/app/graph';
 import type { DerivationSettings } from '@/instruments/derive';
-import { DEFAULT_SONG } from '@/settings/schema';
-import { renderClickTrack, SR } from './helpers/clicks';
+import { DEFAULT_SONG } from '@/slices/song/schema';
+import { renderClickTrack, SR } from '../helpers/clicks';
+import { setSongHandle, setSongPlaying, setSongPrefs, songPrefs } from '@/slices/song/app/state';
+import { SONG_COMMANDS } from '@/slices/song/app/songCommands';
+import { SONG } from '../helpers/extensions';
+
+/** Core's registry with the song slice's commands (#600 S15: they are the slice's, registered by the shell's fold point). */
+const songRegistry = () => {
+  const r = createThoreminRegistry();
+  r.registerAll(SONG_COMMANDS as never);
+  return r;
+};
 
 /** The branch set the engine derives from the live store (as `useEngine` does). */
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -28,7 +40,7 @@ const Shell = () => (
   <>
     <ToolsBar />
     <ToolsLauncher />
-    <SongPanel />
+    <ExtensionToolPanels />
   </>
 );
 
@@ -44,13 +56,13 @@ function clickFile() {
 
 beforeEach(() => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
-  useControls.getState().setSongHandle(null);
-  useControls.getState().setSongPrefs({ ...DEFAULT_SONG });
+  setSongHandle(null);
+  setSongPrefs({ ...DEFAULT_SONG });
   useSongStatus.getState().reset();
 });
 afterEach(cleanup);
 
-describe('Follow the dancer', () => {
+describe.runIf(SONG)('Follow the dancer', () => {
   it('four clicks from a cold load: Tools, Song, Choose a song, Follow the dancer', async () => {
     render(<Shell />);
     fireEvent.click(screen.getByText('Tools'));
@@ -64,41 +76,41 @@ describe('Follow the dancer', () => {
     await act(async () => {
       await loadSongFile(file, opts);
     });
-    expect(useControls.getState().songPrefs.follow).toBe(false);
+    expect(songPrefs().follow).toBe(false);
     expect(derived()).not.toContain('song-pace');
 
     fireEvent.click(screen.getByLabelText('Follow the dancer'));
-    await waitFor(() => expect(useControls.getState().songPrefs.follow).toBe(true));
+    await waitFor(() => expect(songPrefs().follow).toBe(true));
     // The engine's derivation now composes the controller and the body it follows.
     expect(derived()).toEqual(expect.arrayContaining(['song-pace', 'body-source']));
     expect(screen.getByTestId('song-pace').textContent).toMatch(/once the song plays/);
 
     // Unloading the song takes the branch (and the body camera) away again.
-    act(() => useControls.getState().setSongHandle(null));
+    act(() => setSongHandle(null));
     expect(derived()).not.toContain('song-pace');
   });
 
   it('"Start on your step" is under Follow the dancer, off by default, and writes the per-device pref through its command (#346)', async () => {
     useTools.setState({ open: 'song' });
-    useControls.getState().setSongPrefs({ follow: true, alignStart: false });
+    setSongPrefs({ follow: true, alignStart: false });
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     render(<Shell />);
     const box = screen.getByLabelText('Start on your step') as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
-    await waitFor(() => expect(useControls.getState().songPrefs.alignStart).toBe(true));
+    await waitFor(() => expect(songPrefs().alignStart).toBe(true));
     fireEvent.click(box);
-    await waitFor(() => expect(useControls.getState().songPrefs.alignStart).toBe(false));
-    useControls.getState().setSongPrefs({ follow: false });
+    await waitFor(() => expect(songPrefs().alignStart).toBe(false));
+    setSongPrefs({ follow: false });
   });
 
   it('says what the controller is doing, from the engine through the reporter', async () => {
     useTools.setState({ open: 'song' });
-    useControls.getState().setSongPrefs({ follow: true });
+    setSongPrefs({ follow: true });
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
-    useControls.getState().setSongPlaying(true);
+    setSongPlaying(true);
     render(<Shell />);
     const outputs: Record<string, Record<string, unknown>> = {
       songPlayer: { status: { phase: 'active', message: 'Playing' }, position: 3 },
@@ -110,45 +122,45 @@ describe('Follow the dancer', () => {
     outputs[PACE_NODE_ID].pace = { t: 4, mode: 'holding', rate: 1.06, ratio: 4, target: NaN, phaseError: NaN, nudge: 0 };
     act(() => tick());
     expect(screen.getByTestId('song-pace').textContent).toMatch(/Holding the tempo at 106%/);
-    useControls.getState().setSongPlaying(false);
+    setSongPlaying(false);
   });
 
   it('the follow toggle and range are commands (the palette, the assistant), checked by their schema', async () => {
-    const r = createThoreminRegistry();
+    const r = songRegistry();
     expect((await r.dispatch('song.follow.set', { follow: true })).ok).toBe(true);
     expect((await r.dispatch('song.followRange.set', { range: 0.2 })).ok).toBe(true);
-    expect(useControls.getState().songPrefs).toMatchObject({ follow: true, followRange: 0.2 });
+    expect(songPrefs()).toMatchObject({ follow: true, followRange: 0.2 });
     expect((await r.dispatch('song.followRange.set', { range: 0.9 })).ok).toBe(false);
   });
 
   it('the hold fade is a command and a slider in the Song tool, off (a cut) by default (#366)', async () => {
-    const r = createThoreminRegistry();
-    expect(useControls.getState().songPrefs.holdFadeS).toBe(0);
+    const r = songRegistry();
+    expect(songPrefs().holdFadeS).toBe(0);
     expect((await r.dispatch('song.holdFade.set', { seconds: 0.8 })).ok).toBe(true);
-    expect(useControls.getState().songPrefs.holdFadeS).toBe(0.8);
+    expect(songPrefs().holdFadeS).toBe(0.8);
     expect((await r.dispatch('song.holdFade.set', { seconds: 9 })).ok).toBe(false);
     useTools.setState({ open: 'song' });
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     render(<Shell />);
     expect(screen.getByTestId('song-hold-fade').textContent).toMatch(/0\.8 s/);
-    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0 }));
+    act(() => setSongPrefs({ holdFadeS: 0 }));
   });
 
   it('the hold slowdown is a command, off by default, and its slider shows only with a fade (#573)', async () => {
-    const r = createThoreminRegistry();
-    expect(useControls.getState().songPrefs.holdSlow).toBe(0);
+    const r = songRegistry();
+    expect(songPrefs().holdSlow).toBe(0);
     expect((await r.dispatch('song.holdSlow.set', { fraction: 0.6 })).ok).toBe(true);
-    expect(useControls.getState().songPrefs.holdSlow).toBe(0.6);
+    expect(songPrefs().holdSlow).toBe(0.6);
     expect((await r.dispatch('song.holdSlow.set', { fraction: 2 })).ok).toBe(false);
     useTools.setState({ open: 'song' });
     const { file, opts } = clickFile();
     await loadSongFile(file, opts);
     render(<Shell />);
     expect(screen.queryByTestId('song-hold-slow')).toBeNull();
-    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0.8 }));
+    act(() => setSongPrefs({ holdFadeS: 0.8 }));
     expect(screen.getByTestId('song-hold-slow').textContent).toMatch(/60 %/);
-    act(() => useControls.getState().setSongPrefs({ holdFadeS: 0, holdSlow: 0 }));
+    act(() => setSongPrefs({ holdFadeS: 0, holdSlow: 0 }));
   });
 
   it('describes the relation in words', () => {

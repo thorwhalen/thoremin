@@ -18,7 +18,7 @@ export const LAZY_PACKAGES: readonly string[] = [
   'spessasynth_core', // its engine core, pulled in by spessasynth_lib
   '@tonejs/midi', // the MIDI score parser (#187 PR 3), via src/score/midi.ts
   'musicxml-io', // the MusicXML score parser (#187 PR 3), via src/score/musicxml.ts
-  'signalsmith-stretch', // the song's time-stretch worklet (#187 PR 7), via src/nodes/output/song_stretcher_signalsmith.ts
+  'signalsmith-stretch', // the song's time-stretch worklet (#187 PR 7), via src/slices/song/app/song_stretcher_signalsmith.ts
 ];
 
 /** The slice of a Rollup output chunk the guard reads. */

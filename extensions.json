@@ -5,6 +5,7 @@
     { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui", "lazy": { "module": "@thoremin/ext-asl/lazy", "ui": "@thoremin/ext-asl/lazy_ui" } },
     { "id": "midi-output", "module": "@/slices/midi", "ui": "@/slices/midi/ui" },
     { "id": "generative-layer", "module": "@/slices/generative", "ui": "@/slices/generative/ui" },
+    { "id": "song-tool", "module": "@/slices/song", "ui": "@/slices/song/ui" },
     { "id": "faces", "module": "@thoremin/ext-faces", "ui": "@thoremin/ext-faces/ui", "lazy": { "module": "@thoremin/ext-faces/lazy", "ui": "@thoremin/ext-faces/lazy_ui" } }
   ]
 }

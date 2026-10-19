@@ -33,7 +33,9 @@ const conductorDial = () => dialsStore.getState().effective.conductor as Conduct
 const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...conductorDial(), enabled });
 import { useControls } from '@/app/store';
 // The song commands' host (#186 PR G): the Song tool's stop control dispatches `song.pause`.
-import '@/app/song/host';
+// The song is its slice's since #600 S15 (its tool runs detached through `ExtensionTool.detached`).
+import '@/slices/song/app/host';
+import { setSongHandle, setSongPlaying, songPlaying } from '@/slices/song/app/state';
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
@@ -65,7 +67,7 @@ beforeEach(() => {
   useToolPins.setState({ choices: {} });
   setConducting(false);
   useControls.getState().setFeatureLab(defaultFeatureLab());
-  useControls.getState().setSongHandle(null);
+  setSongHandle(null);
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
   // Recording defaults ON in production (its own test below covers that path); the
@@ -771,14 +773,15 @@ const DETACHED: Record<string, { start: () => void; running: () => boolean }> = 
   },
   song: {
     start: () => {
-      useControls.getState().setSongHandle({ id: 'test-song', name: 'test.mp3', url: 'test.mp3', durationS: 30, grid: EMPTY_SONG_GRID });
-      useControls.getState().setSongPlaying(true);
+      setSongHandle({ id: 'test-song', name: 'test.mp3', url: 'test.mp3', durationS: 30, grid: EMPTY_SONG_GRID });
+      setSongPlaying(true);
     },
-    running: () => useControls.getState().songPlaying,
+    running: () => songPlaying(),
   },
 };
 
-const detachedTools = TOOLS.filter((t) => t.runsDetached);
+// Every shell tool, core's and the extensions' (the song's is its slice's since #600 S15).
+const detachedTools = SHELL_TOOLS.filter((t) => t.runsDetached);
 
 describe('a tool that keeps running after its panel closes', () => {
   it('declares at least one such tool, and each has a harness here', () => {

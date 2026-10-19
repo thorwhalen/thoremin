@@ -4,7 +4,7 @@
  * table in PR 5a of the instruments-as-graphs ADR; the node files they name live under `./nodes/` (5b).
  */
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
-import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+import { SONG_PLAYER, TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
 import { DRUM_PADS_ELEMENT } from './nodes/overlay/drum_pads';
 import { BREATH_CUE_ELEMENT } from './nodes/overlay/breath_cue';
@@ -112,8 +112,9 @@ export const chordMap = defineBranch({
     to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
     to(ui('chordMapMidi'), { node: 'chordMap', port: 'midi' }),
     to(ui('chordMapAudio'), { node: 'chordMap', port: 'audio' }),
-    // The song's beat (H9 of #613), read while the map keeps time with the song.
-    to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordMap', port: 'time' }),
+    // The song's beat (H9 of #613), read while the map keeps time with the song (an optional edge:
+    // the song slice's player, present when the build lists it, #600 S15).
+    to({ node: SONG_PLAYER, port: 'songTime' }, { node: 'chordMap', port: 'time' }, true),
     // The conductor's beat, while conducting (an optional edge: composed only with the conductor).
     to({ node: 'conductor', port: 'time' }, { node: 'chordMap', port: 'conductorTime' }, true),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
@@ -141,7 +142,7 @@ export const chordWheel = defineBranch({
     to(ui('chordSpec'), { node: 'chordWheel', port: 'spec' }),
     to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordWheel', port: 'octaveShift' }),
-    to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordWheel', port: 'time' }),
+    to({ node: SONG_PLAYER, port: 'songTime' }, { node: 'chordWheel', port: 'time' }, true),
     to({ node: 'conductor', port: 'time' }, { node: 'chordWheel', port: 'conductorTime' }, true),
     to({ node: 'chordWheel', port: 'grid' }, overlay(overlayPortName('air', CHORD_WHEEL_ELEMENT, 'grid'))),
   ],

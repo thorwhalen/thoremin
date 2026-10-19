@@ -75,6 +75,8 @@ export interface Contributions {
   prefSlices: readonly PrefSlice[];
   /** Every branch; ids unique across extensions. */
   branches: readonly GraphBranch[];
+  /** The branches every instrument composes beside the trunk (#600 S15: `Extension.trunk`). */
+  trunkBranches: readonly string[];
   /** Every node type an extension defines (eager) or declares (lazy); unique. */
   nodeTypes: readonly string[];
   /** Every transient hot-store field; unique across extensions and dial keys. */
@@ -250,6 +252,10 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     transientFields,
     transientInitials: Object.fromEntries(transients.map((t) => [t.field, t.initial ?? null])),
     branches,
+    trunkBranches: extensions.flatMap((e) => {
+      for (const id of e.trunk ?? []) if (!e.branches.some((b) => b.id === id)) throw new Error(`extension "${e.id}" names "${id}" as a trunk branch, which is not one of its branches`);
+      return e.trunk ?? [];
+    }),
     nodeTypes: keyed('node type', extensions, (e) => [...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])], (t) => t),
     instruments: keyed('instrument', extensions, (e) => e.instruments ?? [], (i) => i.name),
     trainingRoutes: keyed('training route', extensions, (e) => e.training?.routes ?? [], (r) => r.id),

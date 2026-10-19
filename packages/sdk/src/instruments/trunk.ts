@@ -18,6 +18,12 @@ export const TRUNK = {
   merge: 'merge',
   synth: 'synth',
   overlay: 'overlay',
-  /** The loaded song's player (#186 PR G): its `songTime` is the song's musical time. */
-  song: 'songPlayer',
 } as const;
+
+/**
+ * A node another extension's branch may read on an OPTIONAL edge (#600 S15): the song slice's
+ * player (#186 PR G), whose `songTime` is the loaded song's musical time. It was the trunk's; now
+ * it is present only in a build that lists the song slice, so a reader's edge from it is optional
+ * and its node treats a missing time as no song.
+ */
+export const SONG_PLAYER = 'songPlayer';

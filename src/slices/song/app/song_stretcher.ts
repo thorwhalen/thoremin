@@ -8,7 +8,7 @@
  * §6.1). Browser-only (a DOM element), so the node imports this module dynamically on
  * first need and Node tests inject their own stretcher instead.
  */
-import type { Stretcher, StretcherFactory } from './song_player.schema';
+import type { Stretcher, StretcherFactory } from '../nodes/song_player.schema';
 import { rampGain } from './gain_ramp';
 
 export const createMediaElementStretcher: StretcherFactory = ({ audioContext, destination }): Stretcher => {
