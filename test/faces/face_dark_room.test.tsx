@@ -36,10 +36,14 @@ function deps(): FaceSessionDeps {
   };
 }
 
+/** Advance the fake clock `ms`, in steps of a few poll intervals: each `act` is a React flush, and the test
+ *  spent most of its time (5.4 s of the runner's 5 s limit, under load) flushing once per 33 ms poll. The
+ *  light is read once a second, so a 100 ms step loses nothing. */
+const STEP_MS = 100;
 async function run(ms: number) {
-  for (let t = 0; t < ms; t += FRAME_MS) {
-    clock += FRAME_MS;
-    await act(() => vi.advanceTimersByTimeAsync(FRAME_MS));
+  for (let t = 0; t < ms; t += STEP_MS) {
+    clock += STEP_MS;
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS));
   }
 }
 
@@ -51,7 +55,7 @@ afterEach(() => {
 });
 
 describe('the dark-room status line', () => {
-  it('appears after a few dim readings, as a status and not a dialog, and goes when the light returns', async () => {
+  it('appears after a few dim readings, as a status and not a dialog, and goes when the light returns', { timeout: 30_000 }, async () => {
     vi.useFakeTimers();
     const store = createFaceSessionStore(deps());
     render(<FaceSessionView store={store} test={faceTestStore()} />);
