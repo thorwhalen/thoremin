@@ -65,7 +65,8 @@ describe('the chord-map node, holding', () => {
     // The grid lights the chord in force.
     const active = at(1.5).grid.cells.filter((x) => x.state === 'active' && x.shape === 'hex');
     expect(active.map((x) => x.label)).toEqual(['Am']);
-    expect(at(1.5).grid.captions).toHaveLength(6);
+    expect(at(1.5).grid.captions).toHaveLength(7); // six moves, and the ladder's note set
+    expect(at(1.5).grid.captions.map((c) => c.text)).toContain('chord tones');
     // Changed within a couple of camera frames of arriving (the dwell is two frames).
     const changed = outs.find((o) => o.t >= 1 && o.out.status.chord === 'Am')!;
     expect(changed.t - 1).toBeLessThanOrEqual(2 / 30 + 1e-9);

@@ -1229,6 +1229,16 @@
         "default": true
       },
       {
+        "name": "melodyNotes",
+        "type": "enum(chord | pentatonic | scale | tilt)",
+        "default": "chord"
+      },
+      {
+        "name": "sevenths",
+        "type": "boolean",
+        "default": false
+      },
+      {
         "name": "melodyVolume",
         "type": "number",
         "default": 0.45

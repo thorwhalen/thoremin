@@ -31,7 +31,7 @@ export function describeChordMapLive(live: ChordMapLive): string {
   if (!live.pointing) return 'Show your chord hand: put its palm over a chord on the screen.';
   if (live.chord === null) return `Key of ${live.key}. Move your chord hand over a chord.`;
   const chord = `${live.chord} (${live.numeral})`;
-  if (live.play === 'hold') return live.melody ? `${chord}, melody ${live.melody}.` : `${chord}. Raise or lower your other hand for a melody on its notes.`;
+  if (live.play === 'hold') return live.melody ? `${chord}, melody ${live.melody} (${live.melodySet === 'chord' ? 'chord tones' : live.melodySet}).` : `${chord}. Raise or lower your other hand for a melody on its notes.`;
   if (!live.ready) return `${chord}. Strum down once with your other hand to teach it your stroke.`;
   if (live.strums === 0) return `${chord}. Strum with your other hand.`;
   const ms = Math.round(Math.abs(live.lastLead) * 1000);
@@ -44,7 +44,7 @@ export interface OutputReader {
 
 /** Quantise what the view shows. */
 export function chordMapLiveKey(l: ChordMapLive): string {
-  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0].join('|');
+  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0].join('|');
 }
 
 export function makeChordMapReporter(
