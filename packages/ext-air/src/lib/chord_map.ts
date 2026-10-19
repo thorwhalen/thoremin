@@ -21,8 +21,9 @@
  * across and down (a hexagon) are computed in frame HEIGHTS and converted with the frame's
  * aspect ratio.
  */
-import { classifyChord, diatonicTriad, letterChordSpec, midiToName, romanNumeral, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
-import { chordName, chordSymbol, diatonicChords as harmonyChords, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
+import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, midiToName, romanNumeral, SCALE_TYPES, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { chordName, chordSymbol, diatonicChords as harmonyChords, functionOf, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
+import { parseChordName } from './guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
 import { createCellTracker as createNavTracker, type CellChoice, type CellTrackerOptions } from '@thoremin/sdk/harmony/navigate';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
@@ -72,22 +73,39 @@ export interface DiatonicChord {
   quality: ChordQuality;
   /** The triad on the spec's register (three ascending MIDI notes). */
   triad: number[];
+  /** The chord's tones on the spec's register: the triad, or the seventh chord (four notes). */
+  tones: number[];
 }
 
 /**
  * The seven chords of a key, spelled in the key (the third chord of F major is "Am", its
- * fourth "Bb", not "A#"), with each one's triad on the spec's register. A key without seven
+ * fourth "Bb", not "A#"), with each one's triad on the spec's register; `size` 4 names and
+ * voices the key's seventh chords (Cmaj7, Dm7, G7, Bø7), where neighbours a third apart share
+ * three tones. A key without seven
  * notes is read through its seven-note embedding (a pentatonic melody's chords are its parent
  * major's), keeping the register. Names, symbols and numerals are the harmony layer's chord
  * model (`@thoremin/sdk/harmony/chord`).
  */
-export function diatonicChords(spec: ScaleSpec): DiatonicChord[] {
+export function diatonicChords(spec: ScaleSpec, size: 3 | 4 = 3): DiatonicChord[] {
   const key = letterChordSpec(spec);
   const k = keyOf(key);
-  return harmonyChords(k).map((chord, degree) => {
+  const triads = harmonyChords(k);
+  return harmonyChords(k, size).map((chord, degree) => {
     const triad = diatonicTriad(key, degree);
     const quality = classifyChord(triad)?.quality ?? 'unknown';
-    return { degree, root: chord.root, name: chordName(chord, k), symbol: chordSymbol(chord, k), numeral: romanNumeral(degree, quality), quality, triad };
+    const tones = diatonicChord(key, degree, size);
+    // A seventh the guitar cannot voice (a half-diminished one) strums as its triad.
+    const symbol = chordSymbol(chord, k);
+    return {
+      degree,
+      root: chord.root,
+      name: chordName(chord, k),
+      symbol: size === 3 || parseChordName(symbol) ? symbol : chordSymbol(triads[degree], k),
+      numeral: size === 3 ? romanNumeral(degree, quality) : (functionOf(chord, k)?.numeral ?? romanNumeral(degree, quality)),
+      quality,
+      triad,
+      tones,
+    };
   });
 }
 
@@ -200,6 +218,83 @@ export function melodyLadder(triad: readonly number[], baseMidi: number, octaves
   return notes;
 }
 
+/** The melody hand's note sets, from the fewest to the most (the video's right hand, whose tilt
+ *  morphs between the chord's tones, the chord's pentatonic and the full scale): they nest. */
+export const MELODY_SETS = ['chord', 'pentatonic', 'scale'] as const;
+export type MelodySet = (typeof MELODY_SETS)[number];
+
+const MAJOR_PENTATONIC = SCALE_TYPES.pentatonic.intervals;
+
+/** The key's major pentatonics: one on every note of the key whose five notes all lie in it
+ *  (C, F and G in C major, and in A minor). */
+export function keyPentatonics(spec: ScaleSpec): number[][] {
+  const scale = new Set(scaleOf(spec));
+  return [...scale].map((r) => MAJOR_PENTATONIC.map((i) => mod(r + i, 12))).filter((pent) => pent.every((p) => scale.has(p)));
+}
+
+/**
+ * The CHORD's pentatonic (the deep research on the video, §5): the key's pentatonic that holds the
+ * chord's tones, so chord tones lie inside it and it inside the scale, and tilting the melody hand
+ * only ever adds notes (C and Am: C pentatonic; F and Dm: F's; G and Em: G's). A chord no
+ * pentatonic holds (vii°: a pentatonic has no tritone) takes the one sharing most of its tones,
+ * the key's dominant on a tie (B°: G pentatonic). With no chord, the tonic's.
+ */
+export function pentatonicOf(spec: ScaleSpec, chordTones: readonly number[] = []): number[] {
+  const pents = keyPentatonics(spec);
+  if (pents.length === 0) return [];
+  const pcs = [...new Set(chordTones.slice(0, 3).map((n) => mod(n, 12)))];
+  const key = letterChordSpec(spec);
+  const tonic = mod(key.root, 12);
+  if (pcs.length === 0) return pents.find((p) => p[0] === tonic) ?? pents[0];
+  const dominant = mod(scaleOf(spec)[4], 12);
+  const score = (pent: number[]) => pcs.filter((p) => pent.includes(p)).length;
+  return [...pents].sort((a, b) => score(b) - score(a) || Number(b[0] === dominant) - Number(a[0] === dominant))[0];
+}
+
+/** The key's seven pitch classes. */
+export function scaleOf(spec: ScaleSpec): number[] {
+  const key = letterChordSpec(spec);
+  return SCALE_TYPES[key.type].intervals.map((i) => mod(key.root + i, 12));
+}
+
+/** A ladder over any set of pitch classes: every note of the set from the first `first` (a pitch
+ *  class) at or above `baseMidi`, for `octaves` octaves, and that note again on top. */
+export function setLadder(pcs: readonly number[], first: number, baseMidi: number, octaves: number): number[] {
+  if (pcs.length === 0) return [];
+  const start = baseMidi + mod(first - baseMidi, 12);
+  const offsets = [...new Set(pcs.map((p) => mod(p - first, 12)))].sort((a, b) => a - b);
+  const notes: number[] = [];
+  for (let o = 0; o < octaves; o++) for (const off of offsets) notes.push(start + 12 * o + off);
+  notes.push(start + 12 * octaves);
+  return notes;
+}
+
+/** The melody ladder for a set: the chord's tones, the chord's pentatonic or the scale, each from
+ *  the chord's root, so the three ladders share their bottom note and nest. */
+export function melodyNotesFor(set: MelodySet, chordTones: readonly number[], spec: ScaleSpec, baseMidi: number, octaves: number): number[] {
+  if (set === 'chord') return melodyLadder(chordTones, baseMidi, octaves);
+  const first = chordTones.length ? mod(chordTones[0], 12) : mod(letterChordSpec(spec).root, 12);
+  return setLadder(set === 'pentatonic' ? pentatonicOf(spec, chordTones) : scaleOf(spec), first, baseMidi, octaves);
+}
+
+/** How far the melody hand tilts (degrees, either way) at each set's lower edge, and the margin
+ *  a tilt must pass an edge by to change set (so a hand on an edge does not flicker). */
+export const MELODY_TILT_EDGES: Readonly<Record<MelodySet, number>> = { chord: 0, pentatonic: 20, scale: 45 };
+export const MELODY_TILT_HYSTERESIS = 5;
+
+/** The set a tilt picks, held while within the hysteresis of the current set's edges: an
+ *  upright hand plays the chord's tones, tilted the pentatonic, tilted further the whole scale. */
+export function setForTilt(tiltDeg: number, current: MelodySet): MelodySet {
+  const t = Math.abs(tiltDeg);
+  const plain: MelodySet = t >= MELODY_TILT_EDGES.scale ? 'scale' : t >= MELODY_TILT_EDGES.pentatonic ? 'pentatonic' : 'chord';
+  if (plain === current) return current;
+  const i = MELODY_SETS.indexOf(current);
+  const lo = MELODY_TILT_EDGES[current] - (i > 0 ? MELODY_TILT_HYSTERESIS : 0);
+  const next = MELODY_SETS[i + 1];
+  const hi = next ? MELODY_TILT_EDGES[next] + MELODY_TILT_HYSTERESIS : Infinity;
+  return t >= lo && t < hi ? current : plain;
+}
+
 /** The band a height picks on a ladder of `n` notes over a region (the top band the highest
  *  note), or null outside the region's width. */
 export function ladderBand(region: Region, n: number, p: { x: number; y: number } | null): number | null {
@@ -209,6 +304,10 @@ export function ladderBand(region: Region, n: number, p: { x: number; y: number 
 }
 
 // ---- The picture -----------------------------------------------------------------------
+
+/** What the ladder's caption calls each note set, and how far above the ladder it sits. */
+const SET_CAPTION: Readonly<Record<MelodySet, string>> = { chord: 'chord tones', pentatonic: 'pentatonic', scale: 'scale' };
+const LADDER_CAPTION_GAP = 0.03;
 
 /** The colour of a melody band no chord is sounding over. */
 const IDLE_BAND_COLOR = '#cbd5e1';
@@ -220,8 +319,8 @@ export interface ChordMapView {
   choice: CellChoice;
   /** The moves around the active cell are shown (hex only). */
   captions: boolean;
-  /** The melody ladder: its region, notes and the band played, or null with no ladder. */
-  ladder: { region: Region; notes: readonly number[]; band: number | null } | null;
+  /** The melody ladder: its region, notes, the band played and its note set, or null with no ladder. */
+  ladder: { region: Region; notes: readonly number[]; band: number | null; set?: MelodySet } | null;
   /** The points that choose (display fractions). */
   pointers: readonly { x: number; y: number }[];
 }
@@ -254,5 +353,9 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
     });
   }
   const captions = view.captions && active ? neighbourCaptions(view.layout, active) : [];
+  if (view.ladder?.set) {
+    const { region, set } = view.ladder;
+    captions.push({ x: (region.x0 + region.x1) / 2, y: region.y0 - LADDER_CAPTION_GAP, text: SET_CAPTION[set] });
+  }
   return { cells, captions, pointers: [...view.pointers] };
 }

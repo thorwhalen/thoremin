@@ -341,8 +341,8 @@ describe('production app graph', () => {
     // The ASL chords (ids from 2e6) and the categorizer chords (#450, from 3e6) always carry
     // their four voices, silent here.
     const catChord = FACES ? [3_000_000, 3_000_001, 3_000_002, 3_000_003] : [];
-    // The chord map (air) carries its four chord voices and its melody voice, silent here.
-    const chordMap = [0, 1, 2, 3].map((i) => CHORD_MAP_VOICE_ID_BASE + i).concat(CHORD_MAP_MELODY_VOICE_ID);
+    // The chord map (air) carries its five chord voices and its melody voice, silent here.
+    const chordMap = [0, 1, 2, 3, 4].map((i) => CHORD_MAP_VOICE_ID_BASE + i).concat(CHORD_MAP_MELODY_VOICE_ID);
     const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
     expect([...ids].sort((a, b) => a - b)).toEqual(merged0.sort((a, b) => a - b));
     expect(ids.slice(0, 2)).toEqual([0, 1]); // the hand voices lead (the overlay reads them by position)

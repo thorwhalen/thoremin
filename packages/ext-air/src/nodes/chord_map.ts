@@ -43,7 +43,10 @@ import {
   diatonicChords,
   ladderBand,
   layoutCells,
-  melodyLadder,
+  melodyNotesFor,
+  MELODY_SETS,
+  setForTilt,
+  type MelodySet,
   type CellChoice,
   type CellTracker,
   type DiatonicChord,
@@ -58,13 +61,15 @@ import { LATE_VELOCITY, strumNotes } from './air_guitar';
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];
 export const CHORD_MAP_POINTS = ['palm', 'indexTip'] as const;
+/** The melody hand's note choice: a set (`MELODY_SETS`), or the hand's tilt choosing one. */
+export const MELODY_NOTES = [...MELODY_SETS, 'tilt'] as const;
 export const STRUM_MAP_POINTS = ['wrist', 'indexTip'] as const;
 
 /** The chord's voices: a block of their own, far from the hand voices, the score (from 11),
  *  the air flute (1_000_000), ASL's chords (2_000_000) and the categorizer chords (3_000_000). */
 export const CHORD_MAP_VOICE_ID_BASE = 4_000_000;
-/** The largest voicing is four notes. */
-export const MAX_CHORD_MAP_VOICES = 4;
+/** The largest voicing is five notes (the open voicing of a seventh chord). */
+export const MAX_CHORD_MAP_VOICES = 5;
 /** The melody hand's voice, in the same block. */
 export const CHORD_MAP_MELODY_VOICE_ID = CHORD_MAP_VOICE_ID_BASE + 100;
 
@@ -96,8 +101,15 @@ const Params = z.object({
   releaseS: z.number().min(0).max(2).default(0.3),
   /** Show what each move from the sounding chord does, on its edges. */
   captions: z.boolean().default(true),
-  /** Hold mode: the other hand plays a melody on the chord's tones. */
+  /** Hold mode: the other hand plays a melody. */
   melody: z.boolean().default(true),
+  /** Which notes the melody hand plays: the chord's tones, the key's pentatonic, the whole
+   *  scale, or (`tilt`, the video's right hand) the tilt of the hand chooses: upright the chord's
+   *  tones, tilted the pentatonic, tilted further the scale. */
+  melodyNotes: z.enum(MELODY_NOTES).default('chord'),
+  /** The key's seventh chords (Cmaj7, Dm7, G7, Bø7) instead of its triads: neighbours a third
+   *  apart then share three tones. */
+  sevenths: z.boolean().default(false),
   melodyVolume: z.number().min(0).max(1).default(0.45),
   melodyOctaves: z.number().int().min(1).max(3).default(2),
   melodySound: SoundSchema.default('triangle'),
@@ -150,6 +162,8 @@ export interface ChordMapStatus {
   numeral: string | null;
   /** The melody note sounding, or null. */
   melody: string | null;
+  /** The note set the melody hand is playing. */
+  melodySet: MelodySet;
   strums: number;
   predicted: number;
   /** The last strum's lead in seconds (negative = late). */
@@ -166,6 +180,7 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   chord: null,
   numeral: null,
   melody: null,
+  melodySet: 'chord',
   strums: 0,
   predicted: 0,
   lastLead: 0,
@@ -178,6 +193,17 @@ export function displayPoint(hand: Hand, frame: HandsFrame, point: (typeof CHORD
   const x = pts.reduce((s, k) => s + k.x, 0) / pts.length;
   const y = pts.reduce((s, k) => s + k.y, 0) / pts.length;
   return { x: 1 - x / frame.width, y: y / frame.height };
+}
+
+/** How far a hand is tilted in the picture, degrees: the angle of its knuckle line (index to
+ *  little finger) from the horizontal, folded to [-90, 90] so either hand reads the same. */
+export function handTilt(hand: Hand): number {
+  const a = hand.keypoints[LM.index_mcp];
+  const b = hand.keypoints[LM.pinky_mcp];
+  let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  if (deg > 90) deg -= 180;
+  if (deg <= -90) deg += 180;
+  return deg;
 }
 
 /** The chords' region and the other hand's, by the chord hand's side of the (mirrored) screen. */
@@ -209,7 +235,7 @@ export const chordMapNode = defineNode<Params>({
     { name: 'notes', kind: 'note-events', schema: NoteEventsSchema },
     { name: 'grid', kind: 'cell-grid' },
     { name: 'status', kind: 'chord-map-status' },
-    // The un-voiced triad in force ([] for none).
+    // The chord in force, un-voiced: its triad, or its four tones with sevenths ([] for none).
     { name: 'triad', kind: 'number[]' },
   ],
   params: Params,
@@ -228,6 +254,8 @@ export const chordMapNode = defineNode<Params>({
     let chordPoint: { x: number; y: number } | null = null;
     let otherPoint: { x: number; y: number } | null = null;
     let lastDegree = -1;
+    let melodySet: MelodySet = 'chord';
+    let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
 
     const resolveConfig = (raw: unknown): Params => {
@@ -257,6 +285,8 @@ export const chordMapNode = defineNode<Params>({
       chordPoint = null;
       otherPoint = null;
       lastDegree = -1;
+      melodySet = 'chord';
+      otherTilt = null;
       status = { ...IDLE_CHORD_MAP_STATUS };
     };
 
@@ -273,6 +303,7 @@ export const chordMapNode = defineNode<Params>({
             spec,
             voicing: chordCfg.voicing ?? c.voicing,
             rendering: chordCfg.rendering ?? c.rendering,
+            coloration: c.sevenths ? 'diatonicSeventh' : undefined,
             bpm: chordCfg.bpm ?? c.bpm,
             octaveShift: shift,
             gain: chordCfg.gain ?? c.gain,
@@ -285,7 +316,7 @@ export const chordMapNode = defineNode<Params>({
           const { voices } = render(-1);
           return { params: { voices: [...voices, silentMelody(p.melodySound)] } satisfies SynthParams, notes: [], grid: EMPTY_CELL_GRID, status, triad: [] };
         }
-        const chords: DiatonicChord[] = diatonicChords(spec);
+        const chords: DiatonicChord[] = diatonicChords(spec, c.sevenths ? 4 : 3);
         const regions = chordMapRegions(c.chordHand, c.split);
         const shape = LAYOUTS[c.layout].shape;
         const notes: NoteEvent[] = [];
@@ -328,6 +359,7 @@ export const chordMapNode = defineNode<Params>({
           chordPoint = chordHand ? displayPoint(chordHand, frame, c.point) : null;
           choice = tracker.push(cells, chordPoint, t, aspect, shape);
           otherPoint = other ? displayPoint(other, frame, c.play === 'strum' ? c.strumPoint : 'palm') : null;
+          otherTilt = other ? handTilt(other) : null;
           status = { ...status, pointing: !!chordHand };
           if (c.play === 'strum' && strummer && other) {
             const kp = other.keypoints[c.strumPoint === 'wrist' ? LM.wrist : LM.index_tip];
@@ -356,14 +388,16 @@ export const chordMapNode = defineNode<Params>({
         // The melody: the other hand's height over the chord's tones (the last chord's while
         // none is held, the tonic's before any).
         let melodyVoice = silentMelody(p.melodySound);
-        let ladder: { region: Region; notes: number[]; band: number | null } | null = null;
+        let ladder: { region: Region; notes: number[]; band: number | null; set: MelodySet } | null = null;
         let melodyNote: string | null = null;
         if (c.play === 'hold' && c.melody) {
-          const over = chords[lastDegree >= 0 ? lastDegree : 0].triad;
+          const over = chords[lastDegree >= 0 ? lastDegree : 0].tones;
           const base = (spec.baseOctave + 2) * 12;
-          const ladderNotes = melodyLadder(over, base, c.melodyOctaves);
+          // The tilt chooses the set only while the hand is seen; a lost hand keeps the last one.
+          melodySet = c.melodyNotes !== 'tilt' ? c.melodyNotes : otherTilt === null ? melodySet : setForTilt(otherTilt, melodySet);
+          const ladderNotes = melodyNotesFor(melodySet, over, spec, base, c.melodyOctaves);
           const band = ladderBand(regions.other, ladderNotes.length, otherPoint);
-          ladder = { region: regions.other, notes: ladderNotes, band };
+          ladder = { region: regions.other, notes: ladderNotes, band, set: melodySet };
           if (band !== null) {
             const midi = ladderNotes[band] + 12 * shift;
             melodyNote = midiToName(midi);
@@ -380,6 +414,7 @@ export const chordMapNode = defineNode<Params>({
           chord: active?.name ?? null,
           numeral: active?.numeral ?? null,
           melody: melodyNote,
+          melodySet,
         };
         const grid: CellGrid = chordMapGrid({
           layout: c.layout,
@@ -390,7 +425,7 @@ export const chordMapNode = defineNode<Params>({
           ladder,
           pointers: [chordPoint, c.play === 'hold' && c.melody ? otherPoint : null].filter((x): x is { x: number; y: number } => x !== null),
         });
-        return { params: { voices: [...voices, melodyVoice] } satisfies SynthParams, notes, grid, status, triad: active ? active.triad : [] };
+        return { params: { voices: [...voices, melodyVoice] } satisfies SynthParams, notes, grid, status, triad: active ? active.tones : [] };
       },
       dispose() {
         reset();

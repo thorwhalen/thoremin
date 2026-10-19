@@ -11,7 +11,7 @@ import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
 import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
-import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, type ChordMapDialParams } from '../nodes/chord_map';
+import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams } from '../nodes/chord_map';
 import { PLAYER_HANDS } from '../nodes/air_bass';
 
 const PLAY_LABEL: Record<ChordMapDialParams['play'], string> = {
@@ -21,6 +21,12 @@ const PLAY_LABEL: Record<ChordMapDialParams['play'], string> = {
 const HAND_LABEL: Record<ChordMapDialParams['chordHand'], string> = {
   left: 'left hand points at chords',
   right: 'right hand points at chords',
+};
+const MELODY_NOTES_LABEL: Record<ChordMapDialParams['melodyNotes'], string> = {
+  chord: "the chord's tones",
+  pentatonic: 'the pentatonic',
+  scale: 'the whole scale',
+  tilt: 'chosen by tilting the hand',
 };
 const POINT_LABEL: Record<ChordMapDialParams['point'], string> = {
   palm: 'palm centre',
@@ -72,6 +78,8 @@ export function ChordMapControls() {
   const melodyVolume = c.melodyVolume ?? 0.45;
   const volume = c.volume ?? 0.7;
   const captions = c.captions ?? true;
+  const melodyNotes = c.melodyNotes ?? 'chord';
+  const sevenths = c.sevenths ?? false;
   return (
     <div className="space-y-2" data-testid="chord-map-controls">
       <ChordMapReadout />
@@ -139,8 +147,24 @@ export function ChordMapControls() {
         </label>
       )}
       {play === 'hold' && melody && (
+        <label className="flex items-center justify-between gap-2 text-xs" title="Tilt: hold the melody hand upright for the chord's tones, tilt it for the pentatonic, tilt it further for the whole scale (the video's right hand).">
+          Melody notes
+          <select className={selectCls} value={melodyNotes} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.melodyNotes', e.target.value)}>
+            {MELODY_NOTES.map((m) => (
+              <option key={m} value={m}>
+                {MELODY_NOTES_LABEL[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {play === 'hold' && melody && (
         <Range label={`Melody volume (${Math.round(melodyVolume * 100)}%)`} path="chordMap.melodyVolume" value={melodyVolume} min={0} max={1} step={0.05} enabled={enabled} />
       )}
+      <label className="flex items-center gap-2 text-xs" title="The key's seventh chords: Cmaj7, Dm7, G7, Bø7. Neighbours a third apart then share three notes.">
+        <input type="checkbox" checked={sevenths} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.sevenths', e.target.checked)} />
+        Seventh chords
+      </label>
       {play === 'strum' && <Range label={`Strum volume (${Math.round(volume * 100)}%)`} path="chordMap.volume" value={volume} min={0} max={1} step={0.05} enabled={enabled} />}
     </div>
   );

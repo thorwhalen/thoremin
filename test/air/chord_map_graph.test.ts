@@ -90,7 +90,7 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     const last = merged[merged.length - 1];
     // The chord map's own voices (the theremin hands also sound here: this run does not silence them).
     const mine = last.voices.filter((v) => v.id >= CHORD_MAP_VOICE_ID_BASE && v.id < CHORD_MAP_MELODY_VOICE_ID);
-    expect(mine).toHaveLength(4);
+    expect(mine).toHaveLength(5); // a seventh chord's open voicing is five notes
     const pcs = new Set(mine.filter((v) => v.present && v.gain > 0).map((v) => ((Math.round(freqToMidi(v.freq)) % 12) + 12) % 12));
     expect([...pcs].sort((a, b) => a - b)).toEqual([0, 4, 7]);
   });
