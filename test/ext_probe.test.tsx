@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
+import { PROBE_HUSH_ID, PROBE_HUSH_REASON, PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -126,6 +126,23 @@ describe('the probe reaches every pure contribution point', () => {
     const registry = app.registry.createAppRegistry();
     expect(app.graph.resolveSlot('body', { body: PROBE_BODY_TYPE }, registry, () => {})).toBe(PROBE_BODY_TYPE);
     expect(app.graph.resolveSlot('body', undefined, registry, () => {})).toBe(app.graph.SLOTS.body.default);
+  });
+
+  it('hushes (#600 S18a): a probe model with no gain hushes the instrument\'s voices, the player\'s mute left alone', () => {
+    expect(app.contributions.CONTRIBUTIONS.hushes.map((h) => h.id)).toContain(PROBE_HUSH_ID);
+    const hushes = app.contributions.CONTRIBUTIONS.hushes;
+    expect(app.storeControls.hushOf({ probeModel: { gain: 0 } } as never, hushes)).toEqual({ hushVoices: true, muteAll: false, muteStrikes: true, claimed: false });
+    expect(app.storeControls.hushOf({ probeModel: { gain: 0.5 } } as never, hushes).hushVoices).toBe(false);
+    expect(hushes.find((h) => h.id === PROBE_HUSH_ID)?.reason).toBe(PROBE_HUSH_REASON);
+  });
+
+  it('readsTwoHands (#600 S18a): the probe past 1 kHz makes the hand model look for two hands', async () => {
+    const { liveHandCount } = await import('@/app/liveApply');
+    // An instrument that reads no hand (its hand voices off): one hand, until the probe says two.
+    const state = app.store.useControls.getState();
+    const base = { ...state, handMap: { ...state.handMap, maxGain: 0 } };
+    expect(liveHandCount({ ...base, probe: { enabled: false, freq: 440 } } as never, new Set(), null)).toBe(1);
+    expect(liveHandCount({ ...base, probe: { enabled: false, freq: 1500 } } as never, new Set(), null)).toBe(2);
   });
 
   it('demands (#600 S17): a claim on a group the probe\'s branch declares composes it, and the probe\'s derive is told', () => {

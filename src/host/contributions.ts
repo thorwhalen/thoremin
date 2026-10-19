@@ -21,7 +21,7 @@
  * settings schema (`src/settings`) read it, and those are Node-safe core that never imports the
  * app shell (`test/layering.test.ts`).
  */
-import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type CommandDecl, type DialSlice, type InstrumentClass, type PrefSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
+import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type CommandDecl, type DialSlice, type HushDecl, type InstrumentClass, type PrefSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { CORE_CLASSES, registerInstrumentClasses } from '@/instruments/classes';
@@ -108,6 +108,10 @@ export interface Contributions {
   /** Candidates for the shell's slots (#600 S17), per slot: the types, and the default when one
    *  extension provides it. */
   slotCandidates: Readonly<Record<string, { types: readonly string[]; default?: string }>>;
+  /** What hushes the instrument's own voices (#600 S18a), each owned by its extension. */
+  hushes: readonly HushDecl[];
+  /** Who may make a one-hand branch read two hands (#600 S18a). */
+  readsTwoHands: readonly ((settings: Readonly<Record<string, unknown>>) => boolean)[];
 }
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
@@ -266,6 +270,8 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     storageKeys: [...CORE_STORAGE_KEYS, ...extensionStorageKeys(extensions)],
     modalities: keyed('carve modality', extensions, (e) => e.modalities ?? [], (m) => m.id, new Map(SDK_MODALITY_IDS.map((id) => [id, 'core']))),
     slotCandidates: slotCandidatesOf(extensions),
+    hushes: keyed('hush', extensions, (e) => e.hushes ?? [], (h) => h.id),
+    readsTwoHands: extensions.flatMap((e) => (e.readsTwoHands ? [e.readsTwoHands] : [])),
     ...libraryFold(extensions),
   };
 }

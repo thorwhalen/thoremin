@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { DialSlice, Extension } from '@thoremin/sdk/instruments/extension';
+import type { DialSlice, Extension, HushDecl } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import type { SoundId } from '@thoremin/sdk/music/sounds';
@@ -120,9 +120,13 @@ const Params = z.object({});
  * The player's `muted` itself is only read, never written, so a player who muted on
  * purpose stays muted when a hush lifts.
  */
-export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>): { hushVoices: boolean; muteAll: boolean; muteStrikes: boolean; claimed: boolean } {
+export function hushOf(
+  c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'muted'>,
+  hushes: readonly HushDecl[] = [],
+): { hushVoices: boolean; muteAll: boolean; muteStrikes: boolean; claimed: boolean } {
   const claimed = (c.hushedBy?.length ?? 0) > 0;
-  const conducting = c.conductor?.enabled === true;
+  // The conductor's score is the music while it runs; an extension says the same of its own (#600 S18a).
+  const conducting = c.conductor?.enabled === true || hushes.some((h) => h.while(c as Readonly<Record<string, unknown>>));
   const muteAll = claimed || c.muted === true;
   return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
@@ -217,6 +221,8 @@ function defineStoreControls(extensions: readonly Extension[]) {
   ],
   params: Params,
   make() {
+    // What hushes the instrument's own voices besides core's rules (#600 S18a).
+    const hushes = extensions.flatMap((e) => e.hushes ?? []);
     return {
       process(_inputs, ctx: NodeContext) {
         const getter = ctx.resources.controls as (() => ControlSnapshot) | undefined;
@@ -242,7 +248,7 @@ function defineStoreControls(extensions: readonly Extension[]) {
           octaves: c.right.octaves,
           baseOctave: c.right.baseOctave,
         };
-        const hush = hushOf(c);
+        const hush = hushOf(c, hushes);
         const out: Record<string, unknown> = {
           scaleRight: generateScale(c.right),
           scaleLeft: generateScale(c.left),

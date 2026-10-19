@@ -25,6 +25,8 @@ describe('foldContributions', () => {
     expect(c.nodeTypes).toEqual(['probe-tone', 'probe-body', 'probe-lazy-tone']);
     expect(c.branches.map((b) => b.id)).toEqual(['probe-branch', 'probe-sense', 'probe-trunk', 'probe-lazy-branch']);
     expect(c.slotCandidates).toEqual({ body: { types: ['probe-body'] } });
+    expect(c.hushes.map((h) => h.id)).toEqual(['probe-hush']);
+    expect(c.readsTwoHands).toHaveLength(1);
     expect(c.trunkBranches).toEqual(['probe-trunk']);
     expect(c.transientFields).toEqual(['probeModel']);
     expect(c.instruments.map((i) => i.name)).toEqual(['Probe Instrument']);

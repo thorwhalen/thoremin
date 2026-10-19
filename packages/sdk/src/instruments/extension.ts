@@ -162,6 +162,16 @@ export function dialSlice<const K extends string, S extends z.ZodTypeAny>(slice:
  *  knows their types: they are its dial slices). */
 export type ExtensionDerivationSettings = Readonly<Record<string, unknown>>;
 
+/** A reason the instrument's own voices go quiet (#600 S18a): while `while` holds, the hand voices
+ *  and the strikes are hushed (the player's mute and `muted` are left alone), and the shell's quiet
+ *  badge says `reason` ("while conducting"). The conductor's score is the music while it runs. */
+export interface HushDecl {
+  id: string;
+  /** How the shell's badge ends "Instrument quiet ...": `while conducting`. */
+  reason: string;
+  while: (state: ExtensionDerivationSettings) => boolean;
+}
+
 /** An extension's candidates for one of the shell's slots (#600 S17). */
 export interface SlotCandidates {
   /** The shell's slot name (`body`). */
@@ -398,6 +408,11 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   classes?: readonly InstrumentClass[];
   /** Its rows of the instrument catalog (#600 S8), in display order. */
   catalog?: readonly CatalogEntry[];
+  /** When it hushes the instrument's own voices (#600 S18a), and why. */
+  hushes?: readonly HushDecl[];
+  /** Whether, with these settings, a branch of its that declares one hand reads two at once
+   *  (#600 S18a; the conductor's split with the hands alone): the hand model then looks for two. */
+  readsTwoHands?: (settings: ExtensionDerivationSettings) => boolean;
   /** Candidates for the shell's slots (#600 S17): node types of its own that can fill a slot the
    *  shell declares (`body`, `source`, ...), and, for at most one extension per slot, the
    *  slot's default. The shell keeps the slot and its contract; a URL picks a candidate

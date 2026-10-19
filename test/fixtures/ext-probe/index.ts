@@ -136,6 +136,9 @@ export const PROBE_SENSE_BRANCH = defineBranch({
   edges: [],
   demands: [PROBE_SENSE_GROUP],
 });
+/** The probe's hush (#600 S18a): its id and the badge's reason. */
+export const PROBE_HUSH_ID = 'probe-hush';
+export const PROBE_HUSH_REASON = 'while the probe listens';
 /** What the probe's `derive` was last told is implied (a test reads it). */
 export const probeDeriveSaw: { implied: string[] } = { implied: [] };
 
@@ -175,6 +178,10 @@ export const PROBE_EXTENSION = defineExtension({
   branches: [PROBE_BRANCH, PROBE_SENSE_BRANCH, PROBE_TRUNK_BRANCH],
   trunk: [PROBE_TRUNK_BRANCH_ID],
   slotCandidates: [{ slot: 'body', types: [PROBE_BODY_TYPE] }],
+  // It hushes the instrument's own voices while a probe model with no gain is in hand, and reads
+  // two hands while its frequency is past 1 kHz (#600 S18a): two test-only switches.
+  hushes: [{ id: PROBE_HUSH_ID, reason: PROBE_HUSH_REASON, while: (s) => (s.probeModel as ProbeModel | null | undefined)?.gain === 0 }],
+  readsTwoHands: (s) => ((s.probe as Partial<ProbeDial> | undefined)?.freq ?? 0) > 1000,
   dials: [
     dialSlice({
       key: 'probe',
