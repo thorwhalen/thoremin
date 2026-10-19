@@ -43,13 +43,20 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
   version?: number;
   /** `[n]` takes a version-n stored value to version n + 1 (a NEW value; never edit the old).
    *  The host runs the chain on rehydrate, before healing, from the stored version to
-   *  {@link version}. A value an older blob lacks is not migrated (the heal fills it). */
-  migrations?: Readonly<Record<number, (old: unknown) => unknown>>;
+   *  {@link version}. A value an older blob lacks is not migrated (the heal fills it). `stored`
+   *  is the whole stored object it came from (the hot store's blob, or a saved instrument's
+   *  layer), read-only, for a step that moves a value in from another dial. A step must be
+   *  IDEMPOTENT (leave what is already there): a saved instrument records no slice version, so
+   *  the host runs the chain on one whose dial lacks a current field, which may be newer. */
+  migrations?: Readonly<Record<number, SliceMigration>>;
   /** Settings paths this slice ADOPTS on read when its own key is absent (an expand step that
    *  moves a value out of another dial: `'overlay.drumPads'`). The first present one is the
    *  slice's stored value, at version 1; its migrations then reshape it. */
   legacyKeys?: readonly string[];
 }
+
+/** One step of a slice's migration chain (see {@link DialSlice.migrations}). */
+export type SliceMigration = (old: unknown, stored: Readonly<Record<string, unknown>>) => unknown;
 
 /**
  * A per-DEVICE preference an extension keeps in the hot store (#600 S9): persisted with the
@@ -62,7 +69,7 @@ export interface PrefSlice<K extends string = string, S extends z.ZodTypeAny = z
   /** Its schema, with a `.default(...)`: the default is the pref's value on a first load. */
   schema: S;
   version?: number;
-  migrations?: Readonly<Record<number, (old: unknown) => unknown>>;
+  migrations?: Readonly<Record<number, SliceMigration>>;
 }
 
 /** A {@link DialSlice} with its key kept literal (`'airDrum'`, not `string`). */
@@ -142,6 +149,10 @@ export interface OverlayElementDecl {
   cue?: boolean;
   /** The element's inputs; a branch wires each to its generated overlay port. */
   inputs: readonly { name: string; kind: string }[];
+  /** Draw just beneath this core element (its z-order and, for a cue, its place in the edge's
+   *  stack), instead of above every core in-scene element or at the end of the cues: an element
+   *  moved out of core keeps the place it had. */
+  drawBefore?: string;
   /** The extension dial slice that holds the element's options (its show flag among them): it
    *  arrives as the input `config`. The host wires it whenever the element is composed (no branch
    *  writes that edge, and one that feeds the `config` port is refused). `config` is therefore a
@@ -149,10 +160,12 @@ export interface OverlayElementDecl {
   config?: { dialKey: string };
 }
 
-/** What an extension's overlay element sees of the frame: its size, and a cue's origin. */
+/** What an extension's overlay element sees of the frame: its size, the engine time, and a cue's origin. */
 export interface OverlayFrame {
   W: number;
   H: number;
+  /** The engine time of this frame (seconds): for an element that animates (a hit's flash). */
+  t: number;
   /** A cue's top-left corner, from the shared cue layout; absent for an in-scene element. */
   origin?: { x: number; y: number };
   /** True while drawing the overlay-only take (a transparent canvas recorded without the video):
@@ -168,7 +181,9 @@ export interface OverlayFrame {
 export interface OverlayElementImpl {
   /** Matches an {@link OverlayElementDecl.name} of the same extension. */
   name: string;
-  draw(g: CanvasRenderingContext2D, frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): void;
+  /** `memo` is this element's own state in this overlay (kept between frames, one per overlay
+   *  instance), for a drawing that remembers something (when each pad was last struck). */
+  draw(g: CanvasRenderingContext2D, frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>, memo: Record<string, unknown>): void;
   /** A cue's box, or null while it has nothing to show. */
   measure?(frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): { w: number; h: number } | null;
   /** A cue's edge (default `right`). */

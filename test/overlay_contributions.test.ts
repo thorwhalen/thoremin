@@ -50,7 +50,7 @@ describe('a contributed overlay element', () => {
       },
     };
     const rc = tick(makeCanvasOverlayNode([contributed(impl)]), { 'ext.bar.level': 0.5, chord: [60, 64, 67] });
-    expect(seen).toEqual([{ frame: { W: 1280, H: 720, origin: undefined, overlayOnly: false }, inputs: { level: 0.5 } }]);
+    expect(seen).toEqual([{ frame: { W: 1280, H: 720, t: 0, origin: undefined, overlayOnly: false }, inputs: { level: 0.5 } }]);
     expect(rc.calls.filter((c) => c.m === 'fillRect').map((c) => c.args)).toContainEqual([0, 0, 5, 1]);
   });
 
@@ -132,6 +132,19 @@ describe('a contributed overlay element', () => {
     } finally {
       error.mockRestore();
     }
+  });
+
+  it('an element\'s memo belongs to one overlay instance: two instances from one node do not share it', () => {
+    const seen: unknown[] = [];
+    const impl: OverlayElementImpl = { name: 'bar', draw: (_g, _f, _i, memo) => { memo.n = ((memo.n as number) ?? 0) + 1; seen.push(memo.n); } };
+    const node = makeCanvasOverlayNode([contributed(impl)]);
+    const a = node.make(node.params.parse({}));
+    const b = node.make(node.params.parse({}));
+    const rc = makeRecordingCanvas();
+    a.process({ octaveShift: 0 }, ctx(rc));
+    a.process({ octaveShift: 0 }, ctx(rc));
+    b.process({ octaveShift: 0 }, ctx(rc));
+    expect(seen).toEqual([1, 2, 1]);
   });
 
   it('knows the overlay-only (alpha) pass: the frame says so there and only there', () => {

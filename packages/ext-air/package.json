@@ -51,6 +51,8 @@
     "./nodes/chord_wheel": "./src/nodes/chord_wheel.ts",
     "./nodes/drum_out": "./src/nodes/drum_out.ts",
     "./nodes/note_events": "./src/nodes/note_events.ts",
+    "./nodes/overlay/breath_cue": "./src/nodes/overlay/breath_cue.ts",
+    "./nodes/overlay/drum_pads": "./src/nodes/overlay/drum_pads.ts",
     "./nodes/pluck_out": "./src/nodes/pluck_out.ts",
     "./panels/airBass": "./src/panels/airBass.tsx",
     "./panels/airDrum": "./src/panels/airDrum.tsx",

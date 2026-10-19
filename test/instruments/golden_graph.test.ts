@@ -34,8 +34,13 @@ const LEGACY_MERGE_PORT: Record<string, string> = { a: 'voice1', b: 'voice2', c:
 
 const nodeKey = (n: NodeSpec): string => JSON.stringify([n.id, n.type, n.params ?? {}]);
 
+/** The overlay ports that moved with their elements into the air extension (#600 S10): the drum
+ *  pads' config and hits, the flute's status for its breath cue. Each maps to exactly one new
+ *  port, and the comparison is exact after that mapping, as for the merge's letters. */
+const LEGACY_OVERLAY_PORT: Record<string, string> = { airDrumConfig: 'air.drumPads.config', drumHits: 'air.drumPads.hits', airFluteStatus: 'air.mouthCue.status' };
+
 function edgeKey(e: EdgeSpec): string {
-  const port = e.to.node === 'merge' ? (LEGACY_MERGE_PORT[e.to.port] ?? e.to.port) : e.to.port;
+  const port = e.to.node === 'merge' ? (LEGACY_MERGE_PORT[e.to.port] ?? e.to.port) : e.to.node === 'overlay' ? (LEGACY_OVERLAY_PORT[e.to.port] ?? e.to.port) : e.to.port;
   return `${e.from.node}.${e.from.port} -> ${e.to.node}.${port}${e.delayed ? ' (delayed)' : ''}`;
 }
 
@@ -103,6 +108,10 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'camBody', port: 'body' }, to: { node: 'conductor', port: 'body' } },
   // #380: a dancer leads the score: the dancer's pulse reaches the conductor.
   { from: { node: 'bodyPulse', port: 'pulse' }, to: { node: 'conductor', port: 'pulse' } },
+  // #600 S10: the drum pads draw their sticks from their own hands input (core's element read the
+  // overlay's), and the breath cue's options arrive from the flute's dial (they were core's).
+  { from: { node: 'cam', port: 'hands' }, to: { node: 'overlay', port: 'air.drumPads.hands' } },
+  { from: { node: 'ui', port: 'airFlute' }, to: { node: 'overlay', port: 'air.mouthCue.config' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */

@@ -25,8 +25,10 @@ describe.runIf(AIR)('drum pads in the default graph', () => {
   it('wires the dial and the hits to the overlay, and the hits to the scheduler (the #245 guard)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) => edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
-    expect(has('ui', 'airDrum', 'overlay', 'airDrumConfig')).toBe(true);
-    expect(has('airDrum', 'hits', 'overlay', 'drumHits')).toBe(true);
+    // The pads are the air extension's overlay element since #600 S10: its ports are
+    // `air.drumPads.*` (the config the host delivers from the `airDrum` dial).
+    expect(has('ui', 'airDrum', 'overlay', 'air.drumPads.config')).toBe(true);
+    expect(has('airDrum', 'hits', 'overlay', 'air.drumPads.hits')).toBe(true);
     expect(has('airDrum', 'hits', 'drumOut', 'hits')).toBe(true);
     expect(has('ui', 'airDrum', 'airDrum', 'config')).toBe(true);
   });

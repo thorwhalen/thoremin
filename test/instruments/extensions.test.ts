@@ -22,12 +22,12 @@ import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
 import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@thoremin/sdk/instruments/extension';
-import type { BreathStatus } from '@/nodes/output/canvas_overlay';
+import type { BreathStatus } from '@thoremin/ext-air/nodes/overlay/breath_cue';
 import { IDLE_AIR_FLUTE_STATUS } from '@thoremin/ext-air/nodes/air_flute';
 import { AIR, ASL, FACES } from '../helpers/extensions';
 
-// The overlay reads the flute's status through a structural slice (it names no extension);
-// this pins, at typecheck time, that the flute's status still has those fields.
+// The breath cue (the air extension's overlay cue since #600 S10) reads the flute's status
+// through a structural slice; this pins, at typecheck time, that the status still has those fields.
 const _breath: BreathStatus = IDLE_AIR_FLUTE_STATUS;
 void _breath;
 

@@ -78,7 +78,7 @@ describe.runIf(AIR)('an instrument switch keeps the trunk and never stops the ti
     expect(engine.evaluationOrder()).toContain('airDrum');
 
     // The drum's overlay elements come with its branch; the field guides do not.
-    expect(to.elements).toContain('drumPads');
+    expect(to.elements).toContain('air/drumPads'); // the air extension's element since #600 S10
     expect(to.elements).not.toContain('scaleGuide');
     engine.dispose();
   });
@@ -90,7 +90,7 @@ describe.runIf(AIR)('an instrument switch keeps the trunk and never stops the ti
     const fluteIds = branchIdsFor(settingsFromLayer(flute.layer), { demanded: new Set(['face.geom.mouth']) });
     const from = composeInstrumentGraph(fluteIds, SLOTS, registry);
     const to = graphOf('Glass Bells', registry);
-    expect(from.elements).toContain('mouthCue');
+    expect(from.elements).toContain('air/mouthCue'); // the air extension's cue since #600 S10
     expect(from.elements).not.toContain('faceExpression');
     expect(from.elements).not.toContain('faceLandmarks'); // a face borrowed for a breath draws no mesh
     expect(to.elements).toContain('faceExpression');

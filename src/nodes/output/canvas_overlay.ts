@@ -45,6 +45,7 @@ import {
 } from '@thoremin/sdk/music/theory';
 import { categorizerReading, personalDegree, readingName, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@thoremin/sdk/features/math';
+import { BAR_GAP, BAR_W, PAD, drawBarGraph, measureBarGraph, type BarGraphOpts, type BarSpec } from '@thoremin/sdk/overlay/bar_graph';
 import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
 import { pairIndex } from '@/features/labCorrelation';
 import {
@@ -56,8 +57,6 @@ import {
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
-import { PAD_IDS, anyPadOn, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
-import { gripFulcrum, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { isDiatonicMove, parseTarget, targetText } from '@thoremin/sdk/harmony/target';
 import { cellGridOf, drawCellGrid } from '@thoremin/sdk/nodes/cell_grid_draw';
@@ -90,18 +89,6 @@ const BODY_COLOR = '#7dd3fc';
 const CONDUCTOR_COLOR = '#34d399';
 const CHORD_COLOR = '#f5d142'; // warm gold
 
-/**
- * What the breath cue reads from a wind instrument's status (the air flute's today). A
- * structural slice, so the overlay names no extension: any status with these fields draws.
- */
-export interface BreathStatus {
-  enabled: boolean;
-  breath: string;
-  face: boolean;
-  mouthReady: boolean;
-  sounding: boolean;
-}
-
 /** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {
   W: number;
@@ -130,13 +117,6 @@ export interface OverlayView {
     /** The conductor's musical time (#187) and whether conducting is on, for the HUD. */
     conductorTime?: MusicalTime;
     conductorEnabled?: boolean;
-    /** The air drum's pads (#245), when the drum is on; and how recently each was hit,
-     *  0..1 (1 = just now), for the flash. */
-    drumPads?: Pads | null;
-    /** The virtual sticks' length (grip lengths) when the air drum is on and tracks the
-     *  stick tip; null otherwise. */
-    drumStickLength?: number | null;
-    padFlash?: Partial<Record<PadId, number>>;
     /** Labelled on-screen targets a hand points at (the chord map's), or null. */
     cellGrid?: CellGrid | null;
     expression?: ExpressionScores;
@@ -156,8 +136,6 @@ export interface OverlayView {
     /** Trainer guidance (#163): null unless a routine is running. Read in `process`
      *  from `ctx.resources.trainerHud`. */
     trainerHud?: TrainerHudSnapshot | null;
-    /** The air flute's live status (#249), for its breath cue. */
-    airFluteStatus?: BreathStatus;
     /** A classifier's reading (the ASL sign reader), for the category cues. */
     categories?: CategoryScores | null;
     /** Second bar labels aligned with `categories.labels` ('' for none): the chord a sign plays. */
@@ -166,6 +144,8 @@ export interface OverlayView {
   params: Params;
   /** Computed top-left origin per cue element name (set by the layout pass). */
   layout: Record<string, { x: number; y: number }>;
+  /** The engine time of this frame (seconds). */
+  t: number;
   /**
    * The elements the composed graph's branches asked for (the ADR, §3.2 rule 4), or
    * undefined for "every element" (no host, or a pre-composition frame). Each element's
@@ -174,6 +154,8 @@ export interface OverlayView {
   elements?: readonly OverlayElement[];
   /** True on the overlay-only (alpha) pass (#88), so a contributed element can leave a backdrop out. */
   overlayOnly?: boolean;
+  /** The contributed elements' state in this overlay instance (#600 S10), by element id. */
+  elementState?: Record<string, { memo: Record<string, unknown>; broken: boolean }>;
   /** Each contributed element's inputs this tick, by element id (#600 S5): what its impl sees. */
   contributed?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
@@ -640,100 +622,7 @@ const timbreLevels: OverlayElement = {
   },
 };
 
-// ---- Bar-graph HUD cue helper ----------------------------------------------------
-
-interface BarSpec {
-  value: number; // 0..1
-  threshold?: number; // 0..1, drawn as a white tick
-  color: string;
-  highlight?: boolean; // winner → gold
-  /** Bright (fired) vs dim; defaults to value-cleared-its-threshold. */
-  fired?: boolean;
-  /** Up-to-two vertical x-axis labels (drawn rotated), e.g. expression / chord. */
-  labels?: string[];
-}
-interface BarGraphOpts {
-  title?: string; // optional top label
-  barW?: number;
-  gap?: number;
-  maxH?: number;
-  labelColor?: string;
-}
-const BAR_W = 14;
-const BAR_GAP = 6;
-const BAR_MAXH = 34;
-const PAD = 8;
-const LABEL_LINE_H = 44; // vertical label column height per label line
-
-/** Box size of a bar graph (only the bar count + label lines matter for sizing). */
-function measureBarGraph(bars: { labels?: string[] }[], opts: BarGraphOpts): { w: number; h: number } {
-  const barW = opts.barW ?? BAR_W;
-  const gap = opts.gap ?? BAR_GAP;
-  const maxH = opts.maxH ?? BAR_MAXH;
-  const n = bars.length;
-  const barsW = n * (barW + gap) - gap + PAD * 2;
-  // A short title (bold 14px monospace ≈ 8.4px/char) can be wider than a 1-bar box;
-  // take the max so horizontally-stacked (top/bottom) cues don't overlap.
-  const titleW = opts.title ? opts.title.length * 8.4 + PAD * 2 : 0;
-  const w = Math.max(barsW, titleW);
-  const labelLines = Math.max(0, ...bars.map((b) => b.labels?.filter(Boolean).length ?? 0));
-  const h = (opts.title ? 18 : 0) + maxH + 6 + labelLines * LABEL_LINE_H + PAD;
-  return { w, h };
-}
-
-/** Draw a bar graph with its top-left at (x0, y0). */
-function drawBarGraph(g: CanvasRenderingContext2D, x0: number, y0: number, bars: BarSpec[], opts: BarGraphOpts): void {
-  const barW = opts.barW ?? BAR_W;
-  const gap = opts.gap ?? BAR_GAP;
-  const maxH = opts.maxH ?? BAR_MAXH;
-  const labelColor = opts.labelColor ?? FACE_COLOR;
-  g.save();
-  let topY = y0 + PAD;
-  if (opts.title) {
-    g.globalAlpha = 1;
-    g.fillStyle = labelColor;
-    g.font = 'bold 14px monospace';
-    g.textAlign = 'left';
-    g.fillText(opts.title, x0 + PAD, topY + 12);
-    topY += 18;
-  }
-  const baseY = topY + maxH;
-  bars.forEach((b, i) => {
-    const cx = x0 + PAD + i * (barW + gap) + barW / 2;
-    const bright = b.fired ?? b.value >= (b.threshold ?? 0.001);
-    g.globalAlpha = bright ? 0.9 : 0.4;
-    g.strokeStyle = b.highlight ? CHORD_COLOR : b.color;
-    g.lineWidth = barW;
-    g.beginPath();
-    g.moveTo(cx, baseY);
-    g.lineTo(cx, baseY - (2 + clamp01(b.value) * maxH));
-    g.stroke();
-    if (b.threshold !== undefined) {
-      const ty = baseY - (2 + clamp01(b.threshold) * maxH);
-      g.globalAlpha = 0.85;
-      g.strokeStyle = '#ffffff';
-      g.lineWidth = 2;
-      g.beginPath();
-      g.moveTo(cx - barW / 2, ty);
-      g.lineTo(cx + barW / 2, ty);
-      g.stroke();
-    }
-    // Vertical x-axis labels (rotated 90°), one line per label.
-    const labels = b.labels?.filter(Boolean) ?? [];
-    labels.forEach((text, li) => {
-      g.save();
-      g.globalAlpha = b.highlight ? 1 : 0.75;
-      g.fillStyle = b.highlight ? CHORD_COLOR : labelColor;
-      g.font = '10px monospace';
-      g.textAlign = 'left';
-      g.translate(cx + 3, baseY + 6 + li * LABEL_LINE_H);
-      g.rotate(Math.PI / 2);
-      g.fillText(text, 0, 0);
-      g.restore();
-    });
-  });
-  g.restore();
-}
+// ---- Bar-graph HUD cue helper: `@thoremin/sdk/overlay/bar_graph` (shared with extensions' cues).
 
 /**
  * Diatonic triad tones for a scale degree, by stacking thirds WITHIN the scale's own
@@ -757,31 +646,6 @@ function triadForDegree(scale: number[] | undefined, degree: number): number[] {
  * dim while resting, with a hint until the mouth is enrolled. This is what the flute needs
  * from the face; the mesh and the expression bars are not (§2.2 of the ADR).
  */
-const mouthCue: OverlayElement = {
-  name: 'mouthCue',
-  category: 'output',
-  cue: true,
-  positionOf: (view) => view.params.mouthCue.position,
-  measure(view) {
-    const st = view.inputs.airFluteStatus;
-    if (!view.params.mouthCue.show || !st?.enabled || st.breath !== 'mouth') return null;
-    return measureBarGraph([{ labels: ['breath'] }], { title: 'flute' });
-  },
-  draw(g, view) {
-    const st = view.inputs.airFluteStatus;
-    const origin = view.layout['mouthCue'];
-    if (!st?.enabled || st.breath !== 'mouth' || !origin) return;
-    const bar: BarSpec = {
-      value: st.sounding ? 1 : st.face ? 0.15 : 0,
-      color: FACE_COLOR,
-      highlight: st.sounding,
-      fired: st.sounding,
-      labels: [st.mouthReady ? 'breath' : 'enrol mouth'],
-    };
-    drawBarGraph(g, origin.x, origin.y, [bar], { title: 'flute' });
-  },
-};
-
 const faceExpressionCue: OverlayElement = {
   name: 'faceExpression',
   category: 'output',
@@ -1239,88 +1103,6 @@ const keyboardStripElement: OverlayElement = {
 };
 
 // ---- Air drum pads (#245) ---------------------------------------------------
-
-/** How long a struck pad flashes, seconds. */
-const PAD_FLASH_SECONDS = 0.25;
-
-/** The pads to draw: the air drum's, while it is on with at least one pad. */
-function drumPadsOf(raw: unknown): Pads | null {
-  const c = raw as { enabled?: boolean; pads?: Pads } | undefined;
-  return c?.enabled && c.pads && anyPadOn(c.pads) ? c.pads : null;
-}
-
-/** The virtual sticks' length while the air drum is on and tracks the stick tip. */
-function drumStickLengthOf(raw: unknown): number | null {
-  const c = raw as { enabled?: boolean; point?: string; stickLength?: number } | undefined;
-  return c?.enabled && c.point === 'stickTip' && typeof c.stickLength === 'number' ? c.stickLength : null;
-}
-
-/** The colour of the virtual sticks. */
-const DRUM_STICK_COLOR = '#f5deb3';
-
-/**
- * The air drum's pads over the video: each in its colour where the player strikes it
- * (pad coordinates are fractions of the DISPLAYED, mirrored frame, which is this
- * canvas), labelled with its drum, brightening when it is hit.
- */
-const drumPads: OverlayElement = {
-  name: 'drumPads',
-  category: 'guide',
-  draw(g, { W, H, inputs, params }) {
-    if (!params.drumPads.show) return;
-    g.save();
-    // The virtual sticks: the point the air drum tracks, drawn from the grip's fulcrum to
-    // the estimated tip (mirrored like every in-scene element), so the pads are aimed
-    // with what actually strikes them.
-    const stickLength = inputs.drumStickLength;
-    const frame = inputs.hands;
-    if (stickLength != null && frame && frame.width > 0) {
-      g.globalAlpha = 0.9;
-      g.strokeStyle = DRUM_STICK_COLOR;
-      g.lineWidth = 4;
-      for (const hand of frame.hands) {
-        if (hand.keypoints.length < 21) continue;
-        const f = gripFulcrum(hand.keypoints);
-        const tip = stickTip(hand.keypoints, stickLength);
-        g.beginPath();
-        g.moveTo(mirrorX(f.x, frame.width, W), (f.y / frame.height) * H);
-        g.lineTo(mirrorX(tip.x, frame.width, W), (tip.y / frame.height) * H);
-        g.stroke();
-      }
-    }
-    const pads = inputs.drumPads;
-    if (!pads) {
-      g.restore();
-      return;
-    }
-    for (const id of PAD_IDS) {
-      const p = pads[id];
-      if (!p.on) continue;
-      const flash = inputs.padFlash?.[id] ?? 0;
-      const cx = p.x * W;
-      const cy = p.y * H;
-      const rw = (p.w * W) / 2;
-      const rh = (p.h * H) / 2;
-      g.beginPath();
-      if (p.shape === 'circle') g.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
-      else g.rect(cx - rw, cy - rh, 2 * rw, 2 * rh);
-      g.globalAlpha = 0.15 + 0.45 * flash;
-      g.fillStyle = p.color;
-      g.fill();
-      g.globalAlpha = 0.8;
-      g.lineWidth = 2 + 3 * flash;
-      g.strokeStyle = p.color;
-      g.stroke();
-      g.globalAlpha = 0.85;
-      g.fillStyle = '#ffffff';
-      g.font = '12px monospace';
-      g.textAlign = 'center';
-      g.fillText(p.sound, cx, cy + 4);
-    }
-    g.textAlign = 'left';
-    g.restore();
-  },
-};
 
 /** A node's on-screen targets (the chord map's): drawn by `./cell_grid_draw.ts`. */
 const cellGridElement: OverlayElement = {
@@ -1837,7 +1619,6 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   landmarkDots,
   // The conductor's beat HUD (#187): an in-scene output element above the markers.
   conductorHud,
-  drumPads,
   cellGridElement,
   controlMarkers,
   fingerLinesElement,
@@ -1850,7 +1631,6 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // HUD cues last (on top). chordName sits before the others so `fingerBars`
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,
-  mouthCue,
   faceExpressionCue,
   categoryLabelCue,
   categoryBarsCue,
@@ -1929,9 +1709,12 @@ function layoutCues(view: OverlayView): Record<string, { x: number; y: number }>
   return layout;
 }
 
+/** Each contributed element's `drawBefore`, by element id. */
+const drawBeforeOf = (contributed: readonly ContributedElement[]) => Object.fromEntries(contributed.map((c) => [c.id, c.decl.drawBefore]));
+
 /** The draw (z) order of the core elements with `contributed` in place, by element name. */
 export function overlayElementOrder(contributed: readonly ContributedElement[]): string[] {
-  return withContributed<OverlayElement>(OVERLAY_ELEMENTS, contributed.map((c) => adaptContributed<OverlayView>(c))).map((e) => e.name);
+  return withContributed<OverlayElement>(OVERLAY_ELEMENTS, contributed.map((c) => adaptContributed<OverlayView>(c)), drawBeforeOf(contributed)).map((e) => e.name);
 }
 
 
@@ -1941,8 +1724,13 @@ export function overlayElementOrder(contributed: readonly ContributedElement[]):
  * (`src/nodes/browser.ts`), like `store-controls`' ports. With none it is the core overlay.
  */
 export function makeCanvasOverlayNode(contributed: readonly ContributedElement[] = []) {
+  // A `drawBefore` naming no core element would silently fall back to the default slot.
+  for (const c of contributed) {
+    const target = c.decl.drawBefore;
+    if (target !== undefined && !OVERLAY_ELEMENTS.some((e) => e.name === target)) throw new Error(`overlay element "${c.id}" draws before "${target}", which is not a core overlay element`);
+  }
   const adapted = contributed.map((c) => adaptContributed<OverlayView>(c));
-  const ALL_ELEMENTS = withContributed<OverlayElement>(OVERLAY_ELEMENTS, adapted);
+  const ALL_ELEMENTS = withContributed<OverlayElement>(OVERLAY_ELEMENTS, adapted, drawBeforeOf(contributed));
   const ALL_NAMES: ReadonlySet<string> = new Set(ALL_ELEMENTS.map((e) => e.name));
   const contributedPorts = contributed.flatMap((c) => Object.entries(c.ports).map(([input, port]) => ({ name: port, kind: c.kinds[input] })));
   return defineNode<Params>({
@@ -1950,31 +1738,16 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
     roles: ['overlay'],
     title: 'Canvas Overlay',
     description: 'Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.',
-    // The air drum's config and hits (the pads) and the air flute's status (the breath cue):
-    // extension ports still in core until S10 of #600 moves those two elements out.
-    inputs: [...OVERLAY_CORE_INPUTS, { name: 'airDrumConfig', kind: 'air-drum-config' }, { name: 'drumHits', kind: 'drum-hits' }, { name: 'airFluteStatus', kind: 'air-flute-status' }, ...contributedPorts],
+    inputs: [...OVERLAY_CORE_INPUTS, ...contributedPorts],
     outputs: [],
     params: OverlayParamsSchema,
     make(p) {
       // The Feature Lab's statistics (#119) are a stateful online computation, not a
       // drawing concern: one opaque handle owns the normalizer + the derived formulas
       // (see @/features/labMeters), so this node stays a pure RENDERER.
+      // The contributed elements' state belongs to THIS overlay instance (#600 S10).
+      const elementState: Record<string, { memo: Record<string, unknown>; broken: boolean }> = {};
       const computeLabMeters = createLabMeterComputer();
-      // When each pad was last struck (engine seconds): the one piece of drawing state
-      // the pads need, so a hit flashes for a moment after the tick that carried it.
-      const lastHit: Partial<Record<PadId, number>> = {};
-      const padFlash = (raw: unknown, now: number): Partial<Record<PadId, number>> => {
-        if (Array.isArray(raw)) for (const h of raw as { pad?: PadId | null; t?: number }[]) if (h?.pad) lastHit[h.pad] = Math.max(now, h.t ?? now);
-        const out: Partial<Record<PadId, number>> = {};
-        for (const id of PAD_IDS) {
-          const t = lastHit[id];
-          if (t === undefined) continue;
-          // Flash from the moment the hit SOUNDS (a predicted hit is scheduled ahead).
-          const age = now - t;
-          if (age >= 0 && age < PAD_FLASH_SECONDS) out[id] = 1 - age / PAD_FLASH_SECONDS;
-        }
-        return out;
-      };
 
       return {
         process(inputs, ctx: NodeContext) {
@@ -2015,6 +1788,8 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
           const view: OverlayView = {
             W,
             H,
+            t: ctx.time,
+            elementState,
             video,
             params: liveConfig ?? p,
             layout: {},
@@ -2032,9 +1807,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
               conductorTime: inputs.conductorTime as MusicalTime | undefined,
               conductorEnabled: inputs.conductorEnabled === true,
-              drumPads: drumPadsOf(inputs.airDrumConfig),
-              drumStickLength: drumStickLengthOf(inputs.airDrumConfig),
-              padFlash: padFlash(inputs.drumHits, ctx.time),
               cellGrid: cellGridOf(inputs.cellGrid),
               expression: inputs.expression as ExpressionScores | undefined,
               handMap: controls?.handMap,
@@ -2044,7 +1816,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               faceMapping: controls?.faceMapping,
               tagOverlay,
               trainerHud: trainerHudSnapshot,
-              airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
               ...pickCategories(
                 inputs.categories as CategoryScores | null | undefined,
                 inputs.categoryCaptions as readonly string[] | null | undefined,

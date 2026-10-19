@@ -121,7 +121,7 @@ function PatternModeSelect({ value, enabled }: { value: string; enabled: boolean
 
 export function AirDrumControls() {
   const { state } = useDialsSettings();
-  const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams> & { pattern?: string };
+  const c = (state.effective.airDrum ?? {}) as Partial<AirDrumDialParams> & { pattern?: string; padsOnVideo?: { show?: boolean } };
   const enabled = c.enabled === true;
   const pattern = c.pattern ?? '';
   const hand = c.hand ?? 'both';
@@ -130,6 +130,7 @@ export function AirDrumControls() {
   const leftSound = c.leftSound ?? 'snare';
   const minLead = c.minLead ?? 0.05;
   const magnetism = c.magnetism ?? 0;
+  const padsOnVideo = c.padsOnVideo?.show !== false;
   return (
     <div className="space-y-2">
       <AirDrumReadout />
@@ -142,6 +143,12 @@ export function AirDrumControls() {
       <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" checked={enabled} onChange={(e) => dispatchDialSetIn('airDrum.enabled', e.target.checked)} />
         Drum in the air
+      </label>
+      {/* The pads and sticks on the video (#600 S10: the drum's own overlay element; the toggle
+          moved here from the Overlay section with it). */}
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={padsOnVideo} disabled={!enabled} onChange={(e) => dispatchDialSetIn('airDrum.padsOnVideo.show', e.target.checked)} />
+        Show the pads and sticks on the video
       </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         Drumming hands

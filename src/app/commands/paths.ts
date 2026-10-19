@@ -72,6 +72,9 @@ function recordValueType(schema: z.ZodType): z.ZodType | undefined {
  * declares none) and nothing more.
  */
 function collectLeaves(key: string, rest: string[], schema: z.ZodType, def: unknown, out: DialLeaf[]): void {
+  // A LEGACY key (`.meta({ legacy: true })`, #600 S10: still read for a stored value an expand
+  // step moves elsewhere, never written) is not a path: writing it would change nothing on screen.
+  if ((schema.meta() as { legacy?: boolean } | undefined)?.legacy) return;
   const s = unwrap(schema);
 
   if (s instanceof z.ZodObject) {

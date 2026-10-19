@@ -72,6 +72,88 @@ describe.runIf(SHIPPED)('a returning player at every persist version', () => {
   }
 });
 
+/**
+ * The air overlay elements' options moved out of core's overlay dial (#600 S10, the expand step):
+ * `overlay.drumPads` into `airDrum.padsOnVideo`, `overlay.mouthCue` into `airFlute.breathCue`. For
+ * every historical blob and every saved instrument, the moved value equals the one it came from
+ * (still readable at the old key until the contract step), so what a returning player sees is
+ * what they saw.
+ */
+describe.runIf(SHIPPED)('the air overlay options moved with their elements (#600 S10)', () => {
+  beforeEach(() => localStorage.clear());
+
+  for (const v of VERSIONS) {
+    it(`v${v}: airDrum.padsOnVideo and airFlute.breathCue equal overlay.drumPads and overlay.mouthCue`, async () => {
+      const { useControls } = store;
+      useControls.setState(useControls.getInitialState(), true);
+      localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${v}.json`), 'utf8'));
+      await useControls.persist.rehydrate();
+      const s = useControls.getState() as unknown as Record<string, Record<string, unknown>>;
+      expect(s.airDrum.padsOnVideo).toEqual(s.overlay.drumPads);
+      expect(s.airFlute.breathCue).toEqual(s.overlay.mouthCue);
+    });
+  }
+
+  it('a returning player\'s saved instruments carry the same move', async () => {
+    const library = JSON.parse(readFileSync(join(DIR, 'library.json'), 'utf8')) as Record<string, string>;
+    for (const [k, val] of Object.entries(library)) localStorage.setItem(k, val);
+    const { instruments, normalizeLayer } = await import('@/app/dials/instruments');
+    for (const name of ['My Lab Rig', 'Pentatonic']) {
+      const layer = normalizeLayer((await instruments.load(name))!) as Record<string, Record<string, unknown>>;
+      expect(layer.airDrum.padsOnVideo, name).toEqual(layer.overlay.drumPads);
+      expect(layer.airFlute.breathCue, name).toEqual(layer.overlay.mouthCue);
+    }
+  });
+
+  it('a blob S9 wrote (air slices at version 1) moves a changed value too, and a corrupt one costs only itself', async () => {
+    const { useControls } = store;
+    const base = JSON.parse(readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8')) as { state: Record<string, Record<string, unknown>>; version: number };
+    const rehydrateWith = async (overlay: Record<string, unknown>) => {
+      useControls.setState(useControls.getInitialState(), true);
+      const blob = structuredClone(base);
+      blob.state.overlay = { ...blob.state.overlay, ...overlay };
+      blob.state.airDrum = { ...blob.state.airDrum, enabled: true, volume: 0.33 };
+      blob.state.sliceVersions = { airDrum: 1, airFlute: 1 };
+      localStorage.setItem('thoremin-controls', JSON.stringify(blob));
+      await useControls.persist.rehydrate();
+      return useControls.getState() as unknown as Record<string, Record<string, unknown>>;
+    };
+    const s = await rehydrateWith({ drumPads: { show: false }, mouthCue: { show: false, position: 'top' } });
+    expect(s.airDrum.padsOnVideo).toEqual({ show: false });
+    expect(s.airFlute.breathCue).toEqual({ show: false, position: 'top' });
+    const corrupt = await rehydrateWith({ drumPads: { show: null } });
+    expect(corrupt.airDrum.padsOnVideo).toEqual({ show: true });
+    expect(corrupt.airDrum.enabled).toBe(true);
+    expect(corrupt.airDrum.volume).toBe(0.33);
+  });
+
+  it('a saved instrument whose drum predates the move carries its changed values', async () => {
+    const { normalizeLayer, SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
+    const seed = structuredClone(SEED_INSTRUMENTS.find((i) => i.name === 'Air Drum')!.layer) as Record<string, Record<string, unknown>>;
+    const { padsOnVideo: _p, ...oldDrum } = seed.airDrum;
+    void _p;
+    const { breathCue: _b, ...oldFlute } = seed.airFlute;
+    void _b;
+    const saved = { ...seed, airDrum: oldDrum, airFlute: oldFlute, overlay: { ...seed.overlay, drumPads: { show: false }, mouthCue: { show: true, position: 'bottom' } } };
+    const layer = normalizeLayer(saved as never) as Record<string, Record<string, unknown>>;
+    expect(layer.airDrum.padsOnVideo).toEqual({ show: false });
+    expect(layer.airFlute.breathCue).toEqual({ show: true, position: 'bottom' });
+    expect(normalizeLayer(layer as never)).toEqual(layer);
+  });
+
+  it('a value the player changed is the one that moves (a hidden pad set, a breath cue on the right)', async () => {
+    const { useControls } = store;
+    useControls.setState(useControls.getInitialState(), true);
+    const blob = JSON.parse(readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8')) as { state: Record<string, Record<string, unknown>>; version: number };
+    blob.state.overlay = { ...blob.state.overlay, drumPads: { show: false }, mouthCue: { show: true, position: 'right' } };
+    localStorage.setItem('thoremin-controls', JSON.stringify(blob));
+    await useControls.persist.rehydrate();
+    const s = useControls.getState() as unknown as Record<string, Record<string, unknown>>;
+    expect(s.airDrum.padsOnVideo).toEqual({ show: false });
+    expect(s.airFlute.breathCue).toEqual({ show: true, position: 'right' });
+  });
+});
+
 describe.runIf(SHIPPED)('what the store writes back (#600 S9)', () => {
   beforeEach(() => localStorage.clear());
 
@@ -80,8 +162,24 @@ describe.runIf(SHIPPED)('what the store writes back (#600 S9)', () => {
     useControls.setState(useControls.getInitialState(), true);
     localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8'));
     await useControls.persist.rehydrate();
-    await expect(pretty(persistedControls(useControls.getState()))).toMatchFileSnapshot(golden('controls.written.json'));
+    const written = persistedControls(useControls.getState());
+    // Core's fields are pinned exactly; an extension's slices structurally (#600 S10), so a new
+    // extension dial needs no snapshot edit: each one is written with its value and its version.
+    const { CONTRIBUTIONS } = await import('@/host/contributions');
+    const slices = [...CONTRIBUTIONS.dialSlices, ...CONTRIBUTIONS.prefSlices];
+    const sliceKeys = new Set(slices.map((sl) => sl.key));
+    const core = Object.fromEntries(Object.entries(written).filter(([k]) => !sliceKeys.has(k) && k !== 'sliceVersions'));
+    await expect(pretty(core)).toMatchFileSnapshot(golden('controls.written.json'));
+    const state = useControls.getState() as unknown as Record<string, unknown>;
+    const versions = written.sliceVersions as Record<string, number>;
+    for (const sl of slices) {
+      expect(versions[sl.key], sl.key).toBe(sl.version ?? 1);
+      expect(written[sl.key], `${sl.key} is written`).toBeDefined();
+    }
+    void state;
+    expect(Object.keys(versions).sort()).toEqual([...sliceKeys].sort());
   });
+
 });
 
 describe.runIf(SHIPPED)('a returning player\'s instrument library', () => {

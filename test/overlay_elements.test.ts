@@ -13,7 +13,8 @@ import { Engine } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
-import { canvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
+import { canvasOverlayNode, makeCanvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
+import { CONTRIBUTIONS } from '@/host/contributions';
 import { OVERLAY_CONTROLS } from '@/app/overlayControls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import {
@@ -27,6 +28,7 @@ import {
 } from '@thoremin/sdk/nodes/domain';
 import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
 import { DEFAULT_PADS_SET } from '@thoremin/sdk/nodes/music/drum_pads';
+import { AIR } from './helpers/extensions';
 
 function fullInputs() {
   const frame: HandsFrame = {
@@ -84,6 +86,25 @@ function drawWith(paramsPartial: unknown, extraInputs: Record<string, unknown> =
   const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(paramsPartial ?? {}));
   const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
   handlers.process({ ...fullInputs(), ...extraInputs }, ctx);
+  return rc;
+}
+
+/**
+ * The drum pads are the air extension's overlay element since #600 S10 (they were core's): draw
+ * with it contributed, mapping the inputs these tests were written with onto its ports
+ * (`airDrumConfig` -> `air.drumPads.config`, `drumHits` -> `air.drumPads.hits`, the overlay's
+ * `hands` -> `air.drumPads.hands`) and the old `drumPads.show` param onto the dial's
+ * `padsOnVideo.show`, so each assertion is the one it was.
+ */
+function drawPads(paramsPartial: Record<string, unknown>, extra: { airDrumConfig?: Record<string, unknown>; drumHits?: unknown }) {
+  const rc = makeRecordingCanvas();
+  const node = makeCanvasOverlayNode(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'air'));
+  const { drumPads, ...params } = paramsPartial as { drumPads?: { show?: boolean } };
+  const config = extra.airDrumConfig && drumPads?.show === false ? { ...extra.airDrumConfig, padsOnVideo: { show: false } } : extra.airDrumConfig;
+  const handlers = node.make(node.params.parse(params));
+  const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
+  const inputs = fullInputs();
+  handlers.process({ ...inputs, 'air.drumPads.config': config, 'air.drumPads.hits': extra.drumHits, 'air.drumPads.hands': inputs.hands }, ctx);
   return rc;
 }
 
@@ -252,10 +273,10 @@ describe('canvas-overlay composable elements', () => {
     expect(drawWith(onlyElement('conductorHud'), { conductorEnabled: true }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
   });
 
-  it('drumPads (Guide, #245): each pad on, in its colour, where it is struck; brighter when just hit; nothing when the drum is off', () => {
+  it.runIf(AIR)('drumPads (Guide, #245): each pad on, in its colour, where it is struck; brighter when just hit; nothing when the drum is off', () => {
     const pads = { ...DEFAULT_PADS_SET, p1: { ...DEFAULT_PADS_SET.p1, on: true }, p6: { ...DEFAULT_PADS_SET.p6, on: true } };
     const config = { enabled: true, pads };
-    const rc = drawWith(onlyElement('drumPads'), { airDrumConfig: config });
+    const rc = drawPads(onlyElement('drumPads'), { airDrumConfig: config });
     const ellipses = rc.calls.filter((c) => c.m === 'ellipse');
     const rects = rc.calls.filter((c) => c.m === 'rect');
     expect(ellipses).toHaveLength(1); // p1 is round
@@ -266,19 +287,19 @@ describe('canvas-overlay composable elements', () => {
     expect(rc.texts()).toEqual(expect.arrayContaining(['snare', 'kick']));
     const fillAlpha = (r: typeof rc) => r.calls.find((c) => c.m === 'fill' && c.fill === pads.p1.color)!.alpha;
     // A hit on p1 sounding now brightens it.
-    const hit = drawWith(onlyElement('drumPads'), { airDrumConfig: config, drumHits: [{ t: 0, velocity: 1, hand: 'right', sound: 'snare', predicted: true, lead: 0, pull: 0, pad: 'p1', radial: 0 }] });
+    const hit = drawPads(onlyElement('drumPads'), { airDrumConfig: config, drumHits: [{ t: 0, velocity: 1, hand: 'right', sound: 'snare', predicted: true, lead: 0, pull: 0, pad: 'p1', radial: 0 }] });
     expect(fillAlpha(hit)).toBeGreaterThan(fillAlpha(rc));
     // Off: the drum off, no pad on, or the element toggled off.
-    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { ...config, enabled: false } }).count('ellipse')).toBe(0);
-    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, pads: DEFAULT_PADS_SET } }).count('ellipse')).toBe(0);
-    expect(drawWith({ ...onlyElement('drumPads'), drumPads: { show: false } }, { airDrumConfig: config }).count('ellipse')).toBe(0);
+    expect(drawPads(onlyElement('drumPads'), { airDrumConfig: { ...config, enabled: false } }).count('ellipse')).toBe(0);
+    expect(drawPads(onlyElement('drumPads'), { airDrumConfig: { enabled: true, pads: DEFAULT_PADS_SET } }).count('ellipse')).toBe(0);
+    expect(drawPads({ ...onlyElement('drumPads'), drumPads: { show: false } }, { airDrumConfig: config }).count('ellipse')).toBe(0);
   });
 
-  it('drumPads: draws a virtual stick per hand while the air drum tracks the stick tip, and none for another point', () => {
-    const rc = drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } });
+  it.runIf(AIR)('drumPads: draws a virtual stick per hand while the air drum tracks the stick tip, and none for another point', () => {
+    const rc = drawPads(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } });
     expect(rc.count('lineTo')).toBe(2); // two hands in the frame
-    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'wrist', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
-    expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: false, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
+    expect(drawPads(onlyElement('drumPads'), { airDrumConfig: { enabled: true, point: 'wrist', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
+    expect(drawPads(onlyElement('drumPads'), { airDrumConfig: { enabled: false, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
   });
 
   it('cellGrid (Guide): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
