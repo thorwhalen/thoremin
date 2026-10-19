@@ -47,18 +47,49 @@ describe('the KTH final-ritard prior', () => {
     expect(inside.length).toBeGreaterThan(20);
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
     expect(mean(inside.map((i) => tk[i]))).toBeLessThan(mean(inside.map((i) => tn[i])) - 3);
-    // It only ever slows the music: the beat is never ahead of the plain run's.
-    for (let i = 0; i < kb.length; i++) expect(kb[i]).toBeLessThanOrEqual(nb[i] + 1e-9);
-    // And the beat stays monotone.
+    // On this clip it ends the run behind the plain one (it slowed the music); the beat stays monotone.
+    expect(kb.at(-1)!).toBeLessThan(nb.at(-1)!);
     for (let i = 1; i < kb.length; i++) expect(kb[i]).toBeGreaterThanOrEqual(kb[i - 1]);
   });
 
-  it('a confident gesture overrides it: with the threshold at its default the run is nearly the plain one', async () => {
+  it('a confident gesture overrides it: on every tick the oscillator is sure of, the tempo is the gesture\'s, prior or not', async () => {
+    // Threshold 0.3 (the default): w is 1 wherever confidence >= 0.3. The tempo on such a tick is the
+    // inferred one in both runs, whatever the beat is, because the prior's share is (1 - w) = 0.
     const none = await run({ fallbackBelowConfidence: 0.3 });
     const kth = await run({ fallbackBelowConfidence: 0.3, tempoPrior: 'kth-final-ritard' });
-    const a = beatOf(none).at(-1)!;
-    const b = beatOf(kth).at(-1)!;
-    expect(Math.abs(a - b)).toBeLessThan(0.6);
+    const conf = none.map((o) => (o.time as { confidence: number }).confidence);
+    let sure = 0;
+    conf.forEach((c, i) => {
+      if (c >= 0.3 && bpmOf(none)[i] > 0 && bpmOf(kth)[i] > 0) {
+        sure++;
+        expect(bpmOf(kth)[i], `tick ${i}`).toBeCloseTo(bpmOf(none)[i], 9);
+      }
+    });
+    expect(sure).toBeGreaterThan(100);
+  });
+
+  it('the curve starts from the tempo in force where the ritard BEGINS, not from a tempo that has since slowed', async () => {
+    // Threshold 0.9: the oscillator is sure (w = 1) on the better part of the clip and blended on the
+    // rest, so a confident tempo is known when the beat enters the ritard (beat 4). Inside it the prior's
+    // share can never exceed that start tempo times 1 (the curve only falls from it).
+    const kth = await run({ fallbackBelowConfidence: 0.9, tempoPrior: 'kth-final-ritard', ritardBeats: 8 });
+    const none = await run({ fallbackBelowConfidence: 0.9 });
+    const nb = beatOf(none);
+    const entry = nb.findIndex((b) => b >= 4);
+    const startTempo = bpmOf(none)[entry - 1];
+    expect(startTempo).toBeGreaterThan(40);
+    // The blended ticks (confidence under 0.9) inside the ritard: tempo = w * inferred + (1 - w) * curve,
+    // and the curve never exceeds the start tempo, so the tempo never exceeds the larger of the inferred
+    // tempo and the start tempo.
+    const kb = beatOf(kth);
+    kth.forEach((o, i) => {
+      const t = o.time as { confidence: number; tempo: number; beat: number };
+      if (kb[i] >= 4.5 && kb[i] <= 12 && t.tempo > 0 && t.confidence < 0.9) {
+        const w = t.confidence / 0.9;
+        const inferred = (none[i].time as { tempo: number }).tempo;
+        expect(t.tempo, `tick ${i}`).toBeLessThanOrEqual(w * Math.max(inferred, 1e3) + (1 - w) * Math.max(startTempo, bpmOf(none)[i]) + 1e-6);
+      }
+    });
   });
 
   it('without a piece there is no end to slow toward: the prior is silent', async () => {

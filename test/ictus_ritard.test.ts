@@ -41,6 +41,13 @@ describe('createFinalRitard', () => {
     expect(r.tempoAt(16, 20, 100)!).toBeLessThan(100);
     expect(r.progress(16, 20)).toBe(0.5);
   });
+  it('a piece shorter than the ritard is one ritard from its first beat, not one that starts slowed', () => {
+    expect(r.tempoAt(0, 4, 100)).toBeCloseTo(100, 6);
+    expect(r.tempoAt(4, 4, 100)).toBeCloseTo(40, 6);
+    expect(r.progress(0, 4)).toBe(0);
+    expect(r.tempoAt(0, 0, 100)).toBeNull();
+  });
+
   it('holds at the end past it, and says nothing without a tempo or an end', () => {
     expect(r.tempoAt(25, 20, 100)).toBeCloseTo(40, 6);
     expect(r.tempoAt(16, 20, 0)).toBeNull();

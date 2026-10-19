@@ -58,9 +58,13 @@ export function createFinalRitard(options: KthRitardOptions = {}): FinalRitard {
   const o = { ...KTH_RITARD_DEFAULTS, ...options };
   const progress = (beat: number, endBeat: number): number | null => {
     if (!Number.isFinite(beat) || !Number.isFinite(endBeat) || !(o.beats > 0)) return null;
-    const from = endBeat - o.beats;
+    // A piece shorter than the ritard is one ritard from its first beat, not one that starts
+    // already slowed: the span never reaches before beat 0.
+    const span = Math.min(o.beats, endBeat);
+    if (!(span > 0)) return null;
+    const from = endBeat - span;
     if (beat < from) return null;
-    return Math.min(1, (beat - from) / o.beats);
+    return Math.min(1, (beat - from) / span);
   };
   return {
     progress,

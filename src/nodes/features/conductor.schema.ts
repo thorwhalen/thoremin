@@ -159,8 +159,6 @@ const Params = z.object({
   /** Below this oscillator confidence the tempo blends toward the speed-based
    *  fallback (0 = never fall back, 1 = always). */
   fallbackBelowConfidence: z.number().min(0).max(1).default(0.3),
-  /** The speed-based fallback's tempo range (hand nearly still → min, at the player's
-   *  own peak speed → max). */
   /**
    * The process model the tempo follows when the gesture is too uncertain to say (#333): `none`
    * (today: the speed-based fallback) or `kth-final-ritard`, which slows into the last beats of
@@ -173,6 +171,8 @@ const Params = z.object({
   ritardBeats: z.number().min(1).max(32).default(8),
   /** The tempo at the last beat, relative to the tempo the ritard started from. */
   ritardRatio: z.number().min(0.1).max(1).default(0.35),
+  /** The speed-based fallback's tempo range (hand nearly still → min, at the player's
+   *  own peak speed → max). */
   fallbackBpmMin: z.number().min(20).max(300).default(50),
   fallbackBpmMax: z.number().min(20).max(300).default(160),
   /** Stroke size → `velocityScale` range: the smallest strokes play at `dynMin`, the
