@@ -28,7 +28,7 @@
  * Pure and modality-free: models and vectors in, numbers and words out. Every distance is the
  * model's weighted one, so every number is in noise units.
  */
-import { NEUTRAL_BIN } from './categorizer';
+import { NEUTRAL_BIN, NO_REJECT_RADIUS } from './categorizer';
 import { modelDistance, weightedDistance } from './cluster';
 import { scaledDistance } from './classify';
 import type { FeatureWords } from './modality';
@@ -59,6 +59,17 @@ export const QUALITY_DEFAULTS = {
   hintShare: 0.5,
   /** A margin (`(d2 - d1) / (d2 + d1)`) below this is "on the edge". */
   edgeMargin: 0.15,
+  /**
+   * A category with more than this share of its supporting frames past the reject radius reads as
+   * "none of these" too often in play: sloppy (#564). Provisional, chosen on ONE recording
+   * (`video_face_expressions`, `docs/research/carve-quality-vs-live.md`): the open smile's frames
+   * are past it 33 to 57 % of the time at every hold length, the smile's 7 to 10 %, so any line
+   * between sits in a clear gap there. It only words the chip (it never changes the grade); move
+   * it when a second recording says where the line belongs.
+   */
+  sloppyShare: 0.25,
+  /** Supporting frames needed before the share is judged at all. */
+  minSupportFrames: 8,
 } as const;
 
 export type QualityOptions = Partial<typeof QUALITY_DEFAULTS> & {
@@ -91,6 +102,12 @@ export interface CategoryQuality {
   looAccuracy: number | null;
   /** Where most of its misplaced holds go (a category id or {@link NEUTRAL_TARGET}), or null. */
   leaksTo: string | null;
+  /** The share of its supporting frames past the model's reject radius (they would read as
+   *  "none of these"), or null with fewer than `minSupportFrames` frames or no reject radius. */
+  outside: number | null;
+  /** Whether {@link outside} is past `sloppyShare`: separated, but often not read. The grade is
+   *  unchanged (a provisional line, see {@link QUALITY_DEFAULTS.sloppyShare}). */
+  sloppy: boolean;
   grade: QualityGrade;
   /** One to three: the chip's dots. */
   dots: 1 | 2 | 3;
@@ -234,6 +251,20 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
     return n > 0 ? sum / n : 0;
   };
 
+  /** The share of a category's supporting frames past the reject radius of every category. */
+  const outsideShare = (c: Category): number | null => {
+    if (!(model.rejectRadius < NO_REJECT_RADIUS)) return null;
+    let past = 0;
+    let n = 0;
+    for (const j of c.members) {
+      for (const f of o.supports?.[j] ?? []) {
+        n += 1;
+        if (nearestOf(model, f, cats, '').d > model.rejectRadius) past += 1;
+      }
+    }
+    return n >= o.minSupportFrames ? past / n : null;
+  };
+
   const categories = model.categories.map((c): CategoryQuality => {
     const near = nearestOf(model, c.centroid, targets, c.id);
     const spread = Math.max(c.radius, frameSpread(c));
@@ -247,7 +278,8 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
       c.size < o.minHolds ? 'thin' : ratio < o.closeRatio || leak > o.closeLeak ? 'close' : ratio < o.okRatio || missed > 0 ? 'ok' : 'distinct';
     const dots = grade === 'distinct' ? 3 : grade === 'ok' ? 2 : 1;
     const closeTo = grade === 'close' ? (leak > o.closeLeak && leaksTo ? leaksTo : near.id) : null;
-    return { id: c.id, size: c.size, nearest: near.id, distance: near.d, spread, ratio, looAccuracy, leaksTo, grade, dots, closeTo };
+    const outside = outsideShare(c);
+    return { id: c.id, size: c.size, nearest: near.id, distance: near.d, spread, ratio, looAccuracy, leaksTo, outside, sloppy: outside !== null && outside > o.sloppyShare, grade, dots, closeTo };
   });
   // The Neutral holds too: one nearer a category than every Neutral prototype will not stay silent.
   if (model.neutral && model.neutral.length > 0) holdsOf(NEUTRAL_TARGET, model.neutral, NEUTRAL_TARGET);

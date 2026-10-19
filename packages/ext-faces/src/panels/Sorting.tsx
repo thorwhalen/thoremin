@@ -212,11 +212,13 @@ function QualityChip({ q, view }: { q: CategoryQuality; view: SortingView }) {
   const colour = q.grade === 'distinct' ? 'text-emerald-300' : q.grade === 'ok' ? 'text-white/70' : 'text-amber-300';
   const numbers = [
     q.nearest === null ? 'No other category to be confused with.' : `Nearest: ${placeName(view, q.nearest)}, ${Number.isFinite(q.ratio) ? q.ratio.toFixed(1) : 'many'} times its own spread apart (below ${QUALITY_DEFAULTS.closeRatio} is close).`,
+    q.sloppy && q.outside !== null ? `${Math.round(q.outside * 100)}% of its recorded frames fall outside what any category accepts, so it will often read as none of these: hold it more steadily, or record more of it.` : '',
     q.looAccuracy === null ? 'One hold: record another to measure it.' : `${Math.round(q.looAccuracy * 100)}% of its holds sit nearest their own category${q.leaksTo ? `; the others nearest ${placeName(view, q.leaksTo)}` : ''}.`,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
   return (
-    <span className={`shrink-0 whitespace-nowrap text-[10px] ${colour}`} title={numbers} data-face-quality={q.grade}>
+    <span className={`shrink-0 whitespace-nowrap text-[10px] ${colour}`} title={numbers} data-face-quality={q.grade} {...(q.sloppy ? { 'data-face-sloppy': '' } : {})}>
       <span aria-hidden="true">{'●'.repeat(q.dots) + '○'.repeat(3 - q.dots)}</span> {word}
+      {q.sloppy && <span className="text-amber-300">, often none of these</span>}
     </span>
   );
 }
