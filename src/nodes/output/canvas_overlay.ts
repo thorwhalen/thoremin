@@ -57,9 +57,7 @@ import {
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
-import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { categoryTarget, isDiatonicMove, parseTarget, targetText } from '@thoremin/sdk/harmony/target';
-import { cellGridOf, drawCellGrid } from '@thoremin/sdk/nodes/cell_grid_draw';
 import {
   BODY_BONES,
   BODY_LANDMARK_COUNT,
@@ -117,8 +115,6 @@ export interface OverlayView {
     /** The conductor's musical time (#187) and whether conducting is on, for the HUD. */
     conductorTime?: MusicalTime;
     conductorEnabled?: boolean;
-    /** Labelled on-screen targets a hand points at (the chord map's), or null. */
-    cellGrid?: CellGrid | null;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
@@ -1102,15 +1098,6 @@ const keyboardStripElement: OverlayElement = {
 
 // ---- Air drum pads (#245) ---------------------------------------------------
 
-/** A node's on-screen targets (the chord map's): drawn by `./cell_grid_draw.ts`. */
-const cellGridElement: OverlayElement = {
-  name: 'cellGrid',
-  category: 'guide',
-  draw(g, { W, H, inputs, params }) {
-    if (params.cellGrid.show && inputs.cellGrid) drawCellGrid(g, W, H, inputs.cellGrid);
-  },
-};
-
 // ---- Feature Instrumentation Lab (#119) ------------------------------------
 
 const LAB_COL_W = 168; // px per newspaper column
@@ -1617,7 +1604,6 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   landmarkDots,
   // The conductor's beat HUD (#187): an in-scene output element above the markers.
   conductorHud,
-  cellGridElement,
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
@@ -1808,7 +1794,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
               conductorTime: inputs.conductorTime as MusicalTime | undefined,
               conductorEnabled: inputs.conductorEnabled === true,
-              cellGrid: cellGridOf(inputs.cellGrid),
               expression: inputs.expression as ExpressionScores | undefined,
               handMap: controls?.handMap,
               faceDegrees: controls?.faceExpr?.degrees,

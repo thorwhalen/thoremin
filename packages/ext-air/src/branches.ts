@@ -9,6 +9,10 @@ import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/ext
 import { DRUM_PADS_ELEMENT } from './nodes/overlay/drum_pads';
 import { BREATH_CUE_ELEMENT } from './nodes/overlay/breath_cue';
 
+/** The chord map's overlay element (#610 item 4; it was core's `cellGrid`): the air extension's
+ *  own, drawn from its grid. */
+export const CHORD_MAP_ELEMENT = 'chordMap';
+
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });
 const to = (from: { node: string; port: string }, toRef: { node: string; port: string }, optional = false) =>
@@ -111,14 +115,14 @@ export const chordMap = defineBranch({
     to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordMap', port: 'time' }),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
     to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
-    to({ node: 'chordMap', port: 'grid' }, overlay('cellGrid')),
+    to({ node: 'chordMap', port: 'grid' }, overlay(overlayPortName('air', CHORD_MAP_ELEMENT, 'grid'))),
   ],
   voices: [{ from: { node: 'chordMap', port: 'params' }, role: 'instrument' }],
   // Its chord on the shared chord name, chord guide and keyboard strip (#600 S4's pool, #610).
   // Below the face (30) and pose (20) chords, so composing it moves none of their inputs; an
   // instrument rarely plays both, and the map lights its own chord either way.
   chords: [{ from: { node: 'chordMap', port: 'triad' }, priority: 10 }],
-  overlay: ['cellGrid'],
+  overlay: [overlayElementId('air', CHORD_MAP_ELEMENT)],
 });
 
 /** The chord wheel's overlay element (#600 S5): the air extension's own, drawn from its grid. */

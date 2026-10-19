@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   resetDial('airDrum');
   resetDial('airFlute');
+  resetDial('chordMap');
 });
 
 async function editRow(name: string) {
@@ -53,21 +54,31 @@ describe.runIf(AIR)('the air overlay toggles, in the air sections (#600 S10)', (
 
   it('the old overlay keys are not settable paths (the palette and the assistant cannot write a dead key)', () => {
     const paths = structuredDialLeaves().map((l) => l.path);
-    expect(paths.filter((p) => p.startsWith('overlay.drumPads') || p.startsWith('overlay.mouthCue'))).toEqual([]);
-    expect(paths).toEqual(expect.arrayContaining(['airDrum.padsOnVideo.show', 'airFlute.breathCue.show', 'airFlute.breathCue.position']));
+    expect(paths.filter((p) => p.startsWith('overlay.drumPads') || p.startsWith('overlay.mouthCue') || p.startsWith('overlay.cellGrid'))).toEqual([]);
+    expect(paths).toEqual(expect.arrayContaining(['airDrum.padsOnVideo.show', 'airFlute.breathCue.show', 'airFlute.breathCue.position', 'chordMap.gridOnVideo.show']));
   });
 
   it('they draw where core drew them: the pads just beneath the chord map\'s grid, the cue just before the face expression', () => {
     const order = overlayElementOrder(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'air'));
     expect(order[order.indexOf('air/drumPads') - 1]).toBe('conductorHud');
-    expect(order[order.indexOf('air/drumPads') + 1]).toBe('cellGrid');
+    expect(order[order.indexOf('air/drumPads') + 1]).toBe('air/chordMap'); // #610 item 4: the map's grid, then the markers
+    expect(order[order.indexOf('air/chordMap') + 1]).toBe('markers');
     expect(order[order.indexOf('air/mouthCue') - 1]).toBe('chordName');
     expect(order[order.indexOf('air/mouthCue') + 1]).toBe('faceExpression');
     const [pads] = CONTRIBUTIONS.overlayElements.filter((c) => c.id === 'air/drumPads');
     expect(() => makeCanvasOverlayNode([{ ...pads, decl: { ...pads.decl, drawBefore: 'nope' } }])).toThrow(/draws before "nope", which is not a core overlay element/);
   });
 
+  it('Edit Chord Map shows "Draw the map on the video", which writes chordMap.gridOnVideo.show (#610 item 4)', async () => {
+    await editRow('Chord Map');
+    const toggle = (await screen.findByLabelText('Draw the map on the video')) as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    await waitFor(() => expect((dialsStore.getState().effective as { chordMap: { gridOnVideo: { show: boolean } } }).chordMap.gridOnVideo.show).toBe(false));
+  });
+
   it('the Overlay section no longer lists them', () => {
+    expect(OVERLAY_CONTROLS.map((d) => d.name)).not.toContain('cellGrid');
     expect(OVERLAY_CONTROLS.map((d) => d.name)).not.toContain('drumPads');
     expect(OVERLAY_CONTROLS.map((d) => d.name)).not.toContain('mouthCue');
   });

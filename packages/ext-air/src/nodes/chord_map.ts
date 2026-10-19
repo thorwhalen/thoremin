@@ -20,8 +20,8 @@
  * A cell is chosen with hysteresis (a new cell's centre must be nearer than the sounding one's
  * by a margin) and a dwell of a few camera frames, and kept a moment after the hand leaves the
  * grid or is lost, so tracking jitter at a border never flickers the harmony. The grid, the
- * melody ladder and the moves around the sounding chord are drawn by the overlay's generic
- * `cellGrid` element, from the `grid` output.
+ * melody ladder and the moves around the sounding chord are drawn by the air extension's own
+ * overlay element (`air/chordMap`), from the `grid` output.
  *
  * A MIDI keyboard can choose the chord instead of the pointing hand (`follow` = `midi`, H8 of
  * #613, "MIDI chooses, the camera performs"): the chord the keys hold, in any inversion and after

@@ -73,8 +73,12 @@ const movedFromOverlay = (element: string, field: string, schema: z.ZodTypeAny) 
 export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
 export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 
-/** The chord map: the node's params ARE the dial. */
-export const ChordMapSettingsSchema = ChordMapDialSchema;
+/** The chord map's grid drawn on the video (#610 item 4: the map's own overlay element; this was
+ *  `overlay.cellGrid` in core's overlay dial). */
+const GridOnVideoSchema = z.object({ show: z.boolean().default(true) }).prefault({});
+
+/** The chord map: the node's params, plus whether its grid is drawn on the video. */
+export const ChordMapSettingsSchema = ChordMapDialSchema.extend({ gridOnVideo: GridOnVideoSchema });
 export type ChordMapSettings = z.infer<typeof ChordMapSettingsSchema>;
 export const DEFAULT_CHORD_MAP: ChordMapSettings = ChordMapSettingsSchema.parse({});
 
@@ -144,7 +148,9 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
-    version: 1,
+    version: 2,
+    // v2 (#610 item 4): the grid's show flag moved in from `overlay.cellGrid`.
+    migrations: { 1: movedFromOverlay('cellGrid', 'gridOnVideo', GridOnVideoSchema) },
     key: 'chordMap',
     schema: AIR_SETTINGS_SHAPE.chordMap,
     kind: 'chord-map-config',

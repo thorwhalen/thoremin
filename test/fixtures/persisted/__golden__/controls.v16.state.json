@@ -254,6 +254,9 @@
     "faceTension": true,
     "follow": "hands",
     "gain": 0.22,
+    "gridOnVideo": {
+      "show": true
+    },
     "hysteresis": 0.12,
     "layout": "harmonic",
     "melody": true,

@@ -79,6 +79,45 @@ describe.runIf(SHIPPED)('a returning player at every persist version', () => {
  * (still readable at the old key until the contract step), so what a returning player sees is
  * what they saw.
  */
+describe.runIf(SHIPPED)('the chord map grid\'s show flag moved with its element (#610 item 4)', () => {
+  beforeEach(() => localStorage.clear());
+
+  for (const v of VERSIONS) {
+    it(`v${v}: chordMap.gridOnVideo equals overlay.cellGrid`, async () => {
+      const { useControls } = store;
+      useControls.setState(useControls.getInitialState(), true);
+      localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${v}.json`), 'utf8'));
+      await useControls.persist.rehydrate();
+      const s = useControls.getState() as unknown as Record<string, Record<string, unknown>>;
+      expect(s.chordMap.gridOnVideo).toEqual(s.overlay.cellGrid);
+    });
+  }
+
+  it('a hidden grid stays hidden: a blob with the chord map slice at version 1 moves a changed value', async () => {
+    const { useControls } = store;
+    useControls.setState(useControls.getInitialState(), true);
+    const blob = JSON.parse(readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8')) as { state: Record<string, Record<string, unknown>>; version: number };
+    blob.state.overlay = { ...blob.state.overlay, cellGrid: { show: false } };
+    blob.state.chordMap = { ...blob.state.chordMap, enabled: true };
+    blob.state.sliceVersions = { ...(blob.state.sliceVersions ?? {}), chordMap: 1 };
+    localStorage.setItem('thoremin-controls', JSON.stringify(blob));
+    await useControls.persist.rehydrate();
+    const s = useControls.getState() as unknown as Record<string, Record<string, unknown>>;
+    expect(s.chordMap.gridOnVideo).toEqual({ show: false });
+    expect(s.chordMap.enabled).toBe(true);
+  });
+
+  it('a saved instrument whose map predates the move carries its hidden grid', async () => {
+    const { normalizeLayer, SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
+    const seed = structuredClone(SEED_INSTRUMENTS.find((i) => i.name === 'Chord Map')!.layer) as Record<string, Record<string, unknown>>;
+    const { gridOnVideo: _g, ...oldMap } = seed.chordMap;
+    void _g;
+    const saved = { ...seed, chordMap: oldMap, overlay: { ...seed.overlay, cellGrid: { show: false } } };
+    const layer = normalizeLayer(saved as never) as Record<string, Record<string, unknown>>;
+    expect(layer.chordMap.gridOnVideo).toEqual({ show: false });
+  });
+});
+
 describe.runIf(SHIPPED)('the air overlay options moved with their elements (#600 S10)', () => {
   beforeEach(() => localStorage.clear());
 

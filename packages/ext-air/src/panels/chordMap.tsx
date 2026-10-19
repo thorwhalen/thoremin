@@ -11,6 +11,7 @@ import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremi
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
 import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
+import type { ChordMapSettings } from '../dials';
 import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams } from '../nodes/chord_map';
 import { PLAYER_HANDS } from '../nodes/air_bass';
 
@@ -66,10 +67,11 @@ function Range({ label, path, value, min, max, step, enabled, title }: { label: 
 
 export function ChordMapControls() {
   const { state } = useDialsSettings();
-  const c = (state.effective.chordMap ?? {}) as Partial<ChordMapDialParams>;
+  const c = (state.effective.chordMap ?? {}) as Partial<ChordMapSettings>;
   const enabled = c.enabled === true;
   const layout = c.layout ?? 'harmonic';
   const anchor = c.anchor ?? 'home';
+  const gridOnVideo = c.gridOnVideo?.show ?? true;
   const follow = c.follow ?? 'hands';
   const clock = c.clock ?? 'tempo';
   const commit = c.commit ?? 'now';
@@ -184,6 +186,10 @@ export function ChordMapControls() {
       {play === 'hold' && melody && (
         <Range label={`Melody volume (${Math.round(melodyVolume * 100)}%)`} path="chordMap.melodyVolume" value={melodyVolume} min={0} max={1} step={0.05} enabled={enabled} />
       )}
+      <label className="flex items-center gap-2 text-xs" title="The chords and the melody ladder drawn over the video. Off, the map still plays where it would be drawn.">
+        <input type="checkbox" checked={gridOnVideo} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.gridOnVideo.show', e.target.checked)} />
+        Draw the map on the video
+      </label>
       <label className="flex items-center gap-2 text-xs" title="The key's seventh chords: Cmaj7, Dm7, G7, Bø7. Neighbours a third apart then share three notes.">
         <input type="checkbox" checked={sevenths} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.sevenths', e.target.checked)} />
         Seventh chords

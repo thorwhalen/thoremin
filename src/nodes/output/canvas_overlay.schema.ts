@@ -26,8 +26,6 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   // The conductor (#187): its musical time + enable flag, for the beat HUD.
   { name: 'conductorTime', kind: 'musical-time' },
   { name: 'conductorEnabled', kind: 'boolean', default: false },
-  // A node's on-screen targets (the chord map's), for the cell grid.
-  { name: 'cellGrid', kind: 'cell-grid' },
   { name: 'expression', kind: 'face-expression' },
   // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
   { name: 'categoryDegrees', kind: 'category-degrees' },
@@ -126,10 +124,12 @@ const Params = z.object({
    *  is moved into (the air drum dial's v1 -> v2 step). Still accepted on read until the contract
    *  step removes it; marked `legacy`, so it is not a settable path (commands, palette, assistant). */
   drumPads: z.object({ show: z.boolean().default(true) }).prefault({}).meta({ legacy: true }),
-  /** A node's on-screen targets (the chord map's chords and melody ladder): labelled cells a
-   *  hand points at, the one in force lit. Generic: any node emitting a `CellGrid` on the
-   *  `cellGrid` input is drawn. Only while such a node is in the graph. */
-  cellGrid: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /** LEGACY (#610 item 4, the expand step, as S10 did for the drum pads): the chord map's grid is
+   *  the air extension's overlay element now, and its show flag is `chordMap.gridOnVideo`, which
+   *  a stored or saved value here is moved into (the chord map dial's v1 -> v2 step). Still
+   *  accepted on read until the contract step removes it; marked `legacy`, so it is not a
+   *  settable path (commands, palette, assistant). */
+  cellGrid: z.object({ show: z.boolean().default(true) }).prefault({}).meta({ legacy: true }),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
   /** LEGACY (#600 S10, the expand step): the air flute's breath cue is the air extension's
@@ -302,7 +302,6 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   bodySkeleton: 'input',
   landmarks: 'input',
   conductorHud: 'output',
-  cellGrid: 'guide',
   markers: 'output',
   fingerLines: 'output',
   timbreLevels: 'output',

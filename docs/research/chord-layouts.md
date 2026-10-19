@@ -150,7 +150,7 @@ These are findings with sources; §6 is the design they led to.
 
 ## 6. The thoremin instrument: the chord map
 
-What was built, and which finding above each choice rests on. The code is the air extension's `chord-map` node (`packages/ext-air/src/nodes/chord_map.ts`), its pure layout library (`packages/ext-air/src/lib/chord_map.ts`) and the overlay's generic `cellGrid` element; two instruments ship, **Chord Map** and **Chord Map Strum**.
+What was built, and which finding above each choice rests on. The code is the air extension's `chord-map` node (`packages/ext-air/src/nodes/chord_map.ts`), its pure layout library (`packages/ext-air/src/lib/chord_map.ts`) and its own overlay element (`air/chordMap`; it was the overlay's generic `cellGrid` element until #610 item 4); two instruments ship, **Chord Map** and **Chord Map Strum**.
 
 **The layout.** Three layouts, one dial (`chordMap.layout`):
 
