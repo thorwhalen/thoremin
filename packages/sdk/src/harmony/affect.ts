@@ -157,9 +157,14 @@ export interface RestBaseline {
  * CALM frames (no control above its rest), as a low quantile over the last few seconds of them:
  * an expression never teaches another control's rest (a smile lowers the brows; raised brows lower
  * the furrow), a glitch frame or two moves nothing, and a long session follows a slow drift. The
- * first frames after the face is found are skipped while the smoother settles. Until a rest is
- * known the face reads as calm. Pure.
+ * samples expire with time, whatever the face does: after `windowS` with no calm frame (the
+ * lighting changed, the player started mid-smile, a posture shifted) the rest is learned again from
+ * what the face is now, so no wrong rest can last. Calm is judged on the controls valence and
+ * arousal read (a blink or a downward gaze is not an expression). The first frames after the face is
+ * found are skipped while the smoother settles. Until a rest is known the face reads as calm. Pure.
  */
+/** The controls whose rise is an expression (`eyeBlink` moves with gaze and blinks: it is not). */
+const EXPRESSIVE = ['smile', 'mouthOpen', 'browRaise', 'browFurrow'] as const;
 export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, settleS = 0.5, jitterK = 2, jitterSmoothing = 0.1 }: RestBaselineOptions = {}): RestBaseline {
   type Control = (typeof CONTROLS)[number];
   const samples: Record<Control, { t: number; v: number }[]> = { smile: [], mouthOpen: [], browRaise: [], browFurrow: [], eyeBlink: [] };
@@ -167,6 +172,10 @@ export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, s
   const last: Partial<Record<Control, number>> = {};
   let t = 0;
   let seenFor = 0;
+  let wasCalm = false;
+  const expire = () => {
+    for (const k of CONTROLS) while (samples[k].length && samples[k][0].t < t - windowS) samples[k].shift();
+  };
   const restOf = (k: Control): number | undefined => {
     const xs = samples[k].map((s) => s.v).sort((a, b) => a - b);
     return xs.length ? xs[Math.min(xs.length - 1, Math.floor(quantile * xs.length))] : undefined;
@@ -176,6 +185,7 @@ export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, s
     push(face, dt) {
       const step = Number.isFinite(dt) && dt > 0 ? dt : 0;
       t += step;
+      expire();
       if (!face?.present) {
         seenFor = 0;
         for (const k of CONTROLS) delete last[k];
@@ -192,7 +202,7 @@ export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, s
         // Measured against the rest and the jitter learned so far.
         const above = rest === undefined ? 0 : Math.max(0, v - rest - jitterK * (jitter[k] ?? 0));
         out[k] = above;
-        if (above > calm) calmNow = false;
+        if (above > calm && (EXPRESSIVE as readonly string[]).includes(k)) calmNow = false;
       }
       // A calm face teaches: each control's sample, and its jitter.
       for (const k of CONTROLS) {
@@ -200,12 +210,13 @@ export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, s
         if (!Number.isFinite(v)) continue;
         if (calmNow) {
           samples[k].push({ t, v });
-          while (samples[k].length && samples[k][0].t < t - windowS) samples[k].shift();
+          // The jitter learns calm-to-calm changes only (not the step out of an expression).
           const prev = last[k];
-          if (prev !== undefined) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
+          if (prev !== undefined && wasCalm) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
         }
         last[k] = v;
       }
+      wasCalm = calmNow;
       return out;
     },
     reset() {
@@ -216,6 +227,7 @@ export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, s
       }
       t = 0;
       seenFor = 0;
+      wasCalm = false;
     },
   };
 }

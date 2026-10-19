@@ -82,6 +82,20 @@ describe('the face from its own rest (#673)', () => {
     expect(valenceOf(after)).toBeCloseTo(0, 5);
   });
 
+  it('no wrong rest lasts: a lighting step mid-session is relearned within the window', () => {
+    const b = createRestBaseline();
+    const lit = (t: number) => F({ browFurrow: t < 30 ? 0.2 : 0.6 }); // the lamp moves at t = 30
+    expect(valenceOf(run(b, 32, lit))).toBeLessThan(-0.2); // just after: it reads as a frown
+    expect(valenceOf(run(b, 10, lit, 32))).toBeCloseTo(0, 5); // ten seconds later: rest again
+  });
+
+  it('a downward gaze (eyeBlink) is no expression: rest keeps learning through it', () => {
+    const b = createRestBaseline();
+    run(b, 5, () => F({}));
+    // Gaze down (blink control up) while the brows settle 0.15 higher: the new brow rest is learned.
+    expect(run(b, 12, () => F({ eyeBlink: 0.4, browRaise: 0.45 })).browRaise).toBe(0);
+  });
+
   it('a glitch frame moves nothing, and the first half-second after the face is found reads as calm', () => {
     const b = createRestBaseline();
     run(b, 5, (t) => (Math.abs(t - 2.5) < 0.02 ? F({ browRaise: 0.05, mouthOpen: 0 }) : F({ browRaise: 0.45 })));
@@ -114,6 +128,20 @@ describe('the recorded face', () => {
   // Through the face-features node the face source composes, with its smoothing (0.3).
   const node = faceFeaturesNode.make(faceFeaturesNode.params.parse({ smoothing: 0.3 }));
   const features = (f: (typeof frames)[number]): FaceFeatures => (node.process({ face: f }, { time: 0, dt: 1 / 24, tick: 0, resources: {} } as never) as { features: FaceFeatures }).features;
+
+  it('a player who starts mid-smile is read right once the window has passed', () => {
+    const base = createRestBaseline();
+    const neutral = frames.slice(0, 12);
+    // Start one second in (smiling), then rest for twenty seconds.
+    for (const f of [...frames.slice(24), ...Array.from({ length: 40 }, () => neutral).flat()]) base.push(features(f), 1 / 24);
+    let last: FaceFeatures | undefined;
+    for (const f of neutral) last = base.push(features(f), 1 / 24);
+    expect(arousalOf(last)).toBe(0);
+    // And the smile now reads as a smile.
+    let peak = 0;
+    for (const f of frames.slice(15, 60)) peak = Math.max(peak, valenceOf(base.push(features(f), 1 / 24)) ?? 0);
+    expect(peak).toBeGreaterThan(0.5);
+  });
 
   it('read from its own rest, the face at rest again after its expressions reads no arousal and no valence', () => {
     const base = createRestBaseline();
