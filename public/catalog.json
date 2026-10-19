@@ -1338,6 +1338,11 @@
         "default": true
       },
       {
+        "name": "anchor",
+        "type": "enum(home | letters)",
+        "default": "home"
+      },
+      {
         "name": "face",
         "type": "boolean",
         "default": false

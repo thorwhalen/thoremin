@@ -239,6 +239,7 @@
   },
   "categorizerChordsModel": null,
   "chordMap": {
+    "anchor": "home",
     "bpm": 100,
     "captions": true,
     "cellSize": 0.2,

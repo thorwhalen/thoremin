@@ -14,6 +14,8 @@ import {
   createCellTracker,
   degreeAt,
   diatonicChords,
+  keyedCells,
+  letterChordNames,
   ladderBand,
   layoutCells,
   melodyLadder,
@@ -103,6 +105,39 @@ describe('the harmonic map', () => {
     const right = captions.find((c) => c.text === '4th up')!;
     expect(right.x).toBeCloseTo(centre.x + centre.w / 2, 9);
     expect(moveText(0, 0)).toBe('');
+  });
+});
+
+describe('the letters map (H13 of #613)', () => {
+  const cells = layoutCells('harmonic', LEFT, { aspect: ASPECT, cellSize: 0.2 });
+  const at00 = (placed: MapCell[]) => placed[cells.findIndex((c) => c.q === 0 && c.r === 0)];
+
+  it('keeps every cell on its letter: A minor is home on the A cells, vi\'s place in C', () => {
+    const am = keyedCells(cells, 'letters', key(9, 'minor'));
+    expect(at00(am).degree).toBe(2); // the middle cell is still C: III in A minor
+    const homes = cells.filter((_, i) => am[i].degree === 0);
+    expect(homes.length).toBeGreaterThan(0);
+    expect(homes.every((c) => c.degree === 5)).toBe(true); // every home cell is an A cell
+    expect(keyedCells(cells, 'home', key(9, 'minor'))).toEqual(cells); // the home map: as laid out
+  });
+
+  it('relights only the chords a modulation changes: C to G changes ii, IV and vii°', () => {
+    const shown = (spec: ScaleSpec) => letterChordNames(diatonicChords(spec), spec);
+    const before = shown(key(0, 'major'));
+    const after = shown(key(7, 'major'));
+    expect(before).toEqual(['C', 'Dm', 'Em', 'F', 'G', 'Am', 'B°']);
+    expect(after).toEqual(['C', 'D', 'Em', 'F#°', 'G', 'Am', 'Bm']);
+    expect(before.flatMap((n, i) => (n !== after[i] ? [i] : []))).toEqual([1, 3, 6]); // D, F, B
+  });
+
+  it('reads the move captions where the cells are laid out, whatever the key', () => {
+    const am = keyedCells(cells, 'letters', key(9, 'minor'));
+    const a = cells.findIndex((c) => c.degree === 5 && Math.abs(c.q) + Math.abs(c.r) <= 2);
+    const grid = (laidOut?: MapCell[]) =>
+      chordMapGrid({ layout: 'harmonic', cells: am, laidOut, chords: diatonicChords(key(9, 'minor')), choice: { active: a, candidate: null }, captions: true, ladder: null, pointers: [] });
+    const fromLaidOut = grid(cells).captions.map((c) => c.text);
+    expect(fromLaidOut).toEqual(neighbourCaptions('harmonic', cells[a]).map((c) => c.text)); // as in C: a move is a move
+    expect(fromLaidOut).toContain('4th up');
   });
 });
 

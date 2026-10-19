@@ -16,6 +16,9 @@ export const GRID_CELL_SHAPES = ['hex', 'rect'] as const;
 /** `idle`: a target; `candidate`: the hand is over it and it has not taken over yet;
  *  `active`: the choice in force (sounding). */
 export const GRID_CELL_STATES = ['idle', 'candidate', 'active'] as const;
+/** A cell's emphasis beyond its state: `home` (the key's tonic on a map that keeps its place
+ *  across keys), `changed` (its target changed a moment ago: a modulation relit it). */
+export const GRID_CELL_MARKS = ['home', 'changed'] as const;
 
 export const GridCellSchema = z.object({
   /** Centre, fractions of the displayed frame. */
@@ -33,6 +36,7 @@ export const GridCellSchema = z.object({
   /** CSS colour of the label and the outline. */
   color: z.string(),
   state: z.enum(GRID_CELL_STATES).default('idle'),
+  mark: z.enum(GRID_CELL_MARKS).optional(),
 });
 export type GridCell = z.infer<typeof GridCellSchema>;
 

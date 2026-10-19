@@ -69,6 +69,7 @@ export function ChordMapControls() {
   const c = (state.effective.chordMap ?? {}) as Partial<ChordMapDialParams>;
   const enabled = c.enabled === true;
   const layout = c.layout ?? 'harmonic';
+  const anchor = c.anchor ?? 'home';
   const play = c.play ?? 'hold';
   const chordHand = c.chordHand ?? 'left';
   const point = c.point ?? 'palm';
@@ -102,6 +103,13 @@ export function ChordMapControls() {
               {LAYOUTS[l].label}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="Letters: the map stays put across keys. A minor is home on the A chords (vi's place in C), and a change of key lights up the chords it changes (C to G: ii, IV and vii°).">
+        Map
+        <select className={selectCls} value={anchor} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.anchor', e.target.value)}>
+          <option value="home">the key's home in the middle</option>
+          <option value="letters">the seven letters stay put</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs">

@@ -12,6 +12,11 @@ const CELL_LOOK: Record<GridCell['state'], { fill: number; stroke: number; width
   candidate: { fill: 0.2, stroke: 0.8, width: 2.5 },
   active: { fill: 0.38, stroke: 1, width: 4 },
 };
+/** A marked cell's second outline: inset by this fraction of its size (`home`), or outside it in
+ *  white (`changed`). */
+const MARK_INSET = 0.82;
+const MARK_WIDTH = 2;
+
 /** A cell's label is this fraction of its smaller side. */
 const CELL_LABEL_SIZE = 0.3;
 /** The radius of a pointer's ring, px. */
@@ -66,6 +71,14 @@ export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, 
     g.lineWidth = look.width;
     g.strokeStyle = cell.color;
     g.stroke();
+    if (cell.mark) {
+      // Home: a ring inside the cell in its colour; changed: a white ring on its edge.
+      cellPath(g, cell.mark === 'home' ? { ...cell, w: cell.w * MARK_INSET, h: cell.h * MARK_INSET } : cell, W, H);
+      g.globalAlpha = 1;
+      g.lineWidth = MARK_WIDTH;
+      g.strokeStyle = cell.mark === 'home' ? cell.color : '#ffffff';
+      g.stroke();
+    }
     const size = Math.max(8, Math.round(Math.min(cell.w * W, cell.h * H) * CELL_LABEL_SIZE));
     g.globalAlpha = cell.state === 'idle' ? 0.8 : 1;
     g.fillStyle = cell.color;
