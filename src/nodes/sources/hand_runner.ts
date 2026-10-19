@@ -21,7 +21,10 @@
  * not know which one it has. {@link createHandRunner} picks: the worker where the browser can
  * host one (a `Worker`, `createImageBitmap`, and an `OffscreenCanvas` with WebGL2 inside the
  * worker for the GPU delegate), the main thread otherwise, and the main thread again if the
- * worker fails to start or dies later. The fallback is automatic and says so once.
+ * worker fails to start or dies later. The fallback is automatic and says so once. A GPU that
+ * fails in the worker tries the main thread's GPU first (a blocking 20-odd ms a frame at full
+ * rate beats the CPU delegate's 40 to 100 ms anywhere), then the CPU delegate in the worker
+ * (where it does not block the tick), then the CPU on the main thread.
  *
  * Dev mode (`vite dev`) cannot run the worker: Vite serves a classic worker unbundled, and
  * its `import` is a syntax error there, so `?hands.runner=worker` falls back to the main
@@ -75,8 +78,10 @@ export interface HandLandmarkerLike {
   close(): void;
 }
 
-/** Loads a landmarker on THIS thread (the main-thread runner's loader). */
-export type LoadLandmarker = (options: LandmarkerOptions) => Promise<HandLandmarkerLike>;
+/** Loads a landmarker on THIS thread (the main-thread runner's loader). A GPU request falls
+ *  back to the CPU delegate on this thread unless `cpuFallback` is false (the runner then
+ *  chooses where the CPU delegate runs, #326). */
+export type LoadLandmarker = (options: LandmarkerOptions, opts?: { cpuFallback?: boolean }) => Promise<HandLandmarkerLike>;
 
 /** The main thread: today's path, `detectForVideo` on the element itself. */
 export function mainHandRunner(landmarker: HandLandmarkerLike, onResult: (r: HandResult) => void): HandRunner {
@@ -128,6 +133,8 @@ export interface WorkerRunnerDeps {
   frameTimeoutMs?: number;
   /** How many frames in a row may fail before the worker counts as broken. */
   maxFrameErrors?: number;
+  /** How long the worker may take to say it is ready (ms), the model's download included. */
+  loadTimeoutMs?: number;
   setTimeout?: (cb: () => void, ms: number) => unknown;
   clearTimeout?: (handle: unknown) => void;
 }
@@ -136,6 +143,9 @@ export interface WorkerRunnerDeps {
  *  came): it is treated as dead, so the main thread takes over rather than the instrument
  *  holding its last pose in silence. Far above any inference seen (about 1 s, 4x throttled). */
 export const WORKER_FRAME_TIMEOUT_MS = 5000;
+/** A worker not ready after this long (a GPU process hung building the graph) counts as dead,
+ *  so the hand model loads elsewhere rather than never. The model's download is inside it. */
+export const WORKER_LOAD_TIMEOUT_MS = 30_000;
 /** This many failed frames in a row (a lost WebGL context in the worker fails every one)
  *  means a broken worker: the main thread takes over. About a second of camera frames. */
 export const WORKER_MAX_FRAME_ERRORS = 30;
@@ -258,8 +268,14 @@ export function workerHandRunner(
   };
 
   return new Promise<HandRunner>((resolve, reject) => {
+    /** The load's timer, cleared once the worker answers the init. */
+    let loading: unknown = null;
     worker.onmessage = (ev) => {
       const m = ev.data;
+      if ((m.type === 'ready' || m.type === 'init-error') && loading !== null) {
+        clearTimer(loading);
+        loading = null;
+      }
       if (m.type === 'ready') {
         ready = true;
         resolve(runner);
@@ -290,6 +306,13 @@ export function workerHandRunner(
     };
     worker.onerror = fail;
     worker.onmessageerror = fail;
+    const loadTimeoutMs = deps.loadTimeoutMs ?? WORKER_LOAD_TIMEOUT_MS;
+    loading = setTimer(() => {
+      if (ready || stopped()) return;
+      const reason = new Error(`the hand worker was not ready in ${loadTimeoutMs} ms`);
+      reject(reason);
+      die(reason);
+    }, loadTimeoutMs);
     worker.postMessage({ type: 'init', options });
   });
 }
@@ -371,12 +394,36 @@ export async function createHandRunner(
       })
       .catch((err) => console.error('[thoremin] the hand model could not load on the main thread either', err));
   };
+  const inWorker = async (o: LandmarkerOptions): Promise<HandRunner> => {
+    const r = await workerHandRunner(o, onResult, deps.worker!, onDead);
+    console.info(`[thoremin] the hand model runs in a Web Worker (${o.delegate})`);
+    return r;
+  };
   try {
-    current = await workerHandRunner(options, onResult, deps.worker, onDead);
-    console.info('[thoremin] the hand model runs in a Web Worker');
+    current = await inWorker(options);
   } catch (err) {
-    console.warn('[thoremin] the hand worker could not start; the hand model runs on the main thread', err);
-    current = await main();
+    if (options.delegate !== 'GPU') {
+      console.warn('[thoremin] the hand worker could not start; the hand model runs on the main thread', err);
+      current = await main();
+    } else {
+      // The GPU failed in the worker (#326). The main thread's GPU first: a blocking 20-odd ms a
+      // frame at full rate beats the CPU delegate's 40 to 100 ms anywhere. Only when that fails
+      // too does the CPU delegate run, in the worker, where it does not block the tick, and on
+      // the main thread last.
+      console.warn('[thoremin] the hand worker could not start on the GPU; trying the GPU on the main thread', err);
+      try {
+        current = mainHandRunner(await deps.loadMain(options, { cpuFallback: false }), onResult);
+      } catch (mainGpuErr) {
+        console.warn('[thoremin] the GPU delegate failed on the main thread too; the CPU delegate runs in the worker', mainGpuErr);
+        const cpu = { ...options, delegate: 'CPU' as const };
+        try {
+          current = await inWorker(cpu);
+        } catch (cpuErr) {
+          console.warn('[thoremin] the hand worker could not start on the CPU either; the hand model runs on the main thread', cpuErr);
+          current = mainHandRunner(await deps.loadMain(cpu), onResult);
+        }
+      }
+    }
   }
   return facade;
 }
