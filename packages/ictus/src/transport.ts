@@ -21,6 +21,19 @@
  *   (motion above `moveAbove`); then the first anchor delivered after it is the downbeat,
  *   and only from it are anchors handed to the prior. Anchors before (walking in, lifting
  *   the arms) never reach it, so they cannot start the piece.
+ * - **The upbeat by shape (D15, #461, #485).** `upbeat: 'shape'` replaces "motion above
+ *   `moveAbove`" with what an upbeat IS: a rise of the beating arm at least `riseMin` torso
+ *   lengths above where it was held ready, then a quick fall INTO the downbeat, which ends
+ *   below the ready height (within `fallWithinS` of the peak): a bump that returns to the
+ *   ready height is an adjustment, not a preparatory beat. The ready pose is the arm raised
+ *   and STEADY in torso lengths (within `steadyBand` for `readyS`), not still in noise units.
+ *   A conductor who starts with a plain downward stroke from the ready height (no rise first,
+ *   as on A1's clip 44) gives the other upbeat: a drop to at least `fastFall` below the ready
+ *   height within a quarter of a second, quicker than any sway or settle. Noise units are a signal-to-noise ratio, so on a very clean tracker a slow
+ *   adjustment of the ready arm crosses `moveAbove`, and on a noisy one the real upbeat does
+ *   not; a rise and fall in torso lengths means the same on every camera. A drift up with no
+ *   fall, a sway smaller than `riseMin`, a slow settle back down: none is an upbeat. Off
+ *   (`'speed'`, the old rule) by default.
  * - **Hold (fermata, sustain).** No anchor for `holdAfterPeriods` stroke periods while the
  *   arm stays raised and the body still: hold. From `waitAfterPeriods` (the stroke is
  *   overdue) the step says `waiting`, and the caller keeps the beat short of the next
@@ -103,6 +116,22 @@ export interface TransportOptions {
   stillBelow?: number;
   /** The upbeat: motion above this, noise units. */
   moveAbove?: number;
+  /** How the upbeat is read: `speed` (motion above `moveAbove`, noise units) or `shape` (a rise
+   *  and a quick fall of the arm, in torso lengths: see the header). */
+  upbeat?: 'speed' | 'shape';
+  /** `shape`: the least rise above the ready height that can be an upbeat, torso lengths. */
+  riseMin?: number;
+  /** `shape`: the fall that completes an upbeat reaches this far BELOW the ready height, torso
+   *  lengths (the downbeat is under where the arm was held). */
+  dipBelow?: number;
+  /** `shape`: ... within this long of the peak, seconds. */
+  fallWithinS?: number;
+  /** `shape`: a quick drop (within a quarter of a second) to this far BELOW the ready height is
+   *  also an upbeat (a downward preparatory stroke); a sway or a settle is slower or shallower. */
+  fastFall?: number;
+  /** `shape`: the ready pose is steady when the arm's height varies by no more than this over
+   *  `readyS`, torso lengths. */
+  steadyBand?: number;
   /** The ready pose must persist this long, seconds. */
   readyS?: number;
   /** Past the upbeat, no downbeat within this long returns to waiting, seconds. */
@@ -127,6 +156,12 @@ export const TRANSPORT_DEFAULTS: Required<TransportOptions> = {
   droppedBelow: 0.2,
   stillBelow: 8,
   moveAbove: 9,
+  upbeat: 'speed',
+  riseMin: 0.12,
+  dipBelow: 0.05,
+  fallWithinS: 0.5,
+  fastFall: 0.15,
+  steadyBand: 0.08,
   readyS: 0.4,
   prepareTimeoutS: 2,
   waitAfterPeriods: 0.9,
@@ -150,6 +185,12 @@ function normalise(options: TransportOptions): Required<TransportOptions> {
  *  still and the upbeat (noise units), when a configuration inverts them. */
 const MIN_HEIGHT_GAP = 0.05;
 const MIN_MOTION_GAP = 1;
+/** `shape`: a downward first stroke drops `fastFall` within this long, seconds (a settle or the arm
+ *  coming back from an adjustment is slower than a stroke). */
+const FAST_WINDOW_S = 0.25;
+/** `shape`: the ready height is taken again only from a hold this long (a deliberate new ready
+ *  height), not from the flat top of a slow upbeat. */
+const RETAKE_HOLD_S = 0.8;
 
 export interface Transport {
   step(input: TransportInput): TransportStep;
@@ -172,6 +213,73 @@ export function createTransport(options: TransportOptions = {}): Transport {
   let preparedAt = NaN;
   let lastAnchorT = NaN;
   let lostSince = NaN;
+  /** The height the arm was held ready at (smoothed over the ready pose), for the upbeat's rise. */
+  let readyRaise = NaN;
+  /** The highest the arm has been since it rose above the ready height, and when. */
+  let peakRaise = NaN;
+  let peakAt = NaN;
+
+  /** The last three finite heights: the shape rules read their median, so one glitched frame (the
+   *  elbow standing in for an unseen wrist) is never a rise, a fall or an upbeat. */
+  let last3: number[] = [];
+  const median3 = (raise: number | undefined): number | undefined => {
+    if (raise === undefined || !Number.isFinite(raise)) return undefined;
+    last3.push(raise);
+    if (last3.length > 3) last3.shift();
+    return [...last3].sort((a, b) => a - b)[last3.length >> 1];
+  };
+  /** The recent heights (shape mode's steadiness, over `readyS`). */
+  let recent: { t: number; raise: number }[] = [];
+  const steady = (t: number, raise: number | undefined): boolean => {
+    if (raise === undefined) {
+      recent = [];
+      return false;
+    }
+    recent.push({ t, raise });
+    while (recent.length > 1 && recent[0].t < t - Math.max(o.readyS, RETAKE_HOLD_S)) recent.shift();
+    const within = recent.filter((r) => r.t >= t - o.readyS);
+    if (within[0].t > t - o.readyS * 0.5) return true; // not enough history to deny it: the ready timer counts the rest
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const r of within) {
+      lo = Math.min(lo, r.raise);
+      hi = Math.max(hi, r.raise);
+    }
+    return hi - lo <= o.steadyBand;
+  };
+
+  const clearUpbeat = (): void => {
+    peakRaise = NaN;
+    peakAt = NaN;
+  };
+
+  /** Shape mode: does this frame complete an upbeat (a rise of `riseMin` and a quick fall)? */
+  /** The heights of the last `fallWithinS`, for the quick drop. */
+  let lately: { t: number; raise: number }[] = [];
+  const upbeatByShape = (t: number, raise: number | undefined): boolean => {
+    if (raise === undefined || Number.isNaN(readyRaise)) return false;
+    lately.push({ t, raise });
+    while (lately.length > 1 && lately[0].t < t - FAST_WINDOW_S) lately.shift();
+    // A downward stroke from the ready height: a quick, large drop.
+    const high = Math.max(...lately.map((l) => l.raise));
+    // (It ends below the ready height by that much: a bump that comes back to it is no stroke.)
+    if (high >= readyRaise - 0.5 * o.riseMin && high - raise >= o.fastFall && raise <= readyRaise - o.fastFall) {
+      lately = [];
+      return true;
+    }
+    if (raise - readyRaise >= o.riseMin && !(raise <= peakRaise)) {
+      peakRaise = raise;
+      peakAt = t;
+      return false;
+    }
+    if (Number.isNaN(peakRaise)) return false;
+    // Not yet through the ready height: still falling, or a bump that is coming back to it.
+    if (raise > readyRaise - o.dipBelow) return false;
+    // Fallen through it: an upbeat if it was quick, else a slow settle (the peak starts over).
+    const quick = t - peakAt <= o.fallWithinS;
+    clearUpbeat();
+    return quick;
+  };
 
   const reset = (): void => {
     phase = 'idle';
@@ -180,6 +288,11 @@ export function createTransport(options: TransportOptions = {}): Transport {
     preparedAt = NaN;
     lastAnchorT = NaN;
     lostSince = NaN;
+    readyRaise = NaN;
+    recent = [];
+    lately = [];
+    last3 = [];
+    clearUpbeat();
   };
 
   return {
@@ -194,16 +307,37 @@ export function createTransport(options: TransportOptions = {}): Transport {
     },
     step({ t, raise, motion, anchor, period = Infinity, pose = {} }) {
       const P = Number.isFinite(period) && period > 0 ? period : o.fallbackPeriodS;
+      // Shape mode asks for a steady arm in torso lengths for the START (a tracker clean enough
+      // to read a hand's tremor as motion in noise units must still be able to arm); hold and
+      // cut-off keep the noise-unit stillness.
+      const shaped = o.upbeat === 'shape' ? median3(raise) : undefined;
+      const steadyArm = o.upbeat === 'shape' ? steady(t, shaped) : true;
       const still = motion !== undefined && motion < o.stillBelow;
       const raised = raise !== undefined && raise > o.raisedAbove;
       const dropped = raise !== undefined && raise < o.droppedBelow;
       // A stated cut-off is not also a ready or a hold pose by geometry.
-      const readyPose = pose.ready ?? (pose.cutoff !== true && raised && still);
+      const readyPose = pose.ready ?? (pose.cutoff !== true && raised && (o.upbeat === 'shape' ? steadyArm : still));
       const holdPose = pose.hold ?? (pose.cutoff !== true && raised && still);
       const cutoffPose = pose.cutoff ?? (dropped && still);
       const moving = motion !== undefined && motion > o.moveAbove;
 
       readySince = readyPose ? (Number.isNaN(readySince) ? t : readySince) : NaN;
+      // The height held ready (the upbeat's rise is measured from it): taken when the transport
+      // arms (the pose has held `readyS`), then smoothed while the ready pose lasts and frozen
+      // while the arm moves.
+      // In shape mode the baseline is the height the arm has actually been HELD at: re-taken
+      // whenever it has been steady for the whole ready window (a player who raises the arm in two
+      // steps, or re-readies after a timeout, has a new ready height), never while it moves, so a
+      // rise toward an upbeat cannot drag its own baseline along. (Speed mode reads none of this.)
+      if (o.upbeat === 'shape' && phase === 'armed' && readyPose && shaped !== undefined && recent.length > 1 && recent[0].t <= t - RETAKE_HOLD_S * 0.9 && Math.max(...recent.map((r) => r.raise)) - Math.min(...recent.map((r) => r.raise)) <= o.steadyBand) {
+        const held = recent.reduce((a, r) => a + r.raise, 0) / recent.length;
+        // A new ready height is a new baseline: a peak or drop measured against the old one is void.
+        if (Number.isNaN(readyRaise) || Math.abs(held - readyRaise) > 0.5 * o.riseMin) {
+          clearUpbeat();
+          lately = [];
+        }
+        readyRaise = held;
+      }
       cutoffSince = cutoffPose ? (Number.isNaN(cutoffSince) ? t : cutoffSince) : NaN;
       // Unseen, counted only while the piece sounds (from the later of the loss and the
       // last stroke: strokes from another joint mean the player is still there).
@@ -216,15 +350,21 @@ export function createTransport(options: TransportOptions = {}): Transport {
       let stopped = false;
       switch (phase) {
         case 'idle':
-          if (readyPose && t - readySince >= o.readyS) phase = 'armed';
+          if (readyPose && t - readySince >= o.readyS) {
+            phase = 'armed';
+            readyRaise = raise ?? NaN;
+            lately = [];
+            clearUpbeat();
+          }
           break;
         case 'armed':
           // The upbeat is checked first. Between the ready pose and the upbeat the motion
           // rises through the band between still and moving, and the preparatory may dip
           // the arm, so only a dropped arm (or a stated `ready: false`) disarms.
-          if (moving) {
+          if (o.upbeat === 'shape' ? upbeatByShape(t, shaped) : moving) {
             phase = 'prepared';
             preparedAt = t;
+            clearUpbeat();
           } else if (pose.ready === false || (pose.ready === undefined && dropped)) phase = 'idle';
           break;
         case 'prepared':
@@ -235,7 +375,11 @@ export function createTransport(options: TransportOptions = {}): Transport {
             accept = true;
             started = true;
             lastAnchorT = anchor;
-          } else if (t - preparedAt > o.prepareTimeoutS) phase = readyPose ? 'armed' : 'idle';
+          } else if (t - preparedAt > o.prepareTimeoutS) {
+            phase = readyPose ? 'armed' : 'idle';
+            readyRaise = NaN; // the ready height is taken again from the next steady hold
+            clearUpbeat();
+          }
           break;
         case 'running':
         case 'holding':

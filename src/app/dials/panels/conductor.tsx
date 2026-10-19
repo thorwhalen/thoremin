@@ -258,6 +258,7 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
             </label>
           ) : null}
           {body && (bodyPoint === 'impact' || bodyPoint === 'wrist') ? (
+            <>
             <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
@@ -272,6 +273,24 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
                 <span className="text-white/40">(raise the arm and hold still, then give an upbeat; hold still to sustain; drop the arm to stop)</span>
               </span>
             </label>
+            {transportRules && (
+              <label className="flex items-center justify-between gap-2 text-xs">
+                <span>
+                  Upbeat <span className="text-white/40">(how it is recognised)</span>
+                </span>
+                <select
+                  className={selectCls}
+                  value={c.transport?.upbeat ?? 'speed'}
+                  disabled={!enabled}
+                  data-testid="conductor-transport-upbeat"
+                  onChange={(e) => dispatchDialSetIn('conductor.transport.upbeat', e.target.value)}
+                >
+                  <option value="speed">By how fast the arm moves</option>
+                  <option value="shape">By its shape (a rise and a quick fall)</option>
+                </select>
+              </label>
+            )}
+            </>
           ) : (
             <label className="flex items-center justify-between gap-2 text-xs">
               Follow

@@ -337,13 +337,17 @@
     "tempoPrior": "none",
     "transport": {
       "droppedBelow": 0.2,
+      "fallWithinS": 0.5,
+      "fastFall": 0.15,
       "holdAfterPeriods": 1.5,
       "moveAbove": 9,
       "raisedAbove": 0.45,
       "readyS": 0.4,
+      "riseMin": 0.12,
       "rules": true,
       "stillBelow": 8,
-      "stopAfterPeriods": 1
+      "stopAfterPeriods": 1,
+      "upbeat": "speed"
     }
   },
   "conductorPrefs": {
