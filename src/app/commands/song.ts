@@ -114,6 +114,19 @@ export const setSongHoldFadeCmd = defineCommand({
   },
 });
 
+/** Whether a Play lands the song's beat on the dancer's cycle at once (#346 item 1). */
+export const setSongAlignStartCmd = defineCommand({
+  id: 'song.alignStart.set',
+  title: "Land the song on the dancer's step at the start",
+  description: "While the song follows the dancer, a Play moves the song once (at most half a beat) so its beat lands on the dancer's cycle start, instead of closing the phase error gradually.",
+  category: CATEGORY,
+  params: z.object({ on: z.boolean().describe('Whether to align the song at the start') }),
+  execute: async ({ on }) => {
+    songHost().setAlignStart(on);
+    return ok({ on });
+  },
+});
+
 /** How far the song slows while it fades on a conductor's hold (#573). */
 export const setSongHoldSlowCmd = defineCommand({
   id: 'song.holdSlow.set',
@@ -141,4 +154,4 @@ export const setSongStartBeatCmd = defineCommand({
 });
 
 /** All song commands, registered together. */
-export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd, setSongHoldSlowCmd, setSongStartBeatCmd] as const;
+export const SONG_COMMANDS = [playSongCmd, pauseSongCmd, setSongVolumeCmd, setSongRateCmd, setSongFollowCmd, setSongFollowRangeCmd, setSongHoldFadeCmd, setSongHoldSlowCmd, setSongAlignStartCmd, setSongStartBeatCmd] as const;

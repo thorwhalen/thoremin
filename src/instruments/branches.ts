@@ -282,6 +282,8 @@ export const songPace = defineBranch({
     { from: { node: 'songPlayer', port: 'status' }, to: { node: 'pace', port: 'songStatus' }, delayed: true },
     to(ui('songRate'), { node: 'pace', port: 'base' }),
     to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
+    // After a Play, land the song's beat on the dancer's cycle at once (#346 item 1).
+    to(ui('songAlignStart'), { node: 'pace', port: 'alignStart' }),
     // Where the conductor's first beat lands in the song (#364); the dancer's law ignores it.
     to(ui('songStartBeat'), { node: 'pace', port: 'offset' }),
     // A new song restarts the laws (#439): the handle's identity, not its time.

@@ -16,6 +16,7 @@ provideSongHost({
   setRate: (rate) => useControls.getState().setSongPrefs({ rate }),
   setFollow: (follow) => useControls.getState().setSongPrefs({ follow }),
   setFollowRange: (followRange) => useControls.getState().setSongPrefs({ followRange }),
+  setAlignStart: (alignStart) => useControls.getState().setSongPrefs({ alignStart }),
   setStartBeat: (beat) => useControls.getState().setSongStartBeat(beat),
   setHoldFade: (holdFadeS) => useControls.getState().setSongPrefs({ holdFadeS }),
   setHoldSlow: (holdSlow) => useControls.getState().setSongPrefs({ holdSlow }),

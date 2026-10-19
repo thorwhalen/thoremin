@@ -93,6 +93,7 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songRate' }, to: { node: 'pace', port: 'base' } },
   { from: { node: 'ui', port: 'songStartBeat' }, to: { node: 'pace', port: 'offset' } },
   { from: { node: 'ui', port: 'songFollowRange' }, to: { node: 'pace', port: 'range' } },
+  { from: { node: 'ui', port: 'songAlignStart' }, to: { node: 'pace', port: 'alignStart' } },
   // #439: a new song restarts the pace controller's laws (the handle's identity).
   { from: { node: 'ui', port: 'songHandle' }, to: { node: 'pace', port: 'songHandle' } },
   // #500: neither law leads a song still loading (the player's status, a tick old).

@@ -2845,6 +2845,12 @@
         "description": "The loaded song (the store's handle): a new one restarts both laws (#439)"
       },
       {
+        "name": "alignStart",
+        "kind": "boolean",
+        "description": "The player's choice (the Song tool): after a Play, move the song ONCE so its beat lands on the dancer's cycle start, instead of closing the phase error through the rate nudge over several seconds (#346 item 1)",
+        "default": false
+      },
+      {
         "name": "songStatus",
         "kind": "load-status",
         "description": "The song player's status, a tick old: neither law leads a song that is not playable yet (#500)"
@@ -3760,6 +3766,10 @@
       {
         "name": "songHoldSlow",
         "kind": "number"
+      },
+      {
+        "name": "songAlignStart",
+        "kind": "boolean"
       },
       {
         "name": "songFollowRange",

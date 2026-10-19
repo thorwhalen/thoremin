@@ -78,6 +78,21 @@ describe('Follow the dancer', () => {
     expect(derived()).not.toContain('song-pace');
   });
 
+  it('"Start on your step" is under Follow the dancer, off by default, and writes the per-device pref through its command (#346)', async () => {
+    useTools.setState({ open: 'song' });
+    useControls.getState().setSongPrefs({ follow: true, alignStart: false });
+    const { file, opts } = clickFile();
+    await loadSongFile(file, opts);
+    render(<Shell />);
+    const box = screen.getByLabelText('Start on your step') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await waitFor(() => expect(useControls.getState().songPrefs.alignStart).toBe(true));
+    fireEvent.click(box);
+    await waitFor(() => expect(useControls.getState().songPrefs.alignStart).toBe(false));
+    useControls.getState().setSongPrefs({ follow: false });
+  });
+
   it('says what the controller is doing, from the engine through the reporter', async () => {
     useTools.setState({ open: 'song' });
     useControls.getState().setSongPrefs({ follow: true });

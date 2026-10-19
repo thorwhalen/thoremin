@@ -271,9 +271,14 @@ export const SongSettingsSchema = z.object({
    *  the held note stretches instead of ending (#573). 0 = the rate holds, what every
    *  earlier version did (the default until ears decide it on #168). Needs `holdFadeS` > 0. */
   holdSlow: z.number().min(0).max(1).default(0),
+  /** Following the dancer, a Play moves the song once so its beat lands on the dancer's cycle start, instead of
+   *  closing the phase error through the rate nudge over several seconds (#346 item 1). A seek of at most
+   *  half a beat in the song's first moments, so off by default until it has been heard (#168). Per device;
+   *  additive. */
+  alignStart: z.boolean().default(false),
 });
 export type SongSettings = z.infer<typeof SongSettingsSchema>;
-export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0, holdSlow: 0 };
+export const DEFAULT_SONG: SongSettings = { volume: 0.8, rate: 1, follow: false, followRange: 0.1, holdFadeS: 0, holdSlow: 0, alignStart: false };
 /**
  * The body conductor's per-device prefs (#427): the player's lead offset per joint,
  * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like
