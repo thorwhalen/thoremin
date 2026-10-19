@@ -126,7 +126,7 @@ const onlyElement = (name: string) =>
   ) as Record<string, { show: boolean }>;
 
 describe('canvas-overlay composable elements', () => {
-  it('the chord map\'s grid (Guide, the air extension\'s since #610 item 4): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
+  it.runIf(AIR)('the chord map\'s grid (Guide, the air extension\'s since #610 item 4): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
     const grid = {
       cells: [
         { x: 0.25, y: 0.5, w: 0.2, h: 0.3, shape: 'hex', label: 'C', sub: 'I', color: '#f87171', state: 'active' },

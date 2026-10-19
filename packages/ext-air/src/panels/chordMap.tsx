@@ -11,6 +11,7 @@ import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremi
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
 import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
+import type { ChordMapSettings } from '../dials';
 import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams } from '../nodes/chord_map';
 import { PLAYER_HANDS } from '../nodes/air_bass';
 
@@ -66,11 +67,11 @@ function Range({ label, path, value, min, max, step, enabled, title }: { label: 
 
 export function ChordMapControls() {
   const { state } = useDialsSettings();
-  const c = (state.effective.chordMap ?? {}) as Partial<ChordMapDialParams>;
+  const c = (state.effective.chordMap ?? {}) as Partial<ChordMapSettings>;
   const enabled = c.enabled === true;
   const layout = c.layout ?? 'harmonic';
   const anchor = c.anchor ?? 'home';
-  const gridOnVideo = (c.gridOnVideo as { show?: boolean } | undefined)?.show ?? true;
+  const gridOnVideo = c.gridOnVideo?.show ?? true;
   const follow = c.follow ?? 'hands';
   const clock = c.clock ?? 'tempo';
   const commit = c.commit ?? 'now';
