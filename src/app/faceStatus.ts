@@ -10,7 +10,7 @@
  * write it.
  */
 import { create } from 'zustand';
-import { ABSENT_FACE_STATUS, type FaceStatus } from '@/nodes';
+import { ABSENT_FACE_STATUS, type FaceStatus } from '@thoremin/sdk/nodes/domain';
 import { readingName, type ExpressionLabel, type ExpressionScores } from '@/music/expression';
 import { useToasts } from './toasts';
 import type { OutputReader } from './generativeStatus';

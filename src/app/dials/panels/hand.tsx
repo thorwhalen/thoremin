@@ -2,7 +2,7 @@
  * The HAND section of the settings panel: the hand→sound mapping — the note SOURCE,
  * the whole-hand knobs, and the per-finger→effect routing.
  */
-import { EFFECTS, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
+import { EFFECTS, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map.schema';
 import { FINGER_NAMES } from '@thoremin/sdk/nodes/domain';
 import { dispatchDialSet, dispatchDialSetIn } from '../../dispatchDial';
 import { DEFAULT_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';

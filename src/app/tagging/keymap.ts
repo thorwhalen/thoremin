@@ -11,7 +11,7 @@
  * handler only pushes a `TagAction` into the store — the same path a button click
  * takes — so keyboard and mouse are indistinguishable downstream (`src` records which).
  */
-import { isEditableTarget } from '@/nodes/sources/keyboard';
+import { isEditableTarget } from '@/nodes/sources/keyboard.schema';
 import { useTagging } from './store';
 
 /** Install the modal keymap on `target` (default window); returns the unsubscribe. */

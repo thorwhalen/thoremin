@@ -10,23 +10,14 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
+import { isEditableTarget } from './keyboard.schema';
+export { isEditableTarget } from './keyboard.schema';
 
 const Params = z.object({
   /** Call preventDefault on these keys (e.g. arrows that scroll the page). */
   preventDefaultKeys: z.array(z.string()).default(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']),
 });
 type Params = z.infer<typeof Params>;
-
-/** True if a key event targets a text-editing surface (an input / textarea / select
- *  or a contenteditable element), where global instrument shortcuts must NOT fire —
- *  e.g. typing a dial name into the command palette. Exported so the palette and the
- *  future hotkey layer share one definition. Tolerant of a non-DOM target (tests). */
-export function isEditableTarget(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null;
-  if (!el || typeof el.tagName !== 'string') return false;
-  const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
-}
 
 export const keyboardSourceNode = defineNode<Params>({
   type: 'keyboard-source',

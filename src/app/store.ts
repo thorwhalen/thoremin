@@ -18,10 +18,10 @@ import { provideControls } from '@thoremin/sdk-ui/host';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
-import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay';
+import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
 import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
-import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@/nodes';
+import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import {
   DEFAULT_FACE_CHORD,
   DEFAULT_FACE_EXPR,
@@ -52,16 +52,16 @@ import {
   DEFAULT_CONDUCTOR_PREFS,
   type ConductorPrefs,
 } from '@/settings/schema';
-import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map';
-import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map';
+import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map.schema';
+import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map.schema';
 import {
   FaceControlsDialSchema,
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
-} from '@/nodes/features/face_controls';
+} from '@/nodes/features/face_controls.schema';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, LEGACY_CONDUCTOR_PRIOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import type { SongHandle } from '@/nodes/output/song_player';
+import type { SongHandle } from '@/nodes/output/song_player.schema';
 import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's

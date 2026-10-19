@@ -16,10 +16,9 @@
  * Pure and Node-safe: no audio, no DOM.
  */
 import type { ScorePart } from '@thoremin/sdk/score/schema';
-
-/** The orchestra's sections, in the order the panel lists them. */
-export const SECTIONS = ['strings', 'woodwinds', 'brass', 'percussion', 'other'] as const;
-export type Section = (typeof SECTIONS)[number];
+import { type Section } from './orchestra_map.schema';
+export { SECTIONS } from './orchestra_map.schema';
+export type { Section } from './orchestra_map.schema';
 
 /** The program a part with no program plays (GM 49, String Ensemble 1, zero-based 48). */
 export const DEFAULT_PROGRAM = 48;

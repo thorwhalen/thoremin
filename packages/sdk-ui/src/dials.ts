@@ -3,22 +3,10 @@
  * dispatchers core's panels use (`src/app/dispatchDial.ts` implements them; the write-path
  * guard reads these names), reached through the host. See `./host.ts`.
  */
-import type { SettingKey } from '@zodal/dials-core';
-import type { SettingFieldState, SettingsForm, SettingsState } from '@zodal/dials-ui';
-import { dials, dialsForm } from './host';
+import { dials, dialsForm, type DialsSettings } from './host';
 
-export interface DialsSettings {
-  /** Live store state ({@link SettingsState}): `effective` values, `dirty`, `validation`, … */
-  state: SettingsState;
-  /** The headless form (field configs + facet groups). */
-  form: SettingsForm;
-  /** Per-field value-dependent state (value / dirty / provenance). */
-  states: Record<SettingKey, SettingFieldState>;
-  /** Set one dial in the editable layer. */
-  set: (key: SettingKey, value: unknown) => void;
-  /** Reset one dial (the defaults re-win). */
-  reset: (key: SettingKey) => void;
-}
+/** The live dials form a panel reads: declared beside the seam that provides it (`./host`). */
+export type { DialsSettings } from './host';
 
 /** Dispatch `dial.set` for a discrete panel write on a SCALAR dial. */
 export const dispatchDialSet = (key: string, value: unknown): void => dials().set(key, value);

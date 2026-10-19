@@ -16,7 +16,7 @@
  * {@link MidiOpenResult} whose `sink` is null (with a `reason`) when Web MIDI is
  * unsupported, no ports exist, or the requested port is missing.
  */
-import { webMidiSupported, type MidiOpenResult, type MidiSink } from './midi_out';
+import { webMidiSupported, type MidiOpenResult, type MidiSink } from './midi_out.schema';
 
 export async function openWebMidiSink({ portName }: { portName: string }): Promise<MidiOpenResult> {
   // Guard here too (the node also gates) so the adapter is safe if ever called

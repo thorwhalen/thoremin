@@ -33,7 +33,7 @@ import { loadSongFile, unloadSong } from './song/host';
 import { toolById } from './tools';
 import { useTools } from './toolsStore';
 import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '@/settings/schema';
-import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player';
+import { unlockSongPlayback, type SongHandle } from '@/nodes/output/song_player.schema';
 import { songConducted, songDanced, songFollows, type DerivationSettings } from '@/instruments/derive';
 
 export const SONG_TOOL_ID = 'song';

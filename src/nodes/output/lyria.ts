@@ -38,10 +38,8 @@ import { realtimeOutputAllowed } from '@thoremin/dag';
 import { lazyResource, withActive, type LoadStatus } from '@thoremin/lazy';
 import { getStoredKey } from '@/keys/providerKeys';
 import type { GenerativeEngine, GenerativeEngineFactory, GenerativeSteer } from './generative';
-
-/** The provider whose key Lyria uses — the same store the assistant's Google
- *  provider reads, so one pasted key serves both. */
-export const LYRIA_KEY_PROVIDER = 'google' as const;
+import { LYRIA_KEY_PROVIDER } from './lyria.schema';
+export { LYRIA_KEY_PROVIDER } from './lyria.schema';
 
 const Params = z.object({
   /** Minimum seconds between pushed steer updates (Lyria likes ~0.2s). */

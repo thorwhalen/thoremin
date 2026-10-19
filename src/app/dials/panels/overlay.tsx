@@ -2,7 +2,7 @@
  * The OVERLAY section of the settings panel — data-driven by the overlay element
  * registry, so adding an overlay element makes its controls appear here automatically.
  */
-import { OVERLAY_ELEMENTS, OVERLAY_CATEGORIES, type OverlayDialParams } from '@/nodes/output/canvas_overlay';
+import { OVERLAY_ELEMENT_CATEGORIES, OVERLAY_CATEGORIES, type OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
 import { controlsForSurface, type OverlayControlDesc } from '../../overlayControls';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
@@ -12,7 +12,7 @@ import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitiv
  * Overlay settings, DATA-DRIVEN by the element categories: a collapsible section
  * per {@link OVERLAY_CATEGORIES} entry (Input features / Output features / Guides /
  * Backdrop — the "target space of the mapping" framing), and within each, one
- * control per element whose {@link OVERLAY_ELEMENTS}.category matches, rendered
+ * control per element whose category ({@link OVERLAY_ELEMENT_CATEGORIES}) matches, rendered
  * from its {@link OVERLAY_CONTROLS} descriptor. Adding an overlay element makes it
  * appear here automatically (a test enforces every element has a descriptor), so
  * this is a general framework, not a hand-maintained list.
@@ -31,7 +31,7 @@ export function OverlayControls() {
   const { state, set } = useDialsSettings();
   const overlay = state.effective['overlay'] as OverlayDialParams;
   const faceActive = state.effective['face.mapping'] !== 'none';
-  const categoryOf = new Map(OVERLAY_ELEMENTS.map((e) => [e.name, e.category]));
+  const categoryOf = new Map(Object.entries(OVERLAY_ELEMENT_CATEGORIES));
   const ours = controlsForSurface('instrument');
   // `name` is a descriptor key, which is typed over the NODE's overlay params (a
   // superset of the dial's — the Lab element lives only on the node side). `ours`

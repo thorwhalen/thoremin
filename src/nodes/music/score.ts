@@ -44,6 +44,8 @@ import { MAX_POSE_VOICES, POSE_VOICE_ID_BASE } from './pose_chord';
 import type { ScoreNote } from '@thoremin/sdk/score/schema';
 import { partsOfConfig, pieceFromNotes, preparePiece, readScoreDoc, type PreparedPiece } from '@thoremin/sdk/score/prepare';
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { DEMO_LOOP_BEATS } from './score.schema';
+export { DEMO_SCALE_NOTES, DEMO_LOOP_BEATS } from './score.schema';
 
 const Note = z.object({
   midi: z.number(),
@@ -54,15 +56,6 @@ const Note = z.object({
   /** 0..1. */
   velocity: z.number().min(0).max(1).default(1),
 });
-
-/** The built-in demo piece: one octave of a C major scale, one note per beat over an
- *  eight-beat loop — the same piece `scripts/gen_conductor_demo.ts` renders, so a
- *  conductor with no score loaded still hears the scale follow the hand. */
-export const DEMO_SCALE_NOTES = [60, 62, 64, 65, 67, 69, 71, 72].map((midi, i) => ({ midi, start: i, duration: 0.9, velocity: 1 }));
-
-/** The demo piece's loop length in beats: every player of the demo (the `score` node's
- *  default, the default graph's score params, the orchestra's demo plan) loops it here. */
-export const DEMO_LOOP_BEATS = 8;
 
 const Params = z.object({
   /** The built-in piece, played (looping) when no document is loaded. */

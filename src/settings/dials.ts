@@ -19,8 +19,8 @@ import { SOUND_IDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
 import { FACE_MAPPINGS, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
-import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
-import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
+import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
+import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
 
@@ -37,9 +37,9 @@ function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> 
   for (const slice of CONTRIBUTIONS.dialSlices) out[slice.key] = o[slice.key];
   return out;
 }
-import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
-import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map';
-import { SteerConfigSchema } from '@/nodes/mapping/indirect_map';
+import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map.schema';
+import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
+import { SteerConfigSchema } from '@/nodes/mapping/indirect_map.schema';
 import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, DEFAULT_MIDI, defaultSteerConfig, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 

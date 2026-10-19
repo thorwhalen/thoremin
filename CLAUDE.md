@@ -155,6 +155,7 @@ it is `packages/sdk/src/music/sounds.ts`.
 ## Conventions
 
 - Nodes: `defineNode` with typed ports + a Zod params schema + `process()`/`make()`.
+- A node's CONTRACT (its settings schema, defaults, the types and constants other modules need) lives beside it in `<node>.schema.ts` (#600 S6); the node imports and re-exports it, and code outside `src/nodes` imports the contract, never the node (the settings may not import a node implementation: `test/layering.test.ts`; the architecture ratchet counts the rest). The host's composition lives in `src/host/` (`contributions.ts`, `appRegistry.ts`, `storeControls.ts`).
   Static params = build-time defaults; input ports = live overrides (so the UI
   changes scale/sound without rebuilding the graph or reloading the ML model).
 - No emojis in code. Module docstrings/headers explain *why*.

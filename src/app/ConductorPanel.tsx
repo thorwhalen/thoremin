@@ -36,7 +36,7 @@
  */
 import { useRef, useState } from 'react';
 import { Music2, X } from 'lucide-react';
-import { unlockSongPlayback } from '@/nodes/output/song_player';
+import { unlockSongPlayback } from '@/nodes/output/song_player.schema';
 import { loadSongFile } from './song/host';
 import { useSongStatus } from './songStatus';
 import type { LoadStatus } from '@thoremin/lazy';

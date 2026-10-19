@@ -20,7 +20,7 @@ import {
   type FaceMode,
 } from './summarize';
 import type { Settings } from '@/settings/schema';
-import type { PositionSource } from '@/nodes/mapping/hand_map';
+import type { PositionSource } from '@/nodes/mapping/hand_map.schema';
 import { AIR_INSTRUMENTS, classOfEntry } from './category';
 
 /** A derived, read-only tag: a `sys:*` id, an emoji, and a tooltip label. Shape-

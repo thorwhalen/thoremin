@@ -7,7 +7,7 @@
 import { provideSongHost } from '@/app/commands/songHost';
 import { useControls } from '@/app/store';
 import { analyzeSong, type AnalyzeOptions } from './load';
-import type { SongHandle } from '@/nodes/output/song_player';
+import type { SongHandle } from '@/nodes/output/song_player.schema';
 
 provideSongHost({
   loaded: () => useControls.getState().songHandle?.name ?? null,

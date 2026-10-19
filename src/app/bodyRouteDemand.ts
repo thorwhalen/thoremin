@@ -13,8 +13,8 @@
  * Pure derivation (`bodyRouteGroups`) + one subscription (`startBodyRouteDemand`),
  * started from the app shell.
  */
-import type { BodyMap } from '@/nodes/mapping/body_map';
-import { BODY_ROUTE_SLOTS } from '@/nodes/mapping/body_map';
+import type { BodyMap } from '@/nodes/mapping/body_map.schema';
+import { BODY_ROUTE_SLOTS } from '@/nodes/mapping/body_map.schema';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import type { FeatureDemand } from '@thoremin/sdk/features/demand';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
