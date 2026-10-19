@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "Deleted Long Ago": {
+      "starred": true,
+      "tagIds": [
+        "practice"
+      ]
+    },
+    "My Lab Rig": {
+      "starred": true,
+      "tagIds": [
+        "practice",
+        "loud-clear"
+      ]
+    },
+    "Pentatonic": {
+      "starred": false,
+      "tagIds": [
+        "loud-clear"
+      ]
+    }
+  },
+  "tags": [
+    {
+      "emoji": "🐱",
+      "id": "practice",
+      "label": "Practice"
+    },
+    {
+      "emoji": "🎯",
+      "id": "loud-clear",
+      "label": "Loud & Clear"
+    }
+  ]
+}

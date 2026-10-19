@@ -1,0 +1,209 @@
+{
+  "state": {
+    "right": {
+      "root": 1,
+      "type": "pentatonic",
+      "octaves": 2,
+      "baseOctave": 3,
+      "sound": "bell",
+      "rangeLow": 0,
+      "rangeHigh": 1
+    },
+    "left": {
+      "root": 0,
+      "type": "pentatonic",
+      "octaves": 2,
+      "baseOctave": 3,
+      "sound": "reed",
+      "rangeLow": 0,
+      "rangeHigh": 1
+    },
+    "syncHands": true,
+    "masterVolume": 0.55,
+    "octaveShift": 0,
+    "magnetism": 0.8,
+    "faceMapping": "chord",
+    "faceChord": {
+      "sound": "warmPad",
+      "volume": 0.22,
+      "voicing": "spread",
+      "rendering": "sustained",
+      "bpm": 100,
+      "chordSource": "auto",
+      "chordRoot": 0,
+      "chordType": "major"
+    },
+    "faceExpr": {
+      "sensitivity": {
+        "happy": 0.42,
+        "sad": 0.5,
+        "angry": 0.45,
+        "surprised": 0.5,
+        "fearful": 0.7,
+        "disgusted": 0.7,
+        "kiss": 0.5
+      },
+      "degrees": {
+        "happy": 0,
+        "fearful": 1,
+        "disgusted": 2,
+        "surprised": 3,
+        "angry": 4,
+        "sad": 5,
+        "kiss": 6,
+        "neutral": -1
+      }
+    },
+    "overlay": {
+      "video": {
+        "show": true,
+        "alpha": 0.35
+      },
+      "scaleGuide": {
+        "show": true,
+        "showLabels": true
+      },
+      "chordGuide": {
+        "show": true
+      },
+      "indexGuide": {
+        "show": false,
+        "dashed": true
+      },
+      "landmarks": {
+        "show": true
+      },
+      "markers": {
+        "show": true,
+        "showNotes": true
+      },
+      "fingerLines": {
+        "show": false,
+        "showLabels": true
+      },
+      "faceLandmarks": {
+        "show": true
+      },
+      "bodySkeleton": {
+        "show": true
+      },
+      "conductorHud": {
+        "show": true
+      },
+      "drumPads": {
+        "show": true
+      },
+      "timbreLevels": {
+        "show": false
+      },
+      "mouthCue": {
+        "show": true,
+        "position": "left"
+      },
+      "faceExpression": {
+        "show": true,
+        "position": "left",
+        "topLabel": false,
+        "exprLabels": true,
+        "chordLabels": true
+      },
+      "categoryLabel": {
+        "show": true,
+        "position": "top",
+        "size": 0.45
+      },
+      "categoryBars": {
+        "show": true,
+        "position": "bottom",
+        "captions": true
+      },
+      "fingerBars": {
+        "show": false,
+        "position": "left"
+      },
+      "chordName": {
+        "show": true,
+        "position": "top",
+        "roman": true,
+        "nashville": false
+      },
+      "keyboardStrip": {
+        "show": false,
+        "scaleMode": false,
+        "height": 0.1,
+        "showLabels": false,
+        "showChordTones": true,
+        "showScaleRoot": true
+      },
+      "tagHud": {
+        "show": true,
+        "position": "right"
+      }
+    },
+    "handMap": {
+      "positionSource": "index",
+      "fingers": {
+        "index": {
+          "target": "none",
+          "sensitivity": 1,
+          "mode": "continuous",
+          "invert": false
+        },
+        "middle": {
+          "target": "none",
+          "sensitivity": 1,
+          "mode": "continuous",
+          "invert": false
+        },
+        "ring": {
+          "target": "none",
+          "sensitivity": 1,
+          "mode": "continuous",
+          "invert": false
+        },
+        "pinky": {
+          "target": "none",
+          "sensitivity": 1,
+          "mode": "continuous",
+          "invert": false
+        }
+      },
+      "magnetism": 0.8,
+      "maxGain": 0.5,
+      "opennessGatesGain": false,
+      "opennessControlsBrightness": true,
+      "pinchControlsVibrato": true,
+      "panByPosition": true,
+      "panSpread": 0.5
+    },
+    "midi": {
+      "enabled": true,
+      "port": "IAC Bus 1"
+    },
+    "faceCalibration": null,
+    "featureLab": {
+      "show": false,
+      "groups": [
+        "face.geom.eye",
+        "face.geom.mouth",
+        "face.geom.brow",
+        "face.head",
+        "face.au",
+        "hand.finger.flexion",
+        "hand.finger.spread",
+        "hand.whole",
+        "derived"
+      ],
+      "normalizer": "minmax",
+      "columns": 3,
+      "showMarkers": true,
+      "showValues": false,
+      "derived": [],
+      "showCorrelation": false,
+      "correlationMaxFeatures": 12,
+      "correlationEveryNFrames": 4,
+      "resetNonce": 0
+    }
+  },
+  "version": 8
+}
