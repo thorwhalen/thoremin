@@ -8,7 +8,7 @@
  * that load that half when first rendered ({@link lazyPanel}), its status hooks join
  * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, ExtensionCommand, KeybindingDecl, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, ExtensionCommand, KeybindingDecl, StillSounding, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
 import { lazyPanel, lazyToolPanel } from './lazyPanel';
 
@@ -103,6 +103,9 @@ export const EXTENSION_ENTRY_POINTS: readonly ToolEntryPointDecl[] = LISTED.flat
 
 /** Every extension's keybindings (#600 S11), eager and lazy alike (a lazy one's are in its stub). */
 export const EXTENSION_KEYBINDINGS: readonly KeybindingDecl[] = LISTED.flatMap((u) => u.keybindings ?? []);
+
+/** Every eager extension's outputs that keep sounding while muted (#600 S13). */
+export const EXTENSION_STILL_SOUNDING: readonly StillSounding[] = EXTENSION_UIS.flatMap((u) => u.stillSounding ?? []);
 
 /** The extension commands implemented NOW (#600 S11): an eager extension's, and those a lazy one's
  *  stub carries; a lazy one's other declared commands arrive with {@link loadExtensionUi}. */

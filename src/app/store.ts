@@ -25,7 +25,6 @@ import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping 
 import {
   DEFAULT_FACE_CHORD,
   DEFAULT_FACE_EXPR,
-  DEFAULT_MIDI,
   DEFAULT_HANDS,
   HandsSettingsSchema,
   type HandsSettings,
@@ -37,13 +36,11 @@ import {
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
-  MidiSettingsSchema,
   SteerSettingsSchema,
   SettingsSchema,
   type Settings,
   type FaceChord,
   type FaceExpr,
-  type MidiSettings,
   type SteerSettings,
   SongSettingsSchema,
   DEFAULT_SONG,
@@ -66,7 +63,8 @@ import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing
 import { CONTROLS_VERSION, migrateCoreControls } from './storeMigrations';
 import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
 import type { PrefSlice } from '@thoremin/sdk/instruments/extension';
-import { migrateSlices, sliceChains, sliceVersionsToWrite, SLICE_VERSIONS_KEY } from '@/host/slices';
+import { flatFields, migrateSlices, sliceChains, sliceVersionsToWrite, SLICE_VERSIONS_KEY } from '@/host/slices';
+import type { DialSlice } from '@thoremin/sdk/instruments/extension';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -179,10 +177,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  the once-static voice knobs. Read live by `voice-mapping` via
    *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
   handMap: HandMap;
-  /** MIDI output (#137): on/off + target port ('' = first available). A preset
-   *  field (in {@link SETTINGS_KEYS}); read live by the `midi-out` node via
-   *  `store-controls` → its `enabled`/`port` inputs. */
-  midi: MidiSettings;
   /** The hands reading (#148): the handedness dwell `hand-features` applies (0 = raw
    *  label). A preset field (in {@link SETTINGS_KEYS}); read live by `hand-features` via
    *  `store-controls` → its `handednessDwell` input. */
@@ -385,19 +379,6 @@ export function toSettings(s: ControlState): Settings {
   return pickSettings(s as unknown as Record<string, unknown>);
 }
 
-/** The MIDI block healed field by field against its schema: a field that parses is kept,
- *  one that is absent or corrupt takes `fallback`'s value (the shipped default on a first
- *  load). Never throws, never undefined. */
-function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
-  const raw = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
-  const out: Record<string, unknown> = { ...DEFAULT_MIDI, ...fallback };
-  for (const [key, field] of Object.entries(MidiSettingsSchema.shape)) {
-    if (!(key in raw)) continue;
-    const r = field.safeParse(raw[key]);
-    if (r.success) out[key] = r.data;
-  }
-  return out as MidiSettings;
-}
 
 /**
  * Persist migration of the CORE fields: every step whose target version is above the blob's,
@@ -528,10 +509,22 @@ export const HEAL_RULES: CoreHealRules = {
   audioPrefs: { schema: AudioPrefsSchema, complete: overCurrent },
 };
 
-/** The extensions' whole-object dials (the air instruments' today), each healed through its
- *  own slice schema over the current value, like the conductor. */
+/** A flat slice's heal (#600 S13): field by field, as each field is a dial of its own: a field that
+ *  parses is kept (one the stored object lacks parses to its default, as core's `healMidi` did), a
+ *  corrupt one keeps the current value alone and never resets its siblings. */
+const overCurrentFields = (slice: DialSlice) => (stored: unknown, current: unknown): unknown => {
+  const out: Record<string, unknown> = { ...(current as object) };
+  for (const [field, schema] of flatFields(slice)) {
+    const parsed = schema.safeParse((stored as Record<string, unknown> | undefined)?.[field]);
+    if (parsed.success) out[field] = parsed.data;
+  }
+  return out;
+};
+
+/** The extensions' dials, each healed through its own slice schema over the current value, like
+ *  the conductor; a flat one field by field. */
 const EXTENSION_HEAL_RULES: Readonly<Record<string, HealRule<unknown>>> = Object.fromEntries([
-  ...Object.entries(EXTENSION_DIAL_SCHEMAS).map(([key, schema]) => [key, { schema, complete: overCurrent }]),
+  ...CONTRIBUTIONS.dialSlices.map((slice) => [slice.key, { schema: EXTENSION_DIAL_SCHEMAS[slice.key], complete: slice.layout === 'flat' ? overCurrentFields(slice) : overCurrent }]),
   // The extensions' per-device prefs (#600 S9), healed the same way.
   ...CONTRIBUTIONS.prefSlices.map((p) => [p.key, { schema: p.schema, complete: overCurrent }]),
 ]);
@@ -585,8 +578,8 @@ function healAll(stored: Record<string, unknown>, current: Record<string, unknow
  * Merge a rehydrated blob over the current (initializer) state. Beyond zustand's default
  * shallow merge it HEALS the whole-object fields so an older/corrupt blob can't crash newer
  * readers: each field in {@link HEAL_RULES} (and each extension dial) is re-parsed through its
- * schema, keeping the current value when absent or corrupt; `midi` is healed field by field
- * ({@link healMidi}); and `faceMapping` is clamped to a known mode (unknown values → derived
+ * schema, keeping the current value when absent or corrupt (a FLAT extension dial, such as
+ * `midi`, field by field); and `faceMapping` is clamped to a known mode (unknown values → derived
  * from any legacy `faceEnabled`, else `none`). Exported for direct testing.
  */
 export function mergeControls(persisted: unknown, current: ControlState): ControlState {
@@ -605,13 +598,9 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   const faceMapping = (FACE_MAPPINGS as readonly string[]).includes(p.faceMapping as string)
     ? (p.faceMapping as FaceMapping)
     : legacyFaceToMapping(p.faceEnabled);
-  // The MIDI settings (#137): a pre-MIDI blob has none → off / first port. Field by field
-  // (#168 Q3): one corrupt field (a `muteFollowsMaster` of null or "yes" from a bad write)
-  // takes its default alone and must not reset the player's `enabled` and `port`.
-  const midi = healMidi(p.midi, current.midi);
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
-  return { ...current, ...p, ...healed, faceMapping, midi, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
+  return { ...current, ...p, ...healed, faceMapping, steerPlaying: current.steerPlaying, scoreDoc: current.scoreDoc, songHandle: current.songHandle, songPlaying: current.songPlaying, songPlays: current.songPlays, songStartBeat: current.songStartBeat, ...keptTransients(current) };
 }
 
 /** Release a replaced song's object URL (a local file's bytes stay alive until it is). */
@@ -657,7 +646,6 @@ export const useControls = create<ControlState>()(
       overlay: defaultOverlay(),
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
-      midi: { ...DEFAULT_MIDI },
       hands: { ...DEFAULT_HANDS },
       body: { ...DEFAULT_BODY },
       songPrefs: { ...DEFAULT_SONG },

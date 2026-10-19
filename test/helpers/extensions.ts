@@ -23,6 +23,9 @@ export const ASL = hasExtension('asl');
 /** True when the build ships the face categorizer session (#330). */
 export const FACES = hasExtension('faces');
 
+/** True when the build ships the MIDI output slice (#600 S13). */
+export const MIDI = hasExtension('midi-output');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not

@@ -48,7 +48,6 @@ export interface DerivationSettings {
   body?: { enabled?: boolean };
   bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
   conductor?: { enabled?: boolean; conducts?: string; source?: string; expression?: string; orchestra?: { enabled?: boolean } };
-  midi?: { enabled?: boolean };
   steer?: { enabled?: boolean };
   /** The per-device song pref (#186 PR H): `follow` composes the pace branch. */
   songPrefs?: { follow?: boolean };
@@ -70,7 +69,6 @@ export interface StrictDerivationSettings {
   body: { enabled: boolean };
   bodyMap: { routes: Record<string, { target: string; feature: string }> };
   conductor: { enabled: boolean; conducts: string; source: string; expression: string; orchestra: { enabled: boolean } };
-  midi: { enabled: boolean };
   steer: { enabled: boolean };
   songPrefs: { follow: boolean };
 }
@@ -196,7 +194,6 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // The body conductor (#375) reads the pose stream: the body source comes with him. It
   // routes nothing onto the voices (`bodyWanted` gates the router and leaves this out).
   add('body-source', conducting && conductorReadsBody(settings));
-  add('midi-out', on(settings.midi));
   add('generative', on(settings.steer));
   // The extensions' branches: each manifest says which of its branches its dials imply.
   // An id the table does not know (a typo in a manifest) is dropped, like an unknown

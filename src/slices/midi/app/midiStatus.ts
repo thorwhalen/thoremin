@@ -4,11 +4,11 @@
  * the live device list, the connection phase, and "unsupported here" instead of
  * a dead toggle. Ephemeral per-frame runtime state, exactly like `faceStatus` —
  * the DAG produces it; React only displays it. {@link makeMidiReporter} is the
- * per-frame sink the host loop (`useEngine.ts`) registers to write it.
+ * per-frame sink this slice's status hook (`../ui.tsx`) gives the host loop.
  */
 import { create } from 'zustand';
-import type { MidiStatus } from '@/nodes/browser';
-import type { OutputReader } from './generativeStatus';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
+import type { MidiStatus } from '../nodes/midi_out';
 
 /** The status before the engine has reported anything (or after teardown). */
 export const ABSENT_MIDI_STATUS: MidiStatus = {

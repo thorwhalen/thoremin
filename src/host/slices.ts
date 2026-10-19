@@ -134,3 +134,67 @@ export function migrateLayerSlices<L extends Record<string, unknown>>(layer: L, 
   }
   return out;
 }
+/** The built-in features whose dials stay FLAT as slices (#600 Phase E), by slice key, with the
+ *  extension that owns each: their keys (`midi.enabled`) were flat before they became slices, and a
+ *  saved instrument and a bound command name them. A new extension's dial is one object
+ *  (`airDrum`); the registry refuses `layout: 'flat'` for a key not listed here, or declared by
+ *  another extension than its owner. Each Phase E slice adds its key when it moves. */
+export const FLAT_SLICES: Readonly<Record<string, string>> = { midi: 'midi-output' };
+
+type FieldSchema = { safeParse(v: unknown): { success: boolean; data?: unknown }; parse(v: unknown): unknown };
+
+/** The object schema inside a slice's schema (its `.default(...)` unwrapped). */
+function innerObject(slice: DialSlice): { shape: Record<string, FieldSchema>; parse(v: unknown): unknown } {
+  let s = slice.schema as unknown as { def?: { innerType?: unknown }; shape?: Record<string, unknown> };
+  while (!s.shape && s.def?.innerType) s = s.def.innerType as typeof s;
+  if (!s.shape) throw new Error(`the flat dial slice "${slice.key}" is not an object schema`);
+  return s as unknown as { shape: Record<string, FieldSchema>; parse(v: unknown): unknown };
+}
+
+/** A flat slice's fields, each its own dial (`layout: 'flat'`), with its schema. */
+export function flatFields(slice: DialSlice): [field: string, schema: FieldSchema][] {
+  return Object.entries(innerObject(slice).shape);
+}
+
+/** The dial key a flat slice's field is kept under: `key.field`, or the slice's override
+ *  (`flatKeys`, for a built-in feature whose field had another key: `steerConfig`). */
+export const flatDialKey = (slice: DialSlice, field: string): string => slice.flatKeys?.[field] ?? `${slice.key}.${field}`;
+
+/** The flat dial keys of a slice (`midi.enabled`...), or `[]` for an object slice. */
+export const flatDialKeys = (slice: DialSlice): string[] => (slice.layout === 'flat' ? flatFields(slice).map(([f]) => flatDialKey(slice, f)) : []);
+
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Check a flat slice (#600 S13): it is a built-in feature's, declared by its owner
+ * ({@link FLAT_SLICES}); every field has a real default (each is a dial of its own; an optional
+ * field has none) and the object's default is the fields' defaults (the hot store's first load
+ * reads the one, the dials and a saved instrument the others); and it carries no migration chain
+ * or legacy keys (a saved instrument keeps its fields as separate keys that a whole-object step
+ * could not reach). Throws, naming the extension.
+ */
+export function checkFlatSlice(extension: string, slice: DialSlice): void {
+  if (slice.layout !== 'flat') {
+    if (slice.flatKeys) throw new Error(`extension "${extension}": the dial "${slice.key}" names flat keys but is not flat`);
+    return;
+  }
+  const owner = FLAT_SLICES[slice.key];
+  if (owner === undefined) {
+    throw new Error(`extension "${extension}" declares the dial "${slice.key}" flat; only a built-in feature that already had flat keys may (${Object.keys(FLAT_SLICES).join(', ')}): a new extension's dial is one object`);
+  }
+  if (owner !== extension) throw new Error(`extension "${extension}" declares the flat dial "${slice.key}", which belongs to "${owner}"`);
+  const fields = flatFields(slice);
+  for (const [field, schema] of fields) {
+    const parsed = schema.safeParse(undefined);
+    if (!parsed.success || parsed.data === undefined) throw new Error(`extension "${extension}": the flat dial "${flatDialKey(slice, field)}" has no default`);
+  }
+  for (const field of Object.keys(slice.flatKeys ?? {})) {
+    if (!fields.some(([f]) => f === field)) throw new Error(`extension "${extension}": the flat dial slice "${slice.key}" renames "${field}", which is not one of its fields`);
+  }
+  if (!sameJson(slice.schema.parse(undefined), innerObject(slice).parse({}))) {
+    throw new Error(`extension "${extension}": the flat dial slice "${slice.key}"'s default is not its fields' defaults`);
+  }
+  if ((slice.version ?? 1) > 1 || slice.migrations || slice.legacyKeys?.length) {
+    throw new Error(`extension "${extension}": the flat dial slice "${slice.key}" cannot carry migrations or legacy keys (its fields are separate dials in a saved instrument)`);
+  }
+}

@@ -14,7 +14,7 @@ Three sites already do this by hand, and each invented its own state machine and
 |---|---|---|---|
 | `src/nodes/sources/webcam_face.ts` (and `webcam_hands.ts`, which loads the same way in `init` but reports no status) | MediaPipe tasks-vision (137 kB gzip + wasm + model) | `import('@mediapipe/tasks-vision')` behind the face gate | `idle`, `loading`, `ready`, `error` |
 | `src/app/recording/formats.ts` → `flac.ts` | libflacjs (352 kB raw, 108 kB gzip) | `load()` per format entry, two lazy hops | a null blob plus an error |
-| `src/nodes/output/midi_out.ts` → `midi_engine.ts` | WEBMIDI.js (17 kB gzip) + the MIDI permission | `ctx.resources.createMidiSink` or `import('./midi_engine')` | `off`, `unsupported`, `connecting`, `ready`, `no-ports`, `denied`, `error` |
+| `src/slices/midi/nodes/midi_out.ts` → `app/midi_engine.ts` | WEBMIDI.js (17 kB gzip) + the MIDI permission | `ctx.resources.createMidiSink`, or the factory the MIDI slice's React half provides (`provideMidiSinkFactory`: an extension's node is its pure side and imports no browser library, #600 S13), which is `import('./app/midi_engine')` | `off`, `unsupported`, `connecting`, `ready`, `no-ports`, `denied`, `error` |
 
 The bugs #147's adversarial review found in the third copy (an open for a superseded port attaching a device; a disabled node still holding a port) are bugs of exactly this state machine. A fourth hand-written copy would make them again. So the machine is extracted once, with each rule pinned by a test, and the status words are unified so one readout component can render any heavy node.
 

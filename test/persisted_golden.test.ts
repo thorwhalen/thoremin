@@ -22,7 +22,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AIR, ASL, FACES } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI } from './helpers/extensions';
 
 const DIR = join('test', 'fixtures', 'persisted');
 const VERSIONS = Array.from({ length: 26 }, (_, i) => i + 1);
@@ -43,7 +43,7 @@ function asData(value: unknown): unknown {
 
 /** The goldens are the SHIPPED build's (the blobs carry the extensions' dials, which a build
  *  without them drops); the core-alone run skips them rather than comparing another build. */
-const SHIPPED = AIR && ASL && FACES;
+const SHIPPED = AIR && ASL && FACES && MIDI;
 
 const golden = (name: string): string => `./fixtures/persisted/__golden__/${name}`;
 const pretty = (v: unknown): string => `${JSON.stringify(asData(v), null, 2)}\n`;
@@ -163,12 +163,15 @@ describe.runIf(SHIPPED)('what the store writes back (#600 S9)', () => {
     localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8'));
     await useControls.persist.rehydrate();
     const written = persistedControls(useControls.getState());
-    // Core's fields are pinned exactly; an extension's slices structurally (#600 S10), so a new
-    // extension dial needs no snapshot edit: each one is written with its value and its version.
+    // Core's fields are pinned exactly, and so is a FLAT slice's (#600 S13: a built-in feature that
+    // became a slice keeps the stored shape it had, `midi`); an extension's object slices
+    // structurally (#600 S10), so a new extension dial needs no snapshot edit: each one is written
+    // with its value and its version.
     const { CONTRIBUTIONS } = await import('@/host/contributions');
     const slices = [...CONTRIBUTIONS.dialSlices, ...CONTRIBUTIONS.prefSlices];
     const sliceKeys = new Set(slices.map((sl) => sl.key));
-    const core = Object.fromEntries(Object.entries(written).filter(([k]) => !sliceKeys.has(k) && k !== 'sliceVersions'));
+    const pinned = new Set(CONTRIBUTIONS.dialSlices.filter((sl) => sl.layout === 'flat').map((sl) => sl.key));
+    const core = Object.fromEntries(Object.entries(written).filter(([k]) => (!sliceKeys.has(k) || pinned.has(k)) && k !== 'sliceVersions'));
     await expect(pretty(core)).toMatchFileSnapshot(golden('controls.written.json'));
     const state = useControls.getState() as unknown as Record<string, unknown>;
     const versions = written.sliceVersions as Record<string, number>;

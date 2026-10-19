@@ -21,6 +21,7 @@ import {
 } from '@/app/dials/instruments';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { layerToSettings } from '@/settings/dials';
+import { MIDI } from './helpers/extensions';
 
 const SEVEN_NOTE = new Set(['major', 'minor', 'minorHarmonic']);
 
@@ -54,7 +55,8 @@ describe('seed instruments', () => {
 });
 
 describe('layers saved before a dial existed (the additive-dial dirty regression)', () => {
-  it('a pre-#137 instrument (no midi keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
+  // The MIDI slice's dials (#600 S13): only while it is listed.
+  it.runIf(MIDI)('a pre-#137 instrument (no midi keys, JSON round-tripped) is NOT dirty after restoreSession', async () => {
     // getSelectedName/setSelectedName use localStorage, absent in the Node runtime —
     // stub it for this test (restored after) so the selected-name round-trip works.
     const orig = (globalThis as { localStorage?: unknown }).localStorage;

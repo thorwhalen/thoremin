@@ -10,8 +10,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
-import { MidiControls } from '@/app/dials/panels/midi';
-import { useMidiStatus, ABSENT_MIDI_STATUS } from '@/app/midiStatus';
+import { MidiControls } from '@/slices/midi/panels/midi';
+import { useMidiStatus, ABSENT_MIDI_STATUS } from '@/slices/midi/app/midiStatus';
+import { MIDI } from '../helpers/extensions';
 
 afterEach(() => {
   cleanup();
@@ -25,14 +26,14 @@ function stubWebMidi(): void {
     Promise.reject(new Error('stub'));
 }
 
-describe('the settings panel mounts the MIDI section (#137 reachability)', () => {
+describe.runIf(MIDI)('the settings panel mounts the MIDI section (#137 reachability)', () => {
   it('renders a MIDI section', () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('MIDI')).toBeTruthy();
   });
 });
 
-describe('MidiControls', () => {
+describe.runIf(MIDI)('MidiControls', () => {
   it('renders the enable toggle + port selector where Web MIDI exists', () => {
     stubWebMidi();
     useMidiStatus.getState().report({

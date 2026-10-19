@@ -33,7 +33,6 @@ import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
-import { MidiControls } from './panels/midi';
 import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
@@ -104,11 +103,6 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
 
       <TopSection label="Overlay">
         <OverlayControls />
-      </TopSection>
-
-      {/* MIDI output (#137): drive an external synth/DAW with the same voices. */}
-      <TopSection label="MIDI">
-        <MidiControls />
       </TopSection>
 
       {/* The generative layer (#141 / #188): gestures steer a cloud generative engine. */}

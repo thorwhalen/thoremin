@@ -53,6 +53,8 @@ type App = {
   modalities: typeof import('@thoremin/sdk/features/modalities');
   contributions: typeof import('@/host/contributions');
   storage: typeof import('@thoremin/sdk-ui/storage');
+  storeControls: typeof import('@/host/storeControls');
+  still: typeof import('@/app/stillSounding');
 };
 let app: App;
 /** The lazy probe's React half, as the host loads it (one module instance after the reset). */
@@ -76,7 +78,8 @@ beforeAll(async () => {
   ]);
   const category = await import('@/app/library/category');
   const [commands, keys, modalities, contributions, storage] = await Promise.all([import('@/app/commands/registry'), import('@/app/keyboardShortcuts'), import('@thoremin/sdk/features/modalities'), import('@/host/contributions'), import('@thoremin/sdk-ui/storage')]);
-  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities, contributions, storage };
+  const [storeControls, still] = await Promise.all([import('@/host/storeControls'), import('@/app/stillSounding')]);
+  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities, contributions, storage, storeControls, still };
 });
 
 describe('the probe reaches every pure contribution point', () => {
@@ -173,6 +176,23 @@ describe('the probe contributes a chord producer (#600 S4)', () => {
     expect([into('exprChord'), into('poseChord'), into(PROBE_NODE_ID)]).toEqual(['a', 'b', 'c']);
     // The registry sized the selector for every producer there is (two core, the probe, one spare).
     expect(reg.get('chord-select').inputs.map((p) => p.name)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('the probe derives a store-controls port and names what still sounds while muted (#600 S13)', () => {
+  it('the bridge emits the derived port from the dial, and its default while the dial is absent', () => {
+    const node = app.storeControls.makeStoreControlsNode(PURE);
+    expect(node.outputs.map((p) => p.name)).toEqual(expect.arrayContaining(['probe', 'probeFreq']));
+    const run = (controls: unknown) => node.make(node.params.parse({})).process({}, { tick: 0, time: 0, dt: 1 / 60, resources: { controls: () => controls } } as never) as Record<string, unknown>;
+    const base = app.store.useControls.getState() as unknown as Record<string, unknown>;
+    expect(run({ ...base, probe: { enabled: true, freq: 330 } }).probeFreq).toBe(330);
+    const { probe: _omit, ...without } = base;
+    expect(run(without).probeFreq).toBe(440);
+  });
+
+  it('the muted badge names the probe while its dial is on', () => {
+    expect(app.still.stillSoundingNote({ probe: { enabled: true } })).toBe(' · probe still on');
+    expect(app.still.stillSoundingNote({ probe: { enabled: false } })).toBe('');
   });
 });
 

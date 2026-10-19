@@ -15,6 +15,7 @@ import { storeControlsNode } from '@/nodes/browser';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import type { NodeContext } from '@thoremin/dag';
+import { MIDI } from './helpers/extensions';
 
 beforeEach(() => {
   // The store is a module singleton; reset to its initial state per test.
@@ -264,7 +265,8 @@ describe('persist migration (v1 → v2, returning users)', () => {
     expect(merged.faceExpr.degrees.kiss).toBe(6); // vii°
   });
 
-  it('mergeControls heals the MIDI settings (#137): absent → off, partial → completed, corrupt → default', () => {
+  // The MIDI slice's dial (#600 S13): only while it is listed.
+  it.runIf(MIDI)('mergeControls heals the MIDI settings (#137): absent → off, partial → completed, corrupt → default', () => {
     const initial = useControls.getInitialState();
     // A pre-#137 blob has no midi key at all → the default (off, first available, the
     // mute silences MIDI too).
@@ -435,22 +437,7 @@ describe('store-controls node reads the store', () => {
     expect(out.chordSpec).toMatchObject({ root: 7, type: 'minor', baseOctave: 3 });
   });
 
-  it('emits the MIDI enable/port dials as live ports (#137)', () => {
-    // Default: off, first available port — the graph-wired midi-out stays silent.
-    useControls.setState({ midi: { enabled: false, port: '', muteFollowsMaster: true } });
-    const node = storeControlsNode.make(storeControlsNode.params.parse({}));
-    let out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
-    expect(out.midiEnabled).toBe(false);
-    expect(out.midiPort).toBe('');
-    // #168 Q3: the mute-semantics dial is a live port too, on by default.
-    expect(out.midiMuteFollowsMaster).toBe(true);
-    // Turning the dial on flows straight through — no rebuild, next tick.
-    useControls.setState({ midi: { enabled: true, port: 'IAC Driver Bus 1', muteFollowsMaster: false } });
-    out = node.process({}, ctxWith({ controls: () => useControls.getState() }));
-    expect(out.midiEnabled).toBe(true);
-    expect(out.midiPort).toBe('IAC Driver Bus 1');
-    expect(out.midiMuteFollowsMaster).toBe(false);
-  });
+  // The MIDI ports moved with the MIDI slice (#600 S13): `test/midi/midi_ports.test.ts`.
 
   it('emits the face-control axis tuning as a live port (#76)', () => {
     const node = storeControlsNode.make(storeControlsNode.params.parse({}));

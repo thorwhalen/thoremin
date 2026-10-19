@@ -189,27 +189,6 @@ export const DEFAULT_FACE_EXPR: FaceExpr = {
   targets: { ...DEFAULT_EXPRESSION_TARGETS },
 };
 
-/**
- * MIDI output settings (#137): whether the merged voices also drive a Web MIDI
- * output, and which port they target ('' = first available). Part of the
- * instrument (a hardware-synth instrument profile wants "plays over MIDI" saved
- * with it); the port NAME is device-specific, but a port that doesn't exist on
- * this machine degrades to an honest `no-ports` status, never an error. The
- * `.default(...)` keeps presets saved before MIDI reachability valid (off).
- */
-export const MidiSettingsSchema = z.object({
-  enabled: z.boolean().default(false),
-  port: z.string().default(''),
-  /** Whether the master mute (M) silences the MIDI stream too (#168 Q3). On is what the
-   *  instrument always did; off keeps the notes flowing to a DAW while the local monitor
-   *  is quiet. `.default(true)` heals pre-dial presets to the behaviour they were played
-   *  with (through the existing `midi` heal in the store; the store's v23 bump records it). */
-  muteFollowsMaster: z.boolean().default(true),
-});
-export type MidiSettings = z.infer<typeof MidiSettingsSchema>;
-
-/** The shipped MIDI defaults: off, first available port, the master mute silences MIDI too. */
-export const DEFAULT_MIDI: MidiSettings = { enabled: false, port: '', muteFollowsMaster: true };
 
 /** The hands source's reading (#148): how many frames a new Left/Right label is held
  *  before a field instrument's hand voice re-routes (the switch lands on the next frame).
@@ -357,8 +336,6 @@ export const CoreSettingsSchema = z.object({
   overlay: OverlayDialSchema,
   // Note source + finger→effect routing + the once-static voice-mapping knobs.
   handMap: HandMapSchema,
-  // MIDI output (#137). `.default(...)` keeps pre-MIDI presets valid (off).
-  midi: MidiSettingsSchema.default(DEFAULT_MIDI),
   // The hands reading (#148). `.default(...)` keeps every earlier preset valid (dwell 0).
   hands: HandsSettingsSchema.default(DEFAULT_HANDS),
   // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).

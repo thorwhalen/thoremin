@@ -54,6 +54,35 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
    *  moves a value out of another dial: `'overlay.drumPads'`). The first present one is the
    *  slice's stored value, at version 1; its migrations then reshape it. */
   legacyKeys?: readonly string[];
+  /**
+   * How the dial is laid out in the dials (#600 S13). `object` (the default, and the only shape a
+   * new extension uses): one dial, `key`, whose value is the whole object, as `airDrum`. `flat`: each
+   * top-level field is its OWN dial, keyed `key.field` (`midi.enabled`), with its own metadata,
+   * per-dial command and saved-instrument entry, and healed field by field. It exists for the
+   * built-in features that became slices (#600 Phase E) and already had flat keys, so a saved
+   * instrument and a bound command keep theirs; the host refuses it for any other key, and from
+   * any extension but the feature's own (`FLAT_SLICES`). A flat slice's schema is a `z.object`
+   * whose every field has a default.
+   */
+  layout?: 'object' | 'flat';
+  /** A flat slice's fields whose dial key is not `key.field` (#600 S13): a built-in feature whose
+   *  field had another key keeps it (`{ config: 'steerConfig' }`). */
+  flatKeys?: Readonly<Record<string, string>>;
+  /**
+   * `store-controls` ports derived from the dial (#600 S13), beside the whole-dial port `key`: each
+   * reads one value out of the dial (healed, so never undefined), for a node whose live inputs
+   * predate the slice (`midiEnabled` = the dial's `enabled`), so moving a feature into a slice
+   * leaves its graph as it was.
+   */
+  ports?: readonly DialPort[];
+}
+
+/** One `store-controls` port a dial slice derives (see {@link DialSlice.ports}). */
+export interface DialPort {
+  name: string;
+  kind: string;
+  /** The port's value, from the dial's value. */
+  read: (dial: never) => unknown;
 }
 
 /** One step of a slice's migration chain (see {@link DialSlice.migrations}). */

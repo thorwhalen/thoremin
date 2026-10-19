@@ -11,8 +11,10 @@
 import { describe, it, expect } from 'vitest';
 import { Engine } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createAppRegistry, midiOutNode } from '@/nodes/browser';
-import type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus } from '@/nodes/browser';
+import { createAppRegistry } from '@/nodes/browser';
+import { midiOutNode } from '@/slices/midi/nodes/midi_out';
+import type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus } from '@/slices/midi/nodes/midi_out';
+import { MIDI } from '../helpers/extensions';
 import type { SynthParams, VoiceParams } from '@/nodes';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 
@@ -81,7 +83,7 @@ function sp(voices: VoiceParams[]): SynthParams {
   return { voices };
 }
 
-describe('midi-out node (contract logic, mock sink)', () => {
+describe.runIf(MIDI)('midi-out node (contract logic, mock sink)', () => {
   it('is off by default: never opens a sink, sends nothing, reports phase "off"', async () => {
     const sink = new MockSink();
     const { factory, calls } = factoryFor({ sink, ports: [sink.portName] });

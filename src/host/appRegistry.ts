@@ -14,7 +14,6 @@ import { webcamBodyNode } from '@/nodes/sources/webcam_body';
 import { keyboardSourceNode } from '@/nodes/sources/keyboard';
 import { webAudioSynthNode } from '@/nodes/output/webaudio_synth';
 import { canvasOverlayNode, makeCanvasOverlayNode } from '@/nodes/output/canvas_overlay';
-import { midiOutNode } from '@/nodes/output/midi_out';
 import { makeSynthMergeNode } from '@/nodes/mapping/synth_merge';
 import { makeChordSelectNode } from '@/nodes/mapping/chord_select';
 import { makeStoreControlsNode } from './storeControls';
@@ -27,7 +26,6 @@ export const BROWSER_NODES = [
   keyboardSourceNode,
   webAudioSynthNode,
   canvasOverlayNode,
-  midiOutNode,
 ];
 
 /**

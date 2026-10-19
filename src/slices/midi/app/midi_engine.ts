@@ -5,8 +5,9 @@
  * `lyria_engine.ts` is the browser impl behind the `lyria` node's facade).
  *
  * This module statically imports WEBMIDI.js, so it must only ever be reached via
- * the node's *dynamic* `import('./midi_engine')` — which fires the first time MIDI
- * output is enabled in a browser. It is never imported by Node tests or the node
+ * the factory the slice's React half provides (`../ui.tsx`: a *dynamic*
+ * `import('./app/midi_engine')`), which fires the first time MIDI output is enabled in a
+ * browser. It is never imported by Node tests or the node
  * definition itself, so the vendor library (and any MIDI-access permission prompt)
  * is pulled in strictly on demand.
  *
@@ -16,7 +17,7 @@
  * {@link MidiOpenResult} whose `sink` is null (with a `reason`) when Web MIDI is
  * unsupported, no ports exist, or the requested port is missing.
  */
-import { webMidiSupported, type MidiOpenResult, type MidiSink } from './midi_out.schema';
+import { webMidiSupported, type MidiOpenResult, type MidiSink } from '../nodes/midi_out.schema';
 
 export async function openWebMidiSink({ portName }: { portName: string }): Promise<MidiOpenResult> {
   // Guard here too (the node also gates) so the adapter is safe if ever called

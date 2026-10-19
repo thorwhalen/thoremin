@@ -3,7 +3,7 @@
  * Browser-only `spessasynth_lib` adapter for the `orchestra` node (#187 PR 5): the real
  * {@link OrchestraSynth} the node drives, kept out of the node module so the node's
  * scheduling and controller logic stays Node-safe and headlessly testable (the
- * `lyria_engine.ts` / `midi_engine.ts` shape, `docs/design/lazy-loading.md`).
+ * `lyria_engine.ts` / MIDI slice `app/midi_engine.ts` shape, `docs/design/lazy-loading.md`).
  *
  * This module statically imports `spessasynth_lib` and the URL of its AudioWorklet
  * processor, so it must only ever be reached through the node's dynamic

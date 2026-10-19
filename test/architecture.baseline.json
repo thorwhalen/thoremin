@@ -4,10 +4,11 @@
   "extensionNamesInCore": {
     "air": 7,
     "asl": 0,
+    "midi-output": 0,
     "faces": 4
   },
-  "storeControlsPorts": 44,
-  "useEngineReporters": 8,
+  "storeControlsPorts": 41,
+  "useEngineReporters": 7,
   "foldPoints": 2,
   "importCycles": 0,
   "runtimeImportCycles": 0,

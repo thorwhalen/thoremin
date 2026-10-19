@@ -13,12 +13,6 @@ export { keyboardSourceNode } from './sources/keyboard';
 export { storeControlsNode, makeStoreControlsNode } from '@/host/storeControls';
 export { webAudioSynthNode } from './output/webaudio_synth';
 export { canvasOverlayNode } from './output/canvas_overlay';
-// The `midi-out` node's contract logic is Node-safe, but it is registered here
-// (not in the pure CORE_NODES) because its default sink lazy-loads the browser-only
-// WEBMIDI.js library; its facade types + browser adapter live alongside it.
-export { midiOutNode } from './output/midi_out';
-export type { MidiSink, MidiSinkFactory, MidiOpenResult, MidiStatus, MidiPhase } from './output/midi_out';
-export { openWebMidiSink } from './output/midi_engine';
 // The air instruments' sinks (drums, plucked strings) are the air extension's
 // (`packages/ext-air/src/nodes/{drum,pluck}_out`), registered through its manifest.
 // The browser-only Lyria engine (`./output/lyria_engine`) is deliberately NOT

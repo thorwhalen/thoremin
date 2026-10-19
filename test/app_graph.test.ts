@@ -14,7 +14,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI } from './helpers/extensions';
 
 describe('production app graph', () => {
   it('builds with a valid topology', () => {
@@ -51,7 +51,8 @@ describe('production app graph', () => {
     expect(order.indexOf('faceVec')).toBeLessThan(order.indexOf('overlay'));
     expect(order.indexOf('handVec')).toBeLessThan(order.indexOf('overlay'));
     // MIDI output taps the merged voices, so it evaluates after the merge (#13).
-    expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
+    // (The MIDI slice's, #600 S13: only while it is listed.)
+    if (MIDI) expect(order.indexOf('merge')).toBeLessThan(order.indexOf('midiOut'));
     // Gesture classification taps the hand features, so it evaluates after them (#129).
     expect(order.indexOf('feat')).toBeLessThan(order.indexOf('gesture'));
     // The body branch (#186) sits before the overlay that draws its skeleton, and its
@@ -83,8 +84,9 @@ describe('production app graph', () => {
     // Without the air extension: the 30 core nodes (the 10 air nodes come with it); the
     // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
     // controller (#186 PR H) the 29th, the dwelled hands (#314) the 30th. The ASL extension adds its reader and its chord node,
-    // the faces extension its personal categorizer (#330 P4).
-    expect(order).toHaveLength((AIR ? 40 : 30) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
+    // the faces extension its personal categorizer (#330 P4). The #13 midi-out sink is the MIDI
+    // slice's since #600 S13, counted with it (29 core nodes + 1).
+    expect(order).toHaveLength((AIR ? 39 : 29) + (MIDI ? 1 : 0) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -149,7 +151,8 @@ describe('production app graph', () => {
     expect(has('map', 'params', 'overlay', 'params')).toBe(false);
   });
 
-  it('wires the MIDI output enable/port live from the store — the #137 regression guard', () => {
+  // The MIDI slice's (#600 S13): only while it is listed.
+  it.runIf(MIDI)('wires the MIDI output enable/port live from the store — the #137 regression guard', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);

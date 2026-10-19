@@ -7,8 +7,8 @@
  * `navigator.requestMIDIAccess` are browser-only and async to enable, so — exactly
  * like the `lyria` node hides its websocket/audio behind a {@link GenerativeEngine}
  * — this node depends only on a small {@link MidiSink} contract. The browser
- * implementation ({@link MidiSinkFactory}) is lazy-loaded from `./midi_engine`
- * (which imports WEBMIDI.js) the first time output is enabled, so nothing MIDI is
+ * implementation ({@link MidiSinkFactory}) is provided by the slice's React half, which
+ * lazy-loads `../app/midi_engine` (WEBMIDI.js) the first time output is enabled, so nothing MIDI is
  * pulled in until asked for, and a mock sink makes the note/CC contract logic
  * — where the real bugs live (stuck notes, retrigger thrash, CC flooding) —
  * headlessly testable with no browser.
@@ -156,12 +156,15 @@ function _sendCc(
   sink.controlChange(channel, controller, value);
 }
 
-/** The default browser factory: lazy-load the WEBMIDI.js adapter only when needed,
- *  so nothing MIDI is imported until output is actually enabled in a browser. */
-const _defaultFactory: MidiSinkFactory = async (opts) => {
-  const { openWebMidiSink } = await import('./midi_engine');
-  return openWebMidiSink(opts);
-};
+/** The browser's factory, PROVIDED by the slice's React half (`../ui.tsx`), which lazy-loads the
+ *  WEBMIDI.js adapter only when output is enabled. The node imports no browser library itself
+ *  (an extension's node is its pure side, #600 S13); without one, a capable browser still gets
+ *  an honest error on open rather than a crash. */
+let browserFactory: MidiSinkFactory | null = null;
+export function provideMidiSinkFactory(factory: MidiSinkFactory | null): void {
+  browserFactory = factory;
+}
+const noFactory: MidiSinkFactory = async () => ({ sink: null, ports: [], reason: 'error' });
 
 // ---- node ------------------------------------------------------------------
 
@@ -306,7 +309,7 @@ export const midiOutNode = defineNode<Params>({
           openedPort = requestedPort;
           phase = 'connecting';
           message = requestedPort ? `Connecting to MIDI output "${requestedPort}"...` : 'Connecting to MIDI output...';
-          const open = factory ?? _defaultFactory;
+          const open = factory ?? browserFactory ?? noFactory;
           void open({ portName: requestedPort })
             .then((res) => {
               opening = false;

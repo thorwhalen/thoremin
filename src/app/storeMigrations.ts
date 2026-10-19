@@ -70,7 +70,7 @@ type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>
  * - v22 (#148): `hands` (the handedness dwell, default 0 = the raw per-frame label every
  *   earlier blob played by); healed after the v21 step runs.
  * - v23 (#168 Q3): `midi.muteFollowsMaster` (default true = the master mute silences MIDI,
- *   as every earlier blob played), healed field by field by healMidi.
+ *   as every earlier blob played), healed field by field (by the MIDI slice's flat heal since #600 S13).
  * - v24 (#240): `audioPrefs`, a per-device tooling pref (not a preset field): `lowLatency`,
  *   default off = the `interactive` hint every earlier blob ran with.
  *   Then, WITHOUT a bump (#336, #187 PR 5): `conductor.orchestra` (the sampled orchestra:

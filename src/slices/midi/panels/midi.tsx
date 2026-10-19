@@ -7,11 +7,10 @@
  * control says so instead of showing a dead toggle; a blocked permission surfaces
  * as its own `denied` phase with a re-allow hint rather than a generic error.
  */
-import { dispatchDialSet } from '../../dispatchDial';
-import { useMidiStatus } from '../../midiStatus';
-import { useDialsSettings } from '../useDialsSettings';
+import { dispatchDialSet, useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { useMidiStatus } from '../app/midiStatus';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
-import { webMidiSupported, type MidiPhase } from '@/nodes/output/midi_out.schema';
+import { webMidiSupported, type MidiPhase } from '../nodes/midi_out.schema';
 
 /** Status-dot color + whether it pulses, per connection phase. */
 const PHASE_DOT: Record<MidiPhase, string> = {

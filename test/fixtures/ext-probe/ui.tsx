@@ -1,6 +1,7 @@
 /**
  * The probe extension's React half (#600 S1; see `./index.ts`): an editor section with a
- * readout, a status hook, a mount effect, a shell tool and an entry point into it. What each
+ * readout, a status hook, a mount effect, a shell tool, an entry point into it, a command and
+ * a still-sounding note for the muted badge. What each
  * one saw is recorded in {@link probeSeen}, so a test can ask whether the host called it.
  */
 import type { ExtensionUi, ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
@@ -60,6 +61,8 @@ export const PROBE_UI: ExtensionUi = {
     },
   ],
   commands: [pingCmd],
+  // What keeps sounding while muted (#600 S13): the probe, while its dial is on.
+  stillSounding: [{ id: 'probe', whileMuted: (s) => ((s.probe as { enabled?: boolean } | undefined)?.enabled === true ? 'probe still on' : null) }],
   statusHooks: [
     {
       nodeId: PROBE_NODE_ID,

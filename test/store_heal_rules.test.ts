@@ -31,7 +31,8 @@ const CORE_HEALED = [
 ];
 
 /** The fields mergeControls sets outside the table (after it, so they win). */
-const MERGE_EXPLICIT = ['midi', 'faceMapping', 'steerPlaying', 'scoreDoc', 'songHandle', 'songPlaying', 'songPlays'];
+// `midi` left this list with its slice (#600 S13): an extension dial now, healed by its slice.
+const MERGE_EXPLICIT = ['faceMapping', 'steerPlaying', 'scoreDoc', 'songHandle', 'songPlaying', 'songPlays'];
 
 describe('the heal table', () => {
   it('heals exactly the sixteen core whole-object fields', () => {

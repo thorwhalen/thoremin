@@ -7,7 +7,7 @@
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
  * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
  * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command,
- * a carve modality and a declared store);
+ * a carve modality, a declared store and a derived store-controls port);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -144,6 +144,8 @@ export const PROBE_EXTENSION = defineExtension({
       migrations: { 1: migrateProbeV1 },
       // An expand step's adoption (#600 S9): a value an older build kept under `probeOld`.
       legacyKeys: ['probeOld'],
+      // A store-controls port derived from the dial (#600 S13), beside the whole-dial port.
+      ports: [{ name: 'probeFreq', kind: 'number', read: (d: ProbeDial) => d.freq }],
     }),
   ] as const,
   // A per-device pref (#600 S9): persisted, never saved in an instrument.
