@@ -73,3 +73,25 @@ describe('createForestPrefetcher', () => {
     warn.mockRestore();
   });
 });
+
+describe('whenReady', () => {
+  it('waits for the build in flight, and is immediate when there is none or no worker', async () => {
+    const c = doc(40, 31);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const p = createForestPrefetcher({ build: async (i) => (await gate, real(i)) });
+    const running = p.prefetch(c);
+    let ready = false;
+    void p.whenReady(c).then(() => (ready = true));
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    release();
+    await running;
+    await p.whenReady(c);
+    expect(ready).toBe(true);
+    // Cached now, and for a categorizer nothing is building: no wait.
+    await p.whenReady(c);
+    await p.whenReady(doc(40, 32));
+    await createForestPrefetcher({ build: null }).whenReady(doc(40, 33));
+  });
+});

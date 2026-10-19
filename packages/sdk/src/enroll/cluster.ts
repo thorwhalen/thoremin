@@ -27,7 +27,7 @@
  *
  * Scale: the merge loop is O(n²) in time and memory (a nearest-neighbour cache over a flat
  * distance matrix, see {@link agglomerate}), so the *hundreds* of still-points a 60-second gated
- * take produces build instantly and the file's bound of 2000 in about a second (#420).
+ * take produces build instantly and the file's bound of 3000 in about a second in a worker (#420, #587).
  *
  * ## Linkage
  *

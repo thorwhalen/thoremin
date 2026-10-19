@@ -52,9 +52,9 @@ import {
 import { neutralIndices } from '@thoremin/sdk/enroll/carve';
 import { TRAIN_DEFAULTS } from '@thoremin/sdk/enroll/classify';
 import { createLightWatch, createRestWatch } from './sessionWatches';
-import { labelledHoldsOf, leanPairs } from './holdGroups';
+import { holdAllInCategory, labelledHoldsOf, leanPairs, withLabelsPlaced, type LabelledResult } from './holdGroups';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
-import type { ForestPrefetcher } from '../lib/forest_prefetch';
+import type { ForestPrefetcher, MergeRunner } from '../lib/forest_prefetch';
 import {
   deleteHolds as deleteHoldsFrom,
   mergeCategories,
@@ -62,7 +62,6 @@ import {
   nameCategory,
   NEW_CATEGORY,
   anchorNames,
-  placeLabelled,
   type LabelledHolds,
   consistentPins,
   mirrorOff,
@@ -145,6 +144,8 @@ export const isLive = (phase: FacePhase): boolean => phase === 'explore' || isRe
 export interface FaceSessionDeps {
   /** Warms the re-cut forest off the main thread for a big categorizer (#499); none: it is built on the page. */
   forests?: ForestPrefetcher;
+  /** Merges a take into a big categorizer off the main thread (#587); none: `mergeSession` runs on the page. */
+  merge?: MergeRunner;
   source: () => FaceSource;
   thumbs: ThumbStore;
   /** Opens the source's stream for stills, taken at capture (#385 E3). */
@@ -406,10 +407,10 @@ export const FACE_SESSION_DEFAULTS = {
   /** How many edits undo keeps. */
   undoDepth: 100,
   /** The most holds a suggested k is computed over on every edit (the forest, quadratic since
-   *  #420: about 0.13 s at 800 holds over 52 features, 0.75 s at 2000). */
+   *  #420: about 0.13 s at 800 holds over 52 features, 0.75 s at 2000; past this the worker builds it). */
   suggestUpTo: 800,
   /** The most holds a re-cut carves at once on the main thread: the file's bound (about 0.8 s
-   *  at 2000 since #420). Only a record saved before the bound existed can be larger. */
+   *  at 3000, #587: the forest is built in the worker). Only a record saved before the bound existed can be larger. */
   recutUpTo: MAX_CATEGORIZER_SAMPLES,
   /** The most categories a carve makes: one per chord slot an instrument has. */
   maxCategories: MAX_CATEGORY_SLOTS,
@@ -460,6 +461,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   let source: FaceSource | null = null;
   /** The source's stream, open for stills while recording (null: no pictures this take). */
   let frames: LiveFrames | null = null;
+  /** The latest re-cut waiting for its forest (a later move of the k slider wins). */
+  let cutToken = 0;
   let takeId: string | null = null;
   /** Holds of the take whose still was asked for (the take's point count, as last seen). */
   let stilled = 0;
@@ -876,34 +879,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return placed.ok ? { ...r, categorizer: placed.categorizer } : r;
     };
     /** `labelled` with every hold of the take that has no name of its own (and was not deleted in
-     *  the strip) moved to category `id` and pinned there (#435). A failure is said and nothing
-     *  moves. */
-    const holdAllIn = (labelled: { categorizer: PersonalCategorizer; named: string[]; error: string | null }, t: FaceTake, tid: string, id: string) => {
-      const names = holdNamesOf(t);
-      const present = new Set(labelled.categorizer.samples.map((x) => x.id));
-      const ids: string[] = [];
-      for (let i = 0; i < t.pointCount(); i++) {
-        const hid = holdId(tid, i);
-        if (!dropped.has(i) && !names.get(i)?.trim() && present.has(hid)) ids.push(hid);
-      }
-      if (ids.length === 0 || !labelled.categorizer.categories.some((c) => c.id === id)) return labelled;
-      const r = moveHoldsIn(labelled.categorizer, ids, id);
-      return r.ok ? { ...labelled, categorizer: r.categorizer } : { ...labelled, error: labelled.error ?? r.error };
-    };
-    /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). A
-     *  failure is said, and the holds are carved like any other. */
-    const withLabels = (c: PersonalCategorizer, groups: readonly LabelledHolds[]): { categorizer: PersonalCategorizer; named: string[]; error: string | null } => {
-      if (groups.length === 0) return { categorizer: c, named: [], error: null };
-      const r = placeLabelled(c, groups, { neutralLabel: modality.words.neutral });
-      if (!r.ok) return { categorizer: c, named: [], error: r.error };
-      // A name that is new makes a category: never past the most an instrument has chords for.
-      const grown = r.categorizer.categories.length > c.categories.length;
-      if (grown && r.categorizer.categories.length > FACE_SESSION_DEFAULTS.maxCategories) {
-        return { categorizer: c, named: [], error: `a new name would make more than ${FACE_SESSION_DEFAULTS.maxCategories} categories, the most an instrument has chords for` };
-      }
-      const named = r.categorizer.categories.filter((cat) => groups.some((g) => g.label.toLowerCase() === cat.label.trim().toLowerCase())).map((cat) => cat.id);
-      return { categorizer: r.categorizer, named, error: null };
-    };
+     *  the strip) moved to category `id` and pinned there (#435). */
+    const holdAllIn = (labelled: LabelledResult, t: FaceTake, tid: string, id: string): LabelledResult =>
+      holdAllInCategory(labelled, { names: holdNamesOf(t), dropped, count: t.pointCount(), takeId: tid, to: id });
+    /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). */
+    const withLabels = (c: PersonalCategorizer, groups: readonly LabelledHolds[]): LabelledResult =>
+      withLabelsPlaced(c, groups, { neutralLabel: modality.words.neutral, maxCategories: FACE_SESSION_DEFAULTS.maxCategories });
 
     /** What a re-cut of the working categorizer trains its reject radius from. */
     const recutOptions = (): RecutOptions =>
@@ -1228,9 +1209,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // radius would set every new face aside); not with the dial's scale, which stays a live
           // setting rather than being written into the samples' radius.
           const base = merge.working.strangers === 'neutral' ? { ...merge.working, rejectRadius: flooredRejectRadius(merge.working) } : merge.working;
-          let result: ReturnType<typeof mergeSession>;
+          let result: Awaited<ReturnType<MergeRunner>>;
           try {
-            result = mergeSession(base, added, { seed: merge.seed });
+            result = await (deps.merge ?? (async (b, a, o) => mergeSession(b, a, o)))(base, added, { seed: merge.seed });
           } catch (err) {
             // A working copy the merge cannot read (it validates): the base kept, said plainly.
             set({ notice: `Nothing was merged: ${err instanceof Error ? err.message.split('\n')[0].slice(0, 160) : String(err)}` });
@@ -1395,7 +1376,19 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A name saved before pins existed (or kept from the file) is the player's: anchored
         // first, so the re-cut keeps it (the general model's proposals are not).
         const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
-        edit((w) => recut(anchorNames(w, kept), want, recutOptions()), { k: true });
+        const cut = () => edit((w) => recut(anchorNames(w, kept), want, recutOptions()), { k: true });
+        // A pool past the suggestion's size has its forest built in the worker after each edit
+        // (#499): wait for that build rather than race it onto the page, and let a later move of
+        // the slider win over an earlier one still waiting.
+        const wait = deps.forests && working.samples.length > FACE_SESSION_DEFAULTS.suggestUpTo ? deps.forests.whenReady(anchorNames(working, kept), recutOptions()) : null;
+        if (!wait) {
+          cut();
+          return;
+        }
+        const mine = ++cutToken;
+        void wait.then(() => {
+          if (mine === cutToken && get().working === working) cut();
+        });
       },
 
       rename(id, label) {

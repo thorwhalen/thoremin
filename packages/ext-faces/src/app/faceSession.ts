@@ -8,7 +8,7 @@
  * at the camera is not playing it), and provides its capture control to the host's
  * `carve.capture.toggle` command (Space).
  */
-import { createForestPrefetcher } from '../lib/forest_prefetch';
+import { createForestPrefetcher, createMergeRunner } from '../lib/forest_prefetch';
 import type { StoreApi } from 'zustand/vanilla';
 import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import { onCarveRequest, takeCarveRequest } from '@thoremin/sdk-ui/enroll/carveRequest';
@@ -40,6 +40,7 @@ export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): Fa
   if (typeof indexedDB !== 'undefined') void sweepOrphanStillsOnce(thumbs);
   return {
     forests: createForestPrefetcher(),
+    merge: createMergeRunner().merge,
     source: () => sourceFromUrl(undefined, script),
     thumbs,
     frames: openLiveFrames,
