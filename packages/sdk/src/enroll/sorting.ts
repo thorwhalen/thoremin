@@ -212,6 +212,25 @@ export function placeLabelled(c: PersonalCategorizer, groups: readonly LabelledH
   return done(() => rebuild(c, categories, place, pins));
 }
 
+/**
+ * Hold `id` goes wherever hold `with` is, both pinned there (#349): a lean, the same face held at
+ * another distance, belongs to the hold it leaned on whatever the carve would have made of it,
+ * and stays with it at every k. Pairs naming a hold that is not in the categorizer are skipped.
+ */
+export function placeWith(c: PersonalCategorizer, pairs: readonly { id: string; with: string }[]): SortResult {
+  const place = placement(c);
+  const pins = { ...(c.pins ?? {}) };
+  for (const pair of pairs) {
+    const to = place.get(pair.with);
+    if (to === undefined || !place.has(pair.id)) continue;
+    place.set(pair.id, to);
+    // Both are pinned: a pinned lean beside a free anchor would let a re-cut part them.
+    pins[pair.id] = to;
+    pins[pair.with] = to;
+  }
+  return done(() => rebuild(c, c.categories, place, pins));
+}
+
 /** Delete holds `ids` (a sneeze, a look away): gone from the samples, their bins and their pins;
  *  a category they empty goes with them. Refused when no category would be left. */
 export function deleteHolds(c: PersonalCategorizer, ids: readonly string[]): SortResult {

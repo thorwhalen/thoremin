@@ -52,6 +52,7 @@ import {
 import { neutralIndices } from '@thoremin/sdk/enroll/carve';
 import { TRAIN_DEFAULTS } from '@thoremin/sdk/enroll/classify';
 import { createLightWatch, createRestWatch } from './sessionWatches';
+import { labelledHoldsOf, leanPairs } from './holdGroups';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
 import type { ForestPrefetcher } from '../lib/forest_prefetch';
 import {
@@ -68,6 +69,7 @@ import {
   mirrorOffable,
   mirrorOn,
   recut,
+  placeWith,
   recutBounds,
   recutRange,
   setNeutralTrained,
@@ -296,7 +298,7 @@ export interface FaceSessionState {
   setBurstName(name: string): void;
   /** Begin a burst (#385 E7: a key or button held): every frame is collected until
    *  {@link FaceSessionState.endBurst}, then one hold, named {@link FaceSessionState.burstName}. */
-  beginBurst(): void;
+  beginBurst(lean?: boolean): void;
   /** End the burst; a burst too short to take says so. */
   endBurst(): void;
   /** The live feature bars now, or null when nothing is read. Not reactive: a panel polls it. */
@@ -867,18 +869,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       for (const [i, name] of holdNames) names.set(i, name);
       return names;
     };
-    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => {
-      const by = new Map<string, { label: string; ids: string[] }>();
-      const names = holdNamesOf(t);
-      for (const [i, raw] of names) {
-        const label = raw.trim();
-        if (!label || dropped.has(i)) continue;
-        const key = label.toLowerCase();
-        const g = by.get(key) ?? { label, ids: [] };
-        g.ids.push(holdId(tid, i));
-        by.set(key, g);
-      }
-      return [...by.values()];
+    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => labelledHoldsOf(holdNamesOf(t), dropped, tid);
+    /** `r` with each lean's holds (#349) put and pinned where the hold they leaned on is. */
+    const withLeans = <R extends { categorizer: PersonalCategorizer }>(r: R, t: FaceTake, tid: string): R => {
+      const placed = placeWith(r.categorizer, leanPairs(t.leans(), dropped, tid));
+      return placed.ok ? { ...r, categorizer: placed.categorizer } : r;
     };
     /** `labelled` with every hold of the take that has no name of its own (and was not deleted in
      *  the strip) moved to category `id` and pinned there (#435). A failure is said and nothing
@@ -1160,10 +1155,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         set({ burstName: name });
       },
 
-      beginBurst() {
+      beginBurst(lean = false) {
         const phase = get().phase;
         if (!take || (phase !== 'faces' && phase !== 'paused')) return;
-        if (take.beginBurst(deps.now(), get().burstName)) set({ burst: { label: get().burstName.trim(), frames: 0 }, hold: take.hold(), notice: null });
+        if (take.beginBurst(deps.now(), lean ? '' : get().burstName, { lean })) set({ burst: { label: get().burstName.trim(), frames: 0 }, hold: take.hold(), notice: null });
       },
 
       endBurst() {
@@ -1249,7 +1244,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           }
           // Bursts recorded under a name go to the category of that name (or a new one), pinned
           // (#385 E7): "Record more frown" lands in frown, whatever is nearest.
-          const named = withLabels(result.categorizer, labelledHolds(myTake, takeId!));
+          const named = withLeans(withLabels(result.categorizer, labelledHolds(myTake, takeId!)), myTake, takeId!);
           // "Record more" (#435): every hold not named otherwise goes to its category, by id.
           const labelled = merge.holdsIn ? holdAllIn(named, myTake, takeId!, merge.holdsIn) : named;
           for (const id of labelled.named) if (!sources.has(id)) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
@@ -1291,7 +1286,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         chosenVocabulary = null;
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
-        const labelled = withLabels(unlabelled, labelledHolds(myTake, takeId!));
+        const labelled = withLeans(withLabels(unlabelled, labelledHolds(myTake, takeId!)), myTake, takeId!);
         // The holds deleted from the strip (#404) go before the carve, so it never sees them.
         const gone = samples.flatMap((x, i) => (dropped.has(i) ? [x.id] : []));
         const kept = gone.length > 0 ? deleteHoldsFrom(labelled.categorizer, gone) : { ok: true as const, categorizer: labelled.categorizer };

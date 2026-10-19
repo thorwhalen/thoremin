@@ -13,7 +13,7 @@
   "runtimeImportCycles": 0,
   "largestFiles": {
     "src/nodes/output/canvas_overlay.ts": 2322,
-    "packages/ext-faces/src/app/sessionStore.ts": 1777,
+    "packages/ext-faces/src/app/sessionStore.ts": 1772,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
     "src/nodes/features/conductor.ts": 923,
     "src/app/store.ts": 905
