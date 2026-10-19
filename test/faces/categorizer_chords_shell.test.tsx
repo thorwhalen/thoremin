@@ -25,7 +25,7 @@ import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
-import { chooseCategorizerChordsWrites, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
+import { chooseCategorizerChordsWrites, UNSET_BLEND_VALUE, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
 import type { DerivationSettings } from '@/instruments/derive';
 import { FACES } from '../helpers/extensions';
 import '@/app/dials/useDialsSettings';
@@ -91,6 +91,16 @@ describe.runIf(FACES)('hand shapes play chords, from the shell', () => {
     fireEvent.change(first, { target: { value: '6' } });
     await waitFor(() => expect(Object.values(chordsDial().degrees)).toContain(6));
     expect(screen.getByText(/Chords from Shapes/)).toBeTruthy();
+    // The category blend (#372), a click further: the target, then a category's value; no slider
+    // while it is off, and a value cleared goes back to unset (it no longer pulls).
+    expect(screen.queryAllByLabelText(/^brightness for /)).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText('Category blend'), { target: { value: 'brightness' } });
+    await waitFor(() => expect(chordsDial().blend).toBe('brightness'));
+    const slider = (await screen.findAllByLabelText(/^brightness for /))[0] as HTMLInputElement;
+    fireEvent.change(slider, { target: { value: '0.8' } });
+    await waitFor(() => expect(Object.values(chordsDial().blendValues)).toContain(0.8));
+    fireEvent.click(await screen.findByLabelText(/^Clear brightness for /));
+    await waitFor(() => expect(Object.values(chordsDial().blendValues).every((v) => v === UNSET_BLEND_VALUE)).toBe(true));
   });
 });
 

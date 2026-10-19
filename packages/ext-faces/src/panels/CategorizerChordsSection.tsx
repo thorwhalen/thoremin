@@ -16,7 +16,7 @@ import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { useCategorizerChords } from '../app/categorizerChords';
 import { onFaceModelsChanged } from '../app/models';
 import { CHORD_MODALITY } from '../lib/categorizerChord';
-import { AUTO_DEGREE, BLEND_TARGETS, CATEGORY_SLOTS, chooseCategorizerChordsWrites, DEFAULT_BLEND_VALUE, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '../schema';
+import { AUTO_DEGREE, BLEND_TARGETS, CATEGORY_SLOTS, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, UNSET_BLEND_VALUE, type CategorizerChordsDial } from '../schema';
 
 const DEGREES = [0, 1, 2, 3, 4, 5, 6] as const;
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'] as const;
@@ -102,9 +102,15 @@ export default function CategorizerChordsSection() {
               ))}
             </select>
           </label>
+          {dial.blend !== 'off' && (
+            <p className="text-[10px] leading-relaxed text-white/40">
+              Each category's {dial.blend}, 0 to 1: between categories it moves between their values. A category left unset does not pull.
+            </p>
+          )}
           {play.categories.map((c, i) => {
             const slot = CATEGORY_SLOTS.includes(c.id) ? c.id : null;
-            const blendValue = slot ? ((dial.blendValues as Record<string, number> | undefined)?.[slot] ?? DEFAULT_BLEND_VALUE) : DEFAULT_BLEND_VALUE;
+            const blendValue = slot ? ((dial.blendValues as Record<string, number> | undefined)?.[slot] ?? UNSET_BLEND_VALUE) : UNSET_BLEND_VALUE;
+            const blendSet = blendValue >= 0;
             const own = slot ? ((dial.degrees as Record<string, number>)[slot] ?? AUTO_DEGREE) : AUTO_DEGREE;
             return (
               <div key={c.id} className="flex items-center justify-between gap-2">
@@ -138,18 +144,31 @@ export default function CategorizerChordsSection() {
                   ))}
                 </select>
                 {dial.blend !== 'off' && (
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={blendValue}
-                    disabled={!slot}
-                    className="w-16"
-                    aria-label={`${dial.blend} for ${c.name}`}
-                    data-category-blend={c.id}
-                    onChange={(e) => slot && void dispatchDialSetIn(`categorizerChords.blendValues.${slot}`, Number(e.target.value))}
-                  />
+                  <span className="flex items-center gap-1">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={blendSet ? blendValue : 0.5}
+                      disabled={!slot}
+                      className={blendSet ? 'w-16' : 'w-16 opacity-40'}
+                      title={blendSet ? undefined : 'Not set: this category does not pull the blend'}
+                      aria-label={`${dial.blend} for ${c.name}`}
+                      data-category-blend={c.id}
+                      onChange={(e) => slot && void dispatchDialSetIn(`categorizerChords.blendValues.${slot}`, Number(e.target.value))}
+                    />
+                    {blendSet && slot && (
+                      <button
+                        type="button"
+                        className="text-white/40 hover:text-white/80"
+                        aria-label={`Clear ${dial.blend} for ${c.name}`}
+                        onClick={() => void dispatchDialSetIn(`categorizerChords.blendValues.${slot}`, UNSET_BLEND_VALUE)}
+                      >
+                        x
+                      </button>
+                    )}
+                  </span>
                 )}
               </div>
             );

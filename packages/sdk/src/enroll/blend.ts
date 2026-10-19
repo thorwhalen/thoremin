@@ -13,18 +13,32 @@
  * (#87, Decision B: no per-tick command writes).
  */
 
+export interface BlendOptions {
+  /** Below this total membership over all categories nothing is read (the rest, a stranger):
+   *  null, rather than a mean of leftovers. */
+  minWeight?: number;
+}
+
 /** The membership-weighted mean of the values the categories have (ids aligned with scores). */
-export function blendByMembership(ids: readonly string[], scores: readonly number[], values: Readonly<Record<string, number | undefined>>): number | null {
+export function blendByMembership(
+  ids: readonly string[],
+  scores: readonly number[],
+  values: Readonly<Record<string, number | undefined>>,
+  { minWeight = 0 }: BlendOptions = {},
+): number | null {
   let sum = 0;
   let weight = 0;
+  let total = 0;
   ids.forEach((id, i) => {
-    const v = values[id];
     const s = scores[i];
-    if (typeof v !== 'number' || !Number.isFinite(v) || !(s > 0)) return;
+    if (!(s > 0)) return;
+    total += s;
+    const v = values[id];
+    if (typeof v !== 'number' || !Number.isFinite(v)) return;
     sum += v * s;
     weight += s;
   });
-  return weight > 0 ? sum / weight : null;
+  return weight > 0 && total >= minWeight ? sum / weight : null;
 }
 
 export interface Smoother {

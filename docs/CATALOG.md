@@ -348,7 +348,7 @@ Continuous control from a categorizer's memberships: each category's value, weig
 - **roles:** mapping
 - **in:** category:category-scores, config:categorizer-chords-config
 - **out:** controls:blend-controls
-- **params:** smoothingS (number=0.15)
+- **params:** smoothingS (number=0.15), tensionDwellS (number=0.15)
 
 ### Music logic (tonal guidance)
 _Harmony kept in-key._

@@ -37,7 +37,8 @@ const perSlot = <T extends z.ZodType>(field: T) => z.object(Object.fromEntries(C
 
 /** What the category blend moves (#372). */
 export const BLEND_TARGETS = ['off', 'brightness', 'tension'] as const;
-export const DEFAULT_BLEND_VALUE = 0.5;
+/** A category the player gave no blend value: it does not pull. */
+export const UNSET_BLEND_VALUE = -1;
 
 /** A category's target beyond its degree (H6 of #613, `@thoremin/sdk/harmony/target` strings):
  *  '' (the default) = its degree, as before; a move, a function or the seventh otherwise. One
@@ -118,7 +119,7 @@ export const CategorizerChordsDialSchema = z.object({
   targets: TargetsSchema,
   /** Moving between categories moves this between their values (#372). */
   blend: z.enum(BLEND_TARGETS).default('off'),
-  blendValues: perSlot(z.number().min(0).max(1).default(DEFAULT_BLEND_VALUE)),
+  blendValues: perSlot(z.number().min(UNSET_BLEND_VALUE).max(1).default(UNSET_BLEND_VALUE)),
 });
 export type CategorizerChordsDial = z.infer<typeof CategorizerChordsDialSchema>;
 export const DEFAULT_CATEGORIZER_CHORDS: CategorizerChordsDial = CategorizerChordsDialSchema.parse({ degrees: {} });
@@ -153,6 +154,6 @@ export function chordDegreeOf(dial: Partial<CategorizerChordsDial> | null | unde
 export function chooseCategorizerChordsWrites(id: string): [string, unknown][] {
   const writes: [string, unknown][] = [['categorizerChords.id', id]];
   for (const slot of CATEGORY_SLOTS)
-    writes.push([`categorizerChords.degrees.${slot}`, AUTO_DEGREE], [`categorizerChords.targets.${slot}`, ''], [`categorizerChords.blendValues.${slot}`, DEFAULT_BLEND_VALUE]);
+    writes.push([`categorizerChords.degrees.${slot}`, AUTO_DEGREE], [`categorizerChords.targets.${slot}`, ''], [`categorizerChords.blendValues.${slot}`, UNSET_BLEND_VALUE]);
   return writes;
 }

@@ -37,7 +37,7 @@ import { categorizerChordPlay, type CategorizerChordPlay } from '@thoremin/ext-f
 import { categorizerChordNode, CATEGORIZER_CHORD_VOICE_ID_BASE } from '@thoremin/ext-faces/nodes/categorizer_chord';
 import { categoryBlendNode, type BlendControls } from '@thoremin/ext-faces/nodes/category_blend';
 import { startCategorizerChords, useCategorizerChords, type CategorizerChordsDeps } from '@thoremin/ext-faces/app/categorizerChords';
-import { AUTO_DEGREE, DEFAULT_BLEND_VALUE, chordDegreeOf, chordModalityOf, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
+import { AUTO_DEGREE, UNSET_BLEND_VALUE, chordDegreeOf, chordModalityOf, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
 import type { FaceModelRecord } from '@thoremin/ext-faces/app/models';
 import { FACES } from '../helpers/extensions';
 import { POSES, poseVector, scriptedPoseCategorizer } from '../helpers/body_poses';
@@ -67,12 +67,12 @@ describe('the dial (pure)', () => {
     expect(chordDegreeOf(dial, 'cat-9', 7)).toBe(ORDER_DEGREES[0]);
     const writes = chooseCategorizerChordsWrites('hand:x');
     expect(writes[0]).toEqual(['categorizerChords.id', 'hand:x']);
-    // Every slot back to Auto, its target back to '' (its degree, H6 of #613), its blend value to the middle (#372).
+    // Every slot back to Auto, its target back to '' (its degree, H6 of #613), its blend value unset (#372).
     expect(
       writes
         .slice(1)
         .every(([k, v]) =>
-          k.startsWith('categorizerChords.degrees.') ? v === AUTO_DEGREE : k.startsWith('categorizerChords.targets.') ? v === '' : k.startsWith('categorizerChords.blendValues.') && v === DEFAULT_BLEND_VALUE,
+          k.startsWith('categorizerChords.degrees.') ? v === AUTO_DEGREE : k.startsWith('categorizerChords.targets.') ? v === '' : k.startsWith('categorizerChords.blendValues.') && v === UNSET_BLEND_VALUE,
         ),
     ).toBe(true);
   });
@@ -316,6 +316,23 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     expect(fists.length).toBeGreaterThan(0);
     for (const x of fists) expect(pcs(x), `fist at ${x.ms} ms`).toBeGreaterThanOrEqual(4);
     for (const x of others) expect(pcs(x), `${x.shape} at ${x.ms} ms`).toBe(3);
+  });
+
+  it('a category whose target adds the seventh keeps it under a blended tension of 0 (one colouring rule)', async () => {
+    const fist = categorizer.categories.find((c) => c.label === 'fist')!;
+    const config = {
+      ...DEFAULT_CATEGORIZER_CHORDS,
+      id: record.id,
+      targets: { ...DEFAULT_CATEGORIZER_CHORDS.targets, [fist.id]: 'ctl:seventh' },
+      blend: 'tension' as const,
+      blendValues: valuesFor(0, 0),
+    };
+    const fists = settled((await replayBlended(config)).out).filter((x) => x.shape === 'fist');
+    expect(fists.length).toBeGreaterThan(0);
+    for (const x of fists) {
+      const pcs = new Set(x.params.voices.filter((v) => v.present).map((v) => Math.round(12 * Math.log2(v.freq / 440) + 69) % 12));
+      expect(pcs.size, `fist at ${x.ms} ms`).toBe(4);
+    }
   });
 
   it('a model the dial does not name, or no hand in view, plays nothing', async () => {

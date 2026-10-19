@@ -39,3 +39,11 @@ describe('createSmoother', () => {
     expect(s.push(0.7, 0.033)).toBe(0.7);
   });
 });
+
+describe('blendByMembership with a floor', () => {
+  it('nothing read below the total membership floor (the rest, a stranger), over every category', () => {
+    expect(blendByMembership(['a', 'b'], [0.05, 0.05], { a: 0, b: 1 }, { minWeight: 0.2 })).toBeNull();
+    // The floor counts a category with no value too: the reading is real, only one category pulls.
+    expect(blendByMembership(['a', 'b'], [0.05, 0.6], { a: 0.4 }, { minWeight: 0.2 })).toBeCloseTo(0.4);
+  });
+});
