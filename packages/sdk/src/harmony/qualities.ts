@@ -15,7 +15,11 @@
  */
 
 /** A tone's role above the root, as a lead sheet spells it. */
-export type ToneRole = '1' | 'b3' | '3' | '4' | 'b5' | '5' | '#5' | '6' | 'bb7' | 'b7' | '7' | '9' | '2';
+export type ToneRole = '1' | 'b9' | '2' | '9' | '#9' | 'b3' | '3' | '4' | '11' | 'b5' | '#11' | '5' | '#5' | 'b13' | '6' | '13' | 'bb7' | 'b7' | '7';
+
+/** The role of a tone the chord's quality does not name, by its interval above the root: an
+ *  extension or alteration (what a coloration adds, or a non-tertian scale stacks). */
+export const EXTENSION_ROLE: readonly ToneRole[] = ['1', 'b9', '9', 'b3', '3', '11', '#11', '5', 'b13', '13', 'b7', '7'];
 
 export interface QualityDef {
   /** Semitones above the root, ascending, the root first. */
