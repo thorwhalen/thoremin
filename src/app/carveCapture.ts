@@ -5,6 +5,7 @@
  * by the keyboard shortcuts, so the command and Space work from the moment the shell loads.
  */
 import { carveCapture } from '@thoremin/sdk-ui/enroll/capture';
+import './enroll/promptSpeech';
 import { liveCarve, provideCarveHost } from './commands/carveHost';
 import { registry } from './commands/registry';
 

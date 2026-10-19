@@ -12,7 +12,8 @@
  * Rendering only: the actions are the session store's (`../app/sessionStore.ts`) and the test
  * store's (`../app/testStore.ts`); what a tuning means is `@thoremin/sdk/enroll/live`.
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { promptSpeech } from '@thoremin/sdk-ui/enroll/speech';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ModalityWords } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { useWords } from './words';
@@ -236,12 +237,35 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
     t.startQuiz(live, {
       onDone: (trials) => session.getState().setChecks({ quiz: summarizeQuiz(trials, new Map(live.model.categories.map((c) => [c.id, c.label])), new Date().toISOString()) }),
     });
+  const speech = promptSpeech();
+  const [spoken, setSpoken] = useState(speech?.enabled() ?? false);
+  // The prompt is said when the step changes to it (an ask, or a relax), not on every reading.
+  const promptKey = q && q.step.kind === 'ask' ? `ask:${q.step.index}` : q && q.step.kind === 'relax' ? `relax:${q.step.index}` : null;
+  const promptText = q && q.step.kind === 'ask' ? label(q.step.categoryId) : q && q.step.kind === 'relax' ? 'Relax' : '';
+  useEffect(() => {
+    if (promptKey && spoken) speech?.say(promptText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- said once per step
+  }, [promptKey, spoken]);
+  const sayIt = speech && (
+    <label className="flex items-center gap-1 text-[10px] text-white/60">
+      <input
+        type="checkbox"
+        checked={spoken}
+        onChange={(e) => {
+          speech.setEnabled(e.target.checked);
+          setSpoken(e.target.checked);
+        }}
+      />
+      Say the prompts out loud
+    </label>
+  );
   if (!q) {
     return (
       <div className="flex items-start gap-2">
         <button type="button" className={btn} onClick={start} disabled={live.model.categories.length === 0}>
           Quiz me
         </button>
+        {sayIt}
         <p className="text-[10px] leading-snug text-white/45">{`Names your ${w.many} in a random order, each twice, with a rest between: make each within ${QUIZ_DEFAULTS.hitMs / 1000} s and hold it for ${QUIZ_DEFAULTS.holdMs / 1000} s. Shows which ${w.many} you can find again.`}</p>
       </div>
     );
@@ -259,9 +283,10 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
           </span>
         )}
         <p className="text-[10px] text-white/50">{'index' in step ? `${step.index + 1} of ${step.total}` : ''}</p>
-        <button type="button" className={btn} onClick={() => t.stopCheck()}>
+        <button type="button" className={btn} onClick={() => { speech?.stop(); t.stopCheck(); }}>
           Stop the quiz
         </button>
+        {sayIt}
       </div>
     );
   }
