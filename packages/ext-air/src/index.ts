@@ -182,8 +182,9 @@ export const AIR_EXTENSION = defineExtension({
     // move, one per beat, arpeggiated so the beat is heard: up walks the cycle of fourths.
     { name: 'Wheel Walk', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed', rendering: 'arpUp', bpm: 90 }, chordWheel: { enabled: true, walk: true } } },
     // The design's next-chord wheel (§6.2, H10 of #613): the likeliest next chord on top (Piston's
-    // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space.
-    { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps' } } },
+    // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space;
+    // raise the right hand for rarer progressions on top (#672).
+    { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps', surpriseFrom: 'hand' } } },
     // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's quartet read for its chords,
     // played voice-led and arpeggiated on the conductor's beat under the first violin's tune,
     // which is all the conductor's own score plays (the quartet is not doubled).
@@ -211,6 +212,8 @@ export const AIR_EXTENSION = defineExtension({
       // The face model is composed only while the face steers.
       const steer = (settings.chordWheel as { steer?: string }).steer;
       if (steer === 'face' || steer === 'both') ids.push('chord-wheel-face');
+      // The face model, too, while the face sets the surprise.
+      if ((settings.chordWheel as { surpriseFrom?: string }).surpriseFrom === 'face') ids.push('chord-wheel-affect');
     }
     return ids;
   },

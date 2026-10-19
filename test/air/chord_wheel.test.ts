@@ -222,6 +222,25 @@ describe('the chord-wheel node', () => {
     expect(tonnetz[tonnetz.length - 1].grid.captions).toEqual([]);
   });
 
+  it('surprise puts rarer moves on top: from the setting, or the other hand raised (#672)', () => {
+    const top = (o: Out) => o.grid.cells[1]?.label;
+    const caption = (o: Out) => o.grid.captions.map((c) => c.text).find((t) => t.includes('on top')) ?? '';
+    const rare = play([at(null), at(null), at(null)], { order: 'likely', surprise: 1 }); // past the quarter-second dwell
+    expect(top(rare[rare.length - 1])).toBe('B°'); // I to vii°: not in Piston's table
+    expect(caption(rare[rare.length - 1])).toMatch(/^Least likely on top/);
+    // The other hand: low, then raised to the top of the frame.
+    const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+    const outs: Out[] = [];
+    for (let i = 0; i < 60; i++) {
+      const t = i / 30;
+      const right = palmAt({ x: 0.85, y: t < 1 ? 0.85 : 0.1 }, 'Right');
+      const frame: HandsFrame = { t, width: W, height: H, hands: [palmAt(at(null), 'Left'), right] };
+      outs.push(h.process({ hands: frame, config: { enabled: true, mirrorHandedness: false, order: 'likely', surpriseFrom: 'hand' }, spec: C, octaveShift: 0 }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out);
+    }
+    expect(top(outs[25])).toBe('F'); // hand low: the usual, IV on top
+    expect(top(outs[59])).toBe('B°'); // raised: the rare on top
+  });
+
   it('is silent and draws nothing with the dial off', () => {
     const h = chordWheelNode.make(chordWheelNode.params.parse({}));
     const out = h.process({ hands: { t: 0, width: W, height: H, hands: [palmAt(at(null), 'Left')] }, config: { enabled: false }, spec: C }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;

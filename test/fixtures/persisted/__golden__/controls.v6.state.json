@@ -323,6 +323,8 @@
     "rendering": "sustained",
     "sound": "warmPad",
     "steer": "hand",
+    "surprise": 0,
+    "surpriseFrom": "dial",
     "tension": "off",
     "voicing": "voiceLed",
     "walk": false,

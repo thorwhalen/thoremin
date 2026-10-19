@@ -1607,6 +1607,10 @@
       {
         "name": "conductorTime",
         "kind": "musical-time"
+      },
+      {
+        "name": "face",
+        "kind": "face-features"
       }
     ],
     "outputs": [
@@ -1737,6 +1741,16 @@
         "name": "order",
         "type": "enum(fixed | likely)",
         "default": "fixed"
+      },
+      {
+        "name": "surprise",
+        "type": "number",
+        "default": 0
+      },
+      {
+        "name": "surpriseFrom",
+        "type": "enum(dial | hand | face)",
+        "default": "dial"
       },
       {
         "name": "clock",

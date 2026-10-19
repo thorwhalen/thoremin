@@ -32,13 +32,14 @@ import { createBeatWalk, createCategoryStepper, createDirectionStepper, type Cat
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
-import { TRANSITION_PRIORS, rankByPrior } from '@thoremin/sdk/harmony/prior';
+import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
+import { arousalOf, createLevelTracker } from '@thoremin/sdk/harmony/affect';
 import { CLOCKS, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import type { HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import type { FaceFeatures, HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
@@ -86,6 +87,9 @@ const OUTSIDE_KEY_COLOR = '#e2e8f0';
 const REGION_TOP = 0.1;
 const REGION_BOTTOM = 0.9;
 
+/** Where the wheel's surprise comes from (#672). */
+export const SURPRISE_SOURCES = ['dial', 'hand', 'face'] as const;
+
 const Params = z.object({
   enabled: z.boolean().default(false),
   /** Which moves the wheel offers: the key's diatonic moves, or the Tonnetz's (they leave the key). */
@@ -128,6 +132,12 @@ const Params = z.object({
    *  chord on top, then clockwise by a transition prior (Piston's usual root progressions), so the
    *  wheel reorders as the chord changes (H10 of #613). */
   order: z.enum(['fixed', 'likely']).default('fixed'),
+  /** With the likeliest on top: how surprising the top moves are, 0 the usual progressions, 1
+   *  the rare ones, between them the "sometimes" ones (#672, the design's 6.2). */
+  surprise: z.number().min(0).max(1).default(0),
+  /** Where the surprise comes from: the setting above, the other hand's height (higher, more
+   *  surprising), or the face's arousal (an open mouth and raised brows). */
+  surpriseFrom: z.enum(SURPRISE_SOURCES).default('dial'),
   /** Where the beat comes from (the arpeggio's and a walk's): the Chord sound's tempo, or the
    *  loaded song while it plays (H9 of #613). */
   clock: z.enum(CLOCKS).default('tempo'),
@@ -175,6 +185,16 @@ function diatonicTarget(d: number, relation: string): number | null {
   return m ? (((d + (m[1] === '+' ? 1 : -1) * Number(m[2])) % 7) + 7) % 7 : null;
 }
 
+/** Surprise in four steps (the usual, often, now and then, the rare), so a hand's jitter or a
+ *  face's never reshuffles the wheel: crossed by a margin and held a moment. */
+const SURPRISE_EDGES = [1 / 6, 1 / 2, 5 / 6] as const;
+const SURPRISE_MARGIN = 0.05;
+const SURPRISE_DWELL_S = 0.25;
+const SURPRISE_WORDS = ['Most likely', 'Often', 'Now and then', 'Least likely'] as const;
+/** The other hand's height that reads as no surprise and as full surprise (display fractions). */
+const HAND_LOW = 0.85;
+const HAND_HIGH = 0.15;
+
 /** How far above the wheel's top the tension model's name sits, in frame heights. */
 const TENSION_CAPTION_GAP = 0.08;
 
@@ -216,6 +236,8 @@ export const chordWheelNode = defineNode<Params>({
     { name: 'time', kind: 'musical-time' },
     // The conductor's musical time, while it keeps time with the conductor (`clock`).
     { name: 'conductorTime', kind: 'musical-time' },
+    // The face's controls, while the face sets the surprise (`surpriseFrom`).
+    { name: 'face', kind: 'face-features' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -242,6 +264,9 @@ export const chordWheelNode = defineNode<Params>({
     let pointing: number | null = null;
     let status: ChordWheelStatus = { ...IDLE_CHORD_WHEEL_STATUS };
     const walker = createBeatWalk();
+    /** The surprise in force (0..3) and what steps it, with a margin and a dwell. */
+    let surpriseLevel = 0;
+    const surpriseTracker = createLevelTracker({ edges: SURPRISE_EDGES, hysteresis: SURPRISE_MARGIN, dwellS: SURPRISE_DWELL_S, rest: 0 });
     /** The wedges' moves when the walk started (the ranked wheel keeps them while walking). */
     let walkMoves: readonly string[] | null = null;
 
@@ -305,7 +330,7 @@ export const chordWheelNode = defineNode<Params>({
         const degreeIn = (from: Chord) => (prior ? diatonicChords(state!.key).findIndex((x) => x.root === from.root && x.quality === from.quality) : -1);
         const movesFrom = (from: Chord): readonly string[] => {
           const d = degreeIn(from);
-          return d < 0 ? moves : rankByPrior(prior!, d, moves.map((m) => diatonicTarget(d, m))).map((i) => moves[i]);
+          return d < 0 ? moves : rankBySurprise(prior!, d, moves.map((m) => diatonicTarget(d, m)), surpriseLevel / (SURPRISE_WORDS.length - 1)).map((i) => moves[i]);
         };
         const sKey = `${c.moves}|${c.dead}|${c.reach}|${c.enterFrames}`;
         if (!stepper || sKey !== stepperKey) {
@@ -330,6 +355,11 @@ export const chordWheelNode = defineNode<Params>({
           const choice = stepper.push(pointer ? { dx: (pointer.x - centre.x) * aspect, dy: pointer.y - centre.y } : null);
           pointing = choice.pointing;
           committed = choice.committed;
+          // The other hand's height, while it sets the surprise (a hand not seen keeps the last).
+          if (c.surpriseFrom === 'hand') {
+            const other = frame.hands.find((h) => h.handedness === labelFor(c.hand === 'left' ? 'right' : 'left', c.mirrorHandedness));
+            if (other) surpriseLevel = surpriseTracker.push(Math.max(0, Math.min(1, (HAND_LOW - displayPoint(other, frame, 'palm').y) / (HAND_LOW - HAND_HIGH))), ctx.time);
+          }
           status = { ...status, armed: choice.armed, steering: !!hand };
         }
         // A walk repeats the held push's move on the figuration's beats, checked every tick
@@ -378,6 +408,11 @@ export const chordWheelNode = defineNode<Params>({
           const t = model && target ? tensionText(model, target, k) : '';
           return t ? `${sub} · ${t}` : sub;
         };
+        if (c.surpriseFrom === 'dial') surpriseLevel = surpriseTracker.push(c.surprise, ctx.time);
+        else if (c.surpriseFrom === 'face') {
+          const read = arousalOf(inputs.face as FaceFeatures | undefined);
+          if (read !== null) surpriseLevel = surpriseTracker.push(read, ctx.time);
+        }
         const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
         const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;
         const gridCells: GridCell[] = chord
@@ -400,7 +435,7 @@ export const chordWheelNode = defineNode<Params>({
           : [];
         // The model's name over the wheel, whenever a number is shown.
         const captions = model && gridCells.length ? [{ x: cells[0].x, y: Math.max(0.03, cells[0].y - c.radius - TENSION_CAPTION_GAP), text: `Tension: ${model.name}` }] : [];
-        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `Most likely on top: ${prior.name}` });
+        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `${SURPRISE_WORDS[surpriseLevel]} on top: ${prior!.name}` });
         const grid: CellGrid = { cells: gridCells, captions, pointers: pointer ? [pointer] : [] };
         status = {
           ...status,

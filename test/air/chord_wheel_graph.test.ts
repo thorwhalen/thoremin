@@ -28,6 +28,10 @@ describe.runIf(AIR)('the chord wheel in the composed graph', () => {
     }
     expect(settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Tonnetz Wheel')!.layer).chordWheel.moves).toBe('tonnetz');
     expect(settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Wheel Walk')!.layer).chordWheel.walk).toBe(true);
+    const next = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Next-Chord Wheel')!.layer);
+    expect(next.chordWheel.surpriseFrom).toBe('hand'); // #672: raise the right hand for rarer moves
+    expect(branchIdsFor({ ...next, chordWheel: { ...next.chordWheel, surpriseFrom: 'face' } })).toContain('chord-wheel-affect');
+    expect(branchIdsFor(next)).not.toContain('chord-wheel-affect');
   });
 
   it('wires its grid to its own overlay element, and draws the wheel', () => {
