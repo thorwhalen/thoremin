@@ -184,3 +184,51 @@ export function createDirectionStepper(opts: StepperOptions): DirectionStepper {
     },
   };
 }
+
+export interface CategoryStepperOptions {
+  /** Frames a new category must be read in a row before it commits. */
+  enterFrames: number;
+  /** The category that is "no choice" (a neutral face): reading it re-arms the stepper. */
+  rest: string | null;
+}
+
+export interface CategoryStepper {
+  /** One reading (null: nothing read). Returns the category that committed on this reading, or null. */
+  push(category: string | null): string | null;
+  reset(): void;
+}
+
+/**
+ * The commit policy for a categorical navigator that MOVES (a face expression mapped to a move on
+ * a chord wheel): a category read `enterFrames` times in a row commits once, and nothing more
+ * commits until the reading has come back to rest (a neutral face, or nothing read). One move per
+ * expression, as the direction stepper makes one move per push.
+ */
+export function createCategoryStepper(opts: CategoryStepperOptions): CategoryStepper {
+  let armed = true;
+  let candidate: string | null = null;
+  let count = 0;
+  return {
+    push(category) {
+      if (category === null || category === opts.rest) {
+        armed = true;
+        candidate = null;
+        count = 0;
+        return null;
+      }
+      if (!armed) return null;
+      count = category === candidate ? count + 1 : 1;
+      candidate = category;
+      if (count < opts.enterFrames) return null;
+      armed = false;
+      candidate = null;
+      count = 0;
+      return category;
+    },
+    reset() {
+      armed = true;
+      candidate = null;
+      count = 0;
+    },
+  };
+}

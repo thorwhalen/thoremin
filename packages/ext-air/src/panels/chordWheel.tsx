@@ -7,8 +7,17 @@
 import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordWheelLive, useChordWheelStatus } from '../app/chordWheelStatus';
-import { WHEEL_MOVE_SETS, type ChordWheelDialParams } from '../nodes/chord_wheel';
+import { DEFAULT_FACE_MOVES, WHEEL_MOVES, WHEEL_MOVE_SETS, WHEEL_STEER, type ChordWheelDialParams } from '../nodes/chord_wheel';
+import { RELATIONS } from '@thoremin/sdk/harmony/space';
+import { EMOTIONS, type Emotion } from '@thoremin/sdk/music/expression';
 import { PLAYER_HANDS } from '../nodes/air_bass';
+
+const STEER_LABEL: Record<ChordWheelDialParams['steer'], string> = {
+  hand: 'the hand (push toward a move)',
+  face: 'the face (each expression a move)',
+  both: 'the hand and the face',
+};
+const moveLabel = (id: string) => (id === 'none' ? 'no move' : (RELATIONS.get(id)?.label ?? id));
 
 const MOVES_LABEL: Record<ChordWheelDialParams['moves'], string> = {
   diatonic: "the key's moves (fourths, thirds, seconds)",
@@ -49,6 +58,8 @@ export function ChordWheelControls() {
   const radius = c.radius ?? 0.3;
   const reach = c.reach ?? 0.14;
   const enterFrames = c.enterFrames ?? 3;
+  const steer = c.steer ?? 'hand';
+  const faceMoves = (c.faceMoves ?? {}) as Partial<Record<Emotion, string>>;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
       <ChordWheelReadout />
@@ -69,6 +80,35 @@ export function ChordWheelControls() {
           ))}
         </select>
       </label>
+      <label className="flex items-center justify-between gap-2 text-xs">
+        Steer with
+        <select className={selectCls} value={steer} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.steer', e.target.value)}>
+          {WHEEL_STEER.map((st) => (
+            <option key={st} value={st}>
+              {STEER_LABEL[st]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {steer !== 'hand' && (
+        <div className="space-y-1 rounded border border-white/10 p-1.5" data-testid="chord-wheel-face-moves">
+          <p className="text-[10px] text-white/50">Each expression, held a moment, makes one move; a neutral face gets ready for the next.</p>
+          {EMOTIONS.map((e) => (
+            <label key={e} className="flex items-center justify-between gap-2 text-xs">
+              {e}
+              <select className={selectCls} value={faceMoves[e] ?? ''} disabled={!enabled} onChange={(ev) => dispatchDialSetIn(`chordWheel.faceMoves.${e}`, ev.target.value)}>
+                <option value="">default ({moveLabel(DEFAULT_FACE_MOVES[moves][e])})</option>
+                <option value="none">no move</option>
+                {WHEEL_MOVES[moves].map((m) => (
+                  <option key={m} value={m}>
+                    {moveLabel(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      )}
       <label className="flex items-center justify-between gap-2 text-xs">
         Steering hand
         <select className={selectCls} value={hand} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.hand', e.target.value)}>

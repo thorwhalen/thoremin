@@ -128,6 +128,9 @@ export const AIR_EXTENSION = defineExtension({
     // A next-chord wheel (H5 of #613): the key's six diatonic moves around the chord in force,
     // voice-led; push the left hand toward a move and hold it.
     { name: 'Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true } } },
+    // The wheel steered by the face (the face as harmonic expression, #613 H6): each expression
+    // held a moment is a move (a smile to the dominant, a sad face to the relative minor).
+    { name: 'Face Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, steer: 'face' } } },
     // The same wheel with the Tonnetz's moves (P, L, R, N, S, H): it leaves the key.
     { name: 'Tonnetz Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, moves: 'tonnetz' } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
@@ -141,7 +144,12 @@ export const AIR_EXTENSION = defineExtension({
     if (on(settings.airGuitar)) ids.push('air-guitar');
     if (on(settings.airFlute)) ids.push('air-flute');
     if (on(settings.chordMap)) ids.push('chord-map');
-    if (on(settings.chordWheel)) ids.push('chord-wheel');
+    if (on(settings.chordWheel)) {
+      ids.push('chord-wheel');
+      // The face model is composed only while the face steers.
+      const steer = (settings.chordWheel as { steer?: string }).steer;
+      if (steer === 'face' || steer === 'both') ids.push('chord-wheel-face');
+    }
     return ids;
   },
 });

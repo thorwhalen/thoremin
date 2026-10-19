@@ -23,7 +23,8 @@ import type { NodeContext } from '@thoremin/dag';
 import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '@thoremin/sdk/harmony/realize';
 import { chordName, functionOf, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { radial, type Region } from '@thoremin/sdk/harmony/layout';
-import { createDirectionStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
+import { createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
+import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -44,6 +45,28 @@ export const WHEEL_MOVES = {
 } as const;
 export type WheelMovesId = keyof typeof WHEEL_MOVES;
 export const WHEEL_MOVE_SETS = Object.keys(WHEEL_MOVES) as [WheelMovesId, ...WheelMovesId[]];
+
+/** Who steers the wheel: the hand's push, the face's expressions (each a move), or both. */
+export const WHEEL_STEER = ['hand', 'face', 'both'] as const;
+
+/**
+ * The move each expression makes by default, per moves set (the face as harmonic expression,
+ * `docs/design/harmonic-layers.md` §5.4: an expression as a MOVE from the chord in force). Chosen
+ * for the major/minor valence link the research found robust (a sad face to the minor side), not
+ * for the video's per-move emotion words (the creator's, unsourced): diatonic, a smile to the
+ * dominant, a sad face to the relative minor; Tonnetz, a sad face flips to the parallel minor (P)
+ * and a smile to the relative (R). Neutral makes no move: it re-arms.
+ */
+export const DEFAULT_FACE_MOVES: Readonly<Record<WheelMovesId, Readonly<Record<Emotion, string>>>> = {
+  diatonic: { happy: 'dia-3', sad: 'dia-2', surprised: 'dia+1', angry: 'dia-1', fearful: 'dia+2', disgusted: 'none', kiss: 'dia+3' },
+  tonnetz: { happy: 'R', sad: 'P', surprised: 'H', angry: 'N', fearful: 'S', disgusted: 'none', kiss: 'L' },
+};
+
+/** An expression's move: the player's choice, '' for the moves set's default, 'none' for no move. */
+export function faceMoveFor(set: WheelMovesId, chosen: string | undefined, emotion: Emotion): string | null {
+  const id = chosen && chosen !== '' ? chosen : DEFAULT_FACE_MOVES[set][emotion];
+  return id === 'none' ? null : id;
+}
 
 /** The wheel's voices: a block of their own (the chord map's is 4_000_000). */
 export const CHORD_WHEEL_VOICE_ID_BASE = 5_000_000;
@@ -78,6 +101,14 @@ const Params = z.object({
   rendering: z.enum(RENDERINGS).default('sustained'),
   bpm: z.number().min(40).max(200).default(100),
   mirrorHandedness: z.boolean().default(true),
+  /** Who steers: the hand's push, the face's expressions (each one a move), or both. */
+  steer: z.enum(WHEEL_STEER).default('hand'),
+  /** The move each expression makes: a relation id, '' for the moves set's default, 'none'. */
+  faceMoves: z
+    .object(Object.fromEntries(EMOTIONS.map((e) => [e, z.string().default('')])) as Record<Emotion, z.ZodDefault<z.ZodString>>)
+    .prefault({}),
+  /** Readings in a row an expression must hold before its move is made. */
+  faceFrames: z.number().int().min(1).max(30).default(6),
 });
 type Params = z.infer<typeof Params>;
 export const ChordWheelDialSchema = Params;
@@ -107,9 +138,12 @@ export interface ChordWheelStatus {
   lastMove: string | null;
   /** The last move that could not be made from the chord (P from a diminished chord). */
   rejected: string | null;
+  /** The face's expression now, when the face steers (null: none read, or the hand alone). */
+  face: string | null;
+  steer: (typeof WHEEL_STEER)[number];
 }
 
-export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null };
+export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand' };
 
 /** The wheel's region: the steering hand's side of the (mirrored) screen, full height. */
 export function wheelRegion(hand: (typeof PLAYER_HANDS)[number]): Region {
@@ -142,6 +176,9 @@ export const chordWheelNode = defineNode<Params>({
     { name: 'spec', kind: 'scale-spec' },
     { name: 'chordConfig', kind: 'chord-config' },
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // The face's expression (the general model, or a personal categorizer's reading), when the
+    // face steers: an optional edge, composed only then.
+    { name: 'expression', kind: 'face-expression' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -157,6 +194,9 @@ export const chordWheelNode = defineNode<Params>({
     let lastConfigRef: unknown = undefined;
     let state: HarmonicState | null = null;
     let stepper: DirectionStepper | null = null;
+    let faceStepper: CategoryStepper | null = null;
+    let faceFrames = 0;
+    let lastFace = -Infinity;
     let stepperKey = '';
     let lastFrame: HandsFrame | undefined;
     let lastSeen = -Infinity;
@@ -176,6 +216,8 @@ export const chordWheelNode = defineNode<Params>({
       state = null;
       stepper = null;
       stepperKey = '';
+      faceStepper = null;
+      lastFace = -Infinity;
       lastFrame = undefined;
       lastSeen = -Infinity;
       pointer = null;
@@ -243,8 +285,28 @@ export const chordWheelNode = defineNode<Params>({
           status = { ...status, armed: choice.armed, steering: !!hand };
         }
 
-        // Sounding while the hand is seen, and a moment after it is lost.
-        const sounding = ctx.time - lastSeen <= c.releaseS ? state.chord : null;
+        // The face: each expression held a moment makes its move once; a neutral face re-arms.
+        let face: string | null = null;
+        if (c.steer !== 'hand') {
+          if (!faceStepper || faceFrames !== c.faceFrames) {
+            faceStepper = createCategoryStepper({ enterFrames: c.faceFrames, rest: 'neutral' });
+            faceFrames = c.faceFrames;
+          }
+          const expr = inputs.expression as ExpressionScores | undefined;
+          face = expr?.present ? expr.label : null;
+          if (face !== null) lastFace = ctx.time;
+          const emotion = faceStepper.push(face);
+          const move = emotion && emotion !== 'neutral' ? faceMoveFor(c.moves, c.faceMoves[emotion as Emotion], emotion as Emotion) : null;
+          if (move) {
+            const before = state.chord;
+            state = applyIntents(state, [{ kind: 'step', relation: move, at: ctx.time }]);
+            if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
+          }
+        }
+
+        // Sounding while the steering hand (or face) is seen, and a moment after it is lost.
+        const seen = c.steer === 'face' ? lastFace : c.steer === 'both' ? Math.max(lastSeen, lastFace) : lastSeen;
+        const sounding = ctx.time - seen <= c.releaseS ? state.chord : null;
         const { voices } = render(sounding);
         const chord = state.chord;
         const k = state.key;
@@ -275,6 +337,8 @@ export const chordWheelNode = defineNode<Params>({
           chord: chord ? chordName(chord, k) : null,
           numeral: state.fn?.numeral ?? '',
           rejected: state.rejected,
+          face,
+          steer: c.steer,
         };
         return { params: { voices } satisfies SynthParams, grid, status, triad: sounding ? tonesOf(sounding, spec) : [] };
       },

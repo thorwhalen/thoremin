@@ -132,4 +132,17 @@ export const chordWheel = defineBranch({
   overlay: [overlayElementId('air', CHORD_WHEEL_ELEMENT)],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordWheel] as const;
+/**
+ * The face steers the chord wheel (the face as harmonic expression: each expression a move): the
+ * general expression model's reading into the wheel. Its own branch, composed only while the face
+ * steers, so a hand-steered wheel never loads the face model.
+ */
+export const chordWheelFace = defineBranch({
+  id: 'chord-wheel-face',
+  description: 'The face steers the chord wheel: each expression held a moment makes its move.',
+  requires: ['chord-wheel', 'face-expression'],
+  nodes: [],
+  edges: [to({ node: 'faceExpr', port: 'expression' }, { node: 'chordWheel', port: 'expression' })],
+});
+
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordWheel, chordWheelFace] as const;
