@@ -483,9 +483,9 @@ Play a key's chords by pointing at them: the seven diatonic chords laid out on t
 A next-chord wheel: the chord in force in the centre, one move per wedge at a fixed angle (the key's diatonic moves, or the Tonnetz's P, L, R and their compounds); push the hand toward a move and hold it, the wheel recentres on the new chord. Off by default.
 
 - **roles:** feature, mapping, music
-- **in:** hands:hands-frame, config:chord-wheel-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number
+- **in:** hands:hands-frame, config:chord-wheel-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number, expression:face-expression
 - **out:** params:synth-params, grid:cell-grid, status:chord-wheel-status, triad:number[]
-- **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true)
+- **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true), steer (enum(hand | face | both)="hand"), faceMoves (object={}), faceFrames (number=6)
 
 ### Sign language
 _Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key._

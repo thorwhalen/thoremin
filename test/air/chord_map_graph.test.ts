@@ -35,7 +35,7 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     expect(has('ui', 'chordSpec', 'chordMap', 'spec')).toBe(true);
     expect(has('ui', 'chordConfig', 'chordMap', 'chordConfig')).toBe(true);
     expect(has('ui', 'octaveShift', 'chordMap', 'octaveShift')).toBe(true);
-    expect(has('cam', 'hands', 'chordMap', 'hands')).toBe(true);
+    expect(has('dwelled', 'hands', 'chordMap', 'hands')).toBe(true); // through the handedness dwell (#314)
     expect(has('chordMap', 'notes', 'chordStrumOut', 'notes')).toBe(true);
     expect(has('chordMap', 'grid', 'overlay', 'cellGrid')).toBe(true);
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);

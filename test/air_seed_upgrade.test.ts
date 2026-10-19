@@ -72,4 +72,16 @@ describe.runIf(AIR)('upgrading a browser seeded before the air instruments', () 
     const tonnetz = await instruments.load('Tonnetz Wheel');
     expect((tonnetz?.chordWheel as { moves?: string } | undefined)?.moves).toBe('tonnetz');
   });
+
+  it('a browser at version 9 (before the face wheel) gains the Face Wheel', async () => {
+    localStorage.clear();
+    await ensureSeeded();
+    await instruments.remove('Face Wheel');
+    localStorage.setItem('thoremin.instruments.seedVersion', '9');
+
+    await ensureSeeded();
+
+    const wheel = await instruments.load('Face Wheel');
+    expect((wheel?.chordWheel as { steer?: string } | undefined)?.steer).toBe('face');
+  });
 });

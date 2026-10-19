@@ -1394,6 +1394,10 @@
         "name": "octaveShift",
         "kind": "number",
         "default": 0
+      },
+      {
+        "name": "expression",
+        "kind": "face-expression"
       }
     ],
     "outputs": [
@@ -1489,6 +1493,21 @@
         "name": "mirrorHandedness",
         "type": "boolean",
         "default": true
+      },
+      {
+        "name": "steer",
+        "type": "enum(hand | face | both)",
+        "default": "hand"
+      },
+      {
+        "name": "faceMoves",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "faceFrames",
+        "type": "number",
+        "default": 6
       }
     ]
   },
