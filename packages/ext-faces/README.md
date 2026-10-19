@@ -86,7 +86,7 @@ The general (shipped) expression model is a categorizer like the others, with th
 - Instruments play exactly as before: `test/faces/general_categorizer.test.ts` replays the real recording and a scripted face holding all seven expressions. It runs under two degree maps, through `face-chord` and through `face-categorizer` with the dial on `general` or on a missing id, and checks a golden hashed from main before the change.
 - The general model stays core's node, not the extension's `face-categorizer`. A build without this extension (`npm run test:core`) must still play the face chords, and an extension node is loaded lazily.
 
-`?faces.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
+`?carve.source=synthetic` runs the session on a scripted face with a canvas video: no camera and no face model. It is a verification affordance, and the browser smoke drives it.
 
 ### Your hand shapes (#385 E8)
 
@@ -98,7 +98,7 @@ The same tool over one hand's SHAPE: Tools, then **Your hand shapes**, then **Re
 - **Pictures**: each held shape's still is cropped to the hand (a square around the wrist and the five fingertips) with a skeleton drawn over it (the wrist through the palm to each fingertip), so it shows what the camera read.
 - **Play it: Bind to commands**. A saved hand categorizer's row has **Bind to commands** (no *Play it*: the face chords read faces). It makes the saved categorizer the active set of the host's category bindings (the Gestures tool's *Your categories*, through the SDK-UI seam `categoryBinder()`, BY ID since #371) and opens the Gestures tool on it, where each category gets a command. The host plays it from its own record (its live model under its saved tuning, read through the hand), and the bindings ride that record, so an edit here reaches them with no re-bind: a re-cut keeps each binding on the category of the same name. Three clicks from a cold load: Tools, Your hand shapes, Bind to commands.
 
-`?carve.source=synthetic` runs it on a scripted hand (`src/lib/synthetic_hand.ts`: an articulated right hand going through open, fist, point and pinch with a relaxed hand between), with no camera and no hand model; `?faces.source=synthetic` is still read as the same switch.
+`?carve.source=synthetic` runs it on a scripted hand (`src/lib/synthetic_hand.ts`: an articulated right hand going through open, fist, point and pinch with a relaxed hand between), with no camera and no hand model.
 
 ### Your poses (#382 = #385 E9)
 

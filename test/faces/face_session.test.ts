@@ -5,7 +5,7 @@
  * one-to-one proposal), the exemplars, and the categorizer the save writes.
  *
  * Replayed from the REAL recording `video_head_pose` (the held smile at ~5.3 s), and from the
- * synthetic face the smoke drives (`?faces.source=synthetic`).
+ * synthetic face the smoke drives (`?carve.source=synthetic`).
  */
 import { describe, expect, it } from 'vitest';
 import { BLENDSHAPE_NAME_BY_FEATURE } from '@thoremin/sdk/features/face_catalog';

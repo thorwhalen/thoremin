@@ -4,7 +4,7 @@
  * - A cold load fetches none of its code (recognised by content: the mode wording only the
  *   deferred half carries), and the launcher still lists the tool (its eager stub).
  * - Opening "Your faces" from the Tools launcher fetches it and shows the session.
- * - A whole session on the synthetic face (`?faces.source=synthetic`: scripted vectors and a
+ * - A whole session on the synthetic face (`?carve.source=synthetic`: scripted vectors and a
  *   canvas video, so no camera and no face model): record, stop, the grid carved at the
  *   suggested k with pictures taken at capture (one per held face), neutral switched in and out, a name
  *   edited, saved, and listed.
@@ -21,7 +21,7 @@ import { join } from 'node:path';
 /** A two-category file (smile, surprise; reject mode) whose features the synthetic face shows. */
 const FIXTURE = join(__dirname, '../../test/faces/fixtures/two_faces.categorizer.json');
 
-const URL_PARAMS = '?slot.source=synthetic-hands&faces.source=synthetic';
+const URL_PARAMS = '?slot.source=synthetic-hands&carve.source=synthetic';
 /** In the deferred panel only (`packages/ext-faces/src/panels/FaceSessionPanel.tsx`). */
 // The rest of the sentence: its noun is the modality's (#385 E8), filled in at run time.
 const DEFERRED_MARKER = ' I never taught reads as';

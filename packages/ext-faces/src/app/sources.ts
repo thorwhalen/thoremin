@@ -5,7 +5,7 @@
  * - **live** (the default): the trainer's own live-vector tap (`@thoremin/sdk-ui/enroll/liveVector`,
  *   the vectors the instrument computes each tick) and the RAW camera stream (the host's camera
  *   seam: no overlay, no text, the stream the Record sheet's "pure video" takes).
- * - **synthetic** (`?faces.source=synthetic`): a scripted face (`../lib/synthetic.ts`) and a
+ * - **synthetic** (`?carve.source=synthetic`): a scripted face (`../lib/synthetic.ts`) and a
  *   canvas video painting its expression, so the session runs with no camera and no face model.
  *   A verification affordance, like `?slot.source=synthetic-hands`, never an instrument.
  *
@@ -31,8 +31,6 @@ export interface FaceSource {
 
 /** The URL parameter that selects the synthetic source, for every carve tool (#385 E8). */
 export const SOURCE_PARAM = 'carve.source';
-/** The face tool's parameter before #385 E8, still honoured (an alias of {@link SOURCE_PARAM}). */
-export const LEGACY_SOURCE_PARAM = 'faces.source';
 
 /** A scripted part: its vector at `ms` after the start (`frame` seeds the jitter), and the name
  *  and colour its video frame shows. */
@@ -100,9 +98,9 @@ export function syntheticSource(now: () => number = () => performance.now(), scr
 }
 
 /** The source the page asked for: synthetic (`script`, the face by default) when
- *  `?carve.source=synthetic` (or the older `?faces.source=synthetic`), else live. */
+ *  `?carve.source=synthetic`, else live. */
 export function sourceFromUrl(search: string = typeof location === 'undefined' ? '' : location.search, script: SyntheticScript = FACE_SCRIPT): FaceSource {
   const q = new URLSearchParams(search);
-  const synthetic = (q.get(SOURCE_PARAM) ?? q.get(LEGACY_SOURCE_PARAM)) === 'synthetic';
+  const synthetic = q.get(SOURCE_PARAM) === 'synthetic';
   return synthetic ? syntheticSource(undefined, script) : liveSource();
 }
