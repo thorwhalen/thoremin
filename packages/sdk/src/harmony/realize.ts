@@ -151,6 +151,8 @@ export function createRealizer({
   /** What the voicer is given (the previous chord's voicing), and the current chord's. */
   let memory: VoicingMemory = NO_MEMORY;
   let current: VoicingMemory = NO_MEMORY;
+  /** The register `current` was voiced in. */
+  let currentRegister = 0;
   let inputKey = '';
   let silentFor = 0;
 
@@ -170,13 +172,19 @@ export function createRealizer({
         const key = `${tones.map((t) => t.midi).join(',')}|${spec.coloration}|${spec.reduction}|${spec.bass}|${spec.voicing}|${controls.register}|${controls.tension}|${controls.density}|${controls.spread}`;
         if (key !== inputKey) {
           inputKey = key;
-          memory = current;
+          // Led from the chord sounding until now, moved with the register: an octave shift
+          // transposes the whole voicing rather than leaving the upper voices behind.
+          const shift = 12 * (controls.register - currentRegister);
+          memory = shift === 0 || current.bass === null ? current : { last: current.last.map((n) => n + shift), bass: current.bass + shift };
         }
         const colored = pick(registry.coloration, spec.coloration, DEFAULT_SPEC.coloration).color(tones, controls, context);
         const reduced = pick(registry.reduction, spec.reduction, DEFAULT_SPEC.reduction).reduce(colored, controls);
         const bass = pick(registry.bass, spec.bass, DEFAULT_SPEC.bass).bass(reduced, memory);
         voiced = pick(registry.voicing, spec.voicing, DEFAULT_SPEC.voicing).voice(reduced, bass, controls, memory).sort((a, b) => a - b);
-        if (voiced.length) current = { last: voiced, bass: voiced[0] };
+        if (voiced.length) {
+          current = { last: voiced, bass: voiced[0] };
+          currentRegister = controls.register;
+        }
       }
       beat += (bpm / 60) * step;
       // The key is the sounding pitches, so any genuine chord change restarts the figuration.

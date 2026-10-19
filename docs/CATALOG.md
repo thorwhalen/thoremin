@@ -359,7 +359,7 @@ Facial expression → a voiced, rendered diatonic chord on the chord-source scal
 - **roles:** music
 - **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees
 - **out:** params:synth-params, triad:number[], played:face-expression
-- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 #### `pose-chord` — Pose Chord
 Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pitch→octave, jaw-open→gate, smile→timbre, brow→7th). Active only in face "controls" mode.
@@ -367,7 +367,7 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 - **roles:** music
 - **in:** controls:face-controls, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config
 - **out:** params:synth-params, chord:number[]
-- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mouthGate (number=0.12), octaveRange (number=1), browSeventhAt (number=0.5)
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mouthGate (number=0.12), octaveRange (number=1), browSeventhAt (number=0.5)
 
 #### `categorizer-chord` — Categorizer Chord
 Your own hand-shape or pose categorizer (#450), read live: each of your categories plays a chord on the chord-source scale.
@@ -375,7 +375,7 @@ Your own hand-shape or pose categorizer (#450), read live: each of your categori
 - **roles:** feature, music
 - **in:** vector:feature-vector, frame:any, model:categorizer-chords-model, config:categorizer-chords-config, spec:scale-spec, octaveShift:number, chordConfig:chord-config
 - **out:** params:synth-params, category:category-scores, triad:number[]
-- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+- **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
@@ -469,7 +469,7 @@ Play a key's chords by pointing at them: the seven diatonic chords laid out on t
 - **roles:** feature, mapping, music
 - **in:** hands:hands-frame, config:chord-map-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number
 - **out:** params:synth-params, notes:note-events, grid:cell-grid, status:chord-map-status, triad:number[]
-- **params:** enabled (boolean=false), layout (enum(harmonic | fifths | scale)="harmonic"), play (enum(hold | strum)="hold"), chordHand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), split (number=0.65), cellSize (number=0.2), enterFrames (number=2), hysteresis (number=0.12), releaseS (number=0.3), captions (boolean=true), melody (boolean=true), melodyVolume (number=0.45), melodyOctaves (number=2), melodySound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), strumPoint (enum(wrist | indexTip)="wrist"), strumSpread (number=0.012), minLead (number=0.05), minStroke (number=0.03), minSpeed (number=0.5), volume (number=0.7), mirrorHandedness (boolean=true)
+- **params:** enabled (boolean=false), layout (enum(harmonic | fifths | scale)="harmonic"), play (enum(hold | strum)="hold"), chordHand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), split (number=0.65), cellSize (number=0.2), enterFrames (number=2), hysteresis (number=0.12), releaseS (number=0.3), captions (boolean=true), melody (boolean=true), melodyVolume (number=0.45), melodyOctaves (number=2), melodySound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), strumPoint (enum(wrist | indexTip)="wrist"), strumSpread (number=0.012), minLead (number=0.05), minStroke (number=0.03), minSpeed (number=0.5), volume (number=0.7), mirrorHandedness (boolean=true)
 
 ### Sign language
 _Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key._
@@ -488,7 +488,7 @@ ASL letters A..G → the diatonic chord of the key whose root has that letter na
 - **roles:** music
 - **in:** reading:asl-reading, spec:scale-spec, chordConfig:chord-config, octaveShift:number, config:asl-config
 - **out:** params:synth-params, triad:number[], captions:string[]
-- **params:** gain (number=0.3), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+- **params:** gain (number=0.3), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 ### Song
 _Play a song to dance or play along to: its beat tracked in the browser, its tempo changed without its pitch (#186)._

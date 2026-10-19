@@ -16,9 +16,10 @@
  *   the head-pose chord's brow rule as a strategy.
  *
  * The search is exhaustive over a small space (at most three upper voices, two or three octave
- * placements each), so it is exact and deterministic: among the voicings that move least, the one
- * with fewer parallel fifths and octaves wins (F to G moves in contrary motion, not three voices up
- * a step), then the smaller span, then the lower. Pure: no DOM, no audio.
+ * placements each), so it is exact and deterministic. A voicing's cost is its motion, plus a
+ * nudge for each fault an arranger avoids: drifting from home, a muddy low interval, parallel
+ * fifths and octaves (F to G moves in contrary motion, not three voices up a step); ties go to the
+ * smaller span, then the lower voicing. Pure: no DOM, no audio.
  */
 import type { BassRule, Coloration, Tone, Voicer, VoicingMemory } from './strategies';
 
@@ -26,12 +27,24 @@ import type { BassRule, Coloration, Tone, Voicer, VoicingMemory } from './strate
 export const MAX_UPPER_VOICES = 3;
 /** The widest the upper voices may spread, semitones (a twelfth). */
 const MAX_UPPER_SPAN = 19;
-/** The lowest an upper voice may sit above the bass, semitones (a minor third: no mud). */
+/** The lowest an upper voice may sit above the bass, semitones (a minor third). */
 const MIN_ABOVE_BASS = 3;
+/** The low-interval limits (the arranger's rule of thumb): the lowest bass each interval from the
+ *  bass to the next voice sounds clear on (a minor third from C3, a major third or a fourth from
+ *  Bb2, a fifth from Bb1). Below it the voicing pays {@link LOW_INTERVAL_COST} semitones of motion:
+ *  a nudge, so a held common tone still wins over a clearer but jumpier voicing. */
+const LOW_INTERVAL_LIMIT: Readonly<Record<number, number>> = { 1: 52, 2: 51, 3: 48, 4: 46, 5: 46, 6: 47, 7: 34 };
+const LOW_INTERVAL_COST = 2;
+/** What each pair of voices moving in parallel fifths or octaves costs, semitones of motion. */
+const PARALLEL_COST = 3;
 /** The highest an upper voice may sit above the bass's anchor, semitones. */
 const MAX_ABOVE_ANCHOR = 28;
 /** Where the upper voices sit with nothing to lead from: around a tenth above the bass. */
 const HOME_ABOVE_BASS = 16;
+/** How far the upper voices' centre may drift from home before each further semitone costs as
+ *  much as a semitone of motion (so a long progression does not wander up or down). The open
+ *  (spread) idiom's centre is within it, so leading never moves more than spread would. */
+const HOME_BAND = 6;
 /** The bass's window around its anchor (an octave below the chord's register): one placement. */
 const BASS_BELOW = 7;
 const BASS_ABOVE = 4;
@@ -117,15 +130,20 @@ export function voiceLead(tones: readonly Tone[], bass: number, register: number
   if (candidates.length === 0) return [bassFits];
   const prevUpper = memory.last.length > 1 ? memory.last.slice(1) : [];
   const home = bassFits + HOME_ABOVE_BASS;
-  const cost = (v: number[]) => (prevUpper.length ? motion(prevUpper, v) : v.reduce((s, n) => s + Math.abs(n - home), 0));
+  const centre = (v: number[]) => v.reduce((s, n) => s + n, 0) / v.length;
+  const drift = (v: number[]) => Math.max(0, Math.abs(centre(v) - home) - HOME_BAND);
+  // The cost of an upper voicing: its motion from the previous chord's (or, with none, its
+  // distance from home), its drift past the home band, a muddy low interval, parallel fifths and
+  // octaves with the previous chord.
+  const voicingCost = (v: number[]) =>
+    (prevUpper.length ? motion(prevUpper, v) + drift(v) + PARALLEL_COST * parallels(memory.last, [bassFits, ...v]) : v.reduce((s, n) => s + Math.abs(n - home), 0)) + muddy(v);
+  const muddy = (v: number[]) => (bassFits < (LOW_INTERVAL_LIMIT[v[0] - bassFits] ?? -Infinity) ? LOW_INTERVAL_COST : 0);
+  const cost = (v: number[]) => voicingCost(v);
   const span = (x: number[]) => x[x.length - 1] - x[0];
-  const par = (v: number[]) => (memory.last.length ? parallels(memory.last, [bassFits, ...v]) : 0);
-  // Least motion; on a tie, fewer parallel fifths and octaves, then the smaller span, then lower.
+  // Least cost; on a tie, the smaller span, then the lower.
   const better = (v: number[], w: number[]) => {
     const dc = cost(v) - cost(w);
     if (dc !== 0) return dc < 0;
-    const dp = par(v) - par(w);
-    if (dp !== 0) return dp < 0;
     if (span(v) !== span(w)) return span(v) < span(w);
     return v[0] < w[0];
   };

@@ -59,13 +59,17 @@ describe('the voice-led voicer', () => {
     }
   });
 
-  it('never moves the upper voices more than the spread idiom would, from the same chord, over every pair of degrees', () => {
+  it('moves the upper voices about as little as the spread idiom at most (within the price of one avoided fault), over every pair of degrees', () => {
     for (let a = 0; a < 7; a++) {
       const from = voiceLead(triad(a), 0, 0, NONE);
       for (let b = 0; b < 7; b++) {
         const led = voiceLead(triad(b), 0, 0, { last: from, bass: from[0] }).slice(1);
         const spread = voiceTriad(diatonicTriad(C_MAJOR, b), 'spread').slice(1).sort((x, y) => x - y);
-        expect(motion(from.slice(1), led), `${a} -> ${b}`).toBeLessThanOrEqual(motion(from.slice(1), spread));
+        // A voicing may move up to 4 semitones more than spread to avoid parallels or mud.
+        expect(motion(from.slice(1), led), `${a} -> ${b}`).toBeLessThanOrEqual(motion(from.slice(1), spread) + 4);
+        const ledFull = voiceLead(triad(b), 0, 0, { last: from, bass: from[0] });
+        const spreadFull = [voiceTriad(diatonicTriad(C_MAJOR, b), 'spread')[0], ...spread];
+        expect(parallels(from, ledFull), `${a} -> ${b}: parallels`).toBeLessThanOrEqual(parallels(from, spreadFull));
       }
     }
   });
@@ -95,6 +99,56 @@ describe('the voice-led voicer', () => {
     const low = voiceLead(triad(0), 0, 0, NONE);
     const high = voiceLead(triad(0), 0, 1, NONE);
     expect(high).toEqual(low.map((n) => n + 12));
+  });
+});
+
+describe('the voice-led voicer over time', () => {
+  const input = (d: number, register = 0): RealizeInput => ({
+    tones: triad(d),
+    spec: { ...DEFAULT_SPEC, voicing: 'voiceLed' },
+    controls: { ...DEFAULT_CONTROLS, register },
+    bpm: 100,
+    gain: 0.3,
+    sound: 'sine',
+    silentSound: 'sine',
+    dt: 1 / 30,
+  });
+
+  it('moves the whole voicing with an octave shift, not only the bass (the H3 review)', () => {
+    for (const shift of [1, -1, 2]) {
+      const r = createRealizer({ idBase: 0, maxVoices: 4 });
+      const held = r.render(input(0)).voiced;
+      expect(r.render(input(0, shift)).voiced, `shift ${shift}`).toEqual(held.map((n) => n + 12 * shift));
+    }
+    // Mid-progression, down then back: the voicing returns to where it was.
+    const r = createRealizer({ idBase: 0, maxVoices: 4 });
+    r.render(input(0));
+    const f = r.render(input(3)).voiced;
+    r.render(input(3, -1));
+    expect(r.render(input(3, 0)).voiced).toEqual(f);
+  });
+
+  it('rarely leaves a muddy low interval, and never on a fresh chord (the arranger\'s low-interval limit, as a nudge)', () => {
+    let muddy = 0;
+    let total = 0;
+    for (let a = 0; a < 7; a++) {
+      const from = voiceLead(triad(a), 0, 0, NONE);
+      expect(from[1] - from[0], `fresh ${a}`).toBeGreaterThanOrEqual(7); // nothing to hold: always clear
+      for (let b = 0; b < 7; b++) {
+        const v = voiceLead(triad(b), 0, 0, { last: from, bass: from[0] });
+        total++;
+        if (v[0] < 48 && v[1] - v[0] < 5) muddy++;
+      }
+    }
+    expect(muddy / total).toBeLessThan(0.25);
+  });
+
+  it('does not wander: twice round the circle of fifths stays near home', () => {
+    const v = lead([0, 3, 6, 2, 5, 1, 4, 0, 3, 6, 2, 5, 1, 4, 0]);
+    for (const x of v) {
+      const centre = x.slice(1).reduce((s, n) => s + n, 0) / (x.length - 1);
+      expect(Math.abs(centre - (x[0] + 16)), x.join(' ')).toBeLessThanOrEqual(9);
+    }
   });
 });
 
