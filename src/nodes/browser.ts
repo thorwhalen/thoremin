@@ -12,7 +12,7 @@ import { webcamBodyNode } from './sources/webcam_body';
 import { keyboardSourceNode } from './sources/keyboard';
 import { makeStoreControlsNode } from './sources/store_controls';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
-import { EXTENSIONS, loadExtensionNodes, loadedExtensionNodes } from '@/extensions';
+import { CONTRIBUTIONS, loadExtensionNodes, loadedExtensionNodes } from '@/host/contributions';
 import type { NodeDef } from '@thoremin/dag';
 import { webAudioSynthNode } from './output/webaudio_synth';
 import { canvasOverlayNode } from './output/canvas_overlay';
@@ -56,11 +56,11 @@ export const BROWSER_NODES = [
  * sources and sinks, every extension's nodes, and a `store-controls` whose ports are
  * GENERATED from the extensions' dial slices and transient fields (the ADR's seam 6).
  */
-export function createAppRegistry(extensions: readonly Extension[] = EXTENSIONS): NodeRegistry {
+export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIONS.extensions): NodeRegistry {
   const registry = createRegistry([...CORE_NODES, ...BROWSER_NODES, makeStoreControlsNode(extensions)]);
   for (const e of extensions) {
     if (e.provides && !e.load) {
-      throw new Error(`createAppRegistry: extension "${e.id}" is a lazy stub (it names \`provides\`) with no \`load\`: pass the list from '@/extensions', which the build gives a loader, not the package's own export`);
+      throw new Error(`createAppRegistry: extension "${e.id}" is a lazy stub (it names \`provides\`) with no \`load\`: pass the list from '@/host/contributions', which the build gives a loader, not the package's own export`);
     }
     // A lazy extension's nodes are registered at once when this page already loaded them (a
     // rebuilt registry stays synchronous); otherwise declared, for `registry.ensure` to load
@@ -75,7 +75,7 @@ export function createAppRegistry(extensions: readonly Extension[] = EXTENSIONS)
 
 /** {@link createAppRegistry} with every lazy extension's nodes loaded: for the scripts and tests
  *  that list or run every node (the catalog, the golden graphs). The app never needs it. */
-export async function loadedAppRegistry(extensions: readonly Extension[] = EXTENSIONS): Promise<NodeRegistry> {
+export async function loadedAppRegistry(extensions: readonly Extension[] = CONTRIBUTIONS.extensions): Promise<NodeRegistry> {
   await Promise.all(extensions.map((e) => loadExtensionNodes(e)));
   return createAppRegistry(extensions);
 }

@@ -28,7 +28,7 @@ import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orche
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration
 // (`src/extensions/virtual.d.ts`), so core never imports an extension to know its keys.
-import { EXTENSION_SETTINGS_SHAPE, EXTENSION_TRANSIENT_FIELDS, type ExtensionTransients } from '@/extensions';
+import { assertNoCoreClash, CONTRIBUTIONS, SETTINGS_SHAPE, type ExtensionTransients } from '@/host/contributions';
 
 /** The piece id that means "the built-in demo scale" (no document loaded). */
 export const BUILTIN_PIECE = 'builtin';
@@ -370,7 +370,9 @@ export const CoreSettingsSchema = z.object({
  * older presets valid (off). Which keys exist is the build's extension list: a build
  * without `air` has no `airDrum`, in the schema and in the {@link Settings} type alike.
  */
-export const SettingsSchema = CoreSettingsSchema.extend(EXTENSION_SETTINGS_SHAPE);
+// An extension dial must not shadow a core settings key (`extend` would silently replace it).
+assertNoCoreClash('settings key', Object.keys(CoreSettingsSchema.shape), CONTRIBUTIONS.dialSlices.map((d) => d.key));
+export const SettingsSchema = CoreSettingsSchema.extend(SETTINGS_SHAPE);
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The settings core owns, as values. */
 export type CoreSettings = z.infer<typeof CoreSettingsSchema>;
@@ -380,7 +382,7 @@ export type ExtensionDials = Omit<Settings, keyof CoreSettings>;
 
 /** The extensions' dial schemas by settings key (each with its `.default(...)`): what the hot
  *  store and the instruments heal an extension dial through, without naming one. */
-export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = EXTENSION_SETTINGS_SHAPE;
+export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = SETTINGS_SHAPE;
 
 /** The hot-store fields the listed extensions declare as transient (a learned model, a pattern
  *  in play): never persisted, never a preset field, `null` when absent. Typed from the
@@ -388,7 +390,7 @@ export const EXTENSION_DIAL_SCHEMAS: Readonly<Record<string, z.ZodTypeAny>> = EX
 export type { ExtensionTransients };
 /** Every extension transient field at its absent value (`null`). */
 export function extensionTransientDefaults(): ExtensionTransients {
-  return Object.fromEntries(EXTENSION_TRANSIENT_FIELDS.map((f) => [f, null])) as ExtensionTransients;
+  return Object.fromEntries(CONTRIBUTIONS.transientFields.map((f) => [f, null])) as ExtensionTransients;
 }
 
 /** Fresh defaults of every extension dial: deep copies, so a store or a layer never shares

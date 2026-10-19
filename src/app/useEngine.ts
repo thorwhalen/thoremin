@@ -47,7 +47,7 @@ import { useConductorStatus, makeConductorReporter, ABSENT_CONDUCTOR_LIVE, CONDU
 import { makeLeadCalibrationSink } from './conductorLead';
 import { useOrchestraStatus, makeOrchestraReporter, ABSENT_ORCHESTRA_STATUS, ORCHESTRA_NODE_ID } from './orchestraStatus';
 import { useSongStatus, makeSongReporter } from './songStatus';
-import { extensionStatusHooks, makeExtensionSinks } from './extensions';
+import { extensionStatusHooks, makeExtensionSinks } from './host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
 import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount } from './liveApply';

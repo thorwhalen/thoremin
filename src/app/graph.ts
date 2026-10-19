@@ -36,12 +36,14 @@ import { SYNTH_MERGE_POOLS } from '@/nodes/mapping/synth_merge';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
-import { EXTENSIONS, EXTENSION_BRANCHES } from '@/extensions';
+import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
 import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
 import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instruments/spec';
 
 /** The full branch table this build composes from: the core branches, then every extension's. */
-export const ALL_BRANCHES = [...BRANCHES, ...EXTENSION_BRANCHES];
+// An extension branch must not reuse a core branch id (the composer would see two).
+assertNoCoreClash('branch', BRANCHES.map((b) => b.id), CONTRIBUTIONS.branches.map((b) => b.id));
+export const ALL_BRANCHES = [...BRANCHES, ...CONTRIBUTIONS.branches];
 export const ALL_BRANCH_IDS: readonly string[] = ALL_BRANCHES.map((b) => b.id);
 
 /**
@@ -66,7 +68,7 @@ export function branchIdsWithout(branchIds: readonly string[], types: ReadonlySe
 }
 
 /** What the derivation knows in THIS build: every branch id, and each extension's derivation. */
-export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: EXTENSIONS };
+export const DERIVATION_TABLE: DerivationTable = { knownBranchIds: new Set(ALL_BRANCH_IDS), extensions: CONTRIBUTIONS.extensions };
 
 /**
  * The branch ids the settings and the live demand imply, in this build (core plus every

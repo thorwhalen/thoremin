@@ -29,7 +29,7 @@ import type { ZodTypeAny } from 'zod';
 import { ConductorSettingsSchema, defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LEGACY_CONDUCTOR_PRIOR } from '@/settings/schema';
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
-import { EXTENSION_INSTRUMENTS } from '@/extensions';
+import { CONTRIBUTIONS } from '@/host/contributions';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
@@ -250,7 +250,7 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
   }),
 
   // --- The extensions' instruments (the air instruments, #249), after core's own -----
-  ...EXTENSION_INSTRUMENTS.map((i) => seed(i.name, settingsWithPatch(i.name, i.patch))),
+  ...CONTRIBUTIONS.instruments.map((i) => seed(i.name, settingsWithPatch(i.name, i.patch))),
 ];
 
 function instrumentStorage(): ProfileStorage {

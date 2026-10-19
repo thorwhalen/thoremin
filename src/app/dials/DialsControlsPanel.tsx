@@ -38,7 +38,7 @@ import { BodyControls } from './panels/body';
 import { GenerativeControls } from './panels/generative';
 import { ConductorControls } from './panels/conductor';
 import { LowLatencyAudioControl } from './panels/audio';
-import { EXTENSION_PANELS } from '@/app/extensions';
+import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import type { AirInstrumentId } from '@/app/library/category';
 
 /**
@@ -55,7 +55,7 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
   // One section per instrument the extensions ship (the air instruments today): the ones
   // this instrument plays first and open, the others after the core sections and closed.
   const airSections = (lead: boolean) =>
-    EXTENSION_PANELS.filter((p) => (leadAir as readonly string[]).includes(p.instrumentId) === lead).map((p) => (
+    UI_CONTRIBUTIONS.panels.filter((p) => (leadAir as readonly string[]).includes(p.instrumentId) === lead).map((p) => (
       <TopSection key={`${p.instrumentId}:${p.section}`} label={p.section} defaultOpen={lead}>
         <p.Controls />
       </TopSection>

@@ -4,8 +4,8 @@
  * {@link useExtensionLoad} (`./extensionLoadStatus`).
  */
 import { lazyLoadFailures, type NodeRegistry } from '@thoremin/dag';
-import { lazyExtensionProviding } from '@/extensions';
-import { loadExtensionUi } from '@/app/extensions';
+import { lazyExtensionProviding } from '@/host/contributions';
+import { loadExtensionUi } from '@/app/host/contributions';
 import { useExtensionLoad } from './extensionLoadStatus';
 
 export { useExtensionLoad };

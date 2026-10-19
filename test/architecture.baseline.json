@@ -8,7 +8,7 @@
   },
   "storeControlsPorts": 42,
   "useEngineReporters": 8,
-  "foldPoints": 15,
+  "foldPoints": 2,
   "importCycles": 7,
   "runtimeImportCycles": 0,
   "largestFiles": {
