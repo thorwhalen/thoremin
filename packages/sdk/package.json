@@ -68,6 +68,7 @@
     "./harmony/layout": "./src/harmony/layout.ts",
     "./harmony/navigate": "./src/harmony/navigate.ts",
     "./harmony/realize": "./src/harmony/realize.ts",
+    "./harmony/tension": "./src/harmony/tension.ts",
     "./harmony/space": "./src/harmony/space.ts",
     "./harmony/state": "./src/harmony/state.ts",
     "./harmony/target": "./src/harmony/target.ts",

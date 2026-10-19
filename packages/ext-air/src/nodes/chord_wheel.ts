@@ -31,6 +31,7 @@ import { radial, type Region } from '@thoremin/sdk/harmony/layout';
 import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
+import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -118,6 +119,9 @@ const Params = z.object({
   walk: z.boolean().default(false),
   /** Beats per step while walking. */
   walkBeats: z.number().int().min(1).max(4).default(1),
+  /** Show each chord's tension under it, by this model, named on the wheel (H10 of #613):
+   *  the models rank the chords differently, so a number never appears without its model. */
+  tension: z.enum(['off', ...TENSION_MODEL_IDS]).default('off'),
 });
 type Params = z.infer<typeof Params>;
 export const ChordWheelDialSchema = Params;
@@ -155,6 +159,9 @@ export interface ChordWheelStatus {
 }
 
 export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand', walking: false };
+
+/** How far above the wheel's top the tension model's name sits, in frame heights. */
+const TENSION_CAPTION_GAP = 0.08;
 
 /** The wheel's region: the steering hand's side of the (mirrored) screen, full height. */
 export function wheelRegion(hand: (typeof PLAYER_HANDS)[number]): Region {
@@ -332,9 +339,14 @@ export const chordWheelNode = defineNode<Params>({
         const { voices } = render(sounding);
         const chord = state.chord;
         const k = state.key;
+        const model = c.tension === 'off' ? null : TENSION_MODELS[c.tension];
+        const withTension = (sub: string, target: Chord | undefined) => {
+          const t = model && target ? tensionText(model, target, k) : '';
+          return t ? `${sub} · ${t}` : sub;
+        };
         const gridCells: GridCell[] = chord
           ? cells.map((cell, i) => {
-              if (i === 0) return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape: 'hex', label: chordName(chord, k), sub: state!.fn?.numeral ?? '', color: colorOf(chord, k), state: sounding ? 'active' : 'idle' };
+              if (i === 0) return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape: 'hex', label: chordName(chord, k), sub: withTension(state!.fn?.numeral ?? '', chord), color: colorOf(chord, k), state: sounding ? 'active' : 'idle' };
               const move = moves[i - 1];
               const target = RELATIONS.get(move)?.apply(chord, k)[0];
               return {
@@ -344,13 +356,15 @@ export const chordWheelNode = defineNode<Params>({
                 h: cell.h,
                 shape: 'hex',
                 label: target ? chordName(target, k) : '-',
-                sub: RELATIONS.get(move)?.label ?? move,
+                sub: withTension(RELATIONS.get(move)?.label ?? move, target),
                 color: target ? colorOf(target, k) : OUTSIDE_KEY_COLOR,
                 state: pointing === i - 1 && status.armed ? 'candidate' : 'idle',
               };
             })
           : [];
-        const grid: CellGrid = { cells: gridCells, captions: [], pointers: pointer ? [pointer] : [] };
+        // The model's name over the wheel, whenever a number is shown.
+        const captions = model && gridCells.length ? [{ x: cells[0].x, y: Math.max(0.03, cells[0].y - c.radius - TENSION_CAPTION_GAP), text: `Tension: ${model.name}` }] : [];
+        const grid: CellGrid = { cells: gridCells, captions, pointers: pointer ? [pointer] : [] };
         status = {
           ...status,
           enabled: true,

@@ -4,6 +4,7 @@
  * `dispatchDialSetIn` (the single write path). The key is the chord-source scale and a chord
  * sounds as the Chord sound section says, as for the chord map.
  */
+import { TENSION_MODEL_IDS, TENSION_MODELS } from '@thoremin/sdk/harmony/tension';
 import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordWheelLive, useChordWheelStatus } from '../app/chordWheelStatus';
@@ -61,6 +62,7 @@ export function ChordWheelControls() {
   const steer = c.steer ?? 'hand';
   const faceMoves = (c.faceMoves ?? {}) as Partial<Record<Emotion, string>>;
   const walk = c.walk ?? false;
+  const tension = c.tension ?? 'off';
   const walkBeats = c.walkBeats ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
@@ -127,6 +129,17 @@ export function ChordWheelControls() {
       <label className="flex items-center gap-2 text-xs" title="Hold a push out and the wheel keeps making that move on the beat the Chord sound plays: a fourth walks all seven chords of the key. On the Tonnetz wheel each move undoes itself, so a held one swings between two chords.">
         <input type="checkbox" checked={walk} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.walk', e.target.checked)} />
         Hold a push to walk it on the beat
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the key profile hears V's leading tone, Lerdahl's distance puts ii further than V), so a number always comes with its model.">
+        Tension shown
+        <select className={selectCls} value={tension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.tension', e.target.value)}>
+          <option value="off">none</option>
+          {TENSION_MODEL_IDS.map((m) => (
+            <option key={m} value={m}>
+              {TENSION_MODELS[m].name}
+            </option>
+          ))}
+        </select>
       </label>
       {walk && (
         <label className="flex items-center justify-between gap-2 text-xs">
