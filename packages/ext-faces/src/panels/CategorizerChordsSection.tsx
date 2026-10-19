@@ -93,7 +93,7 @@ export default function CategorizerChordsSection() {
                   className={selectCls}
                   aria-label={`Chord for ${c.name}`}
                   value={own}
-                  disabled={!slot}
+                  disabled={!slot || targetChoice((dial.targets as Record<string, string> | undefined)?.[slot]) !== ''}
                   onChange={(e) => slot && void dispatchDialSetIn(`categorizerChords.degrees.${slot}`, Number(e.target.value))}
                 >
                   <option value={AUTO_DEGREE}>{`Auto (${degreeName(ORDER_DEGREES[i % ORDER_DEGREES.length])})`}</option>

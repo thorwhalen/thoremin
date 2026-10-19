@@ -32,6 +32,7 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'expression', kind: 'face-expression' },
   // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
   { name: 'categoryDegrees', kind: 'category-degrees' },
+  { name: 'categoryTargets', kind: 'category-targets' },
   { name: 'octaveShift', kind: 'number', default: 0 },
   { name: 'overlayConfig', kind: 'overlay-config' },
   // A classifier's reading and per-class captions, for the category cues.

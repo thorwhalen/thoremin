@@ -58,7 +58,7 @@ import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
-import { isDiatonicMove, parseTarget, targetText } from '@thoremin/sdk/harmony/target';
+import { categoryTarget, isDiatonicMove, parseTarget, targetText } from '@thoremin/sdk/harmony/target';
 import { cellGridOf, drawCellGrid } from '@thoremin/sdk/nodes/cell_grid_draw';
 import {
   BODY_BONES,
@@ -128,6 +128,8 @@ export interface OverlayView {
     faceTargets?: Record<string, string>;
     /** A personal categorizer's per-category degrees (#330 P4), to name each category's chord. */
     categoryDegrees?: Record<string, number>;
+    /** A personal categorizer's per-category targets (H6 of #613), which win over its degrees. */
+    categoryTargets?: Record<string, string>;
     /** Live face mapping mode ('chord'/'timbre'/…); chord labels show only in 'chord'. */
     faceMapping?: string;
     /** Burned-in tag HUD frame (#92): open tags + timecode + blink; null unless a
@@ -686,7 +688,8 @@ const faceExpressionCue: OverlayElement = {
       if (p.exprLabels) labels.push(name);
       if (p.chordLabels && chordMode) {
         // A target beyond the degree (H6 of #613) prints what it does, since the chord depends on the one in force.
-        const target = reading.ids[i] in (view.inputs.categoryDegrees ?? {}) ? '' : targetText(parseTarget(view.inputs.faceTargets?.[reading.standsFor[i] ?? ''], { moves: isDiatonicMove }));
+        const { categoryTargets: own, categoryDegrees: degrees, faceTargets: expressions } = view.inputs;
+        const target = targetText(parseTarget(categoryTarget(reading.ids[i], reading.standsFor[i], { own, degrees, expressions }), { moves: isDiatonicMove }));
         labels.push(target || chordLabel(personalDegree(reading, i, view.inputs.categoryDegrees, degreeFor)));
       }
       return {
@@ -1813,6 +1816,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               faceDegrees: controls?.faceExpr?.degrees,
             faceTargets: controls?.faceExpr?.targets,
               categoryDegrees: inputs.categoryDegrees as Record<string, number> | undefined,
+              categoryTargets: inputs.categoryTargets as Record<string, string> | undefined,
               faceMapping: controls?.faceMapping,
               tagOverlay,
               trainerHud: trainerHudSnapshot,

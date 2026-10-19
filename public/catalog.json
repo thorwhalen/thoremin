@@ -813,6 +813,10 @@
         "kind": "category-degrees"
       },
       {
+        "name": "categoryTargets",
+        "kind": "category-targets"
+      },
+      {
         "name": "octaveShift",
         "kind": "number",
         "default": 0

@@ -40,6 +40,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import type { ScaleSpec } from '@thoremin/sdk/music/theory';
 import { createTargetPlayer } from '@thoremin/sdk/harmony/target_play';
+import { categoryTarget } from '@thoremin/sdk/harmony/target';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
@@ -126,6 +127,8 @@ export const expressionChordNode = defineNode<Params>({
     // The harmony a move or a function starts from: the degree last played (-1: none yet, the
     // tonic), and the category read last, so a move is made once when its expression begins.
     const targetPlayer = createTargetPlayer();
+    /** The categories read last (a different set is another categorizer: start from the tonic). */
+    let categorySet = '';
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -151,8 +154,13 @@ export const expressionChordNode = defineNode<Params>({
         const targets = inputs.targets as Partial<Record<ExpressionLabel, string>> | undefined;
         const categoryTargets = inputs.categoryTargets as Record<string, string> | undefined;
         const id = reading && index !== null && index >= 0 ? reading.ids[index] : null;
-        const target = id === null ? undefined : categoryTargets?.[id] || (id in (categoryDegrees ?? {}) ? '' : targets?.[reading!.standsFor[index!] ?? 'neutral']);
-        const { degree, coloration } = targetPlayer.step({ category: reading?.id ?? null, target, degree: degree0, spec });
+        const set = reading ? reading.ids.join('|') : categorySet;
+        if (set !== categorySet) {
+          categorySet = set;
+          targetPlayer.reset();
+        }
+        const target = id === null ? undefined : categoryTarget(id, reading!.standsFor[index!], { own: categoryTargets, degrees: categoryDegrees, expressions: targets });
+        const { degree, coloration } = targetPlayer.step({ category: reading?.id ?? null, target, degree: degree0, spec, now: ctx?.time });
         // Voiced, rendered and articulated by the shared chord renderer (the SDK's), so every
         // categorizer's chords sound alike; the triad is [] when idle or silent.
         const { voices, triad } = renderer.render({

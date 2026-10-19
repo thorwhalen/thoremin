@@ -76,6 +76,7 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
   const dial = (v.faceCategorizer as FaceCategorizerDial | undefined) ?? DEFAULT_FACE_CATEGORIZER;
   const faceMapping = (v['face.mapping'] as string | undefined) ?? 'none';
   const expressionDegrees = (v['faceExpr.degrees'] as Record<string, number> | undefined) ?? {};
+  const expressionTargets = (v['faceExpr.targets'] as Record<string, string> | undefined) ?? {};
   const saved = useSavedCategorizers();
   const { entries: shared, relist } = useSharedCategorizers(source);
   const play = useCategorizerPlay();
@@ -206,6 +207,10 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
           {play.categories.map((c) => {
             const slot = CATEGORY_SLOTS.includes(c.id) ? c.id : null;
             const own = slot ? (dial.degrees[slot] ?? AUTO_DEGREE) : AUTO_DEGREE;
+            const ownTarget = slot ? targetChoice((dial.targets as Record<string, string> | undefined)?.[slot]) : '';
+            // With no target and an Auto degree, the category does what its stand-in expression does.
+            const inherited = own === AUTO_DEGREE ? targetChoice(expressionTargets[c.standsFor]) : '';
+            const inheritedLabel = TARGET_CHOICES.find((o) => o.value === inherited)?.label;
             return (
               <div key={c.id} className="flex items-center justify-between gap-2">
                 <span className="flex-1 truncate" title={`stands in for ${c.standsFor}`}>
@@ -215,7 +220,8 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
                   className={selectCls}
                   aria-label={`Chord for ${c.name}`}
                   value={own}
-                  disabled={!slot}
+                  disabled={!slot || ownTarget !== ''}
+                  title={ownTarget !== '' ? 'Its target decides the chord' : undefined}
                   onChange={(e) => slot && dispatchDialSetIn(`faceCategorizer.degrees.${slot}`, Number(e.target.value))}
                 >
                   <option value={AUTO_DEGREE}>{`Auto (${degreeName(standInDegree(c.standsFor))})`}</option>
@@ -228,14 +234,14 @@ export default function CategorizerSection({ shared: source = sharedSource() }: 
                   className={selectCls}
                   aria-label={`What ${c.name} does`}
                   data-category-target={c.id}
-                  value={slot ? targetChoice((dial.targets as Record<string, string> | undefined)?.[slot]) : ''}
+                  value={ownTarget}
                   disabled={!slot}
                   title="What this category does: play its chord, or move from the chord in force, choose a function, or add the seventh while held"
                   onChange={(e) => slot && void dispatchDialSetIn(`faceCategorizer.targets.${slot}`, e.target.value)}
                 >
                   {TARGET_CHOICES.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {o.value === '' && inherited !== '' ? `as ${c.standsFor}: ${inheritedLabel}` : o.label}
                     </option>
                   ))}
                 </select>

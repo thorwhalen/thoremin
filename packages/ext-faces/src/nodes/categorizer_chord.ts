@@ -100,6 +100,7 @@ export const categorizerChordNode = defineNode<Params>({
       reader = play ? createLiveReader(play.live) : null;
       lastClock = undefined;
       lastId = null;
+      targetPlayer.reset();
       lastCategory = play ? absentChordScores(play) : NOTHING;
     };
 
@@ -134,7 +135,7 @@ export const categorizerChordNode = defineNode<Params>({
         // A category's target beyond its degree (H6 of #613): a move, a function or the seventh,
         // played by the same target player as the face chord's.
         const spec = inputs.spec as ScaleSpec | undefined;
-        const { degree, coloration } = targetPlayer.step({ category: current ? lastId : null, target: lastId ? ownTargets(config)[lastId] : undefined, degree: degree0, spec });
+        const { degree, coloration } = targetPlayer.step({ category: current ? lastId : null, target: lastId ? ownTargets(config)[lastId] : undefined, degree: degree0, spec, now: ctx?.time });
         const { voices, triad } = renderer.render({
           degree,
           coloration,

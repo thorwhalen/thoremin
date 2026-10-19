@@ -42,6 +42,17 @@ export function parseTarget(raw: string | undefined | null, { moves }: { moves?:
   return { kind: 'degree' };
 }
 
+/** A personal category's target: its own when it has one, else none when it has a degree of its
+ *  own (that degree is the category's choice), else the target of the expression it stands in
+ *  for. One rule, so what plays and what the overlay names agree. */
+export function categoryTarget(
+  id: string,
+  standsFor: string | undefined,
+  { own, degrees, expressions }: { own?: Record<string, string>; degrees?: Record<string, number>; expressions?: Partial<Record<string, string>> },
+): string | undefined {
+  return own?.[id] || (id in (degrees ?? {}) ? '' : expressions?.[standsFor ?? 'neutral']);
+}
+
 /** The diatonic moves (`dia+-k`): what a target in a one-key instrument may name. */
 export const isDiatonicMove = (relation: string): boolean => /^dia[+-][1-3]$/.test(relation);
 

@@ -6,7 +6,8 @@
  *
  * - the degree in force: what a move or a function starts from (the tonic before anything played);
  * - a move or a function is applied ONCE, when its category begins (a held category keeps the
- *   chord it reached); a degree sets the chord, as before;
+ *   chord it reached); a degree sets the chord, as before. A category back after a gap shorter
+ *   than `gapS` (a hand or a face lost for a frame or two) has not begun again;
  * - the seventh colours the chord in force while its category is held.
  *
  * Moves stay in the key (the instruments play degrees on the chord-source scale), and a five- or
@@ -49,6 +50,8 @@ export interface TargetStep {
    *  degree, and to set the chord in force. Negative is silence. */
   degree: number;
   spec: ScaleSpec | undefined;
+  /** The tick's time in seconds, so a short gap is not a new entry; without it any gap is one. */
+  now?: number;
 }
 
 export interface TargetPlay {
@@ -61,15 +64,34 @@ export interface TargetPlay {
 export interface TargetPlayer {
   /** One tick: what to play for this category and its target. */
   step(s: TargetStep): TargetPlay;
+  /** Forget the chord in force and the category held (a new categorizer starts from the tonic). */
+  reset(): void;
 }
 
-export function createTargetPlayer(): TargetPlayer {
+/** How long a category may be gone and still be the same entry when it returns, in seconds:
+ *  longer than a tracker's dropout, shorter than a deliberate release and return. */
+export const TARGET_REENTRY_GAP_S = 0.3;
+
+export function createTargetPlayer({ gapS = TARGET_REENTRY_GAP_S }: { gapS?: number } = {}): TargetPlayer {
   let current = -1;
+  /** The last category read (none: null), and the last one seen and when (a gap keeps it). */
+  let previous: string | null = null;
   let lastCategory: string | null = null;
+  let lastSeen = -Infinity;
   return {
-    step({ category, target, degree, spec }) {
-      const entered = category !== lastCategory;
-      lastCategory = category;
+    reset() {
+      current = -1;
+      previous = lastCategory = null;
+      lastSeen = -Infinity;
+    },
+    step({ category, target, degree, spec, now }) {
+      const entered =
+        category !== null && (now === undefined ? category !== previous : !(category === lastCategory && now - lastSeen <= gapS));
+      previous = category;
+      if (category !== null) {
+        lastCategory = category;
+        if (now !== undefined) lastSeen = now;
+      }
       let play: TargetPlay = { degree };
       if (category !== null && spec && isSevenNoteScale(spec.type)) {
         const t = parseTarget(target, { moves: isDiatonicMove });
@@ -80,7 +102,8 @@ export function createTargetPlayer(): TargetPlayer {
           else play = { degree: current >= 0 ? current : from };
         }
       }
-      if (play.degree >= 0) current = play.degree;
+      // Only a category sets the chord in force (no reading, or a gap, leaves it where it was).
+      if (category !== null && play.degree >= 0) current = play.degree;
       return play;
     },
   };
