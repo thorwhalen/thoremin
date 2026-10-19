@@ -19,7 +19,8 @@ const composed = (settings: DerivationSettings): GraphBranch[] =>
   branchClosureIds(['trunk', ...branchIdsFor(settings)], ALL_BRANCHES).map((id) => byId.get(id)!);
 
 /** The two calls of #168 D13 as recommended: one hand for a one-hand reader, the skeleton draws what is tracked. */
-const RECOMMENDED: HandCountPolicy = { oneHandReaders: 1, skeletonSeesAllHands: false };
+/** The behaviour before D13 was answered (#325): the policy to set to go back to it. */
+const BEFORE_D13: HandCountPolicy = { oneHandReaders: ALL_HANDS, skeletonSeesAllHands: true };
 const HIDDEN: HandCountContext = { skeletonShown: false };
 
 /** A field instrument with its hand voices silenced (what the air and ASL seeds do). */
@@ -56,36 +57,37 @@ describe("the trunk's own hand readers", () => {
 
 describe('deriveHandCount', () => {
   it('looks for both hands when a composed branch plays both', () => {
-    expect(deriveHandCount(composed({}), HIDDEN, RECOMMENDED)).toBe(2);
+    expect(deriveHandCount(composed({}), HIDDEN)).toBe(2);
   });
 
   it('looks for one hand when nothing reads the hands and nothing draws them', () => {
     const faceOnly = composed({ ...SILENT, faceMapping: 'chord' });
     expect(deriveHandCount(faceOnly, HIDDEN)).toBe(1);
-    expect(deriveHandCount(faceOnly, HIDDEN, RECOMMENDED)).toBe(1);
+    expect(deriveHandCount(faceOnly, HIDDEN)).toBe(1);
   });
 
-  it('gives a one-hand reader what the policy says (today: every hand)', () => {
+  it('gives a one-hand reader one hand (D13 a, #480), and every hand under the policy before it', () => {
     const conducting = composed({ ...SILENT, conductor: { enabled: true } });
-    expect(HAND_COUNT_POLICY.oneHandReaders).toBe(ALL_HANDS);
-    expect(deriveHandCount(conducting, HIDDEN)).toBe(2);
-    expect(deriveHandCount(conducting, HIDDEN, RECOMMENDED)).toBe(1);
+    expect(HAND_COUNT_POLICY.oneHandReaders).toBe(1);
+    expect(deriveHandCount(conducting, HIDDEN)).toBe(1);
+    expect(deriveHandCount(conducting, HIDDEN, BEFORE_D13)).toBe(2);
   });
 
-  it('keeps every hand while the skeleton shows, unless the policy lets it draw only what is tracked', () => {
+  it('lets the skeleton draw only what is tracked (D13 b, #480), every hand under the policy before it', () => {
     const faceOnly = composed({ ...SILENT, faceMapping: 'chord' });
-    expect(deriveHandCount(faceOnly, { skeletonShown: true })).toBe(2);
-    expect(deriveHandCount(faceOnly, { skeletonShown: true }, RECOMMENDED)).toBe(1);
+    expect(HAND_COUNT_POLICY.skeletonSeesAllHands).toBe(false);
+    expect(deriveHandCount(faceOnly, { skeletonShown: true })).toBe(1);
+    expect(deriveHandCount(faceOnly, { skeletonShown: true }, BEFORE_D13)).toBe(2);
   });
 
   it('keeps every hand for a hand tool: the Lab on a hand group, a hand claim, gestures', () => {
     const faceOnly = composed({ ...SILENT, faceMapping: 'chord' });
     const lab = { ...defaultFeatureLab(), show: true, groups: ['hand.position.raw'] };
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: lab }, RECOMMENDED)).toBe(2);
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: { ...lab, show: false } }, RECOMMENDED)).toBe(1);
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['hand.position.raw']) }, RECOMMENDED)).toBe(2);
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['face.mouth']) }, RECOMMENDED)).toBe(1);
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, gesturesEnabled: true }, RECOMMENDED)).toBe(2);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: lab })).toBe(2);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: { ...lab, show: false } })).toBe(1);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['hand.position.raw']) })).toBe(2);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['face.mouth']) })).toBe(1);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, gesturesEnabled: true })).toBe(2);
   });
 });
 
@@ -109,14 +111,17 @@ describe('the shipped instruments', () => {
     }
   });
 
-  it('all still look for every hand under today\'s policy, skeleton shown (its default)', () => {
+  // No shipped instrument reads one hand alone: the conducting ones are the field instruments with
+  // the conductor on (they play both hands), and ASL reads one hand (the higher) but declares
+  // nothing, so it is inferred as two until its branch says `hands: 1` (a thoremin-asl change).
+  it('all still look for every hand under D13, skeleton shown (its default)', () => {
     expect(settingsOf.size).toBe(SEED_INSTRUMENTS.length);
     for (const [name, settings] of settingsOf) {
       expect(deriveHandCount(composed(settings), { skeletonShown: true }), name).toBe(2);
     }
   });
 
-  it('all still look for every hand under today\'s policy even with the skeleton hidden', () => {
+  it('all still look for every hand under D13 even with the skeleton hidden', () => {
     for (const [name, settings] of settingsOf) {
       expect(deriveHandCount(composed(settings), HIDDEN), name).toBe(2);
     }
