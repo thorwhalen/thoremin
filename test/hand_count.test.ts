@@ -12,6 +12,8 @@ import { ensureSeeded, instruments, SEED_INSTRUMENTS } from '@/app/dials/instrum
 import { settingsFromLayer } from '@/app/library/derive';
 import type { DerivationSettings } from '@/instruments/derive';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
+// The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
+import { labDemandGroups } from '@/app/labDemand';
 
 const byId = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
 /** The composed branches (trunk and requirements included) a settings object implies. */
@@ -83,8 +85,8 @@ describe('deriveHandCount', () => {
   it('keeps every hand for a hand tool: the Lab on a hand group, a hand claim, gestures', () => {
     const faceOnly = composed({ ...SILENT, faceMapping: 'chord' });
     const lab = { ...defaultFeatureLab(), show: true, groups: ['hand.position.raw'] };
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: lab })).toBe(2);
-    expect(deriveHandCount(faceOnly, { ...HIDDEN, featureLab: { ...lab, show: false } })).toBe(1);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(labDemandGroups(lab)) })).toBe(2);
+    expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(labDemandGroups({ ...lab, show: false })) })).toBe(1);
     expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['hand.position.raw']) })).toBe(2);
     expect(deriveHandCount(faceOnly, { ...HIDDEN, demanded: new Set(['face.mouth']) })).toBe(1);
     expect(deriveHandCount(faceOnly, { ...HIDDEN, gesturesEnabled: true })).toBe(2);

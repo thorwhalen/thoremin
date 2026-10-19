@@ -16,6 +16,7 @@ import { loadStream } from './helpers/fixtures';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { LAB_HANDEDNESS_DWELL_FRAMES } from '@/nodes/features/hand_feature_vector';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
+import { labDemandGroups } from '@/app/labDemand';
 
 const bareCtx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
 const allFinite = (v: FeatureVector) => Object.values(v).every((x) => Number.isFinite(x));
@@ -58,16 +59,18 @@ describe('face-feature-vector (unit)', () => {
     // unreadable config reads as "headless", which means "always on". It was asserting a
     // shape production no longer produced. See test/feature_lab_config.test.ts, which
     // drives the real store end-to-end.
+    // Since #600 S16a the open Lab reaches the gate as its feature demand (`labDemandGroups`).
+    const host = (lab: { show: boolean; groups: string[] }) => bareCtx({ controls: () => ({ featureLab: lab }), featureDemand: () => new Set(labDemandGroups(lab)) });
     const handlers = faceFeatureVectorNode.make(faceFeatureVectorNode.params.parse({}));
-    const hidden = bareCtx({ controls: () => ({ featureLab: { show: false, groups: ['face.blendshape.jaw'] } }) });
+    const hidden = host({ show: false, groups: ['face.blendshape.jaw'] });
     expect(Object.keys((handlers.process({ face: frame }, hidden) as { vector: FeatureVector }).vector)).toHaveLength(0);
-    const shown = bareCtx({ controls: () => ({ featureLab: { show: true, groups: ['face.blendshape.brow'] } }) });
+    const shown = host({ show: true, groups: ['face.blendshape.brow'] });
     const { vector } = handlers.process({ face: frame }, shown) as { vector: FeatureVector };
     expect(vector['face.blendshape.brow.innerUp']).toBeCloseTo(0.2);
     expect(vector['face.blendshape.jaw.open']).toBeUndefined(); // brow-only via live config
   });
 
-  it('still honours the COMPOSED overlay.featureLab shape (canvas-overlay / pre-#136 hosts)', () => {
+  it('a live host with nothing claimed computes nothing, whatever shape its controls have (the gate fails closed, #600 S16a)', () => {
     const handlers = faceFeatureVectorNode.make(faceFeatureVectorNode.params.parse({}));
     const hidden = bareCtx({ controls: () => ({ overlay: { featureLab: { show: false, groups: [] } } }) });
     expect(Object.keys((handlers.process({ face: frame }, hidden) as { vector: FeatureVector }).vector)).toHaveLength(0);

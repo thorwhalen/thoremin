@@ -12,7 +12,9 @@ import { runHeadless } from '@thoremin/dag';
 import { createCoreRegistry, bodyFeatureVectorNode } from '@/nodes';
 import { BLM, makeBodyKeypoints, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@thoremin/sdk/features/catalog';
-import { BODY_GROUP_IDS, labWantsBody } from '@/features/labConfig';
+import { labWantsBody } from '@/features/labConfig';
+import { BODY_GROUP_IDS } from '@/features/groups';
+import { labDemandGroups } from '@/app/labDemand';
 
 const W = 640;
 const H = 480;
@@ -168,9 +170,11 @@ describe('body-feature-vector (unit)', () => {
     const [v] = run([frameOf()], { groups: ['body.angle'] });
     expect(v['body.angle.elbow.left']).toBeDefined();
     expect(v['body.pos.hip.y']).toBeUndefined();
-    const hidden = run([frameOf()], {}, { controls: () => ({ featureLab: { show: false, groups: ['body.angle'] } }) });
+    // A live host: the open Lab's shown groups reach the gate as its feature demand (#600 S16a).
+    const host = (lab: { show: boolean; groups: string[] }) => ({ controls: () => ({}), featureDemand: () => new Set(labDemandGroups(lab)) });
+    const hidden = run([frameOf()], {}, host({ show: false, groups: ['body.angle'] }));
     expect(Object.keys(hidden[0])).toHaveLength(0);
-    const shown = run([frameOf()], {}, { controls: () => ({ featureLab: { show: true, groups: ['body.rel'] } }) });
+    const shown = run([frameOf()], {}, host({ show: true, groups: ['body.rel'] }));
     expect(shown[0]['body.rel.armsRaised']).toBe(0);
     expect(shown[0]['body.angle.elbow.left']).toBeUndefined();
   });

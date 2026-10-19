@@ -8,11 +8,12 @@
  *  3. the Lab can turn the face model on by itself — you can measure the face without
  *     handing the face control of the sound.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
-import { defaultFeatureLab, labWantsFace, FACE_GROUP_IDS } from '@/features/labConfig';
+import { defaultFeatureLab, labWantsFace } from '@/features/labConfig';
+import { FACE_GROUP_IDS } from '@/features/groups';
 import { branchIdsFor } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
@@ -21,6 +22,9 @@ import { faceFeatureVectorNode } from '@/nodes/features/face_feature_vector';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
 import type { NodeContext } from '@thoremin/dag';
+// The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
+import { installLabDemand, labDemandGroups } from '@/app/labDemand';
+import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 
 describe('the Feature Lab is not part of the instrument', () => {
   it('is not a dial — the overlay dial carries no featureLab', () => {
@@ -118,7 +122,7 @@ describe('the Lab can observe the face without altering the sound', () => {
   it('the face source is composed for the Lab even with faceMapping = none', () => {
     const base = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'none' as const };
     const featureLab = { ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0]] };
-    expect(branchIdsFor(base, { featureLab })).toContain('face-source');
+    expect(branchIdsFor(base, { demanded: new Set(labDemandGroups(featureLab)) })).toContain('face-source');
     expect(branchIdsFor(base)).not.toContain('face-source');
   });
 
@@ -143,7 +147,13 @@ describe('the compute gate: the catalog costs nothing when the meters are off', 
   // So this drives the REAL store rather than a hand-shaped fake. The pre-existing
   // `feature_vector_nodes.test.ts` faked `{ overlay: { featureLab } }` and stayed green
   // through the whole bug — a test of a shape production does not produce.
-  const liveControls = () => ({ resources: { controls: () => useControls.getState() } }) as unknown as NodeContext;
+  // The real store AND the real Lab claim (#600 S16a: the open Lab claims its groups as a demand).
+  const liveControls = () => ({ resources: { controls: () => useControls.getState(), featureDemand: featureDemandResource } }) as unknown as NodeContext;
+  let uninstall = () => {};
+  beforeAll(() => {
+    uninstall = installLabDemand();
+  });
+  afterAll(() => uninstall());
   const faceFrame = { present: true, blendshapes: { jawOpen: 0.5 }, landmarks: [] };
 
   it('emits an EMPTY vector when the meters are off (the default)', () => {

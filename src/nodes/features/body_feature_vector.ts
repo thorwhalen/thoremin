@@ -20,8 +20,8 @@
  * alternate between 0 and double); and the window is capped by COUNT as well as
  * by time, so a stalled engine clock (dt = 0) cannot grow it without bound.
  *
- * Group + activity resolution mirrors the face/hand twins (`resolveLabGate`):
- * inactive (Lab hidden, nothing demanded) emits an empty vector and keeps no
+ * Group + activity resolution mirrors the face/hand twins (`resolveFeatureGate`):
+ * inactive (nothing demanded, the open Lab's groups included) emits an empty vector and keeps no
  * history; headless is always active from params.
  */
 import { z } from 'zod';
@@ -30,7 +30,7 @@ import type { NodeContext } from '@thoremin/dag';
 import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type BodyPulseReading, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
-import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
+import { resolveFeatureGate } from '@/features/groups';
 
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching the hand features. */
@@ -46,11 +46,11 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-type ControlsGetter = () => LabControlsSnapshot | undefined;
+type ControlsGetter = () => unknown;
 type DemandGetter = () => DemandedGroups;
 
 function resolveGroups(p: Params, ctx: NodeContext): { active: boolean; enabled: (group: string) => boolean } {
-  return resolveLabGate(
+  return resolveFeatureGate(
     p,
     (ctx.resources.controls as ControlsGetter | undefined)?.(),
     (ctx.resources.featureDemand as DemandGetter | undefined)?.() ?? null,

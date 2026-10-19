@@ -17,6 +17,8 @@ import { defaultFeatureLab } from '@/features/labConfig';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { PULSE_GATE_CONFIDENCE } from '@thoremin/sdk/features/body_catalog';
 import { loadStream } from './helpers/fixtures';
+// The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
+import { labDemandGroups } from '@/app/labDemand';
 
 const BEAT = 60 / 129.2;
 const BAR = 4 * BEAT;
@@ -195,7 +197,7 @@ describe('wiring: the pulse rides the body branch', () => {
   it('a Lab claim on the Body pulse group composes the body branch, with the pulse in it', () => {
     const base = settingsFromLayer(SEED_INSTRUMENTS[0].layer);
     expect(branchIdsFor(base)).not.toContain('body-source');
-    const ids = branchIdsFor(base, { featureLab: { ...defaultFeatureLab(), show: true, groups: ['body.rhythm'] } });
+    const ids = branchIdsFor(base, { demanded: new Set(labDemandGroups({ ...defaultFeatureLab(), show: true, groups: ['body.rhythm'] })) });
     expect(ids).toContain('body-source');
     const { spec } = composeInstrumentGraph(ids);
     expect(spec.nodes.some((n) => n.id === 'bodyPulse' && n.type === 'body-pulse')).toBe(true);

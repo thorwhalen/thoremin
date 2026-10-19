@@ -14,6 +14,8 @@ import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@thoremin/dag';
 import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { defaultFeatureLab } from '@/features/labConfig';
+// The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
+import { labDemandGroups } from '@/app/labDemand';
 import {
   resultToBodyFrame,
   webcamBodyNode,
@@ -66,7 +68,7 @@ describe('the body source is composed only when wanted (the gate moved to the br
   });
   it('the Lab measuring a non-body group does not turn it on', () => {
     const lab = { ...defaultFeatureLab(), show: true, groups: ['hand.position.raw'] };
-    expect(has(base, { featureLab: lab })).toBe(false);
+    expect(has(base, { demanded: new Set(labDemandGroups(lab)) })).toBe(false);
   });
 });
 

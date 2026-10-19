@@ -26,7 +26,7 @@ import { UI_CONTRIBUTIONS } from './host/contributions';
 import { stillSoundingNote } from './stillSounding';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import { demandWantsFace, labWantsFace } from '@/features/labConfig';
+import { demandWantsFace } from '@/features/groups';
 import { useDemandedGroups } from './useDemandedGroups';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
@@ -54,11 +54,11 @@ import TimingChip from './TimingChip';
  * must track the model, not just the mapping. */
 function FaceChip() {
   const faceMapping = useControls((s) => s.faceMapping);
-  const featureLab = useControls((s) => s.featureLab);
+  // The open Lab measuring a face group claims it as a demand (#600 S16a), like the Trainer.
   const demanded = useDemandedGroups();
   const status = useFaceStatus((s) => s.status);
   const label = useFaceStatus((s) => s.label);
-  if (faceMapping === 'none' && !labWantsFace(featureLab) && !demandWantsFace(demanded)) return null;
+  if (faceMapping === 'none' && !demandWantsFace(demanded)) return null;
 
   let dot = 'bg-white/40';
   let text = 'face starting…';

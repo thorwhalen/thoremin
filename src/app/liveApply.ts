@@ -38,7 +38,7 @@ export function liveBranchIds(controls: ReturnType<typeof useControls.getState>,
   // The spread gives the store's interface the index signature `DerivationSettings` declares
   // for extension dial slices (an interface has none implicitly); a shallow copy of one
   // object per store change.
-  return branchIdsFor({ ...controls }, { demanded, featureLab: controls.featureLab });
+  return branchIdsFor({ ...controls }, { demanded });
 }
 
 const BRANCH_BY_ID = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
@@ -61,7 +61,6 @@ export function liveHandCount(
   return deriveHandCount(
     ids.flatMap((id) => BRANCH_BY_ID.get(id) ?? []),
     {
-      featureLab: controls.featureLab,
       demanded,
       gesturesEnabled: controls.gestures?.enabled,
       skeletonShown: controls.overlay?.landmarks?.show,

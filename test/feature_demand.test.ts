@@ -10,7 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { createFeatureDemand } from '@thoremin/sdk/features/demand';
-import { resolveLabGate } from '@/features/labConfig';
+import { resolveFeatureGate } from '@/features/groups';
+import { labDemandGroups } from '@/app/labDemand';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
 import { appFeatureDemand, featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
@@ -58,18 +59,22 @@ describe('the demand registry', () => {
   });
 });
 
-describe('resolveLabGate with a demand', () => {
-  const hidden = { featureLab: { show: false, groups: ['face.blendshape.jaw'] } };
-  const shown = { featureLab: { show: true, groups: ['face.blendshape.jaw'] } };
+describe('resolveFeatureGate with a demand', () => {
+  // A live host (any controls snapshot): since #600 S16a the gate reads only the demand, and the
+  // open Lab is one claimer among others (it claims its shown groups, `labDemandGroups`).
+  const host = {};
+  const hidden = { show: false, groups: ['face.blendshape.jaw'] };
+  const shown = { show: true, groups: ['face.blendshape.jaw'] };
+  const withLab = (lab: typeof shown, other: string[] = []) => new Set([...labDemandGroups(lab), ...other]);
 
   it('Lab hidden + no demand → inactive (the #136 default, unchanged)', () => {
-    expect(resolveLabGate({}, hidden).active).toBe(false);
-    expect(resolveLabGate({}, hidden, null).active).toBe(false);
-    expect(resolveLabGate({}, hidden, new Set()).active).toBe(false);
+    expect(resolveFeatureGate({}, host).active).toBe(false);
+    expect(resolveFeatureGate({}, host, null).active).toBe(false);
+    expect(resolveFeatureGate({}, host, withLab(hidden)).active).toBe(false);
   });
 
   it('Lab hidden + demand → active for the DEMANDED groups only (the Lab\'s stay off)', () => {
-    const g = resolveLabGate({}, hidden, new Set(['face.head']));
+    const g = resolveFeatureGate({}, host, withLab(hidden, ['face.head']));
     expect(g.active).toBe(true);
     expect(g.enabled('face.head')).toBe(true);
     expect(g.enabled('face.blendshape.jaw')).toBe(false);
@@ -77,20 +82,24 @@ describe('resolveLabGate with a demand', () => {
   });
 
   it('Lab shown + demand → the union', () => {
-    const g = resolveLabGate({}, shown, new Set(['face.head']));
+    const g = resolveFeatureGate({}, host, withLab(shown, ['face.head']));
     expect(g.active).toBe(true);
     expect(g.enabled('face.head')).toBe(true);
     expect(g.enabled('face.blendshape.jaw')).toBe(true);
     expect(g.enabled('face.au')).toBe(false);
   });
 
+  it('a host with no Lab at all (core alone) + no demand → inactive: the gate fails CLOSED (#600 S16a)', () => {
+    expect(resolveFeatureGate({ groups: ['face.au'] }, host).active).toBe(false);
+  });
+
   it('headless (no controls) + demand → params groups plus the demand', () => {
-    const g = resolveLabGate({ groups: ['face.au'] }, undefined, new Set(['face.head']));
+    const g = resolveFeatureGate({ groups: ['face.au'] }, undefined, new Set(['face.head']));
     expect(g.enabled('face.au')).toBe(true);
     expect(g.enabled('face.head')).toBe(true);
     expect(g.enabled('face.blendshape.jaw')).toBe(false);
     // and with no params either, everything (unchanged headless behaviour)
-    expect(resolveLabGate({}, undefined, new Set(['face.head'])).enabled('face.au')).toBe(true);
+    expect(resolveFeatureGate({}, undefined, new Set(['face.head'])).enabled('face.au')).toBe(true);
   });
 });
 
@@ -188,10 +197,9 @@ describe('the face MODEL gate honours a demand (the second half of the v1 bug)',
     const { branchIdsFor } = await import('@/app/graph');
     const { SEED_INSTRUMENTS } = await import('@/app/dials/instruments');
     const { settingsFromLayer } = await import('@/app/library/derive');
-    const { defaultFeatureLab } = await import('@/features/labConfig');
     const s = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer), faceMapping: 'none' as const };
     const has = (demanded?: Set<string>) =>
-      branchIdsFor(s, { demanded, featureLab: defaultFeatureLab() }).includes('face-source');
+      branchIdsFor(s, { demanded }).includes('face-source');
     expect(has()).toBe(false);
     // A hand-only demand must NOT bring the face model in.
     expect(has(new Set(['hand.finger.flexion']))).toBe(false);
@@ -248,7 +256,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // Since #600 S17 by the face source's declared `demands`, not a hand-written face rule:
     // a claim on any face group composes it (and nothing else claimed does).
     const { branchIdsFor } = await import('@/app/graph');
-    const { FACE_GROUP_IDS } = await import('@/features/labConfig');
+    const { FACE_GROUP_IDS } = await import('@/features/groups');
     expect(branchIdsFor({} as never, { demanded: new Set([FACE_GROUP_IDS[0]]) })).toContain('face-source');
     expect(branchIdsFor({ faceMapping: 'none' } as never, { demanded: new Set() })).not.toContain('face-source');
   });

@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { replayNode } from '@thoremin/dag';
 import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
-import { BODY_GROUP_IDS } from '@/features/labConfig';
+import { BODY_GROUP_IDS } from '@/features/groups';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { FIXTURES, loadStream, roundVector } from './helpers/fixtures';
 

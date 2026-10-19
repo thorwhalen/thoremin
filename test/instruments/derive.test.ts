@@ -9,7 +9,8 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { FACE_GROUP_IDS, BODY_GROUP_IDS, defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@/features/labConfig';
+import { FACE_GROUP_IDS, BODY_GROUP_IDS } from '@/features/groups';
 import { branchIdsFor } from '@/app/graph';
 import { branchSetKey, type DerivationContext, type StrictDerivationSettings } from '@/instruments/derive';
 import type { ControlState } from '@/app/store';
@@ -22,6 +23,8 @@ void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
 import { AIR, MIDI, GENERATIVE } from '../helpers/extensions';
+// The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
+import { labDemandGroups } from '@/app/labDemand';
 
 const seedSettings = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -61,7 +64,7 @@ describe('branchIdsFor: the dials imply the branches', () => {
 
   it('the Lab showing a face group, or a face-group claim, implies the face source; the body likewise', () => {
     const lab = { ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0]] };
-    expect(ids('Pentatonic', { featureLab: lab })).toContain('face-source');
+    expect(ids('Pentatonic', { demanded: new Set(labDemandGroups(lab)) })).toContain('face-source');
     expect(ids('Pentatonic', { demanded: new Set([BODY_GROUP_IDS[0]]) })).toContain('body-source');
     expect(ids('Pentatonic', { demanded: new Set(['hand.geom.spread']) })).toEqual(['field-voices']);
   });
@@ -117,7 +120,7 @@ describe('every seed × every demand combination composes, compiles and ticks', 
     face: { demanded: new Set([FACE_GROUP_IDS[0]]) },
     body: { demanded: new Set([BODY_GROUP_IDS[0]]) },
     'face+body': { demanded: new Set([FACE_GROUP_IDS[0], BODY_GROUP_IDS[0]]) },
-    lab: { featureLab: { ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0], BODY_GROUP_IDS[0]] } },
+    lab: { demanded: new Set(labDemandGroups({ ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0], BODY_GROUP_IDS[0]] })) },
   };
 
   for (const seed of SEED_INSTRUMENTS) {
