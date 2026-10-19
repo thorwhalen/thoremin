@@ -152,4 +152,18 @@ export const chordWheelFace = defineBranch({
   edges: [to({ node: 'faceExpr', port: 'expression' }, { node: 'chordWheel', port: 'expression' })],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordWheel, chordWheelFace] as const;
+/**
+ * The face colours the chord map (H7 of #613): the face's smoothed controls into the map, whose
+ * valence turns the key to its parallel major or minor and whose arousal adds tensions. Its own
+ * branch, composed only while the face colours, so a hands-only map never loads the face model.
+ */
+export const chordMapFace = defineBranch({
+  id: 'chord-map-face',
+  description: "The face colours the chord map: a held smile or frown turns the key major or minor, an open mouth and raised brows add the seventh and the ninth.",
+  requires: ['chord-map', 'face-source'],
+  nodes: [],
+  edges: [to({ node: 'faceFeat', port: 'features' }, { node: 'chordMap', port: 'face' })],
+  overlay: ['faceLandmarks'],
+});
+
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordMapFace, chordWheel, chordWheelFace] as const;

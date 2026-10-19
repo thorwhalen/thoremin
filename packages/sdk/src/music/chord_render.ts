@@ -30,6 +30,8 @@ export interface ChordRenderInput {
   /** The realization pipeline's coloration (`diatonicSeventh`: the key's seventh chords); none
    *  by default. */
   coloration?: string;
+  /** The realization's tension, 0..1, for a coloration that reads it (`byTension`); 0 by default. */
+  tension?: number;
   bpm: number;
   octaveShift: number;
   /** The chord's volume (0..1). */
@@ -54,13 +56,13 @@ export interface ChordRenderer {
 export function createChordRenderer({ idBase, maxVoices }: { idBase: number; maxVoices: number }): ChordRenderer {
   const realizer = createRealizer({ idBase, maxVoices });
   return {
-    render({ degree, spec, voicing, rendering, coloration, bpm, octaveShift, gain, sound, silentSound, dt }) {
+    render({ degree, spec, voicing, rendering, coloration, tension, bpm, octaveShift, gain, sound, silentSound, dt }) {
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
       const { voices, voiced } = realizer.render({
         tones: tonesInRegister(triad),
         context: spec ? { scale: [...scalePitchClasses(spec.root, spec.type)] } : undefined,
         spec: { ...DEFAULT_SPEC, voicing, figuration: rendering, coloration: coloration ?? DEFAULT_SPEC.coloration },
-        controls: { ...DEFAULT_CONTROLS, register: octaveShift },
+        controls: { ...DEFAULT_CONTROLS, register: octaveShift, tension: tension ?? DEFAULT_CONTROLS.tension },
         bpm,
         gain,
         sound,

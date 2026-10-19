@@ -26,6 +26,7 @@ import type { VoiceParams } from '../nodes/domain';
 import { EXTENSION_ROLE, QUALITIES, qualityOfIntervals } from './qualities';
 import type { BassRule, Coloration, Figuration, FigureEvent, RealizationContext, RealizationControls, RealizationSpec, Reduction, Tone, Voicer, VoicingMemory } from './strategies';
 import { diatonicSeventh, smoothBass, voiceLedVoicer } from './voice_leading';
+import { byTension } from './coloration';
 
 export type {
   BassRule,
@@ -61,7 +62,7 @@ export interface RealizationRegistry {
 export function createRealizationRegistry(): RealizationRegistry {
   const byId = <T extends { id: string }>(items: T[]) => new Map(items.map((x) => [x.id, x]));
   return {
-    coloration: byId<Coloration>([{ id: 'asIs', color: (tones) => [...tones] }, diatonicSeventh]),
+    coloration: byId<Coloration>([{ id: 'asIs', color: (tones) => [...tones] }, diatonicSeventh, byTension]),
     reduction: byId<Reduction>([{ id: 'none', reduce: (tones) => [...tones] }]),
     bass: byId<BassRule>([{ id: 'root', bass: () => 0 }, smoothBass]),
     // The five idioms put the root in the bass an octave below the chord's register; they read

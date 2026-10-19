@@ -80,6 +80,10 @@ export function ChordMapControls() {
   const captions = c.captions ?? true;
   const melodyNotes = c.melodyNotes ?? 'chord';
   const sevenths = c.sevenths ?? false;
+  const face = c.face ?? false;
+  const faceMode = c.faceMode ?? true;
+  const faceTension = c.faceTension ?? true;
+  const modeDwellS = c.modeDwellS ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-map-controls">
       <ChordMapReadout />
@@ -166,6 +170,25 @@ export function ChordMapControls() {
         Seventh chords
       </label>
       {play === 'strum' && <Range label={`Strum volume (${Math.round(volume * 100)}%)`} path="chordMap.volume" value={volume} min={0} max={1} step={0.05} enabled={enabled} />}
+      <label className="flex items-center gap-2 text-xs" title="Your face colours the chords your hands choose: it never chooses one.">
+        <input type="checkbox" checked={face} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.face', e.target.checked)} />
+        The face colours the chords
+      </label>
+      {face && (
+        <div className="space-y-1 pl-5">
+          <label className="flex items-center gap-2 text-xs" title="A smile held a moment turns the key to its parallel major, a frown to its parallel minor; a neutral face plays the key as set.">
+            <input type="checkbox" checked={faceMode} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceMode', e.target.checked)} />
+            Smile for major, frown for minor
+          </label>
+          <Range label={`Hold a smile or frown ${modeDwellS.toFixed(1)} s to change the key`} path="chordMap.modeDwellS" value={modeDwellS} min={0} max={4} step={0.1} enabled={enabled && faceMode} />
+          {play === 'hold' && (
+            <label className="flex items-center gap-2 text-xs" title="An open mouth with raised brows adds the key's seventh, then its ninth, to the chord your hands hold (a strum plays the guitar's chord).">
+              <input type="checkbox" checked={faceTension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceTension', e.target.checked)} />
+              Open mouth, raised brows: richer chords
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }

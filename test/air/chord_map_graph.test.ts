@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph, branchIdsFor } from '@/app/graph';
+import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { DEFAULT_CHORD_MAP } from '@thoremin/ext-air/dials';
@@ -41,7 +41,21 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
     // Every input the node declares is connected: none left to its default by accident.
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'chordMap').map((e) => e.to.port));
-    expect([...inbound].sort()).toEqual(['chordConfig', 'config', 'hands', 'octaveShift', 'spec']);
+    expect([...inbound].sort()).toEqual(['chordConfig', 'config', 'face', 'hands', 'octaveShift', 'spec']);
+    // The face's controls, through its own branch (H7 of #613).
+    expect(has('faceFeat', 'features', 'chordMap', 'face')).toBe(true);
+  });
+
+  it('composes the face only while it colours the map (the Chord Map + Face instrument)', () => {
+    const settingsOf = (name: string) => settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === name)!.layer);
+    const withFace = settingsOf('Chord Map + Face');
+    expect(withFace.chordMap.face).toBe(true);
+    expect(branchIdsFor(withFace)).toEqual(expect.arrayContaining(['chord-map', 'chord-map-face']));
+    // The branch requires the face source, so composing it loads the face model.
+    const faced = composeInstrumentGraph(branchIdsFor(withFace)).spec;
+    expect(faced.edges).toContainEqual({ from: { node: 'faceFeat', port: 'features' }, to: { node: 'chordMap', port: 'face' } });
+    const plain = composeInstrumentGraph(branchIdsFor(settingsOf('Chord Map'))).spec;
+    expect(plain.nodes.some((n) => n.id === 'camFace')).toBe(false);
   });
 
   it('puts its chord on the shared chord display (the chord pool), after the face and pose chords', () => {

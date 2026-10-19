@@ -134,6 +134,9 @@ export const AIR_EXTENSION = defineExtension({
     // Each change voice-led, common tones held, as the video voices it (H3 of #613); the melody
     // hand's tilt chooses its notes (chord tones, pentatonic, scale), as the video's right hand.
     { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt' } } },
+    // The same map coloured by the face (H7 of #613): a held smile turns A minor to A major, a
+    // frown back; an open mouth with raised brows adds the seventh, then the ninth.
+    { name: 'Chord Map + Face', patch: { ...SILENT_THEREMIN, right: { root: 9, type: 'minor' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt', face: true } } },
     // The same map, strummed: the right hand strums the chord under the left, predicted
     // before the frame that shows the strum (the air guitar's timing).
     // A next-chord wheel (H5 of #613): the key's six diatonic moves around the chord in force,
@@ -154,7 +157,11 @@ export const AIR_EXTENSION = defineExtension({
     if (on(settings.airBass)) ids.push('air-bass');
     if (on(settings.airGuitar)) ids.push('air-guitar');
     if (on(settings.airFlute)) ids.push('air-flute');
-    if (on(settings.chordMap)) ids.push('chord-map');
+    if (on(settings.chordMap)) {
+      ids.push('chord-map');
+      // The face model is composed only while the face colours the map.
+      if ((settings.chordMap as { face?: boolean }).face === true) ids.push('chord-map-face');
+    }
     if (on(settings.chordWheel)) {
       ids.push('chord-wheel');
       // The face model is composed only while the face steers.
