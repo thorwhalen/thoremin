@@ -93,7 +93,7 @@ jobs:
         run: npm run test:core
 
   # The React layer's type-error ratchet (#201). The gate above cannot see a type error in
-  # the React layer: `npm run typecheck` excludes it (the repo ships no @types/react) and the
+  # the React layer: `npm run typecheck` excludes it and the
   # vite build type-erases, which is how #192 shipped a packages/dag API change that broke
   # `useEngine` with every gate green. This job runs tsc over that layer
   # (tsconfig.react.json) and fails when the error set DIFFERS from its committed baseline

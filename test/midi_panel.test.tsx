@@ -16,7 +16,7 @@ import { useMidiStatus, ABSENT_MIDI_STATUS } from '@/app/midiStatus';
 afterEach(() => {
   cleanup();
   useMidiStatus.getState().reset();
-  delete (navigator as Navigator & { requestMIDIAccess?: unknown }).requestMIDIAccess;
+  Reflect.deleteProperty(navigator, 'requestMIDIAccess');
 });
 
 /** Pretend this browser has Web MIDI (jsdom has none). */

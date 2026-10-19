@@ -137,7 +137,7 @@ describe('the collapsed classes are remembered', () => {
   });
 
   it('a collapse made before the stored choices arrive is kept', async () => {
-    const provider = createInMemoryProvider<InstrumentsViewPrefs>([{ id: 'instruments', collapsed: ['field'] }], {
+    const provider = createInMemoryProvider<InstrumentsViewPrefs>([{ id: 'instruments', collapsed: ['field'], view: 'list' }], {
       idField: 'id',
     });
     const store = createInstrumentsViewStore(provider);

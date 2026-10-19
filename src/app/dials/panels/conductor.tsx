@@ -36,7 +36,8 @@ import { useConductorStatus } from '../../conductorStatus';
 import { ARTICULATION_SOURCES, CONDUCTOR_BODY_POINTS, CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
 import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
-import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type NamedSummary, type ScoreStore } from '@/score';
+import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type ScoreStore } from '@/score';
+import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 
 const HAND_LABEL: Record<ConductorDialParams['hand'], string> = {
   auto: 'either (prefer right)',
