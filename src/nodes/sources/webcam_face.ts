@@ -23,7 +23,7 @@
  *    and guaranteeing the first tick after enabling never blocks.
  */
 import { z } from 'zod';
-import { createFramePump, stampToTiming } from './frame_pump';
+import { acquireFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
@@ -137,7 +137,7 @@ export const webcamFaceNode = defineNode<Params>({
 
     // One inference per captured frame, stamped with the CAPTURE time (#226); see
     // `frame_pump.ts`. Started once the model is loaded, stopped on offload.
-    const pump = createFramePump(
+    const pump = acquireFramePump(
       () => video,
       (stamp, v) => {
         if (disposed || !landmarker) return false;

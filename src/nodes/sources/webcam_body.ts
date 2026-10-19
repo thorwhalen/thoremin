@@ -33,7 +33,7 @@
  * / "failed" without knowing this node.
  */
 import { z } from 'zod';
-import { createFramePump, stampToTiming } from './frame_pump';
+import { acquireFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import type { FeatureLabConfig } from '@/features/labConfig';
@@ -206,7 +206,7 @@ export const webcamBodyNode = defineNode<Params>({
 
     // One inference per captured frame, stamped with the CAPTURE time (#226); see
     // `frame_pump.ts`. Started when the model is held, stopped when it is released.
-    const pump = createFramePump(
+    const pump = acquireFramePump(
       () => video,
       (stamp, v) => {
         if (disposed) return false;
