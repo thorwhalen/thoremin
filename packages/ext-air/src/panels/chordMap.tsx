@@ -73,6 +73,7 @@ export function ChordMapControls() {
   const anchor = c.anchor ?? 'home';
   const gridOnVideo = c.gridOnVideo?.show ?? true;
   const follow = c.follow ?? 'hands';
+  const chordsFrom = c.chordsFrom ?? 'key';
   const clock = c.clock ?? 'tempo';
   const commit = c.commit ?? 'now';
   const commitBeats = c.commitBeats ?? 1;
@@ -109,6 +110,13 @@ export function ChordMapControls() {
               {LAYOUTS[l].label}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="With a pentatonic (or any scale that is not seven notes), the map can lay out the scale's own chords, stacks of its own thirds (five for a pentatonic: C, Am, Gsus4, Asus4, Dsus4 in C), instead of its key's seven. A harmonic minor's own chords are its key's (i, ii°, III+, iv, V, VI, vii°).">
+        Chords
+        <select className={selectCls} value={chordsFrom} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.chordsFrom', e.target.value)}>
+          <option value="key">the key's seven</option>
+          <option value="scale">the scale's own</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs" title="A MIDI keyboard or the microphone can choose the chords: what is played lights up on the map, and your hands play the melody over it or strum it. Asks the browser for access when chosen.">

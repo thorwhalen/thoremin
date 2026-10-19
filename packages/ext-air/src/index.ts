@@ -159,6 +159,9 @@ export const AIR_EXTENSION = defineExtension({
     // The same map coloured by the face (H7 of #613): a held smile turns A minor to A major, a
     // frown back; an open mouth with raised brows adds the seventh, then the ninth.
     { name: 'Chord Map + Face', patch: { ...SILENT_THEREMIN, right: { root: 9, type: 'minor' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt', face: true } } },
+    // A pentatonic's own five chords (#671): stacks of its own thirds, the sus chords and the
+    // sixths of folk and pop harmony, laid out on five hexes (every step visits all five).
+    { name: 'Pentatonic Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'pentatonic' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, chordsFrom: 'scale' } } },
     // MIDI chooses, the camera performs (H8 of #613): the chords a MIDI keyboard holds light up
     // on the map, and the other hand plays the melody over them (or strums them).
     { name: 'Play Along (MIDI)', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, follow: 'midi', melodyNotes: 'tilt' } } },

@@ -421,6 +421,20 @@ describe('the chord-map node, chords from the microphone (H8 of #613)', () => {
   });
 });
 
+describe('the chord-map node, a pentatonic\'s own chords (#671)', () => {
+  it('plays the five chords of the scale, the map laid out over five', () => {
+    const pent: ScaleSpec = { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3 };
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const frames = chordMapTake({ duration: 1, chordAt: () => cellOf(0) });
+    let out: Out | undefined;
+    for (const fr of frames) out = h.process({ hands: fr, config: { ...ON, chordsFrom: 'scale' }, spec: pent, octaveShift: 0 }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    expect(out!.status.chord).toBe('Am'); // C-E-A: the first of the pentatonic's stacks
+    expect(soundingPcs(out!.params)).toEqual([0, 4, 9]);
+    const labels = new Set(out!.grid.cells.filter((c) => c.shape === 'hex').map((c) => c.label));
+    expect(labels).toEqual(new Set(['Am', 'Gsus4', 'Asus4', 'C', 'Dsus4']));
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {
