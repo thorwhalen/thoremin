@@ -7,11 +7,12 @@
 import { FlaskConical } from 'lucide-react';
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import LabPanel from './panels/LabPanel';
+import { LAB_TOOL } from './tool';
 import { installLabDemand } from './app/labDemand';
 import { FACE_SOURCE_NODE, makeLabFaceReporter, setLab, useLab, useLabFace } from './app/state';
 import { LAB_EXTENSION_ID } from './index';
 
-export const LAB_TOOL_ID = 'lab';
+export const LAB_TOOL_ID = LAB_TOOL.id;
 
 export const LAB_UI: ExtensionUi = {
   id: LAB_EXTENSION_ID,
@@ -29,11 +30,7 @@ export const LAB_UI: ExtensionUi = {
   onMount: [() => installLabDemand()],
   tools: [
     {
-      id: LAB_TOOL_ID,
-      label: 'Feature Lab',
-      description: 'Measure the raw face and hand features the instrument plays from — live, normalized meters.',
-      group: 'tool',
-      defaultPinned: false,
+      ...LAB_TOOL,
       Panel: LabPanel,
       icon: FlaskConical,
       // The meters keep drawing over the video with the panel closed: the bar marks the Lab

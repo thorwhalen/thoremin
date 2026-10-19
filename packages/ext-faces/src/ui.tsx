@@ -7,7 +7,8 @@
  * seam and so run without loading the deferred half (#600 S11).
  */
 import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import type { ExtensionToolDecl, ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
+import type { ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
+import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from './tools';
 import { CARVE_COMMANDS } from './carveCommandsUi';
 import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
@@ -20,32 +21,8 @@ export const poseReadoutOn = (s: Readonly<Record<string, unknown>>): boolean => 
 /** And which categorizer plays the categorizer chords, while one does (#450). */
 export const chordsReadoutOn = (s: Readonly<Record<string, unknown>>): boolean => chordModalityOf((s.categorizerChords as Partial<CategorizerChordsDial> | undefined)?.id) !== null;
 
-/** The face session's shell tool, as data (the deferred half `./lazy_ui.tsx` adds its panel). */
-export const FACES_TOOL: ExtensionToolDecl = {
-  id: 'faces',
-  label: 'Your faces',
-  description: 'Record your own faces and carve them into categories you name and keep: the face categorizer.',
-  group: 'mode',
-  defaultPinned: false,
-};
-
-/** The hand-shape session's shell tool (#385 E8): the same carve over one hand's shape. */
-export const HANDS_TOOL: ExtensionToolDecl = {
-  id: 'hand-shapes',
-  label: 'Your hand shapes',
-  description: 'Record your own hand shapes and carve them into categories you name and keep; each one can fire a command.',
-  group: 'mode',
-  defaultPinned: false,
-};
-
-/** The pose session's shell tool (#382 = #385 E9): the same carve over held body poses. */
-export const POSES_TOOL: ExtensionToolDecl = {
-  id: 'poses',
-  label: 'Your poses',
-  description: 'Record your own body poses and carve them into categories you name and keep; each one can fire a command.',
-  group: 'mode',
-  defaultPinned: false,
-};
+// The shell tools, as data in a module with no runtime imports (the reachability smoke imports it).
+export { FACES_TOOL, HANDS_TOOL, POSES_TOOL };
 
 /** The Conductor tool's way into "Your poses" with the conductor's default names (#383): shown
  *  while the conductor reads the body. */

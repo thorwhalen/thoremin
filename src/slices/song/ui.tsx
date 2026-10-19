@@ -9,7 +9,8 @@ import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { dispatchCommand } from '@thoremin/sdk-ui/dials';
 import './app/host';
 import './app/stretchers';
-import SongPanel, { SONG_TOOL_ID } from './panels/SongPanel';
+import SongPanel from './panels/SongPanel';
+import { SONG_TOOL } from './tool';
 import { RecordingSection, recordingStart, recordingStop } from './panels/RecordingSection';
 import { makeSongReporter, SONG_NODE_ID, useSongStatus } from './app/songStatus';
 import { SONG_COMMANDS } from './app/songCommands';
@@ -46,11 +47,7 @@ export const SONG_UI: ExtensionUi = {
   // closed, so it runs detached and the bar carries its stop control (`song.pause`, a command).
   tools: [
     {
-      id: SONG_TOOL_ID,
-      label: 'Song',
-      description: 'Load a song to dance or play along to: its beat is tracked in the browser, and it plays at any tempo without changing pitch.',
-      group: 'tool',
-      defaultPinned: false,
+      ...SONG_TOOL,
       Panel: SongPanel,
       icon: Disc3,
       detached: { useRunning: () => useSongField(songPlaying), stop: () => void dispatchCommand('song.pause', {}), hint: 'pause the song' },

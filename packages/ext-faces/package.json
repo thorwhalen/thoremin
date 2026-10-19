@@ -48,6 +48,7 @@
     "./panels/TestAndTune": "./src/panels/TestAndTune.tsx",
     "./panels/HoldStrip": "./src/panels/HoldStrip.tsx",
     "./schema": "./src/schema.ts",
+    "./tools": "./src/tools.ts",
     "./ui": "./src/ui.tsx"
   },
   "dependencies": {
