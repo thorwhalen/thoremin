@@ -103,6 +103,10 @@ export const chordMap = defineBranch({
     to({ node: 'chordMap', port: 'grid' }, overlay('cellGrid')),
   ],
   voices: [{ from: { node: 'chordMap', port: 'params' }, role: 'instrument' }],
+  // Its chord on the shared chord name, chord guide and keyboard strip (#600 S4's pool, #610).
+  // Below the face (30) and pose (20) chords, so composing it moves none of their inputs; an
+  // instrument rarely plays both, and the map lights its own chord either way.
+  chords: [{ from: { node: 'chordMap', port: 'triad' }, priority: 10 }],
   overlay: ['cellGrid'],
 });
 

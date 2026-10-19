@@ -322,7 +322,7 @@ Union the synth-params voice streams into one: a pool of instrument inputs (hush
 Pick the first non-empty of a pool of chord-tone streams (the face chord, the pose chord, the sign chord, and any an extension declares), highest priority first, for the overlay.
 
 - **roles:** mapping
-- **in:** a:number[], b:number[], c:number[]
+- **in:** a:number[], b:number[], c:number[], d:number[]
 - **out:** chord:number[]
 - **params:** —
 
