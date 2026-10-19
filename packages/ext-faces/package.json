@@ -9,6 +9,7 @@
     "./app/categorizerPlay": "./src/app/categorizerPlay.ts",
     "./app/faceSession": "./src/app/faceSession.ts",
     "./app/models": "./src/app/models.ts",
+    "./lib/forest_prefetch": "./src/lib/forest_prefetch.ts",
     "./app/posePlay": "./src/app/posePlay.ts",
     "./app/sessionStore": "./src/app/sessionStore.ts",
     "./app/sharedModels": "./src/app/sharedModels.ts",

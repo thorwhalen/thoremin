@@ -409,15 +409,47 @@ const forests = new Map<string, Forest>();
  */
 function recutPlan(c: PersonalCategorizer, options: RecutOptions) {
   const { pool, bins, groups } = recutPool(c, options);
-  const order = [...groups.keys()];
-  const mustLink = order.map((k) => groups.get(k)!);
+  const inputs = forestInputsOf(c, pool, groups);
+  let forest = forests.get(inputs.key);
+  if (forest) forests.delete(inputs.key);
+  else forest = buildConstrainedForest(inputs.vectors, inputs.features, inputs.weights, { mustLink: inputs.mustLink });
+  forests.set(inputs.key, forest);
+  while (forests.size > FOREST_CACHE_SIZE) forests.delete(forests.keys().next().value!);
+  return { pool, bins, forest, groupIds: [...groups.keys()], groups };
+}
+
+/** What a forest is built from, and the cache key that says two builds are the same. */
+export interface ForestInputs {
+  vectors: Record<string, number>[];
+  features: string[];
+  weights: Record<string, number>;
+  mustLink: number[][];
+  key: string;
+}
+
+function forestInputsOf(c: PersonalCategorizer, pool: number[], groups: Map<string, number[]>): ForestInputs {
+  const mustLink = [...groups.keys()].map((k) => groups.get(k)!);
   const key = JSON.stringify([c.features, c.features.map((f) => c.weights[f] ?? 1), pool.map((i) => c.features.map((f) => c.samples[i].vector[f] ?? null)), mustLink]);
-  let forest = forests.get(key);
-  if (forest) forests.delete(key);
-  else forest = buildConstrainedForest(pool.map((i) => c.samples[i].vector), c.features, c.weights, { mustLink });
+  return { vectors: pool.map((i) => c.samples[i].vector), features: c.features, weights: c.weights, mustLink, key };
+}
+
+/**
+ * The inputs of the forest a re-cut of `c` would cut, with the cache key: null when it is already
+ * built (cached) or there is nothing to carve. A host builds it elsewhere (a worker, #499) and
+ * hands it to {@link primeForest}, so the re-cut that follows does not build it on the page.
+ */
+export function pendingForest(c: PersonalCategorizer, options: RecutOptions = {}): ForestInputs | null {
+  const { pool, groups } = recutPool(c, options);
+  if (pool.length === 0) return null;
+  const inputs = forestInputsOf(c, pool, groups);
+  return forests.has(inputs.key) ? null : inputs;
+}
+
+/** Put a forest built elsewhere into the cache under the key {@link pendingForest} gave. */
+export function primeForest(key: string, forest: Forest): void {
+  forests.delete(key);
   forests.set(key, forest);
   while (forests.size > FOREST_CACHE_SIZE) forests.delete(forests.keys().next().value!);
-  return { pool, bins, forest, groupIds: order, groups };
 }
 
 /**
