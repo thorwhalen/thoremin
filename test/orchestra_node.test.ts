@@ -463,3 +463,57 @@ describe('orchestra: the conductor branch gives both players one part selection 
     expect(partsOf('score')).toEqual([]);
   });
 });
+
+describe('orchestra node: articulation as a program (#332)', () => {
+  const programs = (synth: FakeSynth) => synth.calls.filter((c) => c.op === 'program').map((c) => c.args);
+  const PIZZ = { orchestra: { enabled: true, pizzicato: true } };
+
+  /** Conduct `seconds` at 120 bpm with a constant articulation, from tick `from`. */
+  const conduct = (step: ReturnType<typeof harness>['step'], config: unknown, articulation: number, from: number, seconds: number) => {
+    for (let i = from; i < from + seconds * 30; i++) step({ config, conducting: true, time: time((i / 30) * 2, 120), articulation });
+    return from + seconds * 30;
+  };
+
+  it('is off by default: a sharp stroke changes no program', async () => {
+    const { step, synth } = harness();
+    step({ config: ON });
+    await flush();
+    conduct(step, ON, 1, 0, 3);
+    expect(programs(synth)).toEqual([[0, 48]]);
+  });
+
+  it('with the dial on, a sharp stroke sends the bowed strings to pizzicato (GM 45) and a smooth one back', async () => {
+    const { step, synth } = harness();
+    step({ config: PIZZ });
+    await flush();
+    let t = conduct(step, PIZZ, 0.5, 0, 1);
+    expect(programs(synth)).toEqual([[0, 48]]);
+    t = conduct(step, PIZZ, 0.95, t, 1);
+    expect(programs(synth)).toEqual([[0, 48], [0, 45]]);
+    // In the band between the thresholds nothing changes; neither does a short smooth moment (the hold).
+    t = conduct(step, PIZZ, 0.7, t, 2);
+    expect(programs(synth)).toHaveLength(2);
+    t = conduct(step, PIZZ, 0.2, t, 1.5);
+    expect(programs(synth)).toEqual([[0, 48], [0, 45], [0, 48]]);
+  });
+
+  it('does not chatter: a stroke flipping across the line inside the hold changes the program once', async () => {
+    const { step, synth } = harness();
+    step({ config: PIZZ });
+    await flush();
+    let t = 0;
+    for (let i = 0; i < 10; i++) t = conduct(step, PIZZ, i % 2 ? 0.1 : 0.95, t, 0.1);
+    expect(programs(synth).filter((a) => a[1] === 45)).toHaveLength(1);
+    expect(programs(synth).filter((a) => a[1] === 48)).toHaveLength(1); // the plan's own
+  });
+
+  it('turning the dial off while pizzicato plays brings the bow back', async () => {
+    const { step, synth } = harness();
+    step({ config: PIZZ });
+    await flush();
+    const t = conduct(step, PIZZ, 0.95, 0, 1);
+    expect(programs(synth).at(-1)).toEqual([0, 45]);
+    conduct(step, ON, 0.95, t, 0.5);
+    expect(programs(synth).at(-1)).toEqual([0, 48]);
+  });
+});

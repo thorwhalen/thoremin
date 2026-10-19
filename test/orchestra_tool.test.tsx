@@ -67,4 +67,16 @@ describe('the orchestra, from a cold load', () => {
     expect(orchestra().sections.strings).toBe(0.5);
     expect(orchestra().volume).toBe(0.3);
   });
+
+  it('the pizzicato switch is there once the orchestra is on, off by default, and writes its leaf (#332)', async () => {
+    useTools.setState({ open: 'conductor' });
+    await dispatchDialSetIn('conductor.orchestra.enabled', true);
+    render(<ConductorPanel />);
+    const box = screen.getByTestId('orchestra-pizzicato') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await drain();
+    expect(orchestra().pizzicato).toBe(true);
+    await dispatchDialSetIn('conductor.orchestra.pizzicato', false);
+  });
 });

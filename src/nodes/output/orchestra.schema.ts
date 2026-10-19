@@ -21,6 +21,9 @@ export const OrchestraSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   /** The orchestra's overall level, 0..1 (CC7 with the section's own level). */
   volume: z.number().min(0).max(1).default(0.8),
+  /** Strings go pizzicato on a sharp conducting stroke and back to the bow on a smooth one (#332).
+   *  Off by default: it changes what is heard, and a program change mid-phrase needs ears (#146). */
+  pizzicato: z.boolean().default(false),
   /** Per-section level, 0..1. */
   sections: z
     .object(Object.fromEntries(SECTIONS.map((s) => [s, z.number().min(0).max(1).default(1)])) as Record<Section, z.ZodDefault<z.ZodNumber>>)

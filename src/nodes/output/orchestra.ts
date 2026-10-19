@@ -52,6 +52,7 @@ import { clamp01 } from '@thoremin/sdk/features/math';
 import { partsOfConfig, pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '../music/score';
 import { allocateChannels, DEFAULT_PROGRAM, type Section } from './orchestra_map';
+import { articulatedProgram, createArticulationSwitch } from './orchestra_articulation';
 import { OrchestraSettingsSchema, type OrchestraSettings, DEFAULT_ORCHESTRA } from './orchestra.schema';
 import { type OrchestraSynth, type OrchestraEngineOpts } from './orchestra.schema';
 export type { OrchestraSynth, OrchestraEngineOpts } from './orchestra.schema';
@@ -233,6 +234,11 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
   /** Last controller value sent per `channel:cc`, and when dynamics were last sent. */
   const sentCC = new Map<string, number>();
   let lastDynamicsAt = -Infinity;
+  /** The pizzicato dial (#332), taken from the settings each tick, and the switch with its hysteresis. */
+  let pizzicatoOn = false;
+  const articulationSwitch = createArticulationSwitch();
+  /** Whether the bowed channels currently play pizzicato (what the synth was last told). */
+  let playingPizz = false;
   /** The context time each key's last onset / release was sent at. The scheduler keeps
    *  on and off alternating per key in ENGINE time; each tick maps engine time to the
    *  context afresh (`scheduleAt`), and a context clock that advances in large steps
@@ -288,9 +294,12 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
       sentCC.clear();
       lastDynamicsAt = -Infinity;
       for (const ch of plan.channels) synth.programChange(ch.channel, ch.program);
+      articulationSwitch.reset();
+      playingPizz = false;
     },
     levels({ settings, velocityScale }, { clock, nowEngine }) {
       if (!plan) return;
+      pizzicatoOn = settings.pizzicato;
       const now = clock.currentTime;
       const send = (channel: number, cc: number, value: number): void => {
         const k = `${channel}:${cc}`;
@@ -309,6 +318,14 @@ export function createOrchestraPlayer(synth: OrchestraSynth, options: Partial<Or
     },
     advance({ time, articulation, dt }, at) {
       if (!scheduler) return;
+      // Strings pizzicato on a sharp stroke (#332): the dial gates it, the switch has the hysteresis.
+      if (!pizzicatoOn) articulationSwitch.reset();
+      const wantPizz = pizzicatoOn && plan !== null && articulationSwitch.step(articulation, at.nowEngine);
+      if (wantPizz !== playingPizz && plan) {
+        playingPizz = wantPizz;
+        // Only the bowed channels change program; the rest keep theirs.
+        for (const ch of plan.channels) if (articulatedProgram(ch.program, true) !== ch.program) synth.programChange(ch.channel, articulatedProgram(ch.program, wantPizz));
+      }
       const tick = Math.min(MAX_TICK_S, Math.max(MIN_TICK_S, dt || FALLBACK_TICK_S));
       const cmds = scheduler.tick({
         now: at.nowEngine,
