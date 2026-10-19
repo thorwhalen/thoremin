@@ -90,6 +90,23 @@ describe('carve quality vs the live readout, on video_face_expressions (#553)', 
     expect(r.live[1].own).toBeLessThan(r.live[0].own);
   });
 
+  it('reports the share of a category\'s frames past the reject radius, which the chip alone missed (#564)', () => {
+    // The open smile is read as "none of these" in a third to a half of its frames at every
+    // hold length while its chip is OK; the smile hardly ever is. The share names the first.
+    for (const n of [4, 6, 8, 10]) {
+      const x = analyse(n);
+      const [smile, open] = x.after.categories;
+      expect(smile.outside, `smile ${n}f`).not.toBeNull();
+      expect(smile.sloppy, `smile ${n}f ${smile.outside}`).toBe(false);
+      expect(open.sloppy, `open ${n}f ${open.outside}`).toBe(true);
+      expect(open.grade).not.toBe('close');
+      // It tracks the live readout's own "none of these" share (the radius is the same one).
+      expect(Math.abs((open.outside ?? 0) - x.live[1].none)).toBeLessThan(0.15);
+    }
+    // Without supporting frames there is nothing to count.
+    expect(r.before.categories.every((c) => c.outside === null && !c.sloppy)).toBe(true);
+  });
+
   it('prints the numbers recorded in docs/research/carve-quality-vs-live.md', () => {
     const chip = (q: typeof r.before) => q.categories.map((c) => `${c.id} ${c.grade} ${c.ratio.toFixed(2)}`).join(' | ');
     for (const n of [4, 6, 8, 10]) {
