@@ -181,10 +181,12 @@ export function ChordMapControls() {
             Smile for major, frown for minor
           </label>
           <Range label={`Hold a smile or frown ${modeDwellS.toFixed(1)} s to change the key`} path="chordMap.modeDwellS" value={modeDwellS} min={0} max={4} step={0.1} enabled={enabled && faceMode} />
-          <label className="flex items-center gap-2 text-xs" title="An open mouth with raised brows adds the key's seventh, then its ninth, to the chord your hands hold.">
-            <input type="checkbox" checked={faceTension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceTension', e.target.checked)} />
-            Open mouth, raised brows: richer chords
-          </label>
+          {play === 'hold' && (
+            <label className="flex items-center gap-2 text-xs" title="An open mouth with raised brows adds the key's seventh, then its ninth, to the chord your hands hold (a strum plays the guitar's chord).">
+              <input type="checkbox" checked={faceTension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceTension', e.target.checked)} />
+              Open mouth, raised brows: richer chords
+            </label>
+          )}
         </div>
       )}
     </div>

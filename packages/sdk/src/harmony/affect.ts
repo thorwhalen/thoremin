@@ -60,11 +60,14 @@ export interface LevelOptions {
 export interface LevelTracker {
   /** One reading (null: none) at `now` seconds: the level in force. */
   push(value: number | null, now: number): number;
+  /** A new dwell, keeping the level in force (a slider dragged must not modulate). */
+  setDwell(dwellS: number): void;
   reset(): void;
 }
 
 /** A scalar to a level with hysteresis and a dwell. */
 export function createLevelTracker({ edges, hysteresis, dwellS, rest }: LevelOptions): LevelTracker {
+  let dwell = dwellS;
   let level = rest;
   /** When the readings first left the level in force (null: they are on it). */
   let away: number | null = null;
@@ -85,11 +88,14 @@ export function createLevelTracker({ edges, hysteresis, dwellS, rest }: LevelOpt
       // The dwell runs while the readings stay off the level in force, wherever they go (a
       // reading between two higher levels must not restart it); the level then is the latest.
       away ??= now;
-      if (now - away >= dwellS) {
+      if (now - away >= dwell) {
         level = want;
         away = null;
       }
       return level;
+    },
+    setDwell(s) {
+      dwell = s;
     },
     reset() {
       level = rest;
@@ -98,9 +104,10 @@ export function createLevelTracker({ edges, hysteresis, dwellS, rest }: LevelOpt
   };
 }
 
-/** The darker and the brighter parallel of each scale (absent: none, the key stays). */
-const DARKER: Partial<Record<ScaleTypeId, ScaleTypeId>> = { major: 'minor', pentatonic: 'minorPentatonic' };
-const BRIGHTER: Partial<Record<ScaleTypeId, ScaleTypeId>> = { minor: 'major', minorHarmonic: 'major', minorPentatonic: 'pentatonic' };
+/** The darker and the brighter parallel of a seven-note key (absent: none, the key stays). A
+ *  caller with another scale reads it through its seven-note key first (`letterChordSpec`). */
+const DARKER: Partial<Record<ScaleTypeId, ScaleTypeId>> = { major: 'minor' };
+const BRIGHTER: Partial<Record<ScaleTypeId, ScaleTypeId>> = { minor: 'major', minorHarmonic: 'major' };
 
 /** The valence levels: below the low edge the darker parallel, above the high one the brighter,
  *  between them the key as it is. */

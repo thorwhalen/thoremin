@@ -292,7 +292,6 @@ export const chordMapNode = defineNode<Params>({
     let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
     let valence: LevelTracker | null = null;
-    let valenceDwell = -1;
     const arousal = createLevelTracker({ edges: AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
 
     const resolveConfig = (raw: unknown): Params => {
@@ -337,22 +336,28 @@ export const chordMapNode = defineNode<Params>({
         // The face's affect (H7): the mode in force and the tension steps, both levels with a dwell.
         const now = typeof ctx?.time === 'number' ? ctx.time : 0;
         const face = c.enabled && c.face ? (inputs.face as FaceFeatures | undefined) : undefined;
-        if (!valence || valenceDwell !== c.modeDwellS) {
-          valence = createLevelTracker({ edges: VALENCE_EDGES, hysteresis: VALENCE_MARGIN, dwellS: c.modeDwellS, rest: VALENCE_LEVELS.key });
-          valenceDwell = c.modeDwellS;
-        }
-        const modeLevel = c.face && c.faceMode ? valence.push(valenceOf(face), now) : VALENCE_LEVELS.key;
-        const tensionLevel = c.face && c.faceTension ? arousal.push(arousalOf(face), now) : 0;
+        valence ??= createLevelTracker({ edges: VALENCE_EDGES, hysteresis: VALENCE_MARGIN, dwellS: c.modeDwellS, rest: VALENCE_LEVELS.key });
+        valence.setDwell(c.modeDwellS);
+        // A gate turned off forgets its level, so turning it back on starts from the key. Tensions
+        // colour a held chord only: a strum plays the guitar's voicing of the chord's name.
+        const modeOn = c.enabled && c.face && c.faceMode;
+        const tensionOn = c.enabled && c.face && c.faceTension && c.play === 'hold';
+        if (!modeOn) valence.reset();
+        if (!tensionOn) arousal.reset();
+        const modeLevel = modeOn ? valence.push(valenceOf(face), now) : VALENCE_LEVELS.key;
+        const tensionLevel = tensionOn ? arousal.push(arousalOf(face), now) : 0;
         const tension = Math.max(c.sevenths ? 1 : 0, tensionLevel);
         const rawSpec = inputs.spec as ScaleSpec | undefined;
-        const spec = rawSpec ? letterChordSpec(parallelSpec(rawSpec, modeLevel)) : undefined;
+        // The parallel of the key's seven-note form, so every scale (a pentatonic, the blues) has one.
+        const ownSpec = rawSpec ? letterChordSpec(rawSpec) : undefined;
+        const spec = ownSpec ? parallelSpec(ownSpec, modeLevel) : undefined;
         const render = (degree: number) =>
           renderer.render({
             degree,
             spec,
             voicing: chordCfg.voicing ?? c.voicing,
             rendering: chordCfg.rendering ?? c.rendering,
-            coloration: c.face && c.faceTension ? 'byTension' : c.sevenths ? 'diatonicSeventh' : undefined,
+            coloration: tensionOn ? 'byTension' : c.sevenths ? 'diatonicSeventh' : undefined,
             tension: tension / TENSION_STEPS,
             bpm: chordCfg.bpm ?? c.bpm,
             octaveShift: shift,
@@ -465,8 +470,9 @@ export const chordMapNode = defineNode<Params>({
           numeral: active?.numeral ?? null,
           melody: melodyNote,
           melodySet,
-          mode: modeLevel === VALENCE_LEVELS.darker ? 'darker' : modeLevel === VALENCE_LEVELS.brighter ? 'brighter' : 'key',
-          tension: c.face && c.faceTension ? tension : 0,
+          // What changed, not what the face reads: a frown on a minor key changes nothing.
+          mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',
+          tension: tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
         const grid: CellGrid = chordMapGrid({
           layout: c.layout,

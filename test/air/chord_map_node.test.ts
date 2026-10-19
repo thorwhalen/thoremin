@@ -172,6 +172,41 @@ describe('the chord-map node, coloured by the face (H7 of #613)', () => {
     expect(at(3.0).status.tension).toBe(2);
   });
 
+  it('plays the same with the seed\'s voice-led voicing', () => {
+    const outs = play(take(), { ...ON, face: true, voicing: 'voiceLed' }, A_MINOR, faceAt);
+    const at = (t: number) => outs.find((o) => o.t >= t)!.out;
+    expect(soundingPcs(at(1.8).params)).toEqual([1, 4, 9]);
+    expect(soundingPcs(at(3.0).params)).toEqual([1, 8, 9, 11]); // Amaj9 in four voices: A in the bass, the fifth shed
+  });
+
+  it('turns any key: a blues key smiles into its parallel major', () => {
+    const outs = play(take(), { ...ON, face: true }, { ...A_MINOR, type: 'blues' }, faceAt);
+    expect(soundingPcs(outs.find((o) => o.t >= 1.8)!.out.params)).toEqual([1, 4, 9]);
+  });
+
+  it('says only what changed: a frown on a minor key changes nothing', () => {
+    const frown = (t: number): FaceFeatures => ({ ...ABSENT_FACE, present: true, browFurrow: t >= 0.5 ? 0.8 : 0 });
+    const outs = play(take(), { ...ON, face: true }, A_MINOR, frown);
+    const late = outs.find((o) => o.t >= 2.5)!.out;
+    expect(late.status.mode).toBe('key');
+    expect(soundingPcs(late.params)).toEqual([0, 4, 9]);
+  });
+
+  it('keeps the key in force while the dwell slider is dragged', () => {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const frames = take();
+    const modes = frames.map((f, i) => {
+      const dwell = f.t! < 2 ? 1 : 1 + 0.1 * (i % 5); // dragged from 2 s on, a write per frame
+      return (h.process({ hands: f, config: { ...ON, face: true, modeDwellS: dwell }, spec: A_MINOR, octaveShift: 0, face: faceAt(f.t!) }, { time: f.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out).status.mode;
+    });
+    expect(modes.slice(Math.round(2 * 30))).toEqual(modes.slice(Math.round(2 * 30)).map(() => 'brighter'));
+  });
+
+  it('adds no tension to a strum, and says none', () => {
+    const outs = play(chordMapTake({ duration: 3.2, chordAt: () => cellOf(0), strumPeriod: 0.5 }), { ...ON, face: true, play: 'strum' }, A_MINOR, faceAt);
+    expect(outs.find((o) => o.t >= 3.0)!.out.status).toMatchObject({ mode: 'brighter', tension: 0 });
+  });
+
   it('leaves the key and the chord alone with the face off, or with no face in view', () => {
     const off = play(take(), { ...ON, face: false }, A_MINOR, faceAt);
     expect(soundingPcs(off.find((o) => o.t >= 3.0)!.out.params)).toEqual([0, 4, 9]);

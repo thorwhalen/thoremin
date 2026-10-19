@@ -11,6 +11,7 @@ import { DEFAULT_CONTROLS, tonesInRegister } from '@thoremin/sdk/harmony/realize
 import { scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { ABSENT_FACE, type FaceFeatures } from '@thoremin/sdk/nodes/domain';
 import { loadStream } from '../helpers/fixtures';
+import { faceFeaturesNode } from '@/nodes/features/face_features';
 
 const face = (f: Partial<FaceFeatures>): FaceFeatures => ({ ...ABSENT_FACE, present: true, ...f });
 const C: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
@@ -40,6 +41,16 @@ describe('valence and arousal', () => {
     expect(t.push(null, 3.25)).toBe(1); // no face: the rest
   });
 
+  it('keeps the level in force when the dwell changes', () => {
+    const t = createLevelTracker({ edges: [-0.3, 0.3], hysteresis: 0.08, dwellS: 1, rest: 1 });
+    t.push(0.9, 0);
+    expect(t.push(0.9, 1)).toBe(2);
+    t.setDwell(2);
+    expect(t.push(0.9, 1.1)).toBe(2);
+    expect(t.push(0, 1.2)).toBe(2); // leaving now takes the new dwell
+    expect(t.push(0, 3.2)).toBe(1);
+  });
+
   it('moves the key to its parallel major or minor, and leaves one without', () => {
     expect(parallelSpec(C, VALENCE_LEVELS.darker).type).toBe('minor');
     expect(parallelSpec(C, VALENCE_LEVELS.brighter)).toBe(C);
@@ -67,22 +78,16 @@ describe('the byTension coloration', () => {
 
 describe('the recorded face', () => {
   const frames = loadStream('video_face_expressions', 'face.blendshapes') as { t?: number; present: boolean; blendshapes: Record<string, number> }[];
-  const features = (b: Record<string, number>): FaceFeatures => {
-    const avg = (...xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
-    return face({
-      smile: avg(b.mouthSmileLeft ?? 0, b.mouthSmileRight ?? 0),
-      mouthOpen: b.jawOpen ?? 0,
-      browRaise: avg(b.browInnerUp ?? 0, b.browOuterUpLeft ?? 0, b.browOuterUpRight ?? 0),
-      browFurrow: avg(b.browDownLeft ?? 0, b.browDownRight ?? 0),
-    });
-  };
+  // Through the face-features node the face source composes, with its smoothing (0.3).
+  const node = faceFeaturesNode.make(faceFeaturesNode.params.parse({ smoothing: 0.3 }));
+  const features = (f: (typeof frames)[number]): FaceFeatures => (node.process({ face: f }, { time: 0, dt: 1 / 24, tick: 0, resources: {} } as never) as { features: FaceFeatures }).features;
 
   it('turns a minor key major a second into the smile, and adds tensions to the open-mouthed smile only', () => {
     const valence = createLevelTracker({ edges: [-0.3, 0.3], hysteresis: 0.08, dwellS: 1, rest: 1 });
     const arousal = createLevelTracker({ edges: [0.35, 0.55], hysteresis: 0.05, dwellS: 0.25, rest: 0 });
     const read = frames.map((f, i) => {
       const t = i / 24;
-      const fx = features(f.blendshapes);
+      const fx = features(f);
       return { t, mode: parallelSpec({ ...C, type: 'minor' }, valence.push(valenceOf(fx), t)).type, tension: arousal.push(arousalOf(fx), t) };
     });
     const at = (t: number) => read.find((r) => r.t >= t)!;
