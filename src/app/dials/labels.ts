@@ -9,7 +9,7 @@
  */
 import type { VoicingId, RenderingId } from '@/music/voicing';
 import type { FaceMapping } from '@/nodes';
-import type { FingerTarget } from '@/nodes/mapping/hand_map';
+import type { FingerTarget } from '@/nodes/mapping/hand_map.schema';
 
 /** The face-mapping chooser's options, in display order. */
 export const FACE_MODE_OPTIONS: { value: FaceMapping; label: string }[] = [

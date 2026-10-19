@@ -13,7 +13,7 @@
  *
  * Kept out of the .tsx so it is importable in plain Node tests without React.
  */
-import type { OverlayParams } from '@/nodes/output/canvas_overlay';
+import type { OverlayParams } from '@/nodes/output/canvas_overlay.schema';
 
 /**
  * Which UI SURFACE owns an overlay element's controls.

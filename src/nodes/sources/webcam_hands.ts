@@ -50,6 +50,10 @@ import {
   type WorkerLike,
   type WorkerRunnerDeps,
 } from './hand_runner';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hands.schema';
+import { type HandLandmarkerResultLike } from './webcam_hands.schema';
+export type { HandLandmarkerResultLike } from './webcam_hands.schema';
+export { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hands.schema';
 
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and
@@ -76,23 +80,6 @@ type Params = z.infer<typeof Params>;
 
 const EMPTY: HandsFrame = { width: 640, height: 480, hands: [] };
 
-interface NormalizedLandmarkLike {
-  x: number;
-  y: number;
-  z?: number;
-}
-interface CategoryLike {
-  categoryName: string;
-}
-/** The minimal slice of a `HandLandmarkerResult` this node reads. */
-export interface HandLandmarkerResultLike {
-  landmarks: NormalizedLandmarkLike[][];
-  /** Metric 3D landmarks (metres), roughly camera-pose-invariant — used for the
-   *  rotation/scale-invariant finger features. Optional (older results omit it). */
-  worldLandmarks?: NormalizedLandmarkLike[][];
-  handedness: CategoryLike[][];
-}
-
 /**
  * Pure converter: a tasks-vision `HandLandmarkerResult` (normalized landmarks,
  * 0..1) → a {@link HandsFrame} with pixel keypoints in MediaPipe's 21-point order
@@ -112,9 +99,6 @@ export function resultToHandsFrame(res: HandLandmarkerResultLike, w: number, h: 
   return { width: w, height: h, hands };
 }
 
-/** The host resource that says how many hands to look for (#325). */
-export const HAND_COUNT_RESOURCE_KEY = 'handCount';
-
 /**
  * How many hands to look for: the host's `handCount` resource, capped by `maxHands` and at
  * least one; `maxHands` when the host provides none or it returns no positive integer.
@@ -126,9 +110,6 @@ export function wantedHands(resources: Record<string, unknown>, maxHands: number
 }
 
 export type { HandLandmarkerLike } from './hand_runner';
-
-/** The host resource that may override where the model runs (`?hands.runner=`, #326). */
-export const HAND_RUNNER_RESOURCE_KEY = 'handRunner';
 
 interface TasksVisionModule {
   FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };

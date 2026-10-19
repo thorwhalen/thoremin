@@ -10,7 +10,8 @@
  *  - `nodeImplementationImports`: value imports, from a module outside `src/nodes`, of a node
  *    IMPLEMENTATION file (V3: a settings schema or a default fetched by importing the node that
  *    draws or plays it). A contract module beside a node (`*.schema.ts`, `*_contract.ts`) is not
- *    an implementation.
+ *    an implementation, and the app registry (`src/host/appRegistry.ts`), which imports nodes to
+ *    register them, is not counted.
  *  - `extensionNamesInCore`: per shipped extension, the core files (`src/` minus the list
  *    modules, the frozen legacy app and tests) whose CODE names one of that extension's
  *    identifiers: its id, a node type, a branch id, a dial key or kind, a transient field or
@@ -165,6 +166,10 @@ function makeResolver(root: string, files: ReadonlySet<string>) {
   };
 }
 
+/** The composition root that REGISTERS node implementations (#600 S6): importing a node to put
+ *  it in the registry is the registry's job, not a contract fetched from an implementation. */
+const REGISTERS_NODES = new Set(['src/host/appRegistry.ts']);
+
 /** A contract module beside a node: importable without the node's implementation. */
 const isNodeContract = (file: string): boolean => /\.schema\.ts$/.test(file) || /_contract\.ts$/.test(file);
 
@@ -260,7 +265,7 @@ export function measure({ root, extensions, foldPoints, largestFiles }: MeasureI
       if (!target) continue;
       allTargets.push(target);
       if (e.value && !e.dynamic) runtimeTargets.push(target);
-      const outsideNodes = file.startsWith('src/') && !file.startsWith('src/nodes/');
+      const outsideNodes = file.startsWith('src/') && !file.startsWith('src/nodes/') && !REGISTERS_NODES.has(file);
       if (outsideNodes && !LEGACY(file) && e.value && target.startsWith('src/nodes/') && !isNodeContract(target)) nodeImports.push(`${file} -> ${target}`);
     }
     if (!LEGACY(file)) {

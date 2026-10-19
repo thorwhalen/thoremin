@@ -18,7 +18,7 @@
  * only while one is live, and otherwise still presses a focused button or scrolls.
  */
 import { tinykeys } from 'tinykeys';
-import { isEditableTarget } from '@/nodes/sources/keyboard';
+import { isEditableTarget } from '@/nodes/sources/keyboard.schema';
 import { history, registry } from './commands/registry';
 import { useControls } from './store';
 import { useTools } from './toolsStore';

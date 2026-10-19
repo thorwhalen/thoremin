@@ -48,3 +48,28 @@ describe('the Node-safe core never imports the app shell or a plugin', () => {
     });
   }
 });
+
+/**
+ * The settings read node CONTRACTS, never node implementations (#600 S6): a settings schema that
+ * imports the node that draws or plays a dial drags that node (the 2,300-line overlay, the
+ * conductor) into everything that reads settings. A contract lives beside its node as
+ * `<node>.schema.ts` (or a slot's `*_contract.ts`).
+ */
+const SETTINGS_NODE_IMPORT = /from\s+['"]@\/nodes\/([^'"]+)['"]/g;
+/** Implementations the settings still reach, each with the step that removes it. */
+const SETTINGS_NODE_EXEMPT = new Set(['features/conductor']); // S7 of #600 adds conductor.schema.ts
+
+describe('the settings import node contracts only', () => {
+  it('src/settings imports no node implementation', () => {
+    const offenders: string[] = [];
+    for (const f of tsFiles('src/settings')) {
+      const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      for (const m of src.matchAll(SETTINGS_NODE_IMPORT)) {
+        const target = m[1];
+        if (/\.schema$/.test(target) || /_contract$/.test(target) || SETTINGS_NODE_EXEMPT.has(target)) continue;
+        offenders.push(`${f} imports @/nodes/${target}`);
+      }
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+});

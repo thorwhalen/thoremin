@@ -13,7 +13,7 @@
  * a live-wired dial, the answer costs one click of "Flip" while looking at the camera.
  */
 import type { FaceMapping } from '@/nodes';
-import { type FaceControlsDialParams } from '@/nodes/features/face_controls';
+import { type FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import { dispatchDialSet, dispatchDialSetIn, dispatchDialReset } from '../../dispatchDial';
 import { ExpressionHelpButton } from '../../ExpressionHelpPanel';
 import { POSE_MOVES } from '../../poseControlsHelp';

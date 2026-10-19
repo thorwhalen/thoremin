@@ -13,7 +13,7 @@
 import { NOTES, SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import type { Settings } from '@/settings/schema';
-import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map';
+import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
 import { AIR_INSTRUMENTS, airInstrumentsOf, classOfEntry, type AirInstrumentId } from './category';
 

@@ -15,8 +15,8 @@ import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { LoadStatusReadout } from '../../LoadStatusReadout';
 import { useOrchestraStatus } from '../../orchestraStatus';
-import { DEFAULT_ORCHESTRA, SOUNDFONT_SIZE_MB, type OrchestraSettings } from '@/nodes/output/orchestra';
-import { SECTIONS, type Section } from '@/nodes/output/orchestra_map';
+import { DEFAULT_ORCHESTRA, SOUNDFONT_SIZE_MB, type OrchestraSettings } from '@/nodes/output/orchestra.schema';
+import { SECTIONS, type Section } from '@/nodes/output/orchestra_map.schema';
 import type { ConductorSettings } from '@/settings/schema';
 
 const SECTION_LABEL: Record<Section, string> = {

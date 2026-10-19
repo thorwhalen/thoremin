@@ -21,8 +21,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
-import { createAppRegistry } from '@/nodes/browser';
-import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands';
+import { createAppRegistry } from '@/host/appRegistry';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
 import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';

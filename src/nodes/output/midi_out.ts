@@ -42,40 +42,11 @@ import type { NodeContext } from '@thoremin/dag';
 import { realtimeOutputAllowed } from '@thoremin/dag';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
-
-// ---- The sink facade the node drives (implemented by ./midi_engine or a mock) --
-
-/**
- * A minimal MIDI output the node writes to. Every argument is already in the MIDI
- * domain: `channel` 1..16, `note`/`velocity`/CC `value` 0..127. Implemented by the
- * browser WEBMIDI.js adapter (`./midi_engine`) or by a mock in tests — the node
- * never touches the vendor library or `navigator` directly.
- */
-export interface MidiSink {
-  /** The resolved output port name this sink targets (for the status readout). */
-  readonly portName: string;
-  noteOn(channel: number, note: number, velocity: number): void;
-  noteOff(channel: number, note: number): void;
-  controlChange(channel: number, controller: number, value: number): void;
-  /** Silence everything: all-notes-off (+ all-sound-off) across the port. */
-  allNotesOff(): void;
-  /** Release the underlying port (best effort; silences first). */
-  close(): void;
-}
-
-/** Why a sink could not be opened — reported, never thrown, so a UI can show an
- *  actionable message and disable the control. `denied` = the user (or a policy)
- *  blocked the MIDI-access permission — actionable, unlike a generic `error`. */
-export type MidiUnavailable = 'unsupported' | 'no-ports' | 'port-not-found' | 'denied' | 'error';
-
-export interface MidiOpenResult {
-  /** The opened sink, or null when unavailable (see `reason`). */
-  sink: MidiSink | null;
-  /** Every available output port name (for selection + status). */
-  ports: string[];
-  /** Set when `sink` is null. */
-  reason?: MidiUnavailable;
-}
+import { type MidiPhase, webMidiSupported } from './midi_out.schema';
+import { type MidiSink, type MidiOpenResult } from './midi_out.schema';
+export type { MidiSink, MidiUnavailable, MidiOpenResult } from './midi_out.schema';
+export { webMidiSupported } from './midi_out.schema';
+export type { MidiPhase } from './midi_out.schema';
 
 /**
  * (Lazy-)opens a MIDI output bound to `portName` (or the first available when
@@ -85,9 +56,6 @@ export interface MidiOpenResult {
  * reports `phase: 'error'` rather than letting the tick throw.
  */
 export type MidiSinkFactory = (opts: { portName: string }) => Promise<MidiOpenResult>;
-
-/** Lifecycle/capability phase surfaced on the node's `status` port. */
-export type MidiPhase = 'off' | 'unsupported' | 'connecting' | 'ready' | 'no-ports' | 'denied' | 'error';
 
 /** What the node reports each tick so a UI can render + gate a MIDI-output control. */
 export interface MidiStatus {
@@ -166,15 +134,6 @@ function _quantizeNote(freq: number, hysteresis: number, held: number | undefine
   const cont = freqToMidi(freq);
   if (held !== undefined && Math.abs(cont - held) <= 0.5 + hysteresis) return held;
   return _clamp(Math.round(cont), 0, 127);
-}
-
-/** True when the host environment exposes the Web MIDI API. False in Node and on
- *  Safari/iOS, which is exactly where the node must degrade instead of throwing. */
-export function webMidiSupported(): boolean {
-  return (
-    typeof navigator !== 'undefined' &&
-    typeof (navigator as Navigator & { requestMIDIAccess?: unknown }).requestMIDIAccess === 'function'
-  );
 }
 
 /** Send a CC only when its per-channel value actually changed (diffed to avoid

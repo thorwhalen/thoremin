@@ -14,7 +14,7 @@
  * milliseconds. A Worker is the next step if a longer file ever needs one.
  */
 import { toMono, trackSongGrid } from '@thoremin/ictus';
-import type { SongHandle } from '@/nodes/output/song_player';
+import type { SongHandle } from '@/nodes/output/song_player.schema';
 
 /** The analysis rate: `decodeAudioData` resamples to it, which is the downsample the
  *  tracker wants. */

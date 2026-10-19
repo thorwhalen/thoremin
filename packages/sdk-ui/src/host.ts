@@ -12,7 +12,24 @@
  */
 
 import type { z } from 'zod';
+import type { SettingKey } from '@zodal/dials-core';
+import type { SettingFieldState, SettingsForm, SettingsState } from '@zodal/dials-ui';
 import type { Extension, ExtensionsSettingsShape, ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
+
+/** The live dials form a panel reads (`useDialsSettings`): the app's form, through this seam. */
+export interface DialsSettings {
+  /** Live store state ({@link SettingsState}): `effective` values, `dirty`, `validation`, … */
+  state: SettingsState;
+  /** The headless form (field configs + facet groups). */
+  form: SettingsForm;
+  /** Per-field value-dependent state (value / dirty / provenance). */
+  states: Record<SettingKey, SettingFieldState>;
+  /** Set one dial in the editable layer. */
+  set: (key: SettingKey, value: unknown) => void;
+  /** Reset one dial (the defaults re-win). */
+  reset: (key: SettingKey) => void;
+}
+
 
 /** The live control store (the app's hot store), as an extension may use it. */
 export interface ControlsHost {
@@ -41,7 +58,7 @@ export interface DialsHost {
 /** The dials FORM, a React hook over the live dials store (see `DialsSettings`). A seam of its
  *  own because its implementation is React, which the write path is not. */
 export interface DialsFormHost {
-  useSettings(): import('./dials').DialsSettings;
+  useSettings(): DialsSettings;
 }
 
 /** The camera, as an extension's tool uses it (the personal categorizer session records the

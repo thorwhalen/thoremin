@@ -33,7 +33,7 @@
  */
 import { z } from 'zod';
 import type { FrameStamp } from './frame_pump';
-import type { HandLandmarkerResultLike } from './webcam_hands';
+import type { HandLandmarkerResultLike } from './webcam_hands.schema';
 import type { Delegate } from './delegate';
 
 export const HandRunnerChoiceSchema = z.enum(['auto', 'worker', 'main']);

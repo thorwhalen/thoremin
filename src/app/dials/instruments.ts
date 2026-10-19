@@ -30,8 +30,8 @@ import { ConductorSettingsSchema, defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LE
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
-import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map';
-import { OverlayDialSchema } from '@/nodes/output/canvas_overlay';
+import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map.schema';
+import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
 import { dialsStore } from './settingsStore';
 

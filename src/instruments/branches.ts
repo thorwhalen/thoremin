@@ -29,8 +29,8 @@
  * The right-hand "derivation" (which dials imply which branch) is not in this file: it is
  * PR 3's `graphFor`, and until then every instrument composes every branch.
  */
-import { DEFAULT_STEER_CONFIG } from '@/nodes/mapping/indirect_map';
-import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@/nodes/music/score';
+import { DEFAULT_STEER_CONFIG } from '@/nodes/mapping/indirect_map.schema';
+import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@/nodes/music/score.schema';
 import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/labConfig';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 

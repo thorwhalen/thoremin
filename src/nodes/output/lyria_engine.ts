@@ -31,7 +31,7 @@
  */
 import { GoogleGenAI, type LiveMusicSession, type LiveMusicServerMessage } from '@google/genai';
 import { getStoredKey } from '@/keys/providerKeys';
-import { LYRIA_KEY_PROVIDER } from './lyria';
+import { LYRIA_KEY_PROVIDER } from './lyria.schema';
 import type { LoadResult } from '@thoremin/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from './generative';
 
@@ -247,7 +247,7 @@ export class LyriaEngine implements GenerativeEngine {
   }
 }
 
-export { LYRIA_KEY_PROVIDER } from './lyria';
+export { LYRIA_KEY_PROVIDER } from './lyria.schema';
 
 /**
  * The default {@link GenerativeEngineFactory}: build a {@link LyriaEngine} from the
