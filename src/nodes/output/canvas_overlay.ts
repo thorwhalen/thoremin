@@ -25,7 +25,7 @@
 import type { MusicalTime } from '@thoremin/ictus';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { OVERLAY_CORE_INPUTS, OverlayParamsSchema, type CuePosition, type OverlayCategory, type OverlayParams } from './canvas_overlay.schema';
+import { OVERLAY_CORE_INPUTS, OverlayParamsSchema, captionsPort, categoryPool, categoryPoolInputs, type CategoryPoolSizes, type CuePosition, type OverlayCategory, type OverlayParams } from './canvas_overlay.schema';
 
 export { CuePositionEnum, OVERLAY_CATEGORIES, OVERLAY_ELEMENT_CATEGORIES, OverlayDialSchema, OverlayParamsSchema, TrainerHudParamsSchema } from './canvas_overlay.schema';
 export type { CuePosition, OverlayCategory, OverlayDialParams, OverlayParams, TrainerHudParams } from './canvas_overlay.schema';
@@ -719,32 +719,28 @@ function categoryText(view: OverlayView): string | null {
 const CATEGORY_CHAR_W = 0.62; // bold monospace glyph width per px of font size
 const categoryLabelPx = (view: OverlayView): number => Math.round(40 + 160 * clamp01(view.params.categoryLabel.size));
 
-/**
- * The category reading the cues draw (#384): the classifier's (`categories`, the ASL reader) while
- * it reads, else the player's own learned categories (`learnedCategories`) while they read, else
- * the categorizer that plays chords (`chordCategories`, #450); captions belong to the classifier's
- * only. With nothing reading, the first one wired is drawn (its categories at rest).
- */
-export function pickCategories(
-  classifier: CategoryScores | null | undefined,
-  captions: readonly string[] | null | undefined,
-  learned: CategoryScores | null | undefined,
-  chords?: CategoryScores | null | undefined,
-): { categories: CategoryScores | null | undefined; categoryCaptions: readonly string[] | null | undefined } {
-  if (classifier?.present || (!learned && !chords)) return { categories: classifier, categoryCaptions: captions };
-  if (learned?.present || !chords) return { categories: learned, categoryCaptions: null };
-  if (chords.present || !learned) return { categories: chords, categoryCaptions: null };
-  return { categories: learned, categoryCaptions: null };
+/** One category reader's slot on the overlay (#600 S10b): its reading and, for a classifier, the
+ *  captions aligned with its labels. */
+export interface CategorySlot {
+  scores: CategoryScores | null | undefined;
+  captions?: readonly string[] | null | undefined;
 }
 
 /**
- * The chord the cues name and highlight (#491): the chord selector's (the face, pose and sign
- * chords) while it holds one, else the chord a categorizer plays (`categorizerChord`), else none.
+ * The category reading the cues draw (#384; pooled since #600 S10b): the first slot that reads,
+ * classifiers before categorizers (each pool in priority order: the composer allocated it so);
+ * with none reading, the first categorizer wired, so a player's own categories show at rest
+ * rather than a general classifier's, else the first classifier (its captions with it, possibly
+ * nothing at all). Captions belong to classifiers only.
  */
-export function pickChord(selected: unknown, categorizer: unknown): number[] | undefined {
-  if (Array.isArray(selected) && selected.length > 0) return selected as number[];
-  if (Array.isArray(categorizer) && categorizer.length > 0) return categorizer as number[];
-  return Array.isArray(selected) ? (selected as number[]) : undefined;
+export function pickCategories(
+  classifiers: readonly CategorySlot[],
+  categorizers: readonly CategorySlot[],
+): { categories: CategoryScores | null | undefined; categoryCaptions: readonly string[] | null | undefined } {
+  const reading = classifiers.find((c) => c.scores?.present) ?? categorizers.find((c) => c.scores?.present);
+  const chosen = reading ?? categorizers.find((c) => c.scores) ?? classifiers.find((c) => c.scores) ?? classifiers[0];
+  if (!chosen) return { categories: undefined, categoryCaptions: undefined };
+  return { categories: chosen.scores, categoryCaptions: classifiers.includes(chosen) ? chosen.captions : null };
 }
 
 /** A classifier's named class, written large (the ASL reader's letter or word). */
@@ -1725,7 +1721,7 @@ export function overlayElementOrder(contributed: readonly ContributedElement[]):
  * per contributed element's input (its generated port), decided once, when the registry is built
  * (`src/nodes/browser.ts`), like `store-controls`' ports. With none it is the core overlay.
  */
-export function makeCanvasOverlayNode(contributed: readonly ContributedElement[] = []) {
+export function makeCanvasOverlayNode(contributed: readonly ContributedElement[] = [], categoryPools: CategoryPoolSizes = { classifier: 0, categorizer: 0 }) {
   // A `drawBefore` naming no core element would silently fall back to the default slot.
   for (const c of contributed) {
     const target = c.decl.drawBefore;
@@ -1735,12 +1731,15 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
   const ALL_ELEMENTS = withContributed<OverlayElement>(OVERLAY_ELEMENTS, adapted, drawBeforeOf(contributed));
   const ALL_NAMES: ReadonlySet<string> = new Set(ALL_ELEMENTS.map((e) => e.name));
   const contributedPorts = contributed.flatMap((c) => Object.entries(c.ports).map(([input, port]) => ({ name: port, kind: c.kinds[input] })));
+  // The category pools (#600 S10b): the legacy ASL ports first, as a classifier ahead of the pool.
+  const classifierSlots = categoryPool('classifier', categoryPools.classifier);
+  const categorizerSlots = categoryPool('categorizer', categoryPools.categorizer);
   return defineNode<Params>({
     type: 'canvas-overlay',
     roles: ['overlay'],
     title: 'Canvas Overlay',
     description: 'Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.',
-    inputs: [...OVERLAY_CORE_INPUTS, ...contributedPorts],
+    inputs: [...OVERLAY_CORE_INPUTS, ...categoryPoolInputs(categoryPools), ...contributedPorts],
     outputs: [],
     params: OverlayParamsSchema,
     make(p) {
@@ -1803,7 +1802,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               scaleLeft: inputs.scaleLeft as number[] | undefined,
               chordScale: inputs.chordScale as number[] | undefined,
               octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
-              chord: pickChord(inputs.chord, inputs.categorizerChord),
+              chord: inputs.chord as number[] | undefined,
               faceFrame: inputs.faceFrame as FaceFrame | undefined,
               bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
               bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
@@ -1820,10 +1819,11 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               tagOverlay,
               trainerHud: trainerHudSnapshot,
               ...pickCategories(
-                inputs.categories as CategoryScores | null | undefined,
-                inputs.categoryCaptions as readonly string[] | null | undefined,
-                inputs.learnedCategories as CategoryScores | null | undefined,
-                inputs.chordCategories as CategoryScores | null | undefined,
+                [
+                  { scores: inputs.categories as CategoryScores | null | undefined, captions: inputs.categoryCaptions as readonly string[] | null | undefined },
+                  ...classifierSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined, captions: inputs[captionsPort(slot)] as readonly string[] | null | undefined })),
+                ],
+                categorizerSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined })),
               ),
             },
           };

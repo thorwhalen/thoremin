@@ -13,5 +13,5 @@ export {
 } from '@thoremin/sdk/instruments/branch';
 export type { GraphBranch, GraphBranchInput, BranchNode, BranchEdge, BranchVoice, BranchChord, PortRef, VoiceRole } from '@thoremin/sdk/instruments/branch';
 export { composeGraph, ComposeError } from './compose';
-export type { ChordTarget, ComposeOptions, Composed, MergeTarget } from './compose';
+export type { CategoryTarget, ChordTarget, ComposeOptions, Composed, MergeTarget } from './compose';
 export { BRANCHES, ALL_BRANCH_IDS, TRUNK } from './branches';

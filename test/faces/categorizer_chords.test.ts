@@ -16,7 +16,10 @@ import { importCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { Engine, replayNode, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
-import { pickCategories, pickChord } from '@/nodes/output/canvas_overlay';
+import { pickCategories } from '@/nodes/output/canvas_overlay';
+import { chordPool, chordSelectNode } from '@/nodes/mapping/chord_select';
+import { ALL_BRANCHES } from '@/app/graph';
+import { CATEGORIZER_CHORD_NODE_ID, CATEGORIZER_CHORD_PRIORITY } from '@thoremin/ext-faces/branches';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { diatonicTriad, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -39,6 +42,10 @@ import { FACES } from '../helpers/extensions';
 import { POSES, poseVector, scriptedPoseCategorizer } from '../helpers/body_poses';
 
 const seed = () => settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Glass Bells')!.layer);
+/** The chord selector's inputs in pool order (a, b, c.., chord27..), each named by what feeds it. */
+const POOL = chordPool(64);
+const chordInputs = (spec: { edges: readonly { from: { node: string; port: string }; to: { node: string; port: string } }[] }) =>
+  spec.edges.filter((e) => e.to.node === 'chordSel').sort((x, y) => POOL.indexOf(x.to.port) - POOL.indexOf(y.to.port)).map((e) => `${e.from.node}.${e.from.port}`);
 const withChords = (id: string) => ({ ...seed(), categorizerChords: { ...DEFAULT_CATEGORIZER_CHORDS, id } });
 const into = (spec: { edges: readonly { from: { node: string; port: string }; to: { node: string; port: string } }[] }, node: string, port: string) =>
   spec.edges.filter((e) => e.to.node === node && e.to.port === port).map((e) => `${e.from.node}.${e.from.port}`);
@@ -75,9 +82,13 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     expect(into(composed.spec, 'catChord', 'vector')).toEqual(['handVec.vector']);
     expect(into(composed.spec, 'catChord', 'model')).toEqual(['ui.categorizerChordsModel']);
     expect(into(composed.spec, 'catChord', 'spec')).toEqual(['ui.chordSpec']);
-    expect(into(composed.spec, 'overlay', 'chordCategories')).toEqual(['catChord.category']);
-    // The chord it plays is named and highlighted (#491), on its own port beside the selector's.
-    expect(into(composed.spec, 'overlay', 'categorizerChord')).toEqual(['catChord.triad']);
+    // Its reading takes the overlay's first categorizer input (#600 S10b: a pool, was `chordCategories`).
+    expect(into(composed.spec, 'overlay', 'categorizer1')).toEqual(['catChord.category']);
+    // The chord it plays is named and highlighted (#491), through the chord selector's pool (#600
+    // S10b: was its own `categorizerChord` port), behind every other chord, feeding the overlay's
+    // chord display.
+    expect(chordInputs(composed.spec).at(-1)).toBe('catChord.triad');
+    expect(into(composed.spec, 'overlay', 'chord')).toEqual(['chordSel.chord']);
     expect(composed.elements).toEqual(expect.arrayContaining(['categoryLabel', 'categoryBars', 'chordName', 'chordGuide']));
     // Its voices reach the merge (the structural guard: a chord nobody hears is not shipped).
     expect(composed.spec.edges.some((e) => e.from.node === 'catChord' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
@@ -90,10 +101,19 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     const composed = composeInstrumentGraph(ids, {}, createAppRegistry());
     expect(composed.branches).toContain('body-source');
     expect(into(composed.spec, 'catChord', 'vector')).toEqual(['bodyVec.vector']);
-    expect(into(composed.spec, 'overlay', 'chordCategories')).toEqual(['catChord.category']);
-    expect(into(composed.spec, 'overlay', 'learnedCategories')).toEqual(['poseCat.category']);
-    expect(into(composed.spec, 'overlay', 'categorizerChord')).toEqual(['catChord.triad']);
+    // The pose categorizer's reading first, the categorizer chord's second (#600 S10b: the pool).
+    expect(into(composed.spec, 'overlay', 'categorizer2')).toEqual(['catChord.category']);
+    expect(into(composed.spec, 'overlay', 'categorizer1')).toEqual(['poseCat.category']);
+    expect(chordInputs(composed.spec).at(-1)).toBe('catChord.triad');
     expect(composed.elements).toEqual(expect.arrayContaining(['chordName', 'chordGuide']));
+  });
+
+  it('its chord shows only while no other sounds: the lowest priority declared, behind a face chord (#600 S10b)', () => {
+    const others = Object.values(ALL_BRANCHES).flatMap((b) => b.chords.filter((c) => c.from.node !== CATEGORIZER_CHORD_NODE_ID).map((c) => c.priority));
+    expect(others.length).toBeGreaterThan(0);
+    expect(Math.min(...others)).toBeGreaterThan(CATEGORIZER_CHORD_PRIORITY);
+    const composed = composeInstrumentGraph(['face-chord', 'hand-chords'], {}, createAppRegistry());
+    expect(chordInputs(composed.spec)).toEqual(['exprChord.triad', 'catChord.triad']);
   });
 
   it('the composed graph compiles and ticks against the real registry, its ports validated', () => {
@@ -203,10 +223,14 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     expect(chordOf.size).toBeGreaterThanOrEqual(3);
     expect(new Set(chordOf.values()).size).toBe(chordOf.size);
     // The overlay draws it (nothing else reading).
-    expect(pickCategories(undefined, undefined, undefined, at[1].category).categories).toBe(at[1].category);
+    expect(pickCategories([], [{ scores: at[1].category }]).categories).toBe(at[1].category);
     // ...and names its chord (#491): the categorizer's while the selector holds none, the
     // selector's (a face, pose or sign chord) first; the relaxed hand names nothing.
     const played = at.find((x) => x.triad.length > 0)!;
+    // The chord selector (#600 S10b: was `pickChord`): a face, pose or sign chord takes an input
+    // ahead of the categorizer's (the lowest priority), and the first non-empty wins.
+    const select = chordSelectNode.make(chordSelectNode.params.parse({}));
+    const pickChord = (selected: unknown, categorizer: unknown) => (select.process({ a: selected, b: categorizer }, {} as never) as { chord: number[] }).chord;
     expect(pickChord([], played.triad)).toEqual(played.triad);
     expect(pickChord(undefined, played.triad)).toEqual(played.triad);
     expect(pickChord([62, 65, 69], played.triad)).toEqual([62, 65, 69]);

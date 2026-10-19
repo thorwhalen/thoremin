@@ -3,9 +3,8 @@
  * (the `<node>.schema.ts` pattern, #600 S6; started by S5): its core input ports and its params
  * schemas (the node's, and the overlay DIAL's, which the settings schema and the hot store read). The overlay
  * node (`canvas_overlay.ts`) spreads them and adds one port per input of each element an
- * extension contributes (`overlay_contributions.ts`). The air instruments' three ports are not
- * here: they are extension remnants the overlay node still lists itself until S10 moves the drum
- * pads and the breath cue into the air extension.
+ * extension contributes (`overlay_contributions.ts`), plus the category pools the composer
+ * allocates the branches' category readers into ({@link categoryPoolInputs}, #600 S10b).
  */
 import { z } from 'zod';
 import type { PortSpec } from '@thoremin/dag';
@@ -35,19 +34,11 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'categoryTargets', kind: 'category-targets' },
   { name: 'octaveShift', kind: 'number', default: 0 },
   { name: 'overlayConfig', kind: 'overlay-config' },
-  // A classifier's reading and per-class captions, for the category cues.
+  // LEGACY (#600 S10b, expand): the ASL reader's reading and captions, wired by name by the pinned
+  // ASL plugin, read as the first classifier ahead of the pool. Removed once the plugin declares
+  // `categories` / `categoryCaptions` on its branches (the contract step).
   { name: 'categories', kind: 'category-scores' },
   { name: 'categoryCaptions', kind: 'string[]' },
-  // A player's own learned categories (#384: a saved pose categorizer), drawn by the same cues
-  // while the classifier above is not reading. Its own port: two branches can never feed one.
-  { name: 'learnedCategories', kind: 'category-scores' },
-  // The categorizer that plays chords (#450: a hand-shape or pose categorizer), drawn while
-  // neither above is reading. Its own port, for the same reason.
-  { name: 'chordCategories', kind: 'category-scores' },
-  // The chord that categorizer plays (#491), named and highlighted by `chordName` /
-  // `chordGuide` while the chord selector (`chord`: the face, pose and sign chords) is empty.
-  // Its own port: the selector's three inputs are taken, and a branch without a face has none.
-  { name: 'categorizerChord', kind: 'number[]' },
   // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
   // the current instrument. Absent → every element (headless tests, pre-composition).
   { name: 'elements', kind: 'string[]' },
@@ -57,6 +48,33 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'handVector', kind: 'feature-vector' },
   { name: 'bodyVector', kind: 'feature-vector' },
 ];
+
+/** How many category readers of each kind the overlay takes (#600 S10b), sized by the contribution
+ *  registry from every branch there is. */
+export interface CategoryPoolSizes {
+  classifier: number;
+  categorizer: number;
+}
+
+/** The category pools' input names, in priority order: `classifier1`.., `categorizer1`... */
+export function categoryPool(kind: keyof CategoryPoolSizes, size: number): readonly string[] {
+  return Array.from({ length: size }, (_, i) => `${kind}${i + 1}`);
+}
+
+/** The captions input beside a classifier slot (`classifier1` -> `classifier1Captions`). */
+export const captionsPort = (slot: string): string => `${slot}Captions`;
+
+/** The overlay's category pool inputs for `sizes`: each slot's `category-scores`, and each
+ *  classifier slot's captions. */
+export function categoryPoolInputs(sizes: CategoryPoolSizes): PortSpec[] {
+  return [
+    ...categoryPool('classifier', sizes.classifier).flatMap((slot): PortSpec[] => [
+      { name: slot, kind: 'category-scores' },
+      { name: captionsPort(slot), kind: 'string[]' },
+    ]),
+    ...categoryPool('categorizer', sizes.categorizer).map((slot): PortSpec => ({ name: slot, kind: 'category-scores' })),
+  ];
+}
 
 /** Which screen edge a HUD cue is placed on. */
 export const CuePositionEnum = z.enum(['left', 'right', 'top', 'bottom']);

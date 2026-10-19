@@ -14,6 +14,9 @@
  *    a stream arrives on is never remembered anywhere. Chord producers (`chords`, #600 S4) are
  *    a second pool: each gets the next free input of the chord selector, highest priority
  *    first, and the selector (with its edge to the overlay) is composed when any is declared.
+ *    Category readers (`categories`, #600 S10b) are a third: each gets the next free input of the
+ *    overlay's pool for its kind, highest priority first, and a classifier's captions
+ *    (`categoryCaptions`) go to the input beside its reader's.
  * 4. The overlay element set is data: the composer returns the union of the branches'
  *    `overlay` lists; the host delivers it to the overlay through a port, never a param
  *    (a param change would rebuild the overlay node on every switch).
@@ -31,7 +34,7 @@
  * otherwise move them. Pure and Node-safe: no engine, no DOM.
  */
 import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
-import type { GraphBranch, VoiceRole } from '@thoremin/sdk/instruments/branch';
+import type { CategoryKind, GraphBranch, VoiceRole } from '@thoremin/sdk/instruments/branch';
 
 export interface MergeTarget {
   /** The merge node's id in the composed graph. */
@@ -53,12 +56,23 @@ export interface ChordTarget {
   outputs: readonly { port: string; to: { node: string; port: string } }[];
 }
 
+/**
+ * Where declared category readers go (#600 S10b): the overlay's node, its two input pools in
+ * priority order, and the captions input beside a classifier slot.
+ */
+export interface CategoryTarget {
+  node: string;
+  pools: Readonly<Record<CategoryKind, readonly string[]>>;
+  captions: (slot: string) => string;
+}
+
 export interface ComposeOptions {
   /** Resolved slot selection: slot name → node type (`source` → `webcam-hands`). */
   slots?: Readonly<Record<string, string>>;
   /** Where declared voices go. Required when any composed branch declares a voice. */
   merge?: MergeTarget;
   chords?: ChordTarget;
+  categories?: CategoryTarget;
 }
 
 export interface Composed {
@@ -269,6 +283,39 @@ export function composeGraph(
       const port = target.pool.find((p) => !takenInputs.has(portKey({ node: target.node, port: p })));
       if (!port) throw new ComposeError(`chord pool is full (${target.pool.length} inputs) at branch "${c.owner}"; widen the pool on the chord selector`);
       addEdge({ from: c.from, to: { node: target.node, port } }, c.owner);
+    }
+  }
+
+  // Rule 3c: category readers, allocated by priority into the overlay's pool for their kind, then
+  // each classifier's captions into the input beside the slot its reader got.
+  const categoryDecls = branches.flatMap((b, bi) => b.categories.map((c, ci) => ({ ...c, owner: b.id, order: bi * 1000 + ci })));
+  const captionDecls = branches.flatMap((b) => b.categoryCaptions.map((c) => ({ ...c, owner: b.id })));
+  if (categoryDecls.length || captionDecls.length) {
+    const target = opts.categories;
+    const first = categoryDecls[0]?.owner ?? captionDecls[0].owner;
+    if (!target) throw new ComposeError(`branch "${first}" declares a category reader but no category target was given`);
+    // The declarations are checked with or without the overlay; without it there are no cues to
+    // draw, so nothing is wired.
+    const wired = nodes.has(target.node);
+    const slotOf = new Map<string, { slot: string; kind: CategoryKind; owner: string }>();
+    const allocated = new Set<string>();
+    for (const c of [...categoryDecls].sort((x, y) => y.priority - x.priority || x.order - y.order)) {
+      const prior = slotOf.get(portKey(c.from));
+      if (prior) throw new ComposeError(`category reader ${portKey(c.from)} is declared by branches "${prior.owner}" and "${c.owner}"; a reader has one owner`);
+      if (!nodes.has(c.from.node)) throw new ComposeError(`branch "${c.owner}" declares category reader ${portKey(c.from)} but node "${c.from.node}" is not in it`);
+      const pool = target.pools[c.kind];
+      const slot = pool.find((p) => !allocated.has(p) && !takenInputs.has(portKey({ node: target.node, port: p })));
+      if (!slot) throw new ComposeError(`category pool "${c.kind}" is full (${pool.length} inputs) at branch "${c.owner}"; widen the pool on the overlay`);
+      slotOf.set(portKey(c.from), { slot, kind: c.kind, owner: c.owner });
+      allocated.add(slot);
+      if (wired) addEdge({ from: c.from, to: { node: target.node, port: slot } }, c.owner);
+    }
+    for (const c of captionDecls) {
+      const reader = slotOf.get(portKey(c.for));
+      if (!reader) throw new ComposeError(`branch "${c.owner}" declares captions for ${portKey(c.for)}, which no composed branch declares as a category reader`);
+      if (reader.kind !== 'classifier') throw new ComposeError(`branch "${c.owner}" declares captions for ${portKey(c.for)}, a ${reader.kind}; only a classifier's classes carry captions`);
+      if (!nodes.has(c.from.node)) throw new ComposeError(`branch "${c.owner}" declares captions ${portKey(c.from)} but node "${c.from.node}" is not in it`);
+      if (wired) addEdge({ from: c.from, to: { node: target.node, port: target.captions(reader.slot) } }, c.owner);
     }
   }
 

@@ -40,7 +40,7 @@ export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIO
   // library's default-sized ones are left out in their favour.
   const { pools, overlayElements } = extensions === CONTRIBUTIONS.extensions ? CONTRIBUTIONS : foldContributions(extensions);
   // ...and the overlay grows a port per input of each element the extensions contribute (#600 S5).
-  const sized = [makeSynthMergeNode(pools.merge), makeChordSelectNode(pools.chords), makeCanvasOverlayNode(overlayElements)];
+  const sized = [makeSynthMergeNode(pools.merge), makeChordSelectNode(pools.chords), makeCanvasOverlayNode(overlayElements, pools.categories)];
   const keep = (n: { type: string }) => !sized.some((s) => s.type === n.type);
   const registry = createRegistry([...CORE_NODES.filter(keep), ...BROWSER_NODES.filter(keep), makeStoreControlsNode(extensions), ...sized]);
   for (const e of extensions) {

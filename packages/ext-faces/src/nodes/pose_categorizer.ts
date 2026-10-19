@@ -4,8 +4,8 @@
  * categorizer's own side under the mirror, "cannot see you" below its trained features' coverage,
  * the classifier and its hysteresis), to two outputs:
  *
- * - `category`: the reading as `CategoryScores`, which the overlay's category cues draw (its
- *   `learnedCategories` input) and a take records;
+ * - `category`: the reading as `CategoryScores`, which the overlay's category cues draw (a
+ *   categorizer reader its branch declares, #600 S10b) and a take records;
  * - `transportPose`: while the dial's `transport` is on and one of the categories named `ready`,
  *   `fermata` or `cut-off` is the settled one, that role stated true (`../lib/posePlay.ts`);
  *   otherwise nothing, and the conductor's rules decide (out of view too: A5's stop when the
