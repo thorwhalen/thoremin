@@ -14,6 +14,13 @@
    }
   },
   {
+   "id": "dwelled",
+   "type": "hands-dwell",
+   "params": {
+    "mirrorHandedness": true
+   }
+  },
+  {
    "id": "camFace",
    "type": "webcam-face",
    "params": {}
@@ -273,6 +280,26 @@
    "to": {
     "node": "feat",
     "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "cam",
+    "port": "hands"
+   },
+   "to": {
+    "node": "dwelled",
+    "port": "hands"
+   }
+  },
+  {
+   "from": {
+    "node": "ui",
+    "port": "handednessDwell"
+   },
+   "to": {
+    "node": "dwelled",
+    "port": "handednessDwell"
    }
   },
   {
@@ -1087,7 +1114,7 @@
   },
   {
    "from": {
-    "node": "cam",
+    "node": "dwelled",
     "port": "hands"
    },
    "to": {
@@ -1157,7 +1184,7 @@
   },
   {
    "from": {
-    "node": "cam",
+    "node": "dwelled",
     "port": "hands"
    },
    "to": {
@@ -1207,7 +1234,7 @@
   },
   {
    "from": {
-    "node": "cam",
+    "node": "dwelled",
     "port": "hands"
    },
    "to": {
@@ -1257,7 +1284,7 @@
   },
   {
    "from": {
-    "node": "cam",
+    "node": "dwelled",
     "port": "hands"
    },
    "to": {

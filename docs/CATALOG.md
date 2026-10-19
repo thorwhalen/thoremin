@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (57)
+## Nodes (58)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -178,6 +178,14 @@ Landmarks → normalized per-hand position, openness, pinch.
 - **in:** hands:hands-frame, handednessDwell:number
 - **out:** features:hand-features
 - **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2), fingerTouch (number=0.3), fingerApart (number=1.8), handednessDwellFrames (number=0)
+
+#### `hands-dwell` — Hands (dwelled labels)
+The hand stream with Left/Right held by the handedness dwell, for instruments that choose a hand by label.
+
+- **roles:** feature
+- **in:** hands:hands-frame, handednessDwell:number
+- **out:** hands:hands-frame
+- **params:** mirrorHandedness (boolean=true), handednessDwellFrames (number=0)
 
 #### `face-features` — Face Features
 Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).
@@ -322,7 +330,7 @@ Union the synth-params voice streams into one: a pool of instrument inputs (hush
 Pick the first non-empty of a pool of chord-tone streams (the face chord, the pose chord, the sign chord, and any an extension declares), highest priority first, for the overlay.
 
 - **roles:** mapping
-- **in:** a:number[], b:number[], c:number[], d:number[], e:number[]
+- **in:** a:number[], b:number[], c:number[], d:number[], e:number[], f:number[]
 - **out:** chord:number[]
 - **params:** —
 

@@ -20,7 +20,7 @@ export const airDrum = defineBranch({
     { id: 'drumOut', type: 'drum-out', params: {} },
   ],
   edges: [
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'airDrum', port: 'hands' }),
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'airDrum', port: 'hands' }),
     to(ui('airDrum'), { node: 'airDrum', port: 'config' }),
     to({ node: 'conductor', port: 'time' }, { node: 'airDrum', port: 'time' }, true),
     // #269: the trained pattern in play (pattern + model), or null: the pattern mode.
@@ -41,7 +41,7 @@ export const airBass = defineBranch({
     { id: 'bassOut', type: 'pluck-out', params: { timbre: 'bass', mono: true } },
   ],
   edges: [
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'airBass', port: 'hands' }),
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'airBass', port: 'hands' }),
     to(ui('airBass'), { node: 'airBass', port: 'config' }),
     to(ui('scaleRight'), { node: 'airBass', port: 'scale' }),
     to(ui('octaveShift'), { node: 'airBass', port: 'octaveShift' }),
@@ -58,7 +58,7 @@ export const airGuitar = defineBranch({
     { id: 'guitarOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
   ],
   edges: [
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'airGuitar', port: 'hands' }),
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'airGuitar', port: 'hands' }),
     to(ui('airGuitar'), { node: 'airGuitar', port: 'config' }),
     to(ui('airGuitarModel'), { node: 'airGuitar', port: 'model' }),
     to(ui('octaveShift'), { node: 'airGuitar', port: 'octaveShift' }),
@@ -73,7 +73,7 @@ export const airFlute = defineBranch({
   nodes: [{ id: 'airFlute', type: 'air-flute', params: {} }],
   edges: [
     to({ node: 'airFlute', port: 'status' }, overlay('airFluteStatus')),
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'airFlute', port: 'hands' }),
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'airFlute', port: 'hands' }),
     to({ node: 'faceVec', port: 'vector' }, { node: 'airFlute', port: 'face' }, true),
     to({ node: 'camFace', port: 'face' }, { node: 'airFlute', port: 'faceFrame' }, true),
     to(ui('airFlute'), { node: 'airFlute', port: 'config' }),

@@ -40,7 +40,7 @@ export const ALL_HANDS: HandCount = 2;
  * reads the hands. `handVec` and `gesture` are the trunk's own readers (the Lab's vector and
  * the gesture classifier), named by id in `src/instruments/branches.ts`.
  */
-export const HAND_STREAM_NODES: ReadonlySet<string> = new Set([TRUNK.cam, TRUNK.feat, 'handVec', 'gesture']);
+export const HAND_STREAM_NODES: ReadonlySet<string> = new Set([TRUNK.cam, TRUNK.hands, TRUNK.feat, 'handVec', 'gesture']);
 
 /**
  * The maintainer's calls (#168 D13), as data so each is one line to change.

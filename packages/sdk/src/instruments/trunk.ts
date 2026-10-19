@@ -12,6 +12,8 @@ export const TRUNK_ID = 'trunk';
 export const TRUNK = {
   cam: 'cam',
   feat: 'feat',
+  /** The hand stream with its labels held by the handedness dwell (#314): what the air instruments read. */
+  hands: 'dwelled',
   ui: 'ui',
   merge: 'merge',
   synth: 'synth',

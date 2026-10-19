@@ -48,6 +48,7 @@ export const trunk = defineBranch({
   nodes: [
     { id: TRUNK.cam, slot: 'source', params: {}, paramsByType: { 'webcam-hands': { modelType: 'full', maxHands: 2 } } },
     { id: TRUNK.feat, type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
+    { id: TRUNK.hands, type: 'hands-dwell', params: { mirrorHandedness: true } },
     { id: 'handVec', type: 'hand-feature-vector', params: {} },
     { id: 'gesture', type: 'gesture-classifier', params: {} },
     { id: TRUNK.ui, type: 'store-controls' },
@@ -66,7 +67,9 @@ export const trunk = defineBranch({
     to({ node: 'handVec', port: 'vector' }, overlay('handVector')),
     to({ node: TRUNK.feat, port: 'features' }, { node: 'gesture', port: 'features' }),
     // The handedness dwell (#148): a dial, live on the sound path's hand reader.
+    to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.hands, port: 'hands' }),
     to(ui('handednessDwell'), { node: TRUNK.feat, port: 'handednessDwell' }),
+    to(ui('handednessDwell'), { node: TRUNK.hands, port: 'handednessDwell' }),
     // `muteAll` is the player's mute OR a tool's hush claim; `hushVoices` silences every
     // instrument voice but keeps the conducted score. See `hushOf` in store-controls.
     to(ui('muteAll'), { node: TRUNK.merge, port: 'mute' }),

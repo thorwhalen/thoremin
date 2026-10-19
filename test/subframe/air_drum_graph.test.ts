@@ -28,7 +28,7 @@ describe.runIf(AIR)('air drum in the default graph', () => {
     expect(g.nodes.some((n) => n.id === 'airDrum' && n.type === 'air-drum')).toBe(true);
     expect(g.nodes.some((n) => n.id === 'drumOut' && n.type === 'drum-out')).toBe(true);
     expect(has('ui', 'airDrum', 'airDrum', 'config')).toBe(true);
-    expect(has('cam', 'hands', 'airDrum', 'hands')).toBe(true);
+    expect(has('dwelled', 'hands', 'airDrum', 'hands')).toBe(true);
     expect(has('conductor', 'time', 'airDrum', 'time')).toBe(true);
     expect(has('airDrum', 'hits', 'drumOut', 'hits')).toBe(true);
     // Every input of the two nodes is fed.

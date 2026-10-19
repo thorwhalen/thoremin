@@ -39,7 +39,7 @@ describe('branchHands', () => {
     // the hand it plays: no branch may say that.
     for (const b of ALL_BRANCHES) {
       if (b.id === 'trunk') continue;
-      const reads = b.edges.some((e) => ['cam', 'feat', 'handVec', 'gesture'].includes(e.from.node));
+      const reads = b.edges.some((e) => ['cam', 'dwelled', 'feat', 'handVec', 'gesture'].includes(e.from.node));
       if (reads) expect(branchHands(b), b.id).toBeGreaterThan(0);
     }
   });
@@ -51,7 +51,7 @@ describe("the trunk's own hand readers", () => {
     // covered by `HandCountContext`; a new trunk node reading the hands must be added there.
     const trunk = byId.get('trunk')!;
     const readers = new Set(trunk.edges.filter((e) => ['cam', 'feat', 'handVec', 'gesture'].includes(e.from.node)).map((e) => e.to.node));
-    expect([...readers].sort()).toEqual(['feat', 'gesture', 'handVec', 'overlay']);
+    expect([...readers].sort()).toEqual(['dwelled', 'feat', 'gesture', 'handVec', 'overlay']);
   });
 });
 

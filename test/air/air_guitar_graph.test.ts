@@ -29,7 +29,7 @@ describe.runIf(AIR)('air guitar in the default graph', () => {
     expect(has('ui', 'airGuitar', 'airGuitar', 'config')).toBe(true);
     expect(has('ui', 'airGuitarModel', 'airGuitar', 'model')).toBe(true);
     expect(has('ui', 'octaveShift', 'airGuitar', 'octaveShift')).toBe(true);
-    expect(has('cam', 'hands', 'airGuitar', 'hands')).toBe(true);
+    expect(has('dwelled', 'hands', 'airGuitar', 'hands')).toBe(true);
     expect(has('airGuitar', 'notes', 'guitarOut', 'notes')).toBe(true);
     const inbound = (id: string) => new Set(g.edges.filter((e) => e.to.node === id).map((e) => e.to.port));
     expect([...inbound('airGuitar')].sort()).toEqual(['config', 'hands', 'model', 'octaveShift']);
