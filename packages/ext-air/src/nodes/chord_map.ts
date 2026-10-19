@@ -113,9 +113,10 @@ const VALENCE_MARGIN = 0.08;
  *  reads about 0.1 on the face fixture, a resting face 0.25, an open-mouthed one with the brows
  *  up 0.6. Quicker than a modulation: a colour, not a key. */
 const AROUSAL_EDGES = [0.35, 0.55] as const;
-/** The same, read from the player's own rest (#673): a resting face reads about 0 there, a closed
- *  smile about 0.15, an open-mouthed one with the brows up 0.45 to 0.5 (the face fixture). */
-const AROUSAL_EDGES_FROM_REST = [0.25, 0.45] as const;
+/** The same, read from the player's own rest (#673): a resting face reads 0 there (before and
+ *  after the expressions), a closed smile about 0.15, an open-mouthed one with the brows up 0.47 to
+ *  0.5 (the face fixture), so the ninth (past 0.4 and the margin) is reached with room to spare. */
+const AROUSAL_EDGES_FROM_REST = [0.25, 0.4] as const;
 const AROUSAL_MARGIN = 0.05;
 const AROUSAL_DWELL_S = 0.25;
 /** The microphone (H8): the template fit a chord must reach, and its lead over the best different
@@ -469,7 +470,9 @@ export const chordMapNode = defineNode<Params>({
         if (!rawFace || !c.faceFromRest) restBaseline.reset();
         const face = c.faceFromRest ? restBaseline.push(rawFace, typeof ctx?.dt === 'number' ? ctx.dt : 0) : rawFace;
         if (c.faceFromRest !== arousalFromRest) {
+          // Another scale: both levels start again from the key and no tension.
           arousal = createLevelTracker({ edges: c.faceFromRest ? AROUSAL_EDGES_FROM_REST : AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
+          valence?.reset();
           arousalFromRest = c.faceFromRest;
         }
         valence ??= createLevelTracker({ edges: VALENCE_EDGES, hysteresis: VALENCE_MARGIN, dwellS: c.modeDwellS, rest: VALENCE_LEVELS.key });

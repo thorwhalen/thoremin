@@ -194,6 +194,9 @@ const SURPRISE_WORDS = ['Likeliest', 'Likely', 'Sometimes', 'Rarest'] as const;
 /** The other hand's height that reads as no surprise and as full surprise (display fractions). */
 const HAND_LOW = 0.85;
 const HAND_HIGH = 0.15;
+/** The face's arousal, read from rest, that is full surprise (an open mouth with raised brows reads
+ *  about 0.5 from rest on the face fixture). */
+const FACE_SURPRISE_FULL = 0.5;
 
 /** How far above the wheel's top the tension model's name sits, in frame heights. */
 const TENSION_CAPTION_GAP = 0.08;
@@ -420,7 +423,10 @@ export const chordWheelNode = defineNode<Params>({
         // The setting is a level as it stands (no hysteresis: a saved value always loads the same);
         // the face moves through the tracker, a lost face reading as at rest.
         if (c.surpriseFrom === 'dial') surpriseRead = Math.round(Math.max(0, Math.min(1, c.surprise)) * (SURPRISE_WORDS.length - 1));
-        else if (c.surpriseFrom === 'face') surpriseRead = surpriseTracker.push(arousalOf(faceRest.push(inputs.face as FaceFeatures | undefined, dt)), ctx.time);
+        else if (c.surpriseFrom === 'face') {
+          const a = arousalOf(faceRest.push(inputs.face as FaceFeatures | undefined, dt));
+          surpriseRead = surpriseTracker.push(a === null ? null : Math.min(1, a / FACE_SURPRISE_FULL), ctx.time);
+        }
         if (pointing === null) surpriseLevel = surpriseRead;
         const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
         const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;

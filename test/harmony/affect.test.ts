@@ -60,17 +60,35 @@ describe('valence and arousal', () => {
 });
 
 describe('the face from its own rest (#673)', () => {
-  it('takes away what a control reads at rest and its jitter; a held expression is not learned as rest', () => {
+  const F = (x: Partial<FaceFeatures>): FaceFeatures => face({ mouthOpen: 0.1, browRaise: 0.3, ...x });
+  const run = (b: ReturnType<typeof createRestBaseline>, seconds: number, at: (t: number) => FaceFeatures | undefined, t0 = 0) => {
+    let out: FaceFeatures | undefined;
+    for (let i = 0; i < seconds * 30; i++) out = b.push(at(t0 + i / 30), 1 / 30);
+    return out!;
+  };
+
+  it('brows that rest high read as nothing; a raise reads above them, held or not', () => {
     const b = createRestBaseline();
-    let rel = b.push(face({ browRaise: 0.6, mouthOpen: 0.1 }), 1 / 30)!;
-    for (let i = 0; i < 30; i++) rel = b.push(face({ browRaise: 0.6, mouthOpen: 0.1 }), 1 / 30)!;
-    expect(rel.browRaise).toBe(0); // brows that rest high read as nothing
-    rel = b.push(face({ browRaise: 0.95, mouthOpen: 0.1 }), 1 / 30)!;
-    expect(rel.browRaise).toBeCloseTo(0.35, 1);
-    for (let i = 0; i < 150; i++) rel = b.push(face({ browRaise: 0.95, mouthOpen: 0.1 }), 1 / 30)!; // held five seconds
-    expect(rel.browRaise).toBeGreaterThan(0.3); // still read as raised
-    expect(b.push(face({ browRaise: 0.4 }), 1 / 30)!.browRaise).toBe(0); // anything lower is the new rest at once
-    expect(b.push(undefined, 1 / 30)).toBeUndefined();
+    expect(run(b, 3, () => F({ browRaise: 0.6 })).browRaise).toBe(0);
+    expect(run(b, 0.2, () => F({ browRaise: 0.95 })).browRaise).toBeCloseTo(0.35, 1);
+    expect(run(b, 5, () => F({ browRaise: 0.95 })).browRaise).toBeGreaterThan(0.3); // held five seconds: still raised
+  });
+
+  it('one expression never teaches another control\'s rest (raised brows lower a lighting furrow)', () => {
+    const b = createRestBaseline();
+    const lit = (t: number) => (t > 5 && t < 7 ? F({ browRaise: 0.9, browFurrow: 0.05 }) : F({ browFurrow: 0.55 }));
+    const after = run(b, 20, lit);
+    expect(after.browFurrow).toBe(0); // the resting furrow still reads as rest: no minor key at rest
+    expect(valenceOf(after)).toBeCloseTo(0, 5);
+  });
+
+  it('a glitch frame moves nothing, and the first half-second after the face is found reads as calm', () => {
+    const b = createRestBaseline();
+    run(b, 5, (t) => (Math.abs(t - 2.5) < 0.02 ? F({ browRaise: 0.05, mouthOpen: 0 }) : F({ browRaise: 0.45 })));
+    expect(arousalOf(run(b, 1, () => F({ browRaise: 0.45 })))).toBe(0);
+    const fresh = createRestBaseline();
+    expect(fresh.push(F({ smile: 0.9 }), 1 / 30)!.smile).toBe(0); // settling
+    expect(fresh.push(undefined, 1 / 30)).toBeUndefined();
   });
 });
 
@@ -97,14 +115,23 @@ describe('the recorded face', () => {
   const node = faceFeaturesNode.make(faceFeaturesNode.params.parse({ smoothing: 0.3 }));
   const features = (f: (typeof frames)[number]): FaceFeatures => (node.process({ face: f }, { time: 0, dt: 1 / 24, tick: 0, resources: {} } as never) as { features: FaceFeatures }).features;
 
+  it('read from its own rest, the face at rest again after its expressions reads no arousal and no valence', () => {
+    const base = createRestBaseline();
+    const neutral = frames.slice(0, 12);
+    let last: FaceFeatures | undefined;
+    for (const f of [...frames, ...Array.from({ length: 10 }, () => neutral).flat()]) last = base.push(features(f), 1 / 24);
+    expect(arousalOf(last)).toBe(0);
+    expect(valenceOf(last)).toBeCloseTo(0, 5);
+  });
+
   it('read from its own rest, the resting face reads no arousal and the open-mouthed smile does', () => {
     const base = createRestBaseline();
-    const arousal = createLevelTracker({ edges: [0.25, 0.45], hysteresis: 0.05, dwellS: 0.25, rest: 0 });
+    const arousal = createLevelTracker({ edges: [0.25, 0.4], hysteresis: 0.05, dwellS: 0.25, rest: 0 });
     const read = frames.map((f, i) => ({ t: i / 24, level: arousal.push(arousalOf(base.push(features(f), 1 / 24)), i / 24) }));
     const at = (t: number) => read.find((r) => r.t >= t)!;
     expect(at(0.4).level).toBe(0);
     expect(at(1.5).level).toBe(0); // a closed smile is calm
-    expect(at(3.3).level).toBeGreaterThan(0);
+    expect(at(3.3).level).toBe(2); // the open-mouthed smile reaches the ninth
   });
 
   it('turns a minor key major a second into the smile, and adds tensions to the open-mouthed smile only', () => {

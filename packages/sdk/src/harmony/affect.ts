@@ -127,19 +127,25 @@ export function parallelSpec<S extends Pick<ScaleSpec, 'type'>>(spec: S, level: 
 const CONTROLS = ['smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'] as const;
 
 export interface RestBaselineOptions {
-  /** How fast a control's rest creeps up toward a level held above it, per second (a fraction of
-   *  the gap): slow, so a smile held for seconds is not learned as the face at rest. */
-  rise?: number;
-  /** A control's own jitter, as an exponential mean of its frame-to-frame change, times this, is
-   *  how far above rest it must be before it counts (the noise units of the trainer). */
+  /** Seconds of calm frames a control's rest is the low quantile of (a sliding window). */
+  windowS?: number;
+  /** The quantile of that window that is rest (low: a glitch or two above it cost nothing). */
+  quantile?: number;
+  /** A face reads as calm while no control is this far above its rest (and jitter). */
+  calm?: number;
+  /** Seconds after the face is found (or found again) before anything is learned or read: the
+   *  smoother settles, so a cold start or a reacquisition is not taken for the rest. */
+  settleS?: number;
+  /** A control's own jitter, as an exponential mean of its frame-to-frame change on calm frames,
+   *  times this, is how far above rest it must be before it counts (the trainer's noise units). */
   jitterK?: number;
-  /** The jitter's smoothing per reading (0..1). */
   jitterSmoothing?: number;
 }
 
 export interface RestBaseline {
   /** One reading of the face (dt: seconds since the last): the same controls, each measured
-   *  above the player's own rest and jitter (0 at rest), and absent while the face is. */
+   *  above the player's own rest and jitter (0 at rest); all 0 while settling; the input as it is
+   *  while the face is lost. */
   push(face: FaceFeatures | undefined, dt: number): FaceFeatures | undefined;
   reset(): void;
 }
@@ -147,39 +153,69 @@ export interface RestBaseline {
 /**
  * The player's own face at rest (#673): what each control reads when nothing is meant, and how much
  * it wanders. Resting brows already read 0.2 to 0.5 on the face fixture, a furrow can come from the
- * lighting, and absolute thresholds would read either as an expression. Each control's rest falls at
- * once to anything lower and rises slowly toward a level held above it; what counts is the part
- * above rest plus `jitterK` of its own jitter, so a resting face reads nothing on every control,
- * whatever this player's face and room. Pure.
+ * lighting, and absolute thresholds would read either as an expression. Rest is learned only from
+ * CALM frames (no control above its rest), as a low quantile over the last few seconds of them:
+ * an expression never teaches another control's rest (a smile lowers the brows; raised brows lower
+ * the furrow), a glitch frame or two moves nothing, and a long session follows a slow drift. The
+ * first frames after the face is found are skipped while the smoother settles. Until a rest is
+ * known the face reads as calm. Pure.
  */
-export function createRestBaseline({ rise = 0.02, jitterK = 2, jitterSmoothing = 0.1 }: RestBaselineOptions = {}): RestBaseline {
-  const rest: Partial<Record<(typeof CONTROLS)[number], number>> = {};
-  const jitter: Partial<Record<(typeof CONTROLS)[number], number>> = {};
-  const last: Partial<Record<(typeof CONTROLS)[number], number>> = {};
+export function createRestBaseline({ windowS = 8, quantile = 0.2, calm = 0.08, settleS = 0.5, jitterK = 2, jitterSmoothing = 0.1 }: RestBaselineOptions = {}): RestBaseline {
+  type Control = (typeof CONTROLS)[number];
+  const samples: Record<Control, { t: number; v: number }[]> = { smile: [], mouthOpen: [], browRaise: [], browFurrow: [], eyeBlink: [] };
+  const jitter: Partial<Record<Control, number>> = {};
+  const last: Partial<Record<Control, number>> = {};
+  let t = 0;
+  let seenFor = 0;
+  const restOf = (k: Control): number | undefined => {
+    const xs = samples[k].map((s) => s.v).sort((a, b) => a - b);
+    return xs.length ? xs[Math.min(xs.length - 1, Math.floor(quantile * xs.length))] : undefined;
+  };
+  const zero = (face: FaceFeatures): FaceFeatures => ({ ...face, ...Object.fromEntries(CONTROLS.map((k) => [k, 0])) });
   return {
     push(face, dt) {
-      if (!face?.present) return face;
       const step = Number.isFinite(dt) && dt > 0 ? dt : 0;
+      t += step;
+      if (!face?.present) {
+        seenFor = 0;
+        for (const k of CONTROLS) delete last[k];
+        return face;
+      }
+      seenFor += step;
+      if (seenFor < settleS) return zero(face);
       const out: FaceFeatures = { ...face };
+      let calmNow = true;
       for (const k of CONTROLS) {
         const v = face[k];
         if (!Number.isFinite(v)) continue;
-        const r = rest[k];
-        rest[k] = r === undefined || v < r ? v : r + (v - r) * Math.min(1, rise * step);
-        // Measured against the jitter learned so far, then the jitter learns this frame's change.
-        out[k] = Math.max(0, v - (rest[k] ?? v) - jitterK * (jitter[k] ?? 0));
-        const prev = last[k];
-        if (prev !== undefined) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
+        const rest = restOf(k);
+        // Measured against the rest and the jitter learned so far.
+        const above = rest === undefined ? 0 : Math.max(0, v - rest - jitterK * (jitter[k] ?? 0));
+        out[k] = above;
+        if (above > calm) calmNow = false;
+      }
+      // A calm face teaches: each control's sample, and its jitter.
+      for (const k of CONTROLS) {
+        const v = face[k];
+        if (!Number.isFinite(v)) continue;
+        if (calmNow) {
+          samples[k].push({ t, v });
+          while (samples[k].length && samples[k][0].t < t - windowS) samples[k].shift();
+          const prev = last[k];
+          if (prev !== undefined) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
+        }
         last[k] = v;
       }
       return out;
     },
     reset() {
       for (const k of CONTROLS) {
-        delete rest[k];
+        samples[k] = [];
         delete jitter[k];
         delete last[k];
       }
+      t = 0;
+      seenFor = 0;
     },
   };
 }
