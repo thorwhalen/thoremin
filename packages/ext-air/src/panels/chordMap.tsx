@@ -111,11 +111,12 @@ export function ChordMapControls() {
           ))}
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="A MIDI keyboard can choose the chords: what its keys hold lights up on the map, and your hands play the melody over it or strum it. Asks the browser for MIDI access when chosen.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="A MIDI keyboard or the microphone can choose the chords: what is played lights up on the map, and your hands play the melody over it or strum it. Asks the browser for access when chosen.">
         Chords from
         <select className={selectCls} value={follow} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.follow', e.target.value)}>
           <option value="hands">your pointing hand</option>
           <option value="midi">a MIDI keyboard</option>
+          <option value="audio">the microphone (a guitar, a piano, a band)</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs" title="Letters: the map stays put across keys. A minor is home on the A chords (vi's place in C), and a change of key lights up the chords it changes (C to G: ii, IV and vii°).">

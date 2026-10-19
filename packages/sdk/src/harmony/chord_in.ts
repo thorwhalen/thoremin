@@ -48,6 +48,8 @@ export interface ChordFollowerOptions {
 export interface ChordFollower {
   /** The notes held now (MIDI numbers) at `now` seconds: the chord in force, or null before any. */
   push(held: readonly number[], now: number): Chord | null;
+  /** A chord read some other way (a microphone's chroma; null: nothing clear), with the same dwell. */
+  pushChord(read: Chord | null, now: number): Chord | null;
   reset(): void;
 }
 
@@ -57,24 +59,25 @@ export function createChordFollower({ dwellS }: ChordFollowerOptions): ChordFoll
   let current: Chord | null = null;
   let candidate: Chord | null = null;
   let since = 0;
-  return {
-    push(held, now) {
-      const read = chordOfPitchClasses(held);
-      // Released keys, or a shape that is not a chord yet: the harmony stays.
-      if (!read || same(read, current)) {
-        candidate = null;
-        return current;
-      }
-      if (!same(read, candidate)) {
-        candidate = read;
-        since = now;
-      }
-      if (now - since >= dwellS) {
-        current = read;
-        candidate = null;
-      }
+  const step = (read: Chord | null, now: number): Chord | null => {
+    // Released keys, or a shape that is not a chord yet: the harmony stays.
+    if (!read || same(read, current)) {
+      candidate = null;
       return current;
-    },
+    }
+    if (!same(read, candidate)) {
+      candidate = read;
+      since = now;
+    }
+    if (now - since >= dwellS) {
+      current = read;
+      candidate = null;
+    }
+    return current;
+  };
+  return {
+    push: (held, now) => step(chordOfPitchClasses(held), now),
+    pushChord: step,
     reset() {
       current = candidate = null;
       since = 0;

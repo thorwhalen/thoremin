@@ -274,7 +274,7 @@ describe('the chord-map node, chords from MIDI (H8 of #613)', () => {
   it('lights and sounds the chord the keys hold, any inversion, with no hand on the map', () => {
     const outs = playMidi((t) => (t < 1 ? [64, 67, 72] : [62, 65, 69]), {});
     const at = (t: number) => outs.find((o) => o.t >= t)!.out;
-    expect(at(0.5).status).toMatchObject({ chord: 'C', midi: 'listening', midiChord: 'C' });
+    expect(at(0.5).status).toMatchObject({ chord: 'C', midi: 'listening', inputChord: 'C' });
     expect(soundingPcs(at(0.5).params)).toEqual(pcsOf(0));
     expect(at(1.5).status.chord).toBe('Dm');
     expect(at(1.5).grid.cells.filter((c) => c.state === 'active').map((c) => c.label)).toEqual(['Dm']);
@@ -283,7 +283,7 @@ describe('the chord-map node, chords from MIDI (H8 of #613)', () => {
   it('names a chord outside the key and strums it by its name', () => {
     const outs = playMidi(() => [58, 62, 65], { play: 'strum' }, 3, 0.5); // Bb
     const last = outs[outs.length - 1].out;
-    expect(last.status).toMatchObject({ chord: null, midiChord: 'Bb (outside the key)' });
+    expect(last.status).toMatchObject({ chord: null, inputChord: 'Bb (outside the key)' });
     const strummed = outs.flatMap((o) => o.out.notes);
     expect(strummed.length).toBeGreaterThan(0);
     const pcs = new Set(strummed.filter((n) => n.velocity > 0).map((n) => n.midi % 12));
@@ -368,6 +368,34 @@ describe('the chord-map node, on musical time, the edges (H9 review)', () => {
     expect(outs.find((o) => o.t >= 1.4)!.out.status.chord).toBe('C'); // the release waits for beat 3 (t = 1.5)
     const strum = run({ commit: 'beat', play: 'strum' });
     expect(chordVoices(strum[strum.length - 1].out.params).every((v) => !v.present || v.gain === 0)).toBe(true);
+  });
+});
+
+describe('the chord-map node, chords from the microphone (H8 of #613)', () => {
+  const chroma = (pcs: number[]) => Array.from({ length: 12 }, (_, i) => (pcs.includes(i) ? 1 : 0.05));
+  function playAudio(heardAt: (t: number) => { chroma: number[]; energy: number } | null, duration = 2) {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    return chordMapTake({ duration, chordAt: () => null }).map((fr) => {
+      const heard = heardAt(fr.t!);
+      return {
+        t: fr.t!,
+        out: h.process({ hands: fr, config: { ...ON, follow: 'audio' }, spec: C_MAJOR, octaveShift: 0, audio: heard ? { available: true, ...heard } : { available: true, chroma: [], energy: 0 } }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out,
+      };
+    });
+  }
+
+  it('lights the chord it hears once it has been heard a moment, and keeps it through a quiet gap', () => {
+    const outs = playAudio((t) => (t < 0.8 ? { chroma: chroma([9, 0, 4]), energy: 1 } : t < 1.2 ? { chroma: [], energy: 0 } : { chroma: chroma([7, 11, 2]), energy: 1 }));
+    const at = (t: number) => outs.find((o) => o.t >= t)!.out;
+    expect(at(0.1).status.chord).toBeNull(); // not yet a quarter second
+    expect(at(0.5).status).toMatchObject({ chord: 'Am', audio: 'listening' });
+    expect(at(1.0).status).toMatchObject({ chord: 'Am', audio: 'quiet' });
+    expect(at(1.8).status.chord).toBe('G');
+  });
+
+  it('ignores an unclear sound', () => {
+    const outs = playAudio(() => ({ chroma: Array.from({ length: 12 }, () => 1), energy: 1 })); // every pitch class: noise
+    expect(outs[outs.length - 1].out.status.chord).toBeNull();
   });
 });
 

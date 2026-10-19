@@ -20,6 +20,7 @@
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
 import type { MidiHeld } from './lib/midi_held';
+import type { AudioHeard } from './lib/audio_heard';
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
 import type { TrainedModel } from '@thoremin/sdk/enroll';
 import type { PatternPlay } from './lib/pattern_play';
@@ -118,6 +119,8 @@ export const AIR_EXTENSION = defineExtension({
     transientPort<PatternPlay>()('airDrumPattern', 'drum-pattern'),
     // H8 of #613: the notes a MIDI keyboard holds, while the chord map follows one.
     transientPort<MidiHeld>()('chordMapMidi', 'held-notes'),
+    // H8 of #613: the microphone's chroma, while the chord map follows the microphone.
+    transientPort<AudioHeard>()('chordMapAudio', 'audio-chroma'),
   ],
   // The four air instruments (#249), played by miming, listed in their own class. Each
   // silences the theremin voices (hand-map max gain 0) so the hands only play the air
@@ -156,6 +159,9 @@ export const AIR_EXTENSION = defineExtension({
     // MIDI chooses, the camera performs (H8 of #613): the chords a MIDI keyboard holds light up
     // on the map, and the other hand plays the melody over them (or strums them).
     { name: 'Play Along (MIDI)', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, follow: 'midi', melodyNotes: 'tilt' } } },
+    // The microphone chooses (H8 of #613): a guitar's, a piano's or a band's chords light up on the
+    // map, heard a quarter second before they count, and the other hand plays the melody over them.
+    { name: 'Play Along (microphone)', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, follow: 'audio', melodyNotes: 'tilt' } } },
     // The same map, strummed: the right hand strums the chord under the left, predicted
     // before the frame that shows the strum (the air guitar's timing).
     // A next-chord wheel (H5 of #613): the key's six diatonic moves around the chord in force,

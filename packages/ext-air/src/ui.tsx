@@ -6,6 +6,7 @@
  * live under `./panels/` and `./app/` (5b).
  */
 import { startMidiChordIn } from './app/midiChordIn';
+import { startMicChordIn } from './app/micChordIn';
 import type { ExtensionUi, StatusHook } from '@thoremin/sdk-ui/types';
 import { AirDrumControls, AirDrumReadout } from './panels/airDrum';
 import { AirBassControls, AirBassReadout } from './panels/airBass';
@@ -108,6 +109,8 @@ export const AIR_UI: ExtensionUi = {
     () => provideVocabularyImporter(guitarVocabularyImporter()),
     // H8 of #613: while a chord map follows MIDI, listen to the keyboards (only then).
     () => startMidiChordIn(),
+    // H8 of #613: while a chord map follows the microphone, hear it (only then).
+    () => startMicChordIn(),
   ],
 };
 

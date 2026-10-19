@@ -41,7 +41,8 @@ describe.runIf(AIR)('the chord map in the default graph', () => {
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
     // Every input the node declares is connected: none left to its default by accident.
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'chordMap').map((e) => e.to.port));
-    expect([...inbound].sort()).toEqual(['chordConfig', 'config', 'face', 'hands', 'midi', 'octaveShift', 'spec', 'time']);
+    expect([...inbound].sort()).toEqual(['audio', 'chordConfig', 'config', 'face', 'hands', 'midi', 'octaveShift', 'spec', 'time']);
+    expect(has('ui', 'chordMapAudio', 'chordMap', 'audio')).toBe(true); // the microphone's chroma (H8)
     expect(has('songPlayer', 'songTime', 'chordMap', 'time')).toBe(true); // the song's beat (H9)
     expect(has('ui', 'chordMapMidi', 'chordMap', 'midi')).toBe(true); // the keyboard's held notes (H8)
     // The face's controls, through its own branch (H7 of #613).

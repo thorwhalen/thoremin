@@ -22,6 +22,7 @@
     "Chord Map",
     "Chord Map + Face",
     "Play Along (MIDI)",
+    "Play Along (microphone)",
     "Chord Wheel",
     "Face Wheel",
     "Tonnetz Wheel",
@@ -264,6 +265,7 @@
       },
       "chordMap": {
         "anchor": "home",
+        "audioDwellS": 0.25,
         "bpm": 100,
         "captions": true,
         "cellSize": 0.2,
@@ -914,6 +916,7 @@
       },
       "chordMap": {
         "anchor": "home",
+        "audioDwellS": 0.25,
         "bpm": 100,
         "captions": true,
         "cellSize": 0.2,
