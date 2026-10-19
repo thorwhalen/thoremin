@@ -51,6 +51,8 @@ export const AIR_INSTRUMENTS = [
   { id: 'guitar', label: 'Air guitar', emoji: '🤘', usesScale: false, on: dialOn('airGuitar') },
   // The flute plays the notes the player named when enrolling fingerings, not the scale.
   { id: 'flute', label: 'Air flute', emoji: '🪈', usesScale: false, on: dialOn('airFlute') },
+  // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
+  { id: 'chords', label: 'Chord map', emoji: '🎼', usesScale: true, on: dialOn('chordMap') },
   // Not an air instrument but the same kind of entry: an extension's instrument, detected
   // from its dial. The ASL reader (and its chords) is listed under the sign instruments.
   { id: 'asl', label: 'Sign language', emoji: '🤟', usesScale: false, on: dialOn('asl'), class: 'sign' },
