@@ -19,9 +19,15 @@
  *
  * What it costs: about 115 kB of script, loaded the first time a song loads (never in the
  * entry chunk: `vite.lazy-guard.ts` names the package), and the song DECODED in memory at
- * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz; at the peak the
- * decoded buffer and the copies handed over by TRANSFER are held, two, not three, #365),
- * where the media element streams the file.
+ * the context's rate (about 90 MB for a four-minute stereo song at 48 kHz), where the media
+ * element streams the file. The decoded buffer's OWN channel arrays are transferred to the
+ * worklet (#365), so one decoded copy is held, not two: the Web Audio spec lets those arrays
+ * be detached (the buffer then reads as empty, and nothing here reads it again; Chromium and
+ * Firefox do). A browser that will not detach them may refuse the message, and then copies
+ * of the still intact buffer go instead, or copy them silently (WebKit's engine may: no
+ * saving there, no loss either); what arrives short of the song (a partial detach) is
+ * dropped and the file decoded again for copies. Those paths hold two copies at the peak,
+ * as before.
  *
  * The package is loaded VERBATIM: its file is emitted as an asset (`?url`) and imported
  * from there, never bundled. It builds its AudioWorklet by stringifying its own processor
@@ -64,6 +70,28 @@ interface StretchNode extends AudioNode {
 const START_TIMEOUT_S = 8;
 /** A position this close to the end is the end. */
 const END_EPS_S = 0.005;
+
+/** What the worklet holds short of the song (seconds) before the hand-over counts as lost. */
+const HANDOVER_EPS_S = 0.01;
+
+/**
+ * Hand the decoded song to the worklet by transfer: the buffer's own channel arrays, or (`copy`)
+ * copies of them. True when the worklet then holds the whole song (its reply is the end of what
+ * it holds, in seconds, at the context's rate, which `decodeAudioData` resampled to); false
+ * when the message could not be sent (a browser that will not detach the buffer's arrays) or
+ * arrived short (a detach that stopped part way). A refused copy is an error.
+ */
+async function handOver(n: StretchNode, buffer: AudioBuffer, copy: boolean, seconds: number): Promise<boolean> {
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(copy ? buffer.getChannelData(c).slice() : buffer.getChannelData(c));
+  try {
+    const end = await n.addBuffers(channels, channels.map((ch) => ch.buffer));
+    return typeof end === 'number' && end >= seconds - HANDOVER_EPS_S;
+  } catch (e) {
+    if (copy) throw e;
+    return false;
+  }
+}
 
 export const createSignalsmithStretcher: StretcherFactory = (audio) => createSignalsmithStretcherWith(audio, loadSignalsmith);
 
@@ -151,17 +179,30 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       if (fallback) return fallback.load(url);
       if (!n) throw new Error('the song player could not start');
       n.schedule({ active: false, output: now() });
-      const bytes = await (await fetch(url)).arrayBuffer();
-      const buffer = await audioContext.decodeAudioData(bytes);
-      // A superseded load settles as a failure its caller ignores (it checks the id).
-      if (id !== loadId) throw new Error('superseded');
+      const decode = async (): Promise<AudioBuffer> => {
+        const buffer = await audioContext.decodeAudioData(await (await fetch(url)).arrayBuffer());
+        // A superseded load settles as a failure its caller ignores (it checks the id).
+        if (id !== loadId) throw new Error('superseded');
+        return buffer;
+      };
+      /** A superseded or disposed load must not touch the worklet again. */
+      const current = () => {
+        if (id !== loadId) throw new Error('superseded');
+      };
+      const decoded = await decode();
+      const seconds = decoded.duration;
       await n.dropBuffers();
-      // Own copies, TRANSFERRED to the worklet (#365): handing it the AudioBuffer's own
-      // views would make the message a structured clone, a third copy at the peak.
-      const channels: Float32Array[] = [];
-      for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).slice());
-      await n.addBuffers(channels, channels.map((ch) => ch.buffer));
-      duration = buffer.duration;
+      current();
+      // The buffer's own arrays, TRANSFERRED (#365): one decoded copy held, not two.
+      if (!(await handOver(n, decoded, false, seconds))) {
+        await n.dropBuffers();
+        current();
+        // Refused before anything was detached: copies of the same buffer. Else decode again.
+        const intact = Array.from({ length: decoded.numberOfChannels }, (_, c) => decoded.getChannelData(c).length).every((len) => len === decoded.length);
+        if (!(await handOver(n, intact ? decoded : await decode(), true, seconds))) throw new Error('the worklet did not take the song');
+      }
+      current();
+      duration = seconds;
       n.schedule({ active: false, input: 0, output: now() });
       anchor(0);
     },
