@@ -5,6 +5,7 @@
  * flute's breath demand, the vocabulary loads, the fingering-prior sync, the drum-pattern sync). The panel and store modules
  * live under `./panels/` and `./app/` (5b).
  */
+import { startMidiChordIn } from './app/midiChordIn';
 import type { ExtensionUi, StatusHook } from '@thoremin/sdk-ui/types';
 import { AirDrumControls, AirDrumReadout } from './panels/airDrum';
 import { AirBassControls, AirBassReadout } from './panels/airBass';
@@ -105,6 +106,8 @@ export const AIR_UI: ExtensionUi = {
     // #451: a carved hand-shape categorizer named as chords can become the air guitar's chords
     // (a copy into its vocabulary, offered by the carve tool through sdk-ui's importer seam).
     () => provideVocabularyImporter(guitarVocabularyImporter()),
+    // H8 of #613: while a chord map follows MIDI, listen to the keyboards (only then).
+    () => startMidiChordIn(),
   ],
 };
 

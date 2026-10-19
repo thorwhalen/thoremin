@@ -262,6 +262,55 @@ describe('the chord-map node, the letters map (H13 of #613)', () => {
   });
 });
 
+describe('the chord-map node, chords from MIDI (H8 of #613)', () => {
+  function playMidi(heldAt: (t: number) => number[], config: Record<string, unknown>, duration = 2, strumPeriod?: number) {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    return chordMapTake({ duration, chordAt: () => null, strumPeriod }).map((fr) => ({
+      t: fr.t!,
+      out: h.process({ hands: fr, config: { ...ON, follow: 'midi', ...config }, spec: C_MAJOR, octaveShift: 0, midi: { available: true, inputs: 1, held: heldAt(fr.t!) } }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out,
+    }));
+  }
+
+  it('lights and sounds the chord the keys hold, any inversion, with no hand on the map', () => {
+    const outs = playMidi((t) => (t < 1 ? [64, 67, 72] : [62, 65, 69]), {});
+    const at = (t: number) => outs.find((o) => o.t >= t)!.out;
+    expect(at(0.5).status).toMatchObject({ chord: 'C', midi: 'listening', midiChord: 'C' });
+    expect(soundingPcs(at(0.5).params)).toEqual(pcsOf(0));
+    expect(at(1.5).status.chord).toBe('Dm');
+    expect(at(1.5).grid.cells.filter((c) => c.state === 'active').map((c) => c.label)).toEqual(['Dm']);
+  });
+
+  it('names a chord outside the key and strums it by its name', () => {
+    const outs = playMidi(() => [58, 62, 65], { play: 'strum' }, 3, 0.5); // Bb
+    const last = outs[outs.length - 1].out;
+    expect(last.status).toMatchObject({ chord: null, midiChord: 'Bb (outside the key)' });
+    const strummed = outs.flatMap((o) => o.out.notes);
+    expect(strummed.length).toBeGreaterThan(0);
+    const pcs = new Set(strummed.filter((n) => n.velocity > 0).map((n) => n.midi % 12));
+    expect([...pcs].sort((a, b) => a - b)).toEqual([2, 5, 10]); // Bb D F
+  });
+
+  it('strums a chord outside the key the guitar has no shape for by its triad (C#dim7 as C#dim)', () => {
+    const outs = playMidi(() => [61, 64, 67, 70], { play: 'strum' }, 3, 0.5);
+    const notes = outs.flatMap((o) => o.out.notes).filter((n) => n.velocity > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect([...new Set(notes.map((n) => n.midi % 12))].sort((a, b) => a - b)).toEqual([1, 4, 7]);
+  });
+
+  it('holding a chord outside the key plays the melody over its own notes', () => {
+    const outs = playMidi(() => [58, 62, 65], {}); // Bb
+    const ladder = outs[outs.length - 1].out.grid.cells.filter((x) => x.shape === 'rect').map((x) => x.label.replace(/\d+$/, ''));
+    expect(ladder.slice(0, 3)).toEqual(['A#', 'D', 'F']);
+  });
+
+  it('says when no keyboard can be heard', () => {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const fr = chordMapTake({ duration: 0.1, chordAt: () => null })[0];
+    const out = h.process({ hands: fr, config: { ...ON, follow: 'midi' }, spec: C_MAJOR, octaveShift: 0, midi: { available: false, inputs: 0, held: [] } }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    expect(out.status.midi).toBe('unavailable');
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {
