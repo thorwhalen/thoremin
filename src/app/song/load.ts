@@ -6,9 +6,10 @@
  * Decoding uses a throwaway `OfflineAudioContext` at the tracker's rate (22.05 kHz), so
  * the analysis needs neither the instrument's `AudioContext` (created on the player's
  * first tap) nor a codec: every current browser decodes MP3, AAC, WAV, OGG and FLAC
- * natively (research map §5.1). Playback does not use the decoded samples: the
- * media-element stretcher streams the file itself through an object URL, so the samples
- * are dropped after tracking and never reach the store.
+ * natively (research map §5.1). Playback does not use these samples: the stretcher reads
+ * the file itself through an object URL (Signalsmith decodes it again at the context's
+ * rate, the media element streams it), so they are dropped after tracking, before playback
+ * holds its own, and never reach the store.
  *
  * The tracker runs inline, once per file: a four-minute song is a few hundred
  * milliseconds. A Worker is the next step if a longer file ever needs one.
