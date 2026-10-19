@@ -36,6 +36,7 @@ import { CHORD_WHEEL_ELEMENT } from './branches';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
+import { AIR_STORES } from './stores';
 import { DRUM_PADS_ELEMENT, drumPadsElement } from './nodes/overlay/drum_pads';
 import { BREATH_CUE_ELEMENT, breathCueElement } from './nodes/overlay/breath_cue';
 
@@ -153,6 +154,8 @@ export const AIR_EXTENSION = defineExtension({
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
+  // What it keeps in the browser (#600 S12), under the keys it has always used.
+  stores: Object.values(AIR_STORES),
   derive: (s) => {
     const settings = s as Record<string, unknown>;
     const ids: string[] = [];

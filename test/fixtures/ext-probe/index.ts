@@ -6,8 +6,8 @@
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
  * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
- * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command
- * and a carve modality);
+ * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command,
+ * a carve modality and a declared store);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -34,6 +34,8 @@ export const PROBE_VOICE_ID = 9001;
 export const PROBE_COMMAND_ID = 'probe.ping';
 /** The probe's carve modality (#600 S11): the face's, under its own id. */
 export const PROBE_MODALITY_ID = 'probe-part';
+/** The probe's store (#600 S12): a named collection under its own key, reached through the seam. */
+export const PROBE_STORE = { name: 'notes', kind: 'collection', legacyKey: 'thoremin.probe.notes', description: 'the probe\'s notes (test-only)' } as const;
 
 export const ProbeDialSchema = z.object({ enabled: z.boolean(), freq: z.number().positive() });
 export type ProbeDial = z.infer<typeof ProbeDialSchema>;
@@ -155,6 +157,7 @@ export const PROBE_EXTENSION = defineExtension({
   overlayElements: [probeMeter],
   commandDecls: [{ id: PROBE_COMMAND_ID, title: 'Probe: ping', description: 'A test-only command.', category: 'Probe', params: z.object({ times: z.number().int().positive().default(1) }) }],
   modalities: [{ ...faceModality, id: PROBE_MODALITY_ID }],
+  stores: [PROBE_STORE],
   instruments: [{ name: PROBE_INSTRUMENT, patch: { probe: { enabled: true, freq: 330 } } }],
   training: {
     routes: [{ id: 'probe', label: 'Train the probe', hint: 'Test-only.', tool: PROBE_TOOL_ID }],

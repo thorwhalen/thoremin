@@ -12,9 +12,10 @@
 import { z } from 'zod';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { PAD_IDS, PadsSchema, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
+import { AIR_STORES } from '../stores';
 
-/** localStorage key holding the saved pad layouts (the browser default target). */
-export const PAD_LAYOUTS_STORAGE_KEY = 'thoremin-pad-layouts';
+/** The key holding the saved pad layouts (declared in `../stores.ts`). */
+export const PAD_LAYOUTS_STORAGE_KEY = AIR_STORES.padLayouts.legacyKey;
 
 export const PadLayoutSchema = z.object({
   id: z.string(),

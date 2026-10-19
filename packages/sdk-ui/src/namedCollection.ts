@@ -9,9 +9,10 @@
  * storage key, the name of the payload field, and the id fallback — so those are the
  * four parameters here, and each collection collapses to a schema import plus one call.
  *
- * The DEFAULT target is browser localStorage (`@zodal/store-localstorage`); inject any
- * other `DataProvider` — an in-memory one for tests, or files/cloud later — without
- * changing a single caller, because the CRUD contract is identical across backends.
+ * The DEFAULT target is the app's storage seam (`./storage.ts`, #600 S12): what the shell
+ * provides, browser localStorage until it does; inject any other `DataProvider` (an in-memory
+ * one for tests, or files/cloud later) without changing a single caller, because the CRUD
+ * contract is identical across backends.
  * This is the "affordances first, target behind a stable contract" rule from CLAUDE.md.
  *
  * Note the hot-path split: this layer is async (persistence). The LIVE per-tick control
@@ -20,7 +21,9 @@
  */
 import type { DataProvider } from '@zodal/store';
 export type { DataProvider } from '@zodal/store';
-import { createLocalStorageProvider } from '@zodal/store-localstorage';
+import { hostCollection } from './storage';
+// Kept here too: it was this module's (callers import it from either).
+export { localStorageCollectionProvider } from './storage';
 import { slugId } from '@thoremin/sdk/util/ids';
 
 /** The metadata every record in a named collection carries. */
@@ -69,15 +72,9 @@ export interface NamedCollectionSpec<T extends NamedRecord, K extends keyof T & 
   idFallback: string;
 }
 
-/** The browser default target of a collection: localStorage under `storageKey`, searchable by
- *  name (what {@link createNamedCollectionStore} uses when given no provider). */
-export function localStorageCollectionProvider<T extends NamedRecord>(storageKey: string): DataProvider<T> {
-  return createLocalStorageProvider<T & Record<string, unknown>>({ storageKey, searchFields: ['name'] }) as DataProvider<T>;
-}
-
 /**
  * Build a collection's store FACTORY: `createXStore(provider?)`. The returned factory
- * defaults to a localStorage-backed provider; pass any `DataProvider<T>` (e.g.
+ * defaults to the host's provider under `storageKey` (the storage seam); pass any `DataProvider<T>` (e.g.
  * `createInMemoryProvider` in tests, or a files/cloud provider later) to retarget
  * storage without touching callers.
  */
@@ -87,9 +84,7 @@ export function createNamedCollectionStore<T extends NamedRecord, K extends keyo
   payloadKey,
   idFallback,
 }: NamedCollectionSpec<T, K>): (provider?: DataProvider<T>) => NamedCollectionStore<T, T[K]> {
-  const localStorageProvider = (): DataProvider<T> => localStorageCollectionProvider<T>(storageKey);
-
-  return (provider: DataProvider<T> = localStorageProvider()): NamedCollectionStore<T, T[K]> => {
+  return (provider: DataProvider<T> = hostCollection<T>(storageKey)): NamedCollectionStore<T, T[K]> => {
     const all = async (): Promise<T[]> => (await provider.getList({})).data;
     return {
       async list() {

@@ -20,17 +20,12 @@
  *   localStorage copy); a record in the legacy or localStorage collections that is not in the
  *   one collection (an unmigrated or rolled-back save may name stills).
  */
-import {
-  CATEGORIZERS_STORAGE_KEY,
-  LEGACY_FACE_STORAGE_KEY,
-  createCategorizerIndex,
-  type CategorizerIndex,
-} from '@thoremin/sdk-ui/enroll/categorizers';
-import { localStorageCollectionProvider } from '@thoremin/sdk-ui/namedCollection';
+import { createCategorizerIndex, localCategorizerCopyIds, type CategorizerIndex } from '@thoremin/sdk-ui/enroll/categorizers';
+import { FACES_STORES } from '../stores';
 import type { ThumbStore } from './thumbnails';
 
 /** The localStorage flag whose value `delete` turns the listing into a deletion. */
-export const STILL_SWEEP_FLAG_KEY = 'thoremin.stills.sweep';
+export const STILL_SWEEP_FLAG_KEY = FACES_STORES.sweepFlag.legacyKey;
 export const STILL_SWEEP_DELETE = 'delete';
 
 /** The keys no one references, sorted. */
@@ -102,7 +97,7 @@ const ls = (): Storage | null => {
 const deleteFlagged = (): boolean => ls()?.getItem(STILL_SWEEP_FLAG_KEY) === STILL_SWEEP_DELETE;
 
 /** The orphans the previous sweep found. */
-export const STILL_SWEEP_SEEN_KEY = 'thoremin.stills.orphansSeen';
+export const STILL_SWEEP_SEEN_KEY = FACES_STORES.orphansSeen.legacyKey;
 
 function readSeen(): Set<string> {
   try {
@@ -121,14 +116,9 @@ function writeSeen(keys: readonly string[]): void {
   }
 }
 
-/** The ids of the records kept in localStorage outside the one collection's IndexedDB. */
-async function outsideIds(): Promise<string[]> {
-  const ids: string[] = [];
-  for (const key of [LEGACY_FACE_STORAGE_KEY, CATEGORIZERS_STORAGE_KEY]) {
-    for (const r of (await localStorageCollectionProvider<{ id: string; name: string; createdAt: number }>(key).getList({})).data) ids.push(r.id);
-  }
-  return ids;
-}
+/** The ids of the records kept in localStorage outside the one collection's IndexedDB (read by the
+ *  SDK, beside the code that writes those copies). */
+const outsideIds = localCategorizerCopyIds;
 
 let swept: Promise<SweepResult | null> | null = null;
 

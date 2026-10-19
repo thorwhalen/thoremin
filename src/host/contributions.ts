@@ -30,6 +30,7 @@ import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
 import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
 import type { CategoryPoolSizes } from '@/nodes/output/canvas_overlay.schema';
+import { CORE_STORAGE_KEYS, type StorageKeyEntry } from './storageKeys';
 import {
   EXTENSIONS,
   EXTENSION_SETTINGS_SHAPE,
@@ -94,6 +95,9 @@ export interface Contributions {
   catalog: readonly CatalogEntry[];
   /** Every declared command (#600 S11) with the extension that declares it; ids unique. */
   commandDecls: readonly { extension: string; decl: CommandDecl }[];
+  /** Every key the app keeps in the browser (#600 S12): core's (`./storageKeys.ts`), then each
+   *  extension's declared stores; a key two owners claim is refused. */
+  storageKeys: readonly StorageKeyEntry[];
   /** Every contributed carve modality (#600 S11); ids unique, and none of the SDK's own. */
   modalities: readonly CarveModality[];
 }
@@ -207,6 +211,18 @@ function keyed<T>(point: string, extensions: readonly Extension[], items: (e: Ex
   return out;
 }
 
+/** The extensions' declared stores as registry entries (#600 S12): a key core or another extension
+ *  already claims, or one inside a family core reserves by prefix, is refused. */
+function extensionStorageKeys(extensions: readonly Extension[]): StorageKeyEntry[] {
+  const core = new Map(CORE_STORAGE_KEYS.filter((k) => !k.prefix).map((k) => [k.key, 'core']));
+  const entries = keyed('storage key', extensions, (e) => (e.stores ?? []).map((store) => ({ extension: e.id, store })), (s) => s.store.legacyKey, core);
+  for (const { extension, store } of entries) {
+    const family = CORE_STORAGE_KEYS.find((k) => k.prefix && store.legacyKey.startsWith(k.key));
+    if (family) throw new Error(`extension "${extension}" declares the storage key "${store.legacyKey}", inside the family "${family.key}" core reserves`);
+  }
+  return entries.map(({ extension, store }) => ({ key: store.legacyKey, kind: store.kind === 'database' ? 'indexedDB' : 'localStorage', owner: extension, purpose: store.description }));
+}
+
 /** Fold a list of extensions into the app's contribution views (pure; throws on a clash). */
 export function foldContributions(extensions: readonly Extension[]): Contributions {
   // A dial key, a pref and a transient field are each a hot-store field (the dial and the
@@ -229,6 +245,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     pools: poolSizesFor([...CORE_BRANCHES, ...branches]),
     overlayElements: overlayElementsOf(extensions),
     commandDecls: keyed('command', extensions, (e) => (e.commandDecls ?? []).map((decl) => ({ extension: e.id, decl })), (c) => c.decl.id),
+    storageKeys: [...CORE_STORAGE_KEYS, ...extensionStorageKeys(extensions)],
     modalities: keyed('carve modality', extensions, (e) => e.modalities ?? [], (m) => m.id, new Map(SDK_MODALITY_IDS.map((id) => [id, 'core']))),
     ...libraryFold(extensions),
   };

@@ -67,6 +67,21 @@ export type SliceMigration = (old: unknown, stored: Readonly<Record<string, unkn
  * Ids already shipped stay as they are (a saved binding names them); a new one is namespaced
  * `<extension>.<verb>`.
  */
+/**
+ * One thing an extension keeps in the browser (#600 S12). `collection`: a named collection, one
+ * localStorage key holding every record (reached through the host's storage seam); `item`: one raw
+ * localStorage value (a flag, a remembered list); `database`: an IndexedDB database.
+ */
+export interface StoreDecl {
+  /** Its name within the extension (`pad-layouts`), for messages and the registry. */
+  name: string;
+  kind: 'collection' | 'item' | 'database';
+  /** The key (or database name) it is kept under, exactly the one shipped: nothing moves. */
+  legacyKey: string;
+  /** One line: what it holds. */
+  description: string;
+}
+
 export interface CommandDecl {
   id: string;
   title: string;
@@ -297,9 +312,13 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   /** The commands it contributes, as data (#600 S11); listed before a lazy extension loads. */
   commandDecls?: readonly CommandDecl[];
   /** The carve modalities it contributes (#600 S11): body parts a player carves categories from,
-   *  beside the SDK's face, hand and body. Typed loosely here (the SDK's `CarveModality`), so the
-   *  manifest's type does not pull the enroll library into every extension's stub. */
+   *  beside the SDK's face, hand and body. */
   modalities?: readonly CarveModality[];
+  /** What it keeps in the browser (#600 S12): every localStorage key and IndexedDB database it
+   *  writes, each with the key it uses (verbatim; nothing is renamed). The host lists them with
+   *  core's in one registry and refuses a key two owners claim; a `collection` reaches its provider
+   *  through the storage seam (`@thoremin/sdk-ui/storage`), never by building one. */
+  stores?: readonly StoreDecl[];
   /** Instrument classes it contributes (#600 S8); ids unique across core and extensions. */
   classes?: readonly InstrumentClass[];
   /** Its rows of the instrument catalog (#600 S8), in display order. */
