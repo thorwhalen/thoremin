@@ -253,6 +253,27 @@ After #353 the pad a stroke heads for was chosen by the fall's top, which fails 
 
 No row loses a stroke from its pad, a prediction, or a stroke heard. Every #533 row is 15 of 16, the one off being the first kick (main 9, 14, 14), and the soft-snare take main left silent 7 times is heard (its MAE rises with the seven strokes it now counts). The sounding MAE moves the wrong way on two tilt rows (12.5 → 12.9, 10.6 → 11.3 ms) and by 0.1 ms on two noisy rows. The synthetic player's strokes stop at the pad's centre, so the prior's moved centre is exact here; a real player who strikes near a pad's edge is expected there on a new pad too, which is what the offset is for. Not measured: a point with no grip, because the synthetic take's wrist is the stick's pivot and does not stroke. With no pad on, `scripts/air/eval_drum_anchors.ts` on `bench-v2` prints a byte-identical table (the change is inside the pad rule only), and `scripts/air/eval_drum_strokes.ts` does not run the node.
 
+#### 3.1.5 A per-player stroke template, bounded before it is built (#351, measured 2026-10-19)
+
+A stroke template (#234's first proposal, split to #351) learns the shape of the approach from confirmed strokes and predicts the turn from where the current stroke sits in it, so the brake would be part of the model rather than one learned lag. bench-v2 could not test it: every stroke there has the same fall and brake. `gen_clip_sets.py --variability` draws each stroke's own fall (sd 30 ms around 180) and brake (sd 10 ms around 30), the values of cutan's variability test (cutan#27); two air sets of 240 clips each, one with variability and one without, at 15, 20, 24, 30 and 60 fps (both objects, both shutters, the four timing regimes, three seeds), scored at the app's effective lead (`--min-lead 0.077`, noise 1 px):
+
+| `predict` / air, sd (ms) | 15 | 20 | 24 | 30 | 60 | all |
+|---|---|---|---|---|---|---|
+| constant shapes | 18.3 | 14.4 | 11.4 | 9.7 | 6.3 | 13.0 |
+| each stroke its own fall and brake | 22.3 | 16.0 | 13.4 | 12.0 | 7.6 | 15.3 |
+
+`lowest` does not move (14.3 against 14.6): variability costs the prediction, as #234 expected. The question for a template is how much of that is visible before the commit. `shape_bound.py` regresses each prediction's error on the stroke's TRUE shape from `truth.json` (an oracle no template has: it sees the shape through two or three noisy approach samples, and the brake happens after the commit):
+
+| fps | sd | after peak speed | after fall + peak speed | after fall, brake, peak speed |
+|---|---|---|---|---|
+| 15 | 22.26 | 22.12 | 22.04 | 21.51 |
+| 20 | 15.96 | 15.90 | 15.56 | 14.85 |
+| 24 | 13.44 | 13.23 | 12.88 | 11.89 |
+| 30 | 12.04 | 11.61 | 11.22 | 10.62 |
+| 60 | 7.56 | 7.53 | 7.48 | 6.05 |
+
+What the approach can show (its fall and speed) is worth at most 0.6 ms at 24 fps and 0.8 ms at 30 with perfect knowledge of it; even the brake added only takes 30 fps to 10.6, still above the constant-shape 9.7. Most of the error is frame phase and the stamps, which a shape model does not touch, and the brake is drawn independently of the approach, so nothing before the commit predicts it. On this evidence the template is not built: the most it could win is under the noise of one re-seeded run, and #351 asks it to win measurably. What could change that is real strokes whose brake follows their approach (a faster stroke braking harder), which only a real-hand take can show; that take is the open acceptance of #351 and #234.
+
 ### 3.2 By frame rate
 
 | estimator | 24 fps | 30 fps | 60 fps |

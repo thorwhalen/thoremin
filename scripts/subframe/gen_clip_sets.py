@@ -14,6 +14,8 @@ app-data-lifecycle rule). The scorer is `scripts/subframe/score.ts`.
 
     python scripts/subframe/gen_clip_sets.py            # the benchmark set
     python scripts/subframe/gen_clip_sets.py --quick    # one seed, 30 fps only
+    python scripts/subframe/gen_clip_sets.py --name bench-var --variability --kinds air --fps 15,20,24,30,60
+                                                        # each stroke's own fall and brake (#351)
 
 Axes of the benchmark set (`bench-v1`), all over `an.impacts.BENCHMARK_SPEC` (a
 96 -> 132 bpm accelerando over 24 beats, accents (1, .6, .8, .6), 12 ms AR(1) timing
@@ -55,10 +57,16 @@ TIMING_AXES: tuple[tuple[str, float, float, str], ...] = (
 )
 
 
-def bench_specs(*, quick: bool = False) -> list[tuple[dict, ImpactClipSpec]]:
+#: Stroke-shape variability (cutan#27, thoremin#351): each stroke's own fall and brake drawn
+#: around the spec's means (0.18 s and 0.03 s), the values of cutan's own variability test.
+#: The constant-shape sets cannot show what a per-player stroke template would learn.
+VARIABILITY = {"fall_sd": 0.03, "brake_sd": 0.01}
+
+
+def bench_specs(*, quick: bool = False, variability: bool = False, fps_list: tuple[float, ...] | None = None, kinds: tuple[str, ...] | None = None) -> list[tuple[dict, ImpactClipSpec]]:
     objects = ("stick", "ball")
-    kinds = ("surface", "air")
-    fps = (30.0,) if quick else (24.0, 30.0, 60.0)
+    kinds = kinds or ("surface", "air")
+    fps = fps_list or ((30.0,) if quick else (24.0, 30.0, 60.0))
     exposures = (0.0, 0.5)
     seeds = (0,) if quick else (0, 1, 2)
     out = []
@@ -67,6 +75,7 @@ def bench_specs(*, quick: bool = False) -> list[tuple[dict, ImpactClipSpec]]:
             BENCHMARK_SPEC,
             object=o, kind=k, fps=f, exposure=e,
             timestamp_jitter_sd=jfrac / f, timestamp_noise_sd=nsd / f, timestamps=stamps, seed=s,
+            **(VARIABILITY if variability else {}),
         )
         out.append(({"object": o, "kind": k, "fps": f, "exposure": e, "timing": label, "seed": s}, spec))
     return out
@@ -77,10 +86,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     ap.add_argument("--name", default="bench-v1")
     ap.add_argument("--quick", action="store_true", help="one seed, 30 fps only")
+    ap.add_argument("--variability", action="store_true", help=f"each stroke's fall and brake drawn per stroke ({VARIABILITY})")
+    ap.add_argument("--fps", help="comma-separated frame rates (default 24,30,60; 30 with --quick)")
+    ap.add_argument("--kinds", help="comma-separated: surface,air (default both)")
     args = ap.parse_args(argv)
     root = args.root / (args.name + ("-quick" if args.quick else ""))
     root.mkdir(parents=True, exist_ok=True)
-    specs = bench_specs(quick=args.quick)
+    specs = bench_specs(
+        quick=args.quick,
+        variability=args.variability,
+        fps_list=tuple(float(x) for x in args.fps.split(",")) if args.fps else None,
+        kinds=tuple(args.kinds.split(",")) if args.kinds else None,
+    )
     index = []
     for i, (axes, spec) in enumerate(specs):
         clip_dir = write_impact_clip(spec, root, render=False)

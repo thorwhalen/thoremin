@@ -23,6 +23,12 @@ The scoring pipeline behind [`docs/research/subframe-impact-prediction.md`](../.
    npx vite-node scripts/subframe/decompose.ts --set ~/.local/share/thoremin/synthetic/bench-v2 --min-lead 0.03,0.077
    ```
 
+   `shape_bound.py` bounds what a per-player stroke template could win (#351): the prediction's error regressed on each stroke's true fall, brake and speed, on a set made with `gen_clip_sets.py --variability` (needs numpy):
+
+   ```bash
+   python scripts/subframe/shape_bound.py ~/.local/share/thoremin/synthetic/bench-var/results.json
+   ```
+
 3. **Make a committed fixture** from one clip (keypoints verbatim, the truth without its per-frame table):
 
    ```bash
