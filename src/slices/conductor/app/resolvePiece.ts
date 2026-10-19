@@ -14,8 +14,8 @@
  * who never enables conducting never downloads one.
  */
 import type { LoadStatus } from '@thoremin/lazy';
-import { BUILTIN_PIECE } from '@/settings/schema';
-import { demoById, fetchDemo, type ScoreDoc, type ScoreStore } from '@/score';
+import { BUILTIN_PIECE } from '../schema';
+import { demoById, fetchDemo, type ScoreDoc, type ScoreStore } from '../score';
 
 export interface ScoreLoaderDeps {
   /** Fetch a file by URL (relative to `baseUrl`) as bytes. */

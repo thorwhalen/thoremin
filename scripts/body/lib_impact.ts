@@ -9,12 +9,12 @@
  * its anchors are scored at the beat level against the clip's grid with A1's scorer
  * (`scoreLevel`: F at ±70 ms, F after the anchors' mean lag, R and its Rayleigh p).
  *
- * The frame builder is the conductor's own (`src/nodes/features/conductor_body.ts`, A3),
+ * The frame builder is the conductor's own (`src/slices/conductor/nodes/conductor_body.ts`, A3),
  * so what these scorers print is what the body conductor plays from.
  */
 import { createIctus, createImpactDetector, createLeadCalibration, createLeadCorrector, type AnchorDetector, type ChannelFrame, type LeadOffsets } from '@thoremin/ictus';
 import { median } from '@thoremin/stats';
-import { bodyChannelFrame } from '@/nodes/features/conductor_body';
+import { bodyChannelFrame } from '@/slices/conductor/nodes/conductor_body';
 import { scoreLevel, scoringSpans, type LevelScore } from './lib_channels';
 import { beatingWrist, type BodyClip } from './lib_clips';
 

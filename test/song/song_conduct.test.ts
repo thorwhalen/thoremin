@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext, PortValues } from '@thoremin/dag';
 import { beatIndexAt, trackSongGrid, type MusicalTime, type ServoState } from '@thoremin/ictus';
-import { conductorNode } from '@/nodes';
+import { conductorNode } from '@/slices/conductor/nodes/conductor';
 import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
 import { paceControllerNode } from '@/slices/song/nodes/pace_controller';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';

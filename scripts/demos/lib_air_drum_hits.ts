@@ -30,7 +30,7 @@ import { join } from 'node:path';
 import type { NodeContext } from '@thoremin/dag';
 import { createIctus, createTrendPrior, type Anchor, type MusicalTime, type RhythmPriorKind } from '@thoremin/ictus';
 import { type HandsFrame } from '@/nodes';
-import { conductorNode } from '@/nodes/features/conductor';
+import { conductorNode } from '@/slices/conductor/nodes/conductor';
 import { airDrumNode, type AirDrumStatus, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 

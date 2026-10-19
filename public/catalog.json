@@ -3973,18 +3973,6 @@
         "kind": "face-controls-config"
       },
       {
-        "name": "conductor",
-        "kind": "conductor-config"
-      },
-      {
-        "name": "scoreDoc",
-        "kind": "score-doc"
-      },
-      {
-        "name": "conductorLeadOffsets",
-        "kind": "lead-offsets"
-      },
-      {
         "name": "graphElements",
         "kind": "string[]"
       },
@@ -4035,6 +4023,10 @@
       {
         "name": "bodyMap",
         "kind": "body-map"
+      },
+      {
+        "name": "conductor",
+        "kind": "conductor-config"
       },
       {
         "name": "faceCategorizer",
@@ -4097,6 +4089,10 @@
         "kind": "number"
       },
       {
+        "name": "conductorLeadOffsets",
+        "kind": "lead-offsets"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -4139,6 +4135,10 @@
       {
         "name": "songStartBeat",
         "kind": "number"
+      },
+      {
+        "name": "scoreDoc",
+        "kind": "score-doc"
       },
       {
         "name": "faceCategorizerModel",

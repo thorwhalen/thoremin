@@ -9,7 +9,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import ConductorPanel from '@/app/ConductorPanel';
 import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
 import { dialsStore } from '@/app/dials/settingsStore';
@@ -17,7 +16,7 @@ import { dispatchDialSetIn } from '@/app/dispatchDial';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';
 import { requestCarve } from '@thoremin/sdk-ui/enroll/carveRequest';
 import { FACES } from '../helpers/extensions';
-import type { ConductorSettings } from '@/settings/schema';
+import type { ConductorSettings } from '@/slices/conductor/schema';
 import '@/app/dials/useDialsSettings';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
@@ -40,7 +39,6 @@ describe.runIf(FACES)('Teach my conducting poses', () => {
     render(
       <>
         <ToolsBar />
-        <ConductorPanel />
         <ExtensionToolPanels />
       </>,
     );

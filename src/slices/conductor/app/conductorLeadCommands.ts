@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
-import { conductorLeadHost } from './conductorLeadHost';
+import { conductorLeadHost } from './conductorLeadCommandHost';
 
 const CATEGORY = 'Conductor';
 

@@ -14,10 +14,10 @@ import type { Plugin } from 'vite';
 
 /** Packages the app may only load on demand, and who loads them. */
 export const LAZY_PACKAGES: readonly string[] = [
-  'spessasynth_lib', // the orchestra's synth (#187 PR 5), via src/nodes/output/orchestra_engine.ts
+  'spessasynth_lib', // the orchestra's synth (#187 PR 5), via src/slices/conductor/app/orchestra_engine.ts
   'spessasynth_core', // its engine core, pulled in by spessasynth_lib
-  '@tonejs/midi', // the MIDI score parser (#187 PR 3), via src/score/midi.ts
-  'musicxml-io', // the MusicXML score parser (#187 PR 3), via src/score/musicxml.ts
+  '@tonejs/midi', // the MIDI score parser (#187 PR 3), via src/slices/conductor/score/midi.ts
+  'musicxml-io', // the MusicXML score parser (#187 PR 3), via src/slices/conductor/score/musicxml.ts
   'signalsmith-stretch', // the song's time-stretch worklet (#187 PR 7), via src/slices/song/app/song_stretcher_signalsmith.ts
 ];
 

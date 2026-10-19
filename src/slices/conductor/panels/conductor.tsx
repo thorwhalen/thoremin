@@ -25,20 +25,20 @@
  * mount this section offer the sampled orchestra and its levels.
  */
 import { useEffect, useState } from 'react';
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
 import { OrchestraControls } from './orchestra';
 import { PartsControls } from './parts';
-import { useScoreStatus, setScoreStatus } from '../../scoreStatus';
-import { useConductorStatus } from '../../conductorStatus';
+import { useScoreStatus, setScoreStatus } from '../app/scoreStatus';
+import { useConductorStatus } from '../app/conductorStatus';
 import { ARTICULATION_SOURCES } from '@thoremin/ictus';
-import { CONDUCTOR_BODY_POINTS } from '@/nodes/features/conductor_body.schema';
-import { CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '@/nodes/features/conductor.schema';
+import { CONDUCTOR_BODY_POINTS } from '../nodes/conductor_body.schema';
+import { CONDUCTOR_EXPRESSION_SOURCES, CONDUCTOR_HANDS, CONDUCTOR_MARK_LEVELS, CONDUCTOR_POINTS, CONDUCTOR_SOURCES, type ConductorDialParams } from '../nodes/conductor.schema';
 import { DEFAULT_RHYTHM_PRIOR, RHYTHM_PRIOR_KINDS, type RhythmPriorKind } from '@thoremin/ictus';
-import { BUILTIN_PIECE, type ConductorSettings } from '@/settings/schema';
-import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type ScoreStore } from '@/score';
+import { BUILTIN_PIECE, type ConductorSettings } from '../schema';
+import { createScoreStore, DEMO_SCORES, loadScoreWithStatus, type ScoreStore } from '../score';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 
 const HAND_LABEL: Record<ConductorDialParams['hand'], string> = {

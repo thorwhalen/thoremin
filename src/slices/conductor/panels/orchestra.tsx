@@ -11,13 +11,13 @@
  * soundfont's size. The readout is the shared `LoadStatusReadout`, fed by the engine
  * loop's reporter (`orchestraStatus.ts`).
  */
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
-import { useOrchestraStatus } from '../../orchestraStatus';
-import { DEFAULT_ORCHESTRA, SOUNDFONT_SIZE_MB, type OrchestraSettings } from '@/nodes/output/orchestra.schema';
-import { SECTIONS, type Section } from '@/nodes/output/orchestra_map.schema';
-import type { ConductorSettings } from '@/settings/schema';
+import { useOrchestraStatus } from '../app/orchestraStatus';
+import { DEFAULT_ORCHESTRA, SOUNDFONT_SIZE_MB, type OrchestraSettings } from '../nodes/orchestra.schema';
+import { SECTIONS, type Section } from '../nodes/orchestra_map.schema';
+import type { ConductorSettings } from '../schema';
 
 const SECTION_LABEL: Record<Section, string> = {
   strings: 'Strings',

@@ -43,8 +43,10 @@ export interface ExtensionPanel {
 export interface StatusHook {
   /** The node whose outputs this hook mirrors; `onRemoved` fires when it leaves the graph. */
   nodeId: string;
-  /** Build the per-tick sink for a live engine. */
-  make: (engine: OutputReader) => () => void;
+  /** Build the per-tick sink for a live engine, called with the tick's time (ms on the engine's
+   *  clock); `resources` reads the engine's live resources (the
+   *  timing resource, the time scale) for a sink that turns a frame's stamp into a time (#600 S18b). */
+  make: (engine: OutputReader, resources: () => Readonly<Record<string, unknown>>) => (nowMs: number) => void;
   /** The node left the graph: show it as absent. */
   onRemoved: () => void;
   /** The engine is gone: back to the initial state. */

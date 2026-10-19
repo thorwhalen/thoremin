@@ -12,11 +12,12 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { HandControls } from '@/app/dials/panels/hand';
-import { ConductorControls } from '@/app/dials/panels/conductor';
+import { ConductorControls } from '@/slices/conductor/panels/conductor';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSet, dispatchDialSetIn } from '@/app/dispatchDial';
 import { useControls } from '@/app/store';
-import type { ConductorSettings } from '@/settings/schema';
+import type { ConductorSettings } from '@/slices/conductor/schema';
+import { CONDUCTOR } from './helpers/extensions';
 
 const effective = (key: string) => dialsStore.getState().effective[key];
 const conductor = () => effective('conductor') as ConductorSettings;
@@ -67,7 +68,7 @@ describe('Hand: the handedness dwell select', () => {
   });
 });
 
-describe('Conductor: the tempo sense (prior) and the orchestra', () => {
+describe.runIf(CONDUCTOR)('Conductor: the tempo sense (prior) and the orchestra', () => {
   it('the prior chooser is disabled while conducting is off; once on, each prior writes the dial and the hot store', async () => {
     render(<ConductorControls />);
     const prior = screen.getByLabelText('Tempo sense') as HTMLSelectElement;

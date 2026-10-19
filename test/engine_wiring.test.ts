@@ -71,11 +71,11 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
     // (`reportCategory` feeds the #160 category dispatcher, whose hold is in ms like the gestures'.)
     // (The song's reporter left with its slice, #600 S15: it is one of the extension status hooks.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportConductor\),\s*toMs\(reportLeadTake\),\s*toMs\(reportOrchestra\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
     // from the manifests and converted the same way, in one place: one sink over every status
     // hook in hand, so a lazy extension that loads mid-session gets its readout.
-    expect(c).toMatch(/const extensionSinks = makeExtensionSinks\(engine\)/);
+    expect(c).toMatch(/const extensionSinks = makeExtensionSinks\(engine, \(\) => resources\)/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {

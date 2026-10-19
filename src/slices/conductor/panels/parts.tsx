@@ -10,16 +10,16 @@
  * silence), and a selection naming no part of the loaded piece plays all of them
  * (`preparePiece`), so a piece switched under a kept selection never goes quiet.
  */
-import { dispatchDialSetIn } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
-import { useControls } from '../../store';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { scoreDoc, useControlsField } from '../app/state';
 import { formatPartsSelection, parsePartsSelection } from '@thoremin/sdk/score/prepare';
-import { standInFor } from '@/nodes/output/orchestra_map.schema';
-import type { ConductorSettings } from '@/settings/schema';
+import { standInFor } from '../nodes/orchestra_map.schema';
+import type { ConductorSettings } from '../schema';
 
 export function PartsControls() {
   const { state } = useDialsSettings();
-  const doc = useControls((s) => s.scoreDoc);
+  const doc = useControlsField(scoreDoc);
   const c = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const parts = doc?.parts ?? [];
   const orchestraOn = (c.orchestra as { enabled?: boolean } | undefined)?.enabled === true;

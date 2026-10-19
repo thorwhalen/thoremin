@@ -154,21 +154,21 @@ const NO_SINK = (): void => undefined;
  * tick only, and the hook keeps a no-op sink afterwards, instead of being rebuilt and rethrown
  * at the frame rate.
  */
-export function makeExtensionSinks(engine: OutputReader): () => void {
-  const made = new Map<StatusHook, () => void>();
-  return () => {
+export function makeExtensionSinks(engine: OutputReader, resources: () => Readonly<Record<string, unknown>> = () => ({})): (nowMs?: number) => void {
+  const made = new Map<StatusHook, (nowMs: number) => void>();
+  return (nowMs = 0) => {
     let failure: unknown = null;
     for (const hook of extensionStatusHooks()) {
       try {
         let sink = made.get(hook);
         if (!sink) {
           try {
-            sink = hook.make(engine);
+            sink = hook.make(engine, resources);
           } finally {
             made.set(hook, sink ?? NO_SINK);
           }
         }
-        sink();
+        sink(nowMs);
       } catch (err) {
         failure ??= err;
       }

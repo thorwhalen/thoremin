@@ -17,44 +17,11 @@ import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/
 import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
-import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor.schema';
-import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orchestra.schema';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration
 // (`src/extensions/virtual.d.ts`), so core never imports an extension to know its keys.
 import { assertNoCoreClash, CONTRIBUTIONS, SETTINGS_SHAPE, type ExtensionTransients } from '@/host/contributions';
 
-/** The piece id that means "the built-in demo scale" (no document loaded). */
-export const BUILTIN_PIECE = 'builtin';
-/** The default piece: the shipped Beethoven 5 opening (see `src/score/library.ts`). */
-export const DEFAULT_PIECE = 'beethoven-symphony-5-1';
-/** What an instrument saved before the conductor dial had a `prior` field (#232) is
- *  played by: the oscillator, which is what it was played by when it was saved. The
- *  schema's default (`blend`) is for instruments made from now on; `normalizeLayer`
- *  and the hot store's migration fill this one into a `conductor` object that lacks
- *  the key, so adding the field changed no saved instrument's behaviour. */
-export const LEGACY_CONDUCTOR_PRIOR = 'oscillator' as const;
-
-/**
- * The conductor settings (#187): the node's own params (lifted 1:1, the `faceControls`
- * pattern) plus `piece` — WHICH score to conduct (a shipped demo's id, a saved score's
- * id, or {@link BUILTIN_PIECE}). `piece` is an app-level selection the node never sees
- * (the node's `config` port strips it): the app's `ScoreLoader` watches it and hands the
- * loaded `ScoreDoc` to the graph.
- */
-export const ConductorSettingsSchema = ConductorDialSchema.extend({
-  piece: z.string().default(DEFAULT_PIECE),
-  /** The sampled orchestra (#187 PR 5): on/off, overall and per-section level. Like
-   *  `piece`, the conductor node never sees it (its `config` port strips it); the
-   *  `orchestra` node reads it from the same dial. */
-  orchestra: OrchestraSettingsSchema.default(() => structuredClone(DEFAULT_ORCHESTRA)),
-  /** Which parts of the loaded piece play (#471): the ids, comma-separated, empty = all.
-   *  Read by the `score` node and the `orchestra` from this one dial, so the two players
-   *  cannot disagree (`parsePartsSelection`). A string so the leaf stays a scalar dial path. */
-  parts: z.string().default(''),
-});
-export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
-export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
 import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE, EXPRESSIONS } from '@/music/expression';
 import {
   EFFECTS,
@@ -195,19 +162,6 @@ export const HandsSettingsSchema = z.object({
 export type HandsSettings = z.infer<typeof HandsSettingsSchema>;
 export const DEFAULT_HANDS: HandsSettings = { handednessDwell: DEFAULT_HANDEDNESS_DWELL_FRAMES };
 
-/**
- * The body conductor's per-device prefs (#427): the player's lead offset per joint,
- * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like
- * the song slice's `songPrefs`, not an instrument field: the lag is how this player's body
- * rides a stroke, the same under every instrument. Empty by default: no joint is
- * corrected, which is what every conductor played before.
- */
-export const ConductorPrefsSchema = z.object({
-  leadOffsets: LeadOffsetsSchema.default({}),
-});
-export type ConductorPrefs = z.infer<typeof ConductorPrefsSchema>;
-export const DEFAULT_CONDUCTOR_PREFS: ConductorPrefs = { leadOffsets: {} };
-
 /** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
@@ -257,9 +211,6 @@ export const CoreSettingsSchema = z.object({
   // `.default(...)` keeps presets saved before #76's dials valid — they get the shipped
   // axis tuning, which is byte-identical to the build-time params they were played with.
   faceControls: FaceControlsDialSchema.default(DEFAULT_FACE_CONTROLS_DIAL),
-  // The conductor (#187): the node's params lifted 1:1 as a structured dial, like
-  // `faceControls`. `.default(...)` keeps pre-conductor presets valid (off).
-  conductor: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
 });
 
 /**

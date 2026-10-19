@@ -15,7 +15,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR } from './helpers/extensions';
 
 describe('production app graph', () => {
   it.runIf(BODY)('builds with a valid topology', () => {
@@ -263,7 +263,7 @@ describe('production app graph', () => {
     // that the mounted node is actually read lives in test/gesture_dispatch.test.ts.
   });
 
-  it('wires the conductor live from the store and the score behind it — the #187 guard', () => {
+  it.runIf(CONDUCTOR)('wires the conductor live from the store and the score behind it — the #187 guard', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
@@ -281,7 +281,7 @@ describe('production app graph', () => {
     expect(has('score', 'params', 'merge', 'score1')).toBe(true);
   });
 
-  it('wires the orchestra live from the dial and the conductor, and hands it the piece — the #187 PR 5 guard', () => {
+  it.runIf(CONDUCTOR)('wires the orchestra live from the dial and the conductor, and hands it the piece — the #187 PR 5 guard', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);

@@ -22,7 +22,7 @@ const _controlStateDerives: StrictDerivationSettings = null as unknown as Contro
 void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, MIDI, GENERATIVE, BODY } from '../helpers/extensions';
+import { AIR, MIDI, GENERATIVE, BODY, CONDUCTOR } from '../helpers/extensions';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
 import { labDemandGroups } from '@/app/labDemand';
 
@@ -91,10 +91,10 @@ describe('branchIdsFor: the dials imply the branches', () => {
       steer: { ...s.steer, enabled: true },
     };
     // `midi-out` is the MIDI slice's branch (#600 S13): implied while the slice is listed.
-    expect(branchIdsFor(all).sort()).toEqual(['conductor', 'field-voices', ...(GENERATIVE ? ['generative'] : []), ...(MIDI ? ['midi-out'] : [])]);
+    expect(branchIdsFor(all).sort()).toEqual([...(CONDUCTOR ? ['conductor'] : []), 'field-voices', ...(GENERATIVE ? ['generative'] : []), ...(MIDI ? ['midi-out'] : [])]);
   });
 
-  it('switching the orchestra on composes the conductor branch before conducting starts (#187 PR 5)', () => {
+  it.runIf(CONDUCTOR)('switching the orchestra on composes the conductor branch before conducting starts (#187 PR 5)', () => {
     const s = seedSettings('Pentatonic');
     expect(branchIdsFor(s)).not.toContain('conductor');
     const withOrchestra = { ...s, conductor: { ...s.conductor, enabled: false, orchestra: { ...s.conductor.orchestra, enabled: true } } };

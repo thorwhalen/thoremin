@@ -38,11 +38,8 @@ import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
 import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
 import LabPanel from './LabPanel';
-import './conductorLeadHost';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
-import ScoreLoader from './ScoreLoader';
-import ConductorPanel from './ConductorPanel';
 import ExtensionToolPanels from './ExtensionToolPanels';
 import VersionBadge from './VersionBadge';
 import TimingChip from './TimingChip';
@@ -103,17 +100,16 @@ function MutedBadge() {
 }
 
 /** Why the instrument is quiet without the player having muted it: a tool holds the
- * room (the Trainer), or the conductor is on (its score is the music; see `hushOf` in
- * store-controls). Shown only when not muted, so the two cues never stack; quieter than
+ * room (the Trainer), or an extension's music plays (the conductor's score: its `hushes`;
+ * see `hushOf` in store-controls). Shown only when not muted, so the two cues never stack; quieter than
  * MutedBadge because nothing is wrong and nothing needs doing — it lifts by itself. */
 function HushBadge() {
   const muted = useControls((s) => s.muted);
   const training = useControls((s) => s.hushedBy.includes(TRAINER_TOOL_ID));
-  const conducting = useControls((s) => s.conductor.enabled);
   // An extension's hush (#600 S18a): the first that holds names the reason.
   const hushedFor = useControls((s) => CONTRIBUTIONS.hushes.find((h) => h.while(s as unknown as Readonly<Record<string, unknown>>))?.reason ?? null);
-  if (muted || !(training || conducting || hushedFor)) return null;
-  const why = training ? 'while the Trainer is open' : conducting ? 'while conducting' : hushedFor;
+  if (muted || !(training || hushedFor)) return null;
+  const why = training ? 'while the Trainer is open' : hushedFor;
   return (
     <div data-hush-badge className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/70 backdrop-blur">
       <VolumeX className="h-3 w-3" />
@@ -205,12 +201,8 @@ export default function App({
 
       {/* Trainer mode (#160) — renders when its tool is the open one. */}
       <TrainerPanel />
-      {/* Conductor mode (#187) — renders when its tool is the open one. */}
-      <ConductorPanel />
       {/* An extension's tools (#330): the shell's frame, the extension's content, loaded on open. */}
       <ExtensionToolPanels />
-      {/* The conductor's score (#187 PR 3): loads the selected piece when conducting is on. */}
-      <ScoreLoader />
 
       {/* Live annotations (#92): the in-take button stack (left edge) and the centered
           lead-in countdown. Their launcher pill is in the take cluster below. */}

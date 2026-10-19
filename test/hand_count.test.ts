@@ -14,6 +14,7 @@ import type { DerivationSettings } from '@/instruments/derive';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
 import { labDemandGroups } from '@/app/labDemand';
+import { CONDUCTOR } from './helpers/extensions';
 
 const byId = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
 /** The composed branches (trunk and requirements included) a settings object implies. */
@@ -30,7 +31,8 @@ const SILENT = { handMap: { maxGain: 0 } };
 
 describe('branchHands', () => {
   it('reads a declaration, else infers both hands from an edge out of the hand stream', () => {
-    expect(branchHands(byId.get('conductor')!)).toBe(1);
+    // The conductor slice's branch declares its one beating hand (#600 S18b: there while it is listed).
+    if (CONDUCTOR) expect(branchHands(byId.get('conductor')!)).toBe(1);
     expect(branchHands(byId.get('field-voices')!)).toBe(2);
     expect(branchHands(byId.get('face-source')!)).toBe(0);
     expect(branchHands(byId.get('trunk')!)).toBe(0); // the shell's readers come through the context
@@ -68,7 +70,7 @@ describe('deriveHandCount', () => {
     expect(deriveHandCount(faceOnly, HIDDEN)).toBe(1);
   });
 
-  it('gives a one-hand reader one hand (D13 a, #480), and every hand under the policy before it', () => {
+  it.runIf(CONDUCTOR)('gives a one-hand reader one hand (D13 a, #480), and every hand under the policy before it', () => {
     const conducting = composed({ ...SILENT, conductor: { enabled: true } });
     expect(HAND_COUNT_POLICY.oneHandReaders).toBe(1);
     expect(deriveHandCount(conducting, HIDDEN)).toBe(1);

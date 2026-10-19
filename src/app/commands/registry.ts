@@ -27,7 +27,6 @@ import { DIAL_COMMANDS } from './dials';
 import { DIAL_FIELD_COMMANDS } from './perDial';
 import { INSTRUMENT_COMMANDS } from './instruments';
 import { RECORDING_COMMANDS } from './recording';
-import { CONDUCTOR_TIMING_COMMANDS } from './conductorLead';
 import { confirmationGate, createApprovalStore, defaultGetRisk, type ApprovalStore } from './confirmation';
 import { createDialsHistory, type DialsHistory } from './history';
 import { createJournal, type Journal } from './journal';
@@ -36,8 +35,7 @@ import { installMiddleware } from './middleware';
 /** Build a registry with all of CORE's commands registered: the generic dial verbs,
  *  one typed `set` command per dial (generated from the dials SSOT), the instrument
  *  load/save/create commands, the
- *  recording-location commands (#257) and the body
- *  conductor's timing (#427). The extensions' commands are registered by the shell's
+ *  recording-location commands (#257). The extensions' commands are registered by the shell's
  *  contribution registry (`src/app/host/contributions.ts`, #600 S11), which may name the
  *  extension list this layer must not. */
 export function createThoreminRegistry(): Registry {
@@ -46,7 +44,6 @@ export function createThoreminRegistry(): Registry {
   r.registerAll(DIAL_FIELD_COMMANDS);
   r.registerAll(INSTRUMENT_COMMANDS);
   r.registerAll(RECORDING_COMMANDS);
-  r.registerAll(CONDUCTOR_TIMING_COMMANDS);
   return r;
 }
 

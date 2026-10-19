@@ -54,10 +54,11 @@ describe('migrateControls does not mutate its input', () => {
     expect(after).toEqual(before);
   });
 
-  it('v<18 and v<21: the trainer HUD default and the legacy conductor prior', () => {
+  // The legacy conductor prior (v<21) is the conductor slice's own step since #600 S18b
+  // (`test/conductor/conductor_prior_migration.test.ts`).
+  it('v<18: the trainer HUD default', () => {
     const { out, before, after } = migrate({ trainerHud: { show: true, position: 'top' }, conductor: { enabled: true } }, 17);
     expect((out.trainerHud as Record<string, unknown>).show).toBe(false);
-    expect((out.conductor as Record<string, unknown>).prior).toBeDefined();
     expect(after).toEqual(before);
   });
 

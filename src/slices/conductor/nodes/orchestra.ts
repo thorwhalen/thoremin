@@ -25,7 +25,7 @@
  * **Nothing loads until the player switches it on** (`conductor.orchestra.enabled`, off
  * by default): the synth comes from an {@link OrchestraEngineFactory}, injected by a host
  * as `ctx.resources.createOrchestraEngine` (tests, headless runs), or the default here,
- * which dynamically imports `./orchestra_engine` (and with it `spessasynth_lib`, its
+ * which (through the engine its React half installs) dynamically imports `../app/orchestra_engine` (and with it `spessasynth_lib`, its
  * worklet and the 6.0 MB soundfont) the first time. The `status` port speaks the shared
  * `LoadStatus` (`docs/design/lazy-loading.md`), with download progress.
  *
@@ -50,7 +50,7 @@ import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import { partsOfConfig, pieceFromNotes, preparePiece, readScoreDoc, SCORE_DYNAMICS, type PreparedPiece, type ScoreDynamics } from '@thoremin/sdk/score/prepare';
-import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '../music/score';
+import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@thoremin/sdk/score/demo';
 import { allocateChannels, DEFAULT_PROGRAM, type Section } from './orchestra_map';
 import { articulatedProgram, createArticulationSwitch } from './orchestra_articulation';
 import { OrchestraSettingsSchema, type OrchestraSettings, DEFAULT_ORCHESTRA } from './orchestra.schema';
@@ -66,12 +66,21 @@ export const CC = { volume: 7, expression: 11, brightness: 74 } as const;
  *  browser default. */
 export type OrchestraEngineFactory = (opts: OrchestraEngineOpts) => Promise<LoadResult<OrchestraSynth>>;
 
+/** The browser's engine (#600 S18b): installed by the slice's React half, which imports it (and
+ *  with it `spessasynth_lib`) lazily, so this node's pure side carries no synth. */
+let installedEngine: OrchestraEngineFactory | undefined;
+
+/** Install the browser's engine factory (the slice's React half does, before any engine starts). */
+export function provideOrchestraEngine(factory: OrchestraEngineFactory | undefined): void {
+  installedEngine = factory;
+}
+
 const _defaultFactory: OrchestraEngineFactory = async (opts) => {
   if (!opts.audioContext || !opts.destination) {
     return { resource: null, reason: 'no-audio', retry: true, message: 'Tap to play first: the orchestra needs the audio graph.' };
   }
-  const { createOrchestraEngine } = await import('./orchestra_engine');
-  return createOrchestraEngine(opts);
+  if (!installedEngine) return { resource: null, reason: 'failed', message: 'No orchestra engine is installed' };
+  return installedEngine(opts);
 };
 
 /**

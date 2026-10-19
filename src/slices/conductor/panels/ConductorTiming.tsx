@@ -10,15 +10,16 @@
  * load: the bar's Conductor, Conduct with body, Learn my timing (three clicks).
  */
 import { useEffect } from 'react';
-import { dispatchCommand } from './dispatchDial';
-import { useControls } from './store';
-import { cancelLeadTake, formatLag, jointLabel, leadTakeBpm, startLeadTake, useLeadCalibration, LEAD_TAKE, REFUSAL_WORDS } from './conductorLead';
+import { dispatchCommand } from '@thoremin/sdk-ui/dials';
+import { controls } from '@thoremin/sdk-ui/host';
+import { scoreDoc, useControlsField } from '../app/state';
+import { cancelLeadTake, formatLag, jointLabel, leadTakeBpm, startLeadTake, useLeadCalibration, LEAD_TAKE, REFUSAL_WORDS } from '../app/conductorLead';
 import { firstTempo } from '@thoremin/sdk/score/schema';
-import type { ConductorSettings } from '@/settings/schema';
+import { DEFAULT_CONDUCTOR_PREFS, type ConductorPrefs, type ConductorSettings } from '../schema';
 
 export default function ConductorTiming({ dial }: { dial: Partial<ConductorSettings> }) {
-  const kept = useControls((s) => s.conductorPrefs.leadOffsets);
-  const doc = useControls((s) => s.scoreDoc);
+  const kept = useControlsField(() => ((controls().get().conductorPrefs as ConductorPrefs | undefined) ?? DEFAULT_CONDUCTOR_PREFS).leadOffsets);
+  const doc = useControlsField(scoreDoc);
   const { phase, take, clicksPast, result, failure } = useLeadCalibration();
   const bpm = leadTakeBpm(doc ? firstTempo(doc) : null);
   const keptList = Object.entries(kept);

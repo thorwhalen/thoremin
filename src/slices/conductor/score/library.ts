@@ -17,6 +17,7 @@
 import { createNamedCollectionStore, type NamedCollectionStore, type NamedRecord } from '@thoremin/sdk-ui/namedCollection';
 import { z } from 'zod';
 import { ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
+import { CONDUCTOR_STORES } from '../stores';
 
 /** A demo piece: served from `public/scores/`, licence stated, parsed on first use. */
 export interface DemoScore {
@@ -61,7 +62,7 @@ export const ScoreRecordSchema = z.object({
 export type ScoreRecord = z.infer<typeof ScoreRecordSchema> & NamedRecord;
 
 /** localStorage key holding the player's scores (the browser default target). */
-export const SCORES_STORAGE_KEY = 'thoremin-scores';
+export const SCORES_STORAGE_KEY = CONDUCTOR_STORES.scores.legacyKey;
 
 export type ScoreStore = NamedCollectionStore<ScoreRecord, ScoreDoc>;
 

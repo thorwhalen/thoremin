@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEMO_SCORES, fetchDemo, type ScoreDoc } from '@/score';
+import { DEMO_SCORES, fetchDemo, type ScoreDoc } from '@/slices/conductor/score';
 import { flattenNotes } from '@thoremin/sdk/score/schema';
 import { pieceFromNotes, preparePiece, readScoreDoc } from '@thoremin/sdk/score/prepare';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@/nodes';

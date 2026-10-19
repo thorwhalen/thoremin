@@ -35,18 +35,14 @@
  * again, read as the dancer's pulse; the score starts on the dancer's step once the
  * rhythm has held for a few seconds. Three clicks: Conductor, Dance the orchestra, Start.
  */
-import { Music2, X } from 'lucide-react';
-import { dispatchDialSetIn } from './dispatchDial';
-import { ConductorControls } from './dials/panels/conductor';
+import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
+import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
+import { ConductorControls } from './conductor';
 import ConductorTiming from './ConductorTiming';
-import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor.schema';
-import { useDialsSettings } from './dials/useDialsSettings';
-import { useConductorStatus, type ConductorLive } from './conductorStatus';
-import { toolById } from './tools';
-import { entryPointsFrom, openEntryPoint } from './entryPoints';
-import { raiseToolEvent, ToolSections } from './toolSections';
-import { useTools } from './toolsStore';
-import type { ConductorSettings } from '@/settings/schema';
+import { CONDUCTOR_SOURCES } from '../nodes/conductor.schema';
+import { useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { useConductorStatus, type ConductorLive } from '../app/conductorStatus';
+import type { ConductorSettings } from '../schema';
 
 export const CONDUCTOR_TOOL_ID = 'conductor';
 /** The entry point an extension declares for choosing the poses to play (#465): the checkbox below
@@ -130,19 +126,17 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function ConductorPanel() {
-  const open = useTools((s) => s.open) === CONDUCTOR_TOOL_ID;
-  const close = useTools((s) => s.close);
+/** The Conductor tool's panel (#187; an extension tool since #600 S18b): the host draws its frame
+ *  and hands it the sections and entry points other contributions bring to it. */
+export default function ConductorPanel({ Sections, raise, entryPoints: entryPointsFor, openEntryPoint, openTool }: ExtensionToolPanelProps) {
   const { state } = useDialsSettings();
   const live = useConductorStatus((s) => s.live);
-  if (!open) return null;
 
-  const tool = toolById(CONDUCTOR_TOOL_ID);
   const conductorDial = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const enabled = conductorDial.enabled === true;
   const recording = conductorDial.conducts === 'recording';
   const source = CONDUCTOR_SOURCES.find((s) => s === conductorDial.source) ?? 'hands';
-  const entryPoints = entryPointsFrom(CONDUCTOR_TOOL_ID, { 'conductor.source': source });
+  const entryPoints = entryPointsFor({ 'conductor.source': source });
   // What the sections other extensions contribute here see (#600 S15), and their `when` may name.
   const sectionContext = { 'conductor.source': source, 'conductor.conducts': conductorDial.conducts ?? 'score', 'conductor.enabled': enabled, live };
   // The faces extension's pose categorizer (#384), when the build ships it: its ready, fermata
@@ -153,105 +147,91 @@ export default function ConductorPanel() {
   const bodyTransportOn = conductorDial.transport?.rules !== false && ['impact', 'wrist'].includes(String(conductorDial.bodyPoint ?? 'impact'));
 
   return (
-    <div className="shell-tool-panel absolute left-3 z-40 flex w-96 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/70 backdrop-blur">
-      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
-        <Music2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-        <span className="flex-1 text-[11px] font-bold uppercase tracking-widest text-white/70">Conductor</span>
-        <button
-          onClick={close}
-          aria-label="Close the Conductor"
-          className="rounded p-1 text-white/60 transition hover:bg-white/10 hover:text-white"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="space-y-3 overflow-auto p-4">
-        {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
-        <div className="grid grid-cols-2 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="What the beat leads">
-          {(
-            [
-              ['score', 'Conduct the score'],
-              ['recording', 'Conduct a recording'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              role="radio"
-              aria-checked={(value === 'recording') === recording}
-              onClick={() => void dispatchDialSetIn('conductor.conducts', value)}
-              className={`rounded px-2 py-1 font-semibold transition ${(value === 'recording') === recording ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="Conduct with">
-          {CONDUCTOR_SOURCES.map((value) => (
-            <button
-              key={value}
-              role="radio"
-              aria-checked={value === source}
-              onClick={() => void dispatchDialSetIn('conductor.source', value)}
-              className={`rounded px-2 py-1 font-semibold transition ${value === source ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
-            >
-              {SOURCE_BUTTON[value]}
-            </button>
-          ))}
-        </div>
-        <ToolSections from={CONDUCTOR_TOOL_ID} context={sectionContext} />
-        <button
-          onClick={() => {
-            // Inside the click (#600 S15): a contributed section may unlock its media here.
-            raiseToolEvent(CONDUCTOR_TOOL_ID, enabled ? 'stop' : 'start', sectionContext);
-            void dispatchDialSetIn('conductor.enabled', !enabled);
-          }}
-          className={`w-full rounded-lg px-3 py-2 text-sm font-semibold transition ${
-            enabled ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-emerald-500 text-black hover:bg-emerald-400'
-          }`}
-        >
-          {enabled ? 'Stop conducting' : 'Start conducting'}
-        </button>
-        {entryPoints.map((e) => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="What the beat leads">
+        {(
+          [
+            ['score', 'Conduct the score'],
+            ['recording', 'Conduct a recording'],
+          ] as const
+        ).map(([value, label]) => (
           <button
-            key={e.id}
-            data-conductor-entry-point={e.id}
-            onClick={() => openEntryPoint(e)}
-            className="w-full rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+            key={value}
+            role="radio"
+            aria-checked={(value === 'recording') === recording}
+            onClick={() => void dispatchDialSetIn('conductor.conducts', value)}
+            className={`rounded px-2 py-1 font-semibold transition ${(value === 'recording') === recording ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
           >
-            {e.label}
+            {label}
           </button>
         ))}
-        {source === 'body' && poseDial && (
-          <label className="flex items-center gap-2 text-xs text-white/80" data-conductor-pose-transport>
-            <input
-              type="checkbox"
-              checked={poseDial.transport === true}
-              onChange={(e) => {
-                void dispatchDialSetIn('poseCategorizer.transport', e.target.checked);
-                // No poses chosen yet: Your poses is where one is played ("Play it").
-                const choose = entryPoints.find((x) => x.id === POSES_ENTRY_ID);
-                if (e.target.checked && !poseDial.id && choose) useTools.getState().openTool(choose.tool);
-              }}
-            />
-            <span>{poseDial.id ? 'Start, hold and cut off with my poses' : 'Start, hold and cut off with my poses (choose them in Your poses)'}</span>
-          </label>
-        )}
-        {source === 'body' && poseDial?.transport && !bodyTransportOn && (
-          <p className="text-[10px] text-amber-300/80" data-conductor-pose-transport-off>
-            Your poses start and stop the music only while the body transport is on and the conductor reads the beating arm (the conductor section's transport settings).
-          </p>
-        )}
-        {source === 'body' && <ConductorTiming dial={conductorDial} />}
-        <LiveReadout live={live} source={source} recording={recording} />
-        <p className="text-[10px] leading-relaxed text-white/50">
-          {source === 'dancer'
-            ? 'Stand back so the camera sees all of you, feet included, and dance. The score finds what your steps repeat at (a beat, a bar), starts on your next step, and follows your tempo within a few percent of its own; your movement sets the loudness. It keeps playing when you stop.'
-            : source === 'body'
-              ? 'Stand back so the camera sees you from head to hips, and beat time with an arm or bounce with the trunk: the bottom of each bounce is a beat, bigger ones are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'
-              : 'Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'}
-        </p>
-        <ConductorControls sourceChooser={false} />
       </div>
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-white/5 p-1 text-xs" role="radiogroup" aria-label="Conduct with">
+        {CONDUCTOR_SOURCES.map((value) => (
+          <button
+            key={value}
+            role="radio"
+            aria-checked={value === source}
+            onClick={() => void dispatchDialSetIn('conductor.source', value)}
+            className={`rounded px-2 py-1 font-semibold transition ${value === source ? 'bg-emerald-500 text-black' : 'text-white/70 hover:bg-white/10'}`}
+          >
+            {SOURCE_BUTTON[value]}
+          </button>
+        ))}
+      </div>
+      <Sections context={sectionContext} />
+      <button
+        onClick={() => {
+          // Inside the click (#600 S15): a contributed section may unlock its media here.
+          raise(enabled ? 'stop' : 'start', sectionContext);
+          void dispatchDialSetIn('conductor.enabled', !enabled);
+        }}
+        className={`w-full rounded-lg px-3 py-2 text-sm font-semibold transition ${
+          enabled ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-emerald-500 text-black hover:bg-emerald-400'
+        }`}
+      >
+        {enabled ? 'Stop conducting' : 'Start conducting'}
+      </button>
+      {entryPoints.map((e) => (
+        <button
+          key={e.id}
+          data-conductor-entry-point={e.id}
+          onClick={() => openEntryPoint(e)}
+          className="w-full rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+        >
+          {e.label}
+        </button>
+      ))}
+      {source === 'body' && poseDial && (
+        <label className="flex items-center gap-2 text-xs text-white/80" data-conductor-pose-transport>
+          <input
+            type="checkbox"
+            checked={poseDial.transport === true}
+            onChange={(e) => {
+              void dispatchDialSetIn('poseCategorizer.transport', e.target.checked);
+              // No poses chosen yet: Your poses is where one is played ("Play it").
+              const choose = entryPoints.find((x) => x.id === POSES_ENTRY_ID);
+              if (e.target.checked && !poseDial.id && choose) openTool(choose.tool);
+            }}
+          />
+          <span>{poseDial.id ? 'Start, hold and cut off with my poses' : 'Start, hold and cut off with my poses (choose them in Your poses)'}</span>
+        </label>
+      )}
+      {source === 'body' && poseDial?.transport && !bodyTransportOn && (
+        <p className="text-[10px] text-amber-300/80" data-conductor-pose-transport-off>
+          Your poses start and stop the music only while the body transport is on and the conductor reads the beating arm (the conductor section's transport settings).
+        </p>
+      )}
+      {source === 'body' && <ConductorTiming dial={conductorDial} />}
+      <LiveReadout live={live} source={source} recording={recording} />
+      <p className="text-[10px] leading-relaxed text-white/50">
+        {source === 'dancer'
+          ? 'Stand back so the camera sees all of you, feet included, and dance. The score finds what your steps repeat at (a beat, a bar), starts on your next step, and follows your tempo within a few percent of its own; your movement sets the loudness. It keeps playing when you stop.'
+          : source === 'body'
+            ? 'Stand back so the camera sees you from head to hips, and beat time with an arm or bounce with the trunk: the bottom of each bounce is a beat, bigger ones are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'
+            : 'Beat time in front of the camera: the bottom of each stroke is a beat, bigger strokes are louder. The score waits for your first stroke, follows your tempo, and holds when you stop.'}
+      </p>
+      <ConductorControls sourceChooser={false} />
     </div>
   );
 }

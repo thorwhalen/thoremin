@@ -98,9 +98,9 @@ export const ToolSchema = z.object({
    * running — pinned or not, reachable with its panel shut, and with no memory of how it
    * was started. `tools_shell.test.tsx` enforces that rather than trusting this comment.
    *
-   * The Conductor is the second: conducting goes on after its panel closes (and hushes
-   * the instrument while it does), so once the Conductor could be unpinned, or hidden on
-   * a phone, it needed the same way out.
+   * The Conductor is the second (the conductor slice's tool since #600 S18): conducting goes
+   * on after its panel closes (and hushes the instrument while it does), so once the
+   * Conductor could be unpinned, or hidden on a phone, it needed the same way out.
    */
   runsDetached: z.boolean().optional(),
 });
@@ -109,7 +109,7 @@ export type Tool = z.infer<typeof ToolSchema>;
 /**
  * The shipped tools, in launcher order within each group. The default pins (Round 4,
  * #271) are the two modes and the command palette:
- *  - Conductor and Trainer each take over a whole session, and are what a player comes
+ *  - Conductor (the conductor slice's) and Trainer each take over a whole session, and are what a player comes
  *    to the app to try, so they get a button;
  *  - Commands reaches every setting by name, and its pill teaches the ⌘K hotkey;
  *  - Song is used between sessions to pick music, and its stop control shows in the bar
@@ -119,16 +119,6 @@ export type Tool = z.infer<typeof ToolSchema>;
  *    do anything, and a player who sets one up can pin it; the Manual is reference.
  */
 export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
-  {
-    id: 'conductor',
-    label: 'Conductor',
-    description:
-      'Conduct a score with your hand: beat time in front of the camera and the piece follows your tempo and dynamics.',
-    kind: 'panel',
-    group: 'mode',
-    defaultPinned: true,
-    runsDetached: true,
-  },
   {
     id: 'trainer',
     label: 'Trainer',

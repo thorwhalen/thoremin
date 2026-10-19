@@ -19,13 +19,12 @@ const app = readFileSync(resolve(process.cwd(), 'src/app/App.tsx'), 'utf8');
 
 /** The component that renders each non-link tool's surface. A tool with no entry here
  *  fails the test below — registering a tool obliges you to give it a home. */
-// (`song` left with its slice, #600 S15: an extension's tool, framed by `ExtensionToolPanels`.)
+// (`song` left with its slice, #600 S15, and `conductor` with its, S18b: extension tools, framed by `ExtensionToolPanels`.)
 const SURFACES: Record<string, string> = {
   lab: 'LabPanel',
   commands: 'CommandPaletteOverlay',
   gestures: 'GesturesPanel',
   trainer: 'TrainerPanel',
-  conductor: 'ConductorPanel',
   assistant: 'AssistantOverlay',
 };
 

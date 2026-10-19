@@ -22,7 +22,7 @@
 import { WorkletSynthesizer } from 'spessasynth_lib';
 import processorUrl from 'spessasynth_lib/dist/spessasynth_processor.min.js?url';
 import type { LoadResult } from '@thoremin/lazy';
-import type { OrchestraEngineOpts, OrchestraSynth } from './orchestra.schema';
+import type { OrchestraEngineOpts, OrchestraSynth } from '../nodes/orchestra.schema';
 
 /** Where the cut soundfont is served from, under the app's base path. */
 export const SOUNDFONT_PATH = 'soundfonts/orchestra.sf3';

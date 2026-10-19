@@ -40,9 +40,6 @@ export interface DerivationTable {
   implying?: readonly { id: string; demands?: readonly string[] }[];
 }
 
-/** The groups the body conductor needs (#375): the pose stream, from the body. */
-const BODY_CONDUCTOR_NEEDS = ['body.pos'] as const;
-
 /** The groups a live claim wants: the demand (the Lab claims its shown groups there while it is
  *  open, #600 S16a, as the Trainer does for a running cue). */
 function claimedGroups(ctx: DerivationContext): Set<string> {
@@ -66,7 +63,6 @@ function impliedBy(groups: ReadonlySet<string>, table: DerivationTable): Set<str
 export interface DerivationSettings {
   handMap?: { maxGain?: number };
   faceMapping?: string;
-  conductor?: { enabled?: boolean; conducts?: string; source?: string; expression?: string; orchestra?: { enabled?: boolean } };
   /** Extension dial slices (`airDrum`, …), prefs and transients (the song's, #600 S15): read by
    *  each extension's own `derive` / `toolDerive`. */
   [extensionKey: string]: unknown;
@@ -81,7 +77,6 @@ export interface DerivationSettings {
 export interface StrictDerivationSettings {
   handMap: { maxGain: number };
   faceMapping: string;
-  conductor: { enabled: boolean; conducts: string; source: string; expression: string; orchestra: { enabled: boolean } };
 }
 
 export interface DerivationContext {
@@ -93,17 +88,6 @@ export interface DerivationContext {
    * a Lab meter) is still unioned in, because a tool's need is not the instrument's to veto.
    */
   explicit?: readonly string[] | null;
-}
-
-const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === true;
-
-/** Whether the conductor reads the body (#375): its source is `body`, or the body shapes its
- *  expression (#378, `expression: body` while a hand beats). The body source is
- *  then composed with the conductor branch, whenever that branch is (so the pose model
- *  loads before the first beat, as the orchestra's soundfont does). */
-export function conductorReadsBody(settings: Pick<DerivationSettings, 'conductor'>): boolean {
-  const source = settings.conductor?.source;
-  return source === 'body' || source === 'dancer' || settings.conductor?.expression === 'body';
 }
 
 /**
@@ -123,22 +107,14 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   };
   // What a live claim implies (the Lab, a tool's demand): each source branch by its `demands`.
   const claimed = impliedBy(claimedGroups(ctx), table);
-  /** Core's own needs, said as feature groups (the dancer's pulse, the body conductor's pose). */
-  const needs = (groups: readonly string[], on: boolean): void => {
-    if (on) for (const id of impliedBy(new Set(groups), table)) add(id, true);
-  };
-
   if (ctx.explicit) {
     // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
     // rather than thrown: the derivation runs inside the host's selector and must not take
     // the app down. `composeGraph` would refuse them; here they simply compose nothing.
     for (const id of ctx.explicit) add(id, table.knownBranchIds.has(id));
     for (const id of claimed) add(id, true);
-    // As below: only while the conductor (or its orchestra) is on, not for a saved set
-    // that merely lists an idle conductor.
-    const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
-    needs(BODY_CONDUCTOR_NEEDS, bodyConducts);
-    // A dancer leading the song needs the body's rhythm too: the song slice's tool need (#600 S15).
+    // What a tool needs, also into an explicit set (the body conductor's pose, a dancer leading
+    // the song: the conductor and song slices' tool needs, #600 S15/S18).
     addToolNeeds();
     return ids;
   }
@@ -157,13 +133,6 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('face-controls', faceMapping === 'controls');
 
 
-  // The orchestra (#187 PR 5) lives in the conductor branch: switching it on composes the
-  // branch (the conductor idles until Start), so the soundfont loads before the first beat.
-  const conducting = on(settings.conductor) || on(settings.conductor?.orchestra);
-  add('conductor', conducting);
-  // The body conductor (#375) reads the pose stream: the body source comes with him. It
-  // routes nothing onto the voices.
-  needs(BODY_CONDUCTOR_NEEDS, conducting && conductorReadsBody(settings));
   // The extensions' branches: each manifest says which of its branches its dials imply.
   // An id the table does not know (a typo in a manifest) is dropped, like an unknown
   // explicit id: the derivation must not take the app down.

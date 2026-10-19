@@ -7,7 +7,7 @@
  */
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
-import { ORCHESTRA_NODE_ID } from '@/instruments/branches';
+import { ORCHESTRA_NODE_ID } from '../branches';
 import { makeLoadStatusReporter } from '@thoremin/lazy/status';
 import type { OutputReader } from '@thoremin/sdk-ui/types';
 

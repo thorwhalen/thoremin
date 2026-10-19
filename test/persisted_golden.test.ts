@@ -211,8 +211,10 @@ describe.runIf(SHIPPED)('what the store writes back (#600 S9)', () => {
     const sliceKeys = new Set(slices.map((sl) => sl.key));
     // A core device pref that became a slice's (#600 S15: the song's `songPrefs`) is pinned the same
     // way: the stored shape it had is what an older build reads back.
-    const FORMER_CORE_PREFS = new Set(['songPrefs']);
-    const pinned = new Set([...CONTRIBUTIONS.dialSlices.filter((sl) => sl.layout === 'flat').map((sl) => sl.key), ...CONTRIBUTIONS.prefSlices.filter((sl) => FORMER_CORE_PREFS.has(sl.key)).map((sl) => sl.key)]);
+    // So is a core object dial that became one (#600 S18b: `conductor`, and its `conductorPrefs`).
+    const FORMER_CORE_PREFS = new Set(['songPrefs', 'conductorPrefs']);
+    const FORMER_CORE_DIALS = new Set(['conductor']);
+    const pinned = new Set([...CONTRIBUTIONS.dialSlices.filter((sl) => sl.layout === 'flat' || FORMER_CORE_DIALS.has(sl.key)).map((sl) => sl.key), ...CONTRIBUTIONS.prefSlices.filter((sl) => FORMER_CORE_PREFS.has(sl.key)).map((sl) => sl.key)]);
     const core = Object.fromEntries(Object.entries(written).filter(([k]) => (!sliceKeys.has(k) || pinned.has(k)) && k !== 'sliceVersions'));
     await expect(pretty(core)).toMatchFileSnapshot(golden('controls.written.json'));
     const state = useControls.getState() as unknown as Record<string, unknown>;

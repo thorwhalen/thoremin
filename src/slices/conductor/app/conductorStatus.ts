@@ -14,7 +14,7 @@
  */
 import { create } from 'zustand';
 import { type DanceLeadMode, type MusicalTime } from '@thoremin/ictus';
-import type { ConductorTransportReading } from '@/nodes/features/conductor';
+import type { ConductorTransportReading } from '../nodes/conductor';
 
 export interface ConductorLive {
   enabled: boolean;

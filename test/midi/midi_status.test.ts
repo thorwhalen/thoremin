@@ -45,7 +45,7 @@ describe.runIf(MIDI)('the slice\'s status hook (#600 S13: it was a hand-wired re
     const engine = stubEngine();
     const on: MidiStatus = { ...ABSENT_MIDI_STATUS, phase: 'ready', supported: true, ports: ['IAC'], portName: 'IAC' };
     engine.outputs['midiOut.status'] = on;
-    hook.make(engine)();
+    hook.make(engine, () => ({}))(0);
     expect(useMidiStatus.getState().status).toEqual(on);
     hook.onRemoved();
     expect(useMidiStatus.getState().status).toEqual(ABSENT_MIDI_STATUS);
