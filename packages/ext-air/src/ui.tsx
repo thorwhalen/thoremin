@@ -14,6 +14,9 @@ import { AirGuitarControls, AirGuitarReadout } from './panels/airGuitar';
 import { AirFluteControls, AirFluteReadout } from './panels/airFlute';
 import { ChordMapControls, ChordMapReadout } from './panels/chordMap';
 import { ChordWheelControls, ChordWheelReadout } from './panels/chordWheel';
+import { ChordChartControls, ChordChartReadout } from './panels/chordChart';
+import { useChordChartStatus, makeChordChartReporter, CHORD_CHART_NODE_ID } from './app/chordChartStatus';
+import { IDLE_CHORD_CHART_STATUS } from './nodes/chord_chart';
 import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './app/airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './app/airBassStatus';
 import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from './app/airGuitarStatus';
@@ -48,8 +51,15 @@ export const AIR_UI: ExtensionUi = {
     { instrumentId: 'flute', section: 'Air flute', Controls: AirFluteControls, Readout: AirFluteReadout },
     { instrumentId: 'chords', section: 'Chord map', Controls: ChordMapControls, Readout: ChordMapReadout },
     { instrumentId: 'wheel', section: 'Chord wheel', Controls: ChordWheelControls, Readout: ChordWheelReadout },
+    { instrumentId: 'chart', section: 'Chord chart', Controls: ChordChartControls, Readout: ChordChartReadout },
   ],
   statusHooks: [
+    {
+      nodeId: CHORD_CHART_NODE_ID,
+      make: (engine) => makeChordChartReporter(engine),
+      onRemoved: () => useChordChartStatus.getState().report(IDLE_CHORD_CHART_STATUS),
+      reset: () => useChordChartStatus.getState().reset(),
+    },
     {
       nodeId: AIR_DRUM_NODE_ID,
       make: (engine) => makeAirDrumReporter(engine),

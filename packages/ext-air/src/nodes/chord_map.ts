@@ -45,7 +45,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
-import { CLOCKS, beatAt, createBeatQuantizer, type BeatSource } from '@thoremin/sdk/harmony/clock';
+import { CLOCKS, clockBeat, createBeatQuantizer, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -345,6 +345,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'octaveShift', kind: 'number', default: 0 },
     // The song's musical time, while the map keeps time with the song (`clock`).
     { name: 'time', kind: 'musical-time' },
+    // The conductor's musical time, while it keeps time with the conductor (`clock`).
+    { name: 'conductorTime', kind: 'musical-time' },
     // The notes a MIDI keyboard holds, while the map follows MIDI (`follow`).
     { name: 'midi', kind: 'held-notes' },
     // The microphone's chroma, while the map follows the microphone (`follow`).
@@ -457,10 +459,10 @@ export const chordMapNode = defineNode<Params>({
         const ownSpec = rawSpec ? letterChordSpec(rawSpec) : undefined;
         const spec = ownSpec ? parallelSpec(ownSpec, modeLevel) : undefined;
         // The song's beat now, while the map keeps time with it and the song plays (else the tempo's).
-        const songBeat = c.clock === 'song' ? beatAt(inputs.time as BeatSource | undefined, typeof ctx?.time === 'number' ? ctx.time : 0) : null;
+        const outsideBeat = clockBeat(c.clock, { song: inputs.time as BeatSource | undefined, conductor: inputs.conductorTime as BeatSource | undefined }, typeof ctx?.time === 'number' ? ctx.time : 0);
         const render = (degree: number) =>
           renderer.render({
-            beat: songBeat ?? undefined,
+            beat: outsideBeat ?? undefined,
             degree,
             spec,
             voicing: chordCfg.voicing ?? c.voicing,
@@ -604,7 +606,7 @@ export const chordMapNode = defineNode<Params>({
         const degree = pointed >= 0 ? placed[pointed].degree : -1;
         // On the beat (H9): in hold mode the CELL that sounds waits for the clock's next beat (the
         // end of this tick's), so the melody and the grid follow what sounds; strumming holds nothing.
-        const beatNow = songBeat ?? renderer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * (typeof ctx?.dt === 'number' ? ctx.dt : 0);
+        const beatNow = outsideBeat ?? renderer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * (typeof ctx?.dt === 'number' ? ctx.dt : 0);
         let heldCell = -1;
         if (c.play !== 'hold') quantizer.reset(-1);
         else if (c.commit === 'beat') heldCell = quantizer.push(pointed, beatNow, c.commitBeats);

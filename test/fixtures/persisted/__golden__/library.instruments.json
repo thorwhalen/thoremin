@@ -28,6 +28,7 @@
     "Tonnetz Wheel",
     "Wheel Walk",
     "Next-Chord Wheel",
+    "Conduct the Chords",
     "Chord Map Strum",
     "ASL Viewer",
     "ASL Chords"
@@ -262,6 +263,15 @@
           "cat-8": "",
           "cat-9": ""
         }
+      },
+      "chordChart": {
+        "bpm": 100,
+        "enabled": false,
+        "gain": 0.2,
+        "rendering": "arpUpDown",
+        "sound": "warmPad",
+        "step": 1,
+        "voicing": "voiceLed"
       },
       "chordMap": {
         "anchor": "home",
@@ -913,6 +923,15 @@
           "cat-8": "",
           "cat-9": ""
         }
+      },
+      "chordChart": {
+        "bpm": 100,
+        "enabled": false,
+        "gain": 0.2,
+        "rendering": "arpUpDown",
+        "sound": "warmPad",
+        "step": 1,
+        "voicing": "voiceLed"
       },
       "chordMap": {
         "anchor": "home",

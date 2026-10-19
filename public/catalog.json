@@ -1138,6 +1138,89 @@
     ]
   },
   {
+    "type": "chord-chart",
+    "title": "Chord chart",
+    "description": "Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.",
+    "roles": [
+      "mapping",
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "doc",
+        "kind": "score-doc"
+      },
+      {
+        "name": "config",
+        "kind": "chord-chart-config"
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "status",
+        "kind": "chord-chart-status"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "step",
+        "type": "number",
+        "default": 1
+      },
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.2
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "warmPad"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
+        "default": "voiceLed"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "arpUpDown"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
+      }
+    ]
+  },
+  {
     "type": "chord-map",
     "title": "Chord map",
     "description": "Play a key's chords by pointing at them: the seven diatonic chords laid out on the screen (by default a hexagonal map whose axes are moves by a fourth, a third and a second), the chord hand choosing one; it sounds while held, with a melody on its tones from the other hand, or is strummed by the other hand, predicted before the frame that shows the strum. Off by default.",
@@ -1170,6 +1253,10 @@
       },
       {
         "name": "time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "conductorTime",
         "kind": "musical-time"
       },
       {
@@ -1355,7 +1442,7 @@
       },
       {
         "name": "clock",
-        "type": "enum(tempo | song)",
+        "type": "enum(tempo | song | conductor)",
         "default": "tempo"
       },
       {
@@ -1449,6 +1536,10 @@
       {
         "name": "h",
         "kind": "number[]"
+      },
+      {
+        "name": "i",
+        "kind": "number[]"
       }
     ],
     "outputs": [
@@ -1496,6 +1587,10 @@
       },
       {
         "name": "time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "conductorTime",
         "kind": "musical-time"
       }
     ],
@@ -1630,7 +1725,7 @@
       },
       {
         "name": "clock",
-        "type": "enum(tempo | song)",
+        "type": "enum(tempo | song | conductor)",
         "default": "tempo"
       }
     ]
@@ -3904,6 +3999,10 @@
         "kind": "chord-wheel-config"
       },
       {
+        "name": "chordChart",
+        "kind": "chord-chart-config"
+      },
+      {
         "name": "asl",
         "kind": "asl-config"
       },
@@ -4016,6 +4115,10 @@
       },
       {
         "name": "voice9",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice10",
         "kind": "synth-params"
       },
       {

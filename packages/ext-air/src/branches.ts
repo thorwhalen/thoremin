@@ -114,6 +114,8 @@ export const chordMap = defineBranch({
     to(ui('chordMapAudio'), { node: 'chordMap', port: 'audio' }),
     // The song's beat (H9 of #613), read while the map keeps time with the song.
     to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordMap', port: 'time' }),
+    // The conductor's beat, while conducting (an optional edge: composed only with the conductor).
+    to({ node: 'conductor', port: 'time' }, { node: 'chordMap', port: 'conductorTime' }, true),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
     to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
     to({ node: 'chordMap', port: 'grid' }, overlay(overlayPortName('air', CHORD_MAP_ELEMENT, 'grid'))),
@@ -140,6 +142,7 @@ export const chordWheel = defineBranch({
     to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordWheel', port: 'octaveShift' }),
     to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordWheel', port: 'time' }),
+    to({ node: 'conductor', port: 'time' }, { node: 'chordWheel', port: 'conductorTime' }, true),
     to({ node: 'chordWheel', port: 'grid' }, overlay(overlayPortName('air', CHORD_WHEEL_ELEMENT, 'grid'))),
   ],
   voices: [{ from: { node: 'chordWheel', port: 'params' }, role: 'instrument' }],
@@ -175,4 +178,26 @@ export const chordMapFace = defineBranch({
   overlay: ['faceLandmarks'],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordMapFace, chordWheel, chordWheelFace] as const;
+/**
+ * Conduct a chord chart (H9 of #613, the design's 6.6): the conducted piece's chords, walked by
+ * the conductor's beat. It requires the conductor, whose branch it composes; the conductor then
+ * reads the piece and the beat, as it does for the orchestra.
+ */
+export const chordChart = defineBranch({
+  id: 'chord-chart',
+  description: "Conduct a chord chart: the conducted piece's chords, beat by beat, played voice-led on the conductor's beat.",
+  requires: ['conductor'],
+  nodes: [{ id: 'chordChart', type: 'chord-chart', params: {} }],
+  edges: [
+    to({ node: 'conductor', port: 'time' }, { node: 'chordChart', port: 'time' }),
+    to(ui('scoreDoc'), { node: 'chordChart', port: 'doc' }),
+    to(ui('chordChart'), { node: 'chordChart', port: 'config' }),
+    to(ui('chordConfig'), { node: 'chordChart', port: 'chordConfig' }),
+    to(ui('octaveShift'), { node: 'chordChart', port: 'octaveShift' }),
+  ],
+  voices: [{ from: { node: 'chordChart', port: 'params' }, role: 'instrument' }],
+  // On the shared chord display, after the face, pose, chord-map and wheel chords.
+  chords: [{ from: { node: 'chordChart', port: 'triad' }, priority: 7 }],
+});
+
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordMapFace, chordWheel, chordWheelFace, chordChart] as const;

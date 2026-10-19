@@ -20,6 +20,7 @@ import { AirGuitarDialSchema } from './nodes/air_guitar';
 import { AirFluteDialSchema } from './nodes/air_flute';
 import { ChordMapDialSchema } from './nodes/chord_map';
 import { ChordWheelDialSchema } from './nodes/chord_wheel';
+import { ChordChartDialSchema } from './nodes/chord_chart';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from './lib/fingering_prior';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 
@@ -86,6 +87,10 @@ export const DEFAULT_CHORD_MAP: ChordMapSettings = ChordMapSettingsSchema.parse(
 export const ChordWheelSettingsSchema = ChordWheelDialSchema;
 export const DEFAULT_CHORD_WHEEL = ChordWheelSettingsSchema.parse({});
 
+/** The chord chart (H9 of #613): the node's params ARE the dial. */
+export const ChordChartSettingsSchema = ChordChartDialSchema;
+export const DEFAULT_CHORD_CHART = ChordChartSettingsSchema.parse({});
+
 /** The settings-schema shape the air extension contributes (spread into `SettingsSchema`). */
 export const AIR_SETTINGS_SHAPE = {
   airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM),
@@ -94,6 +99,7 @@ export const AIR_SETTINGS_SHAPE = {
   airFlute: AirFluteSettingsSchema.default(DEFAULT_AIR_FLUTE),
   chordMap: ChordMapSettingsSchema.default(DEFAULT_CHORD_MAP),
   chordWheel: ChordWheelSettingsSchema.default(DEFAULT_CHORD_WHEEL),
+  chordChart: ChordChartSettingsSchema.default(DEFAULT_CHORD_CHART),
 };
 
 /** The same four keys as dial slices: what `store-controls` and the dials form fold over. */
@@ -168,6 +174,16 @@ export const AIR_DIAL_SLICES = [
       facets: ['Chord wheel'],
       title: 'Chord wheel',
       description: 'A next-chord wheel: on/off, which moves (the key\'s diatonic moves, or the Tonnetz\'s), which hand steers, its size, how far to push and how long to hold',
+    },
+  }),
+  dialSlice({
+    key: 'chordChart',
+    schema: AIR_SETTINGS_SHAPE.chordChart,
+    kind: 'chord-chart-config',
+    meta: {
+      facets: ['Chord chart'],
+      title: 'Chord chart',
+      description: "Conduct a chord chart: on/off, and how much of the conducted piece is read as one chord (a beat, two, a bar)",
     },
   }),
 ] as const;

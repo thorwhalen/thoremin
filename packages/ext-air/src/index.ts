@@ -19,6 +19,7 @@
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
+import { chordChartNode } from './nodes/chord_chart';
 import type { MidiHeld } from './lib/midi_held';
 import type { AudioHeard } from './lib/audio_heard';
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
@@ -72,6 +73,8 @@ export const AIR_EXTENSION = defineExtension({
     { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'air', usesScale: true, on: dialOn('chordMap') },
     // The chord wheel steps through a space of chords from the chord-source key.
     { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
+    // The chord chart plays the conducted piece's own chords, not the scale.
+    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'air', usesScale: false, on: dialOn('chordChart') },
   ],
   // Its overlay elements: the chord wheel's grid (#600 S5), fed its grid, configured by its dial;
   // and (#600 S10; they were core's) the drum's pads and sticks on the video, just beneath the chord
@@ -106,7 +109,7 @@ export const AIR_EXTENSION = defineExtension({
       },
     },
   ],
-  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode, chordWheelNode] as unknown as NodeDef<unknown>[],
+  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode, chordWheelNode, chordChartNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
   dials: AIR_DIAL_SLICES,
   // The enrolled classifiers: transient hot-store fields the nodes read as ports. Always
@@ -178,6 +181,9 @@ export const AIR_EXTENSION = defineExtension({
     // The design's next-chord wheel (§6.2, H10 of #613): the likeliest next chord on top (Piston's
     // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space.
     { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps' } } },
+    // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's Emperor quartet read for its
+    // chords, played voice-led and arpeggiated on the conductor's beat; the orchestra stays off.
+    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3' }, chordChart: { enabled: true } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
@@ -195,6 +201,7 @@ export const AIR_EXTENSION = defineExtension({
       // The face model is composed only while the face colours the map.
       if ((settings.chordMap as { face?: boolean }).face === true) ids.push('chord-map-face');
     }
+    if (on(settings.chordChart)) ids.push('chord-chart');
     if (on(settings.chordWheel)) {
       ids.push('chord-wheel');
       // The face model is composed only while the face steers.

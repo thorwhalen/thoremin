@@ -17,7 +17,7 @@
  * Pure.
  */
 
-export const CLOCKS = ['tempo', 'song'] as const;
+export const CLOCKS = ['tempo', 'song', 'conductor'] as const;
 export type ClockId = (typeof CLOCKS)[number];
 
 /** The fields of a musical-time stream this reads (`MusicalTime` has them all). */
@@ -31,10 +31,20 @@ export interface BeatSource {
   state: 'ready' | 'running' | 'hold' | string;
 }
 
-/** The beat at `now` (null: no stream, or it is waiting for its first beat). */
-export function beatAt(time: BeatSource | null | undefined, now: number): number | null {
+/** The beat at `now` (null: no stream, or it is not running). With `holds`, a stream that holds
+ *  (a conductor's fermata, a cut-off held) keeps its beat where it stopped rather than handing back
+ *  to the tempo: the music is waiting, and so is the harmony. */
+export function beatAt(time: BeatSource | null | undefined, now: number, { holds = false }: { holds?: boolean } = {}): number | null {
   if (!time || !Number.isFinite(time.beat)) return null;
   if (time.state === 'running' && Number.isFinite(time.tempo) && time.tempo > 0) return time.beat + ((now - time.t) * time.tempo) / 60;
+  if (holds && time.state === 'hold') return time.beat;
+  return null;
+}
+
+/** The beat from whichever clock an instrument keeps (null: its own tempo's). */
+export function clockBeat(clock: ClockId, streams: { song?: BeatSource | null; conductor?: BeatSource | null }, now: number): number | null {
+  if (clock === 'song') return beatAt(streams.song, now);
+  if (clock === 'conductor') return beatAt(streams.conductor, now, { holds: true });
   return null;
 }
 
