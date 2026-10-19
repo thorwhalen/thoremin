@@ -6,6 +6,7 @@
  * pair.
  */
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { defineNode, type NodeDef } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { assertNoCoreClash, checkUiDecls, foldContributions, loadExtensionNodes, overlayConfigEdges, type UiDecls } from '@/host/contributions';
@@ -37,6 +38,8 @@ describe('foldContributions', () => {
     { point: 'branch', other: twin({ branches: probe.branches }), message: /extensions "probe" and "probe-twin" both declare the branch "probe-branch"/ },
     { point: 'transient field', other: twin({ transient: probe.transient }), message: /both declare the dial key, pref or transient field "probeModel"/ },
     { point: 'a transient named like a dial', other: twin({ transient: [{ field: 'probe', kind: 'x' }] }), message: /both declare the dial key, pref or transient field "probe"/ },
+    // A pref's derived port shares the bridge's port namespace with every dial's (#600 S15).
+    { point: "pref port named like another's dial port", other: twin({ prefs: [{ key: 'twinPref', schema: z.object({}).default({}), ports: [{ name: 'probeFreq', kind: 'number', read: () => 1 }] }] }), message: /both declare the store-controls port "probeFreq"/ },
     { point: 'instrument', other: twin({ instruments: probe.instruments }), message: /both declare the instrument "Probe Instrument"/ },
     { point: 'training route', other: twin({ training: { routes: probe.training!.routes, byBranch: [] } }), message: /both declare the training route "probe"/ },
   ];
@@ -145,6 +148,7 @@ describe('checkUiDecls', () => {
     ['tool', { tools: ['probe-tool'] }, /extensions "probe" and "probe-twin" both declare the tool "probe-tool"/],
     ['entry point', { entryPoints: ['probe-entry'] }, /both declare the entry point "probe-entry"/],
     ['editor section', { sections: ['probe / Probe'] }, /both declare the editor section "probe \/ Probe"/],
+    ['tool section', { toolSections: ['probe-section'] }, /both declare the tool section "probe-section"/],
   ] as const)('refuses a clashing %s', (_name, over, message) => {
     expect(() => checkUiDecls([decl('probe', over), decl('probe-twin', over)])).toThrow(message);
   });

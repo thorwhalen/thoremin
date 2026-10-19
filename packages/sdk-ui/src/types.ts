@@ -65,6 +65,46 @@ export interface ExtensionTool extends ExtensionToolDecl {
   /** The panel's content. The host draws the frame (title, strapline, close) and mounts this
    *  only while the tool is open, so unmounting is the tool's "closed". */
   Panel: ComponentType<ExtensionToolPanelProps>;
+  /** A tool that keeps working with its panel closed (#600 S15: the song plays on) says so here:
+   *  the bar shows it running and carries its stop control. An EAGER extension's only (a lazy
+   *  tool runs nothing before its half loads). */
+  detached?: ToolDetached;
+}
+
+/** How the bar shows a detached tool (see {@link ExtensionTool.detached}). */
+export interface ToolDetached {
+  /** A React hook: whether the tool is working now (the bar's running mark). Called on every
+   *  render of the bar, in a stable order, so it may use hooks. */
+  useRunning: () => boolean;
+  /** Stop it, through the write path its state has (a command, for a transport that is one). */
+  stop: () => void;
+  /** What stopping does, for the stop button's tooltip (`pause the song`). */
+  hint: string;
+}
+
+/** What a host panel hands the sections contributed to it (see {@link ExtensionToolSection}):
+ *  its own state, by name (`conductor.conducts`), including values a section only displays. */
+export type ToolSectionContext = Readonly<Record<string, unknown>>;
+
+/**
+ * A section an extension contributes to ANOTHER tool's panel (#600 S15), as an entry point is a
+ * link into one (#465): the Conductor panel shows "Conduct a recording" from whichever extension
+ * plays recordings, instead of importing the song player. The host renders it while `when`
+ * holds over its context, and raises its panel events to it SYNCHRONOUSLY inside the click that
+ * caused them, so a section may unlock media playback there (WebKit's autoplay policy wants a
+ * gesture). An EAGER extension's only.
+ */
+export interface ExtensionToolSection {
+  /** Stable id, unique across every extension's sections. */
+  id: string;
+  /** The host tool whose panel shows it (`conductor`). */
+  from: string;
+  /** Shown only while every key equals the host panel's context value of that name; absent, always. */
+  when?: Readonly<Record<string, string | number | boolean>>;
+  Section: ComponentType<{ context: ToolSectionContext }>;
+  /** The host panel's events it hears (the Conductor raises `start` and `stop`), each called with
+   *  the context at the moment of the click, whether or not `when` holds. */
+  on?: Readonly<Record<string, (context: ToolSectionContext) => void>>;
 }
 
 /**
@@ -123,6 +163,8 @@ export interface ExtensionUi {
    *  only: a lazy extension's stub carries none (an output that keeps sounding is one the player
    *  is playing through, which is eager by nature). */
   stillSounding?: readonly StillSounding[];
+  /** Sections it contributes to another tool's panel (#600 S15). */
+  toolSections?: readonly ExtensionToolSection[];
 }
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no

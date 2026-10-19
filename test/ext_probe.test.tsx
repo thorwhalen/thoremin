@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
+import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -110,6 +110,16 @@ describe('the probe reaches every pure contribution point', () => {
     expect(on).toEqual(expect.arrayContaining([PROBE_BRANCH_ID, PROBE_LAZY_BRANCH_ID]));
   });
 
+  it("toolDerive (#600 S15): a tool's need composes the probe's branch, even into an explicit set, after what that set implies", () => {
+    const defaults = app.store.toSettings(app.store.useControls.getState()) as Record<string, unknown>;
+    const needs = { ...defaults, probeModel: { gain: 0.5 } };
+    expect(app.graph.branchIdsFor(needs as never)).toContain(PROBE_BRANCH_ID);
+    const explicit = app.graph.branchIdsFor(needs as never, { explicit: ['field-voices'] });
+    expect(explicit).toEqual(['field-voices', PROBE_BRANCH_ID]);
+    expect(probeToolNeeds.composed).toEqual(['field-voices']);
+    expect(app.graph.branchIdsFor({ ...defaults, probeModel: null } as never, { explicit: ['field-voices'] })).toEqual(['field-voices']);
+  });
+
   it('instruments: the probe seed is seeded after core, with its patch applied', () => {
     const seed = app.seeds.SEED_INSTRUMENTS.find((i) => i.name === PROBE_INSTRUMENT);
     expect(seed).toBeDefined();
@@ -188,6 +198,16 @@ describe('the probe derives a store-controls port and names what still sounds wh
     expect(run({ ...base, probe: { enabled: true, freq: 330 } }).probeFreq).toBe(330);
     const { probe: _omit, ...without } = base;
     expect(run(without).probeFreq).toBe(440);
+  });
+
+  it('the bridge emits a port derived from a device pref too (#600 S15), and its default while the pref is absent', () => {
+    const node = app.storeControls.makeStoreControlsNode(PURE);
+    expect(node.outputs.map((p) => p.name)).toContain('probeVolume');
+    const run = (controls: unknown) => node.make(node.params.parse({})).process({}, { tick: 0, time: 0, dt: 1 / 60, resources: { controls: () => controls } } as never) as Record<string, unknown>;
+    const base = app.store.useControls.getState() as unknown as Record<string, unknown>;
+    expect(run({ ...base, probePref: { volume: 0.2 } }).probeVolume).toBe(0.2);
+    const { probePref: _omit, ...without } = base;
+    expect(run(without).probeVolume).toBe(0.5);
   });
 
   it('the muted badge names the probe while its dial is on', () => {
@@ -348,6 +368,32 @@ describe('the probe reaches every React contribution point', () => {
       render(<Lazy close={() => undefined} />);
     });
     expect(await screen.findByText('lazy probe tool panel')).toBeTruthy();
+  });
+
+  it('detached tools (#600 S15): the probe tool runs detached, and the bar marks it running and stops it', async () => {
+    expect(app.tools.SHELL_TOOLS.find((t) => t.id === PROBE_TOOL_ID)?.runsDetached).toBe(true);
+    expect(app.tools.SHELL_TOOLS.find((t) => t.id === PROBE_LAZY_TOOL_ID)?.runsDetached).toBeUndefined();
+    const { default: ToolsBar } = await import('@/app/ToolsBar');
+    probeSeen.running = true;
+    render(<ToolsBar />);
+    const stop = screen.getByLabelText('Stop Probe tool');
+    expect(stop.getAttribute('title')).toContain('stop the probe');
+    const before = probeSeen.stops;
+    act(() => stop.click());
+    expect(probeSeen.stops).toBe(before + 1);
+  });
+
+  it("tool sections (#600 S15): the probe's section shows in the Conductor's panel while its context matches, and hears its events", async () => {
+    const sections = await import('@/app/toolSections');
+    expect(sections.toolSectionsFrom('conductor', { 'conductor.conducts': 'recording' }).map((x) => x.id)).toEqual(['probe-section']);
+    expect(sections.toolSectionsFrom('conductor', { 'conductor.conducts': 'score' })).toEqual([]);
+    render(<sections.ToolSections from="conductor" context={{ 'conductor.conducts': 'recording' }} />);
+    expect(screen.getByText('probe section recording')).toBeTruthy();
+    // Raised whether or not the section shows: Stop after a switch of mode still reaches it.
+    sections.raiseToolEvent('conductor', 'start', { 'conductor.conducts': 'recording' });
+    sections.raiseToolEvent('conductor', 'stop', { 'conductor.conducts': 'score' });
+    sections.raiseToolEvent('elsewhere', 'start', {});
+    expect(probeSeen.events.slice(-2)).toEqual(['start:recording', 'stop:score']);
   });
 
   it('mount effects: the eager effect is listed for the shell, and its cleanup is returned', () => {

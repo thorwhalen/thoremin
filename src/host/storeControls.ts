@@ -164,7 +164,7 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
   // An extension's port (a dial, a derived port, a transient) must not shadow a core port: its value
   // is written after core's and would silently replace it (#600 S13).
   const core = new Set(defineStoreControls([]).outputs.map((p) => p.name));
-  const extensionPorts = extensions.flatMap((e) => [...e.dials.flatMap((d) => [d.key, ...(d.ports ?? []).map((p) => p.name)]), ...(e.transient ?? []).map((t) => t.field)]);
+  const extensionPorts = extensions.flatMap((e) => [...e.dials.flatMap((d) => [d.key, ...(d.ports ?? []).map((p) => p.name)]), ...(e.prefs ?? []).flatMap((p) => (p.ports ?? []).map((q) => q.name)), ...(e.transient ?? []).map((t) => t.field)]);
   const clash = extensionPorts.find((n) => core.has(n));
   if (clash) throw new Error(`an extension declares the store-controls port "${clash}", which core already writes`);
   return node;
@@ -246,6 +246,8 @@ function defineStoreControls(extensions: readonly Extension[]) {
     ...extensions.flatMap((e) => e.dials.map((slice) => ({ name: slice.key, kind: slice.kind }))),
     // The values a dial's slice derives for nodes that predate it (#600 S13: `midiEnabled`).
     ...extensions.flatMap((e) => e.dials.flatMap((slice) => (slice.ports ?? []).map((p) => ({ name: p.name, kind: p.kind })))),
+    // ...and for nodes that read a device pref field by field (#600 S15).
+    ...extensions.flatMap((e) => (e.prefs ?? []).flatMap((pref) => (pref.ports ?? []).map((p) => ({ name: p.name, kind: p.kind })))),
     ...extensions.flatMap((e) => (e.transient ?? []).map((t) => ({ name: t.field, kind: t.kind }))),
   ],
   params: Params,
@@ -311,6 +313,12 @@ function defineStoreControls(extensions: readonly Extension[]) {
             const dial = snapshot[slice.key] ?? sliceDefault(slice);
             for (const p of slice.ports) out[p.name] = p.read(dial as never, { claimed: hush.claimed });
           }
+        }
+        // A device pref's derived ports (#600 S15), always emitted, from the pref or its default.
+        for (const pref of extensions.flatMap((e) => e.prefs ?? [])) {
+          if (!pref.ports?.length) continue;
+          const value = snapshot[pref.key] ?? pref.schema.parse(undefined);
+          for (const p of pref.ports) out[p.name] = p.read(value as never, { claimed: hush.claimed });
         }
         for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? t.initial ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;

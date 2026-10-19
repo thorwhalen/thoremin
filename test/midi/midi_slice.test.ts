@@ -110,5 +110,8 @@ describe('the flat dial mechanism, for the slices after MIDI (#600 S13)', () => 
   it('an extension\'s store-controls port may not shadow one core writes', () => {
     const shadowing: Extension = { id: 'shadow', branches: [], nodes: [], derive: () => [], dials: [{ key: 'shadowDial', kind: 'x', schema: z.object({}).default({}), meta: { facets: [], title: 't', description: 'd' }, ports: [{ name: 'mute', kind: 'boolean', read: () => true }] }] };
     expect(() => makeStoreControlsNode([shadowing])).toThrow(/store-controls port "mute", which core already writes/);
+    // A pref's derived port too (#600 S15).
+    const prefShadowing: Extension = { id: 'shadow', branches: [], nodes: [], derive: () => [], dials: [], prefs: [{ key: 'shadowPref', schema: z.object({}).default({}), ports: [{ name: 'mute', kind: 'boolean', read: () => true }] }] };
+    expect(() => makeStoreControlsNode([prefShadowing])).toThrow(/store-controls port "mute", which core already writes/);
   });
 });

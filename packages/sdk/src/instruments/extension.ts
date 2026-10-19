@@ -145,6 +145,11 @@ export interface PrefSlice<K extends string = string, S extends z.ZodTypeAny = z
   schema: S;
   version?: number;
   migrations?: Readonly<Record<number, SliceMigration>>;
+  /** `store-controls` ports derived from the pref (#600 S15), read from its value (or its default)
+   *  each tick and always emitted, as a dial slice's {@link DialSlice.ports}: how a node that read
+   *  a device pref field by field (the song's level and rate) keeps its inputs once the pref is an
+   *  extension's. The names share the bridge's port namespace (a clash is refused). */
+  ports?: readonly DialPort[];
 }
 
 /** A {@link DialSlice} with its key kept literal (`'airDrum'`, not `string`). */
@@ -377,6 +382,16 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
    * §3.4, for this extension). Called by `branchIdsFor` when no explicit set is given.
    */
   derive: (settings: ExtensionDerivationSettings) => readonly string[];
+  /**
+   * Which of this extension's branches a TOOL's need implies (#600 S15): the player's per-device
+   * prefs or live state (a loaded song, a follow switch), never the instrument's dials. Unlike
+   * {@link derive} it is also unioned into an instrument's EXPLICIT branch set, as the Lab's and a
+   * feature claim's needs are: a tool's need is not the instrument's to veto. Called last, with the
+   * branch ids implied so far (`composed`), so a need that rides another branch (a recording led
+   * by a composed conductor) can say so. It may name a core branch it needs beside its own (the
+   * body source for a follower of the dancer).
+   */
+  toolDerive?: (settings: ExtensionDerivationSettings, composed: readonly string[]) => readonly string[];
 }
 
 /** An {@link Extension} with its dial slices' types kept, so the settings type can read them. */

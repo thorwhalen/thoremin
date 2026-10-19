@@ -7,7 +7,8 @@
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
  * branch with a voice, a chord producer and an overlay element, a class and a catalog row, a
  * versioned dial slice with a migration, a device pref, a transient port, a seed instrument, a training route, a command,
- * a carve modality, a declared store and a derived store-controls port);
+ * a carve modality, a declared store, a derived store-controls port from a dial and from a pref,
+ * and a tool's need);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -61,6 +62,9 @@ export function migrateProbeV1(old: unknown): unknown {
   const { hz, ...rest } = old as Record<string, unknown>;
   return hz === undefined ? rest : { ...rest, freq: hz };
 }
+
+/** What the probe's `toolDerive` last saw composed before it (#600 S15). */
+export const probeToolNeeds: { composed: readonly string[] | null } = { composed: null };
 
 /** What the transient port carries (set by the host's hot store, off the tick). */
 export interface ProbeModel {
@@ -149,7 +153,8 @@ export const PROBE_EXTENSION = defineExtension({
     }),
   ] as const,
   // A per-device pref (#600 S9): persisted, never saved in an instrument.
-  prefs: [{ key: 'probePref', schema: ProbePrefSchema.default({ volume: 0.5 }) }],
+  // Its derived store-controls port (#600 S15), read from the pref or its default.
+  prefs: [{ key: 'probePref', schema: ProbePrefSchema.default({ volume: 0.5 }), ports: [{ name: 'probeVolume', kind: 'number', read: (p: { volume: number }) => p.volume }] }],
   transient: [transientPort<ProbeModel>()('probeModel', 'probe-model')] as const,
   // A class of its own and a catalog row under it (#600 S8): the Instruments view lists the probe
   // instrument there, with its emoji as a system tag.
@@ -166,6 +171,12 @@ export const PROBE_EXTENSION = defineExtension({
     byBranch: [[PROBE_BRANCH_ID, 'probe']],
   },
   derive: (s) => ((s as { probe?: Partial<ProbeDial> }).probe?.enabled === true ? [PROBE_BRANCH_ID] : []),
+  // A tool's need (#600 S15): a probe model in hand composes the probe's branch even into an
+  // explicit set that leaves it out. It records what was composed before it, for the test.
+  toolDerive: (s, composed) => {
+    probeToolNeeds.composed = composed;
+    return ((s as { probeModel?: ProbeModel | null }).probeModel?.gain ?? 0) > 0 ? [PROBE_BRANCH_ID] : [];
+  },
 });
 
 export default PROBE_EXTENSION;
