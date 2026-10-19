@@ -47,7 +47,9 @@ describe('the realization pipeline', () => {
   it('reads tone roles from the intervals', () => {
     expect(tonesInRegister([48, 51, 55]).map((t) => t.role)).toEqual(['1', 'b3', '5']);
     expect(tonesInRegister([55, 59, 62, 65]).map((t) => t.role)).toEqual(['1', '3', '5', 'b7']);
-    expect(tonesInRegister([60, 64, 69]).map((t) => t.role)).toEqual(['1', '3', '5']); // non-tertian: by position
+    expect(tonesInRegister([60, 64, 69]).map((t) => t.role)).toEqual(['1', '3', '13']); // non-tertian: by interval
+    expect(tonesInRegister([48, 52, 55, 62]).map((t) => t.role)).toEqual(['1', '3', '5', '9']); // a ninth above the octave
+    expect(tonesInRegister([48, 55, 64]).map((t) => t.role)).toEqual(['1', '5', '3']); // spread: each by its interval
     expect(tonesInRegister([])).toEqual([]);
   });
 
@@ -65,7 +67,7 @@ describe('the realization pipeline', () => {
     expect(out.voices.map((v) => v.id)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
-  it('gives a voicer its memory: the last voicing and bass, updated only when the chord changes', () => {
+  it("gives a voicer the PREVIOUS chord's voicing: the same within a held chord, the last one after a change", () => {
     const reg = createRealizationRegistry();
     const seen: VoicingMemory[] = [];
     reg.voicing.set('spy', { id: 'spy', voice: (t, _b, _c, m) => (seen.push(m), t.map((x) => x.midi)) });
@@ -75,8 +77,23 @@ describe('the realization pipeline', () => {
     r.render(input(C, { spec }));
     r.render(input(G, { spec }));
     expect(seen[0]).toEqual({ last: [], bass: null });
-    expect(seen[1]).toEqual({ last: C, bass: 48 });
+    expect(seen[1]).toEqual({ last: [], bass: null }); // held: the same memory, so the same voicing
     expect(seen[2]).toEqual({ last: C, bass: 48 }); // G is voiced FROM C
+  });
+
+  it('forgets the memory after a silence, not after a short gap', () => {
+    const reg = createRealizationRegistry();
+    const seen: VoicingMemory[] = [];
+    reg.voicing.set('spy', { id: 'spy', voice: (t, _b, _c, m) => (seen.push(m), t.map((x) => x.midi)) });
+    const r = createRealizer({ idBase: 0, maxVoices: 4, registry: reg, resetAfterS: 1 });
+    const spec = { ...DEFAULT_SPEC, voicing: 'spy' };
+    r.render(input(C, { spec }));
+    r.render(input([], { spec, dt: 0.5 })); // a short gap
+    r.render(input(G, { spec }));
+    expect(seen.at(-1)).toEqual({ last: C, bass: 48 });
+    r.render(input([], { spec, dt: 2 })); // a rest
+    r.render(input(C, { spec }));
+    expect(seen.at(-1)).toEqual({ last: [], bass: null });
   });
 
   it('passes an event figuration\'s notes through, with the clock it saw', () => {

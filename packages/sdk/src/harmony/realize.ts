@@ -23,7 +23,7 @@
 import { midiToFreq } from '../music/theory';
 import { RENDERINGS, VOICINGS, renderGains, voiceTriad } from '../music/voicing';
 import type { VoiceParams } from '../nodes/domain';
-import { QUALITIES, qualityOfIntervals, type ToneRole } from './qualities';
+import { EXTENSION_ROLE, QUALITIES, qualityOfIntervals, type ToneRole } from './qualities';
 
 /** One chord tone, in register, with its role above the root. */
 export interface Tone {
@@ -45,7 +45,10 @@ export interface RealizationControls {
 
 export const DEFAULT_CONTROLS: RealizationControls = { register: 0, tension: 0, density: 1, spread: 0.5 };
 
-/** What a voicer remembers between chords: the last voicing and bass (voice leading), and when. */
+/** What a voicer remembers: the PREVIOUS chord's voicing and bass (voice leading). It changes
+ *  only when the chord to realize changes (its tones, the strategies or the controls), so within
+ *  a held chord a voicer always sees the same memory and voices it the same way; it is forgotten
+ *  after a silence of `resetAfterS`, so the first chord after a rest is voiced afresh. */
 export interface VoicingMemory {
   last: readonly number[];
   bass: number | null;
@@ -125,15 +128,18 @@ export function createRealizationRegistry(): RealizationRegistry {
 
 export const DEFAULT_REALIZATION_REGISTRY: RealizationRegistry = createRealizationRegistry();
 
-const GENERIC_ROLES: readonly ToneRole[] = ['1', '3', '5', '7', '9'];
-
-/** Chord tones in register (root first, ascending) with their roles, read from the intervals
- *  (a tertian chord gets its quality's roles; anything else '1', '3', '5' by position). */
+/** Chord tones in register (root first) with their roles: each note's role is the role its
+ *  interval above the root has in the chord's quality (any octave, so a ninth stacked above the
+ *  octave is still not the root), else the extension that interval is (`EXTENSION_ROLE`: a '9',
+ *  a '13'), which is also how a shape the quality table does not detect is read. */
 export function tonesInRegister(notes: readonly number[]): Tone[] {
   if (notes.length === 0) return [];
   const q = qualityOfIntervals(notes.map((n) => n - notes[0]));
-  const roles = q && QUALITIES[q].intervals.length === notes.length ? QUALITIES[q].roles : GENERIC_ROLES;
-  return notes.map((midi, i) => ({ midi, role: roles[i] ?? GENERIC_ROLES[i] ?? '1' }));
+  return notes.map((midi) => {
+    const iv = (((midi - notes[0]) % 12) + 12) % 12;
+    const k = q ? (QUALITIES[q].intervals as readonly number[]).indexOf(iv) : -1;
+    return { midi, role: k >= 0 ? QUALITIES[q!].roles[k] : EXTENSION_ROLE[iv] };
+  });
 }
 
 export interface RealizeInput {
@@ -165,6 +171,10 @@ export interface Realizer {
   render(input: RealizeInput): RealizeOutput;
 }
 
+const NO_MEMORY: VoicingMemory = { last: [], bass: null };
+/** The default silence after which the voicing memory is forgotten, seconds. */
+const MEMORY_RESET_S = 4;
+
 /** A strategy by id, the seam's default when the id is unknown (a stored id from a newer build). */
 function pick<T>(map: Map<string, T>, id: string, fallback: string): T {
   return map.get(id) ?? map.get(fallback)!;
@@ -175,11 +185,26 @@ function pick<T>(map: Map<string, T>, id: string, fallback: string): T {
  * can sound together. The figuration restarts (a strum rolls again) whenever the sounding pitches
  * change, never on a control tweak.
  */
-export function createRealizer({ idBase, maxVoices, registry = DEFAULT_REALIZATION_REGISTRY }: { idBase: number; maxVoices: number; registry?: RealizationRegistry }): Realizer {
+export function createRealizer({
+  idBase,
+  maxVoices,
+  registry = DEFAULT_REALIZATION_REGISTRY,
+  resetAfterS = MEMORY_RESET_S,
+}: {
+  idBase: number;
+  maxVoices: number;
+  registry?: RealizationRegistry;
+  /** Seconds of silence after which the voicing memory is forgotten. */
+  resetAfterS?: number;
+}): Realizer {
   let beat = 0;
   let sinceChange = 0;
   let lastKey = '';
-  let memory: VoicingMemory = { last: [], bass: null };
+  /** What the voicer is given (the previous chord's voicing), and the current chord's. */
+  let memory: VoicingMemory = NO_MEMORY;
+  let current: VoicingMemory = NO_MEMORY;
+  let inputKey = '';
+  let silentFor = 0;
 
   const silent = (sound: VoiceParams['sound']): VoiceParams[] =>
     Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
@@ -187,20 +212,30 @@ export function createRealizer({ idBase, maxVoices, registry = DEFAULT_REALIZATI
   return {
     render({ tones, spec, controls, bpm, gain, sound, silentSound, dt }) {
       let voiced: number[] = [];
-      if (tones.length) {
+      const step = Number.isFinite(dt) ? dt : 0;
+      if (tones.length === 0) {
+        silentFor += step;
+        if (silentFor >= resetAfterS) memory = current = NO_MEMORY;
+      } else {
+        silentFor = 0;
+        // A new chord to realize: the one sounding until now becomes the memory it is voiced from.
+        const key = `${tones.map((t) => t.midi).join(',')}|${spec.coloration}|${spec.reduction}|${spec.bass}|${spec.voicing}|${controls.register}|${controls.tension}|${controls.density}|${controls.spread}`;
+        if (key !== inputKey) {
+          inputKey = key;
+          memory = current;
+        }
         const colored = pick(registry.coloration, spec.coloration, DEFAULT_SPEC.coloration).color(tones, controls);
         const reduced = pick(registry.reduction, spec.reduction, DEFAULT_SPEC.reduction).reduce(colored, controls);
         const bass = pick(registry.bass, spec.bass, DEFAULT_SPEC.bass).bass(reduced, memory);
         voiced = pick(registry.voicing, spec.voicing, DEFAULT_SPEC.voicing).voice(reduced, bass, controls, memory).sort((a, b) => a - b);
+        if (voiced.length) current = { last: voiced, bass: voiced[0] };
       }
-      const step = Number.isFinite(dt) ? dt : 0;
       beat += (bpm / 60) * step;
       // The key is the sounding pitches, so any genuine chord change restarts the figuration.
       const key = voiced.length ? voiced.join(',') : '';
       if (key !== lastKey) {
         sinceChange = 0;
         lastKey = key;
-        if (voiced.length) memory = { last: voiced, bass: voiced[0] };
       } else {
         sinceChange += step;
       }
