@@ -60,6 +60,8 @@ export function ChordWheelControls() {
   const enterFrames = c.enterFrames ?? 3;
   const steer = c.steer ?? 'hand';
   const faceMoves = (c.faceMoves ?? {}) as Partial<Record<Emotion, string>>;
+  const walk = c.walk ?? false;
+  const walkBeats = c.walkBeats ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
       <ChordWheelReadout />
@@ -122,6 +124,22 @@ export function ChordWheelControls() {
       <Range label={`Wheel size (${Math.round(radius * 100)}% of the height)`} path="chordWheel.radius" value={radius} min={0.15} max={0.45} step={0.01} enabled={enabled} />
       <Range label={`Push to choose (${Math.round(reach * 100)}% of the height)`} path="chordWheel.reach" value={reach} min={0.05} max={0.4} step={0.01} enabled={enabled} title="How far from the middle the hand must reach for a move." />
       <Range label={`Hold for (${enterFrames} frames)`} path="chordWheel.enterFrames" value={enterFrames} min={1} max={15} step={1} enabled={enabled} title="How long the hand must stay on a move before it is made." />
+      <label className="flex items-center gap-2 text-xs" title="Hold a push out and the wheel keeps making that move on the beat the Chord sound plays: a fourth walks all seven chords of the key. On the Tonnetz wheel each move undoes itself, so a held one swings between two chords.">
+        <input type="checkbox" checked={walk} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.walk', e.target.checked)} />
+        Hold a push to walk it on the beat
+      </label>
+      {walk && (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          A step every
+          <select className={selectCls} value={walkBeats} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.walkBeats', Number(e.target.value))}>
+            {[1, 2, 3, 4].map((b) => (
+              <option key={b} value={b}>
+                {b === 1 ? 'beat' : `${b} beats`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   );
 }

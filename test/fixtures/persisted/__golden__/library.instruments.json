@@ -24,6 +24,7 @@
     "Chord Wheel",
     "Face Wheel",
     "Tonnetz Wheel",
+    "Wheel Walk",
     "Chord Map Strum",
     "ASL Viewer",
     "ASL Chords"
@@ -320,7 +321,9 @@
         "rendering": "sustained",
         "sound": "warmPad",
         "steer": "hand",
-        "voicing": "voiceLed"
+        "voicing": "voiceLed",
+        "walk": false,
+        "walkBeats": 1
       },
       "conductor": {
         "articulationFrom": "sharpness",
@@ -956,7 +959,9 @@
         "rendering": "sustained",
         "sound": "warmPad",
         "steer": "hand",
-        "voicing": "voiceLed"
+        "voicing": "voiceLed",
+        "walk": false,
+        "walkBeats": 1
       },
       "conductor": {
         "articulationFrom": "sharpness",

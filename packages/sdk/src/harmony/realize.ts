@@ -130,6 +130,9 @@ export interface RealizeOutput {
 
 export interface Realizer {
   render(input: RealizeInput): RealizeOutput;
+  /** The figuration clock's beat count so far: what a navigator commits on so its changes land
+   *  on the beat the figuration plays (the chord wheel's walk, H11). */
+  beat(): number;
 }
 
 /**
@@ -188,6 +191,7 @@ export function createRealizer({
     Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
 
   return {
+    beat: () => beat,
     render({ tones, context, spec, controls, bpm, gain, sound, silentSound, dt, brightness }) {
       let voiced: number[] = [];
       const step = Number.isFinite(dt) ? dt : 0;

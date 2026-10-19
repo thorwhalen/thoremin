@@ -31,12 +31,13 @@ export function describeChordWheelLive(live: ChordWheelStatus): string {
   if (!live.steering) return 'Show your steering hand: hold its palm over the middle of the wheel.';
   const chord = live.chord ? `${live.chord}${live.numeral ? ` (${live.numeral})` : ''}` : '';
   if (live.rejected) return `${chord}: that move does not apply to this chord. Choose another.`;
+  if (live.walking) return `${chord}, walking ${live.lastMove ?? 'the move'} on the beat. Leave the wedge to stop.`;
   if (!live.armed) return `${chord}${live.lastMove ? `, after ${live.lastMove}` : ''}. Back to the middle for the next move.`;
   return `${chord}. Push toward a move and hold it.`;
 }
 
 export function chordWheelLiveKey(l: ChordWheelStatus): string {
-  return [l.enabled ? 1 : 0, l.moves, l.steer, l.face ?? '-', l.key, l.steering ? 1 : 0, l.chord ?? '-', l.numeral, l.armed ? 1 : 0, l.moveCount, l.lastMove ?? '-', l.rejected ?? '-'].join('|');
+  return [l.enabled ? 1 : 0, l.moves, l.steer, l.face ?? '-', l.key, l.steering ? 1 : 0, l.chord ?? '-', l.numeral, l.armed ? 1 : 0, l.moveCount, l.lastMove ?? '-', l.rejected ?? '-', l.walking ? 1 : 0].join('|');
 }
 
 export function makeChordWheelReporter(engine: { getOutput(nodeId: string, port: string): unknown }, store: Pick<ChordWheelStatusState, 'report'> = useChordWheelStatus.getState()): () => void {

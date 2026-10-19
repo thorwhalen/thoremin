@@ -1552,6 +1552,16 @@
         "name": "faceFrames",
         "type": "number",
         "default": 6
+      },
+      {
+        "name": "walk",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "walkBeats",
+        "type": "number",
+        "default": 1
       }
     ]
   },

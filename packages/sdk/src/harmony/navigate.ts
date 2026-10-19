@@ -8,7 +8,8 @@
  * - COMMIT POLICIES, deciding when a selection takes effect: `createCellTracker` is the dwell
  *   policy (a few camera frames in a row, hysteresis at an edge, a release when the hand is lost).
  *   The strum's predicted commit is `ext-air`'s strum detector until the figuration seam can carry
- *   it (H2's review); a beat-quantized commit arrives with musical time (H9).
+ *   it (H2's review); `createBeatWalk` repeats a held move once per beat (H11), on the
+ *   instrument's own tempo until musical time reaches the commits (H9).
  *
  * Pure: the layout geometry only.
  */
@@ -229,6 +230,79 @@ export function createCategoryStepper(opts: CategoryStepperOptions): CategorySte
       armed = true;
       candidate = null;
       count = 0;
+    },
+  };
+}
+
+export interface BeatWalkStep {
+  /** The wedge whose move the stepper committed on this tick, or null. */
+  committed: number | null;
+  /** The wedge pointed at (null: the dead zone, or no hand). */
+  pointing: number | null;
+  /** Whether the hand is seen (a hand lost for a moment does not end a walk). */
+  seen: boolean;
+  /** The tick's time, seconds. */
+  now: number;
+  /** The figuration clock's beat at the end of this tick (`Realizer.beat` plus this tick's). */
+  beat: number;
+  /** Beats per step; not positive: no walk. */
+  beats: number;
+}
+
+export interface BeatWalk {
+  /** One tick: the wedge whose move repeats now, or null. */
+  step(s: BeatWalkStep): number | null;
+  /** Whether a held push is walking (its move will repeat on a coming beat). */
+  walking(): boolean;
+  reset(): void;
+}
+
+/** A beat this close ahead is reached (a beat count is a float sum of ticks). */
+const BEAT_EPS = 1e-6;
+/** How long a hand may be lost and still hold its walk (a dropped tracking frame or three). */
+export const WALK_GRACE_S = 0.15;
+
+/**
+ * Walk a cycle on the beat (H11 of #613): after a push commits a move, holding the hand out in
+ * the same wedge repeats that move on the figuration's beats, every `beats`, so a held fourth
+ * walks the cycle of fourths (all seven chords of the key), a held third the cycle of thirds, a
+ * held second the scale. The moves land on the beat the player hears: the caller passes the
+ * realizer's own beat count and checks every tick (not every camera frame), so a change sounds
+ * within a tick of the beat. The first repeat is the first step boundary at least half a step
+ * after the push; a missed beat (a stall) is skipped, never made up in a burst, and the grid
+ * stays. A hand lost for under `WALK_GRACE_S` keeps walking; pointing elsewhere ends it at once.
+ */
+export function createBeatWalk(): BeatWalk {
+  let walking: number | null = null;
+  let next = Infinity;
+  let lastSeen = -Infinity;
+  const end = (): null => {
+    walking = null;
+    return null;
+  };
+  return {
+    step({ committed, pointing, seen, now, beat, beats }) {
+      if (!(beats > 0)) return end();
+      if (committed !== null) {
+        walking = committed;
+        next = Math.ceil((beat + beats / 2) / beats) * beats;
+        lastSeen = now;
+        return null;
+      }
+      if (walking === null) return null;
+      if (seen) {
+        if (pointing !== walking) return end();
+        lastSeen = now;
+      } else if (now - lastSeen > WALK_GRACE_S) return end();
+      if (beat + BEAT_EPS < next) return null;
+      next = (Math.floor((beat + BEAT_EPS) / beats) + 1) * beats;
+      return walking;
+    },
+    walking: () => walking !== null,
+    reset() {
+      walking = null;
+      next = Infinity;
+      lastSeen = -Infinity;
     },
   };
 }

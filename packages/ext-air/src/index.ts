@@ -147,6 +147,9 @@ export const AIR_EXTENSION = defineExtension({
     { name: 'Face Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, steer: 'face' } } },
     // The same wheel with the Tonnetz's moves (P, L, R, N, S, H): it leaves the key.
     { name: 'Tonnetz Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, moves: 'tonnetz' } } },
+    // Walk a cycle on the beat (H11 of #613): hold a push out and the wheel keeps making that
+    // move, one per beat, arpeggiated so the beat is heard: up walks the cycle of fourths.
+    { name: 'Wheel Walk', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed', rendering: 'arpUp', bpm: 90 }, chordWheel: { enabled: true, walk: true } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
