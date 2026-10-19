@@ -23,10 +23,9 @@
  */
 import { BODY_IMPACT_JOINTS, type ChannelFrame, type ChannelPoint, type ImpactJoint } from '@thoremin/ictus';
 import { BLM, type BodyFrame } from '@thoremin/sdk/nodes/domain';
-
-/** What the body conductor follows: the multi-joint impact detector (A2), or one point. */
-export const CONDUCTOR_BODY_POINTS = ['impact', 'wrist', 'head', 'hips', 'com'] as const;
-export type ConductorBodyPoint = (typeof CONDUCTOR_BODY_POINTS)[number];
+import { type ConductorBodyPoint } from './conductor_body.schema';
+export { CONDUCTOR_BODY_POINTS } from './conductor_body.schema';
+export type { ConductorBodyPoint } from './conductor_body.schema';
 /** The beating side; `auto` lets the detector follow whichever arm has a rhythm. */
 export type BodySide = 'left' | 'right' | 'auto';
 

@@ -12,7 +12,7 @@ import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { handGestureFrame } from './conductor_gesture';
 import { bodyChannelFrame, conductorBodyJoints, createBodyExpressionMeter, type BodyExpressionMeter } from './conductor_body';
 import { handPoint, isFresh, MIN_SAMPLE_SPACING, shapingHand } from './conductor_hands';
-import type { ConductorDialParams as Params } from './conductor';
+import type { ConductorDialParams as Params } from './conductor.schema';
 
 /** What the shaping of one tick reads from the beat's follower. */
 export type ShapingInput = Pick<IctusState, 'dynamics' | 'articulation' | 'anchor'>;

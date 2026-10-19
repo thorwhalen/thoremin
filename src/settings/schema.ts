@@ -23,7 +23,7 @@ import { SteerConfigSchema, defaultSteerConfig } from '@/nodes/mapping/indirect_
 // validate against the node's own contract without reaching into `src/nodes`.
 export { SteerConfigSchema, SteerStrainSchema, SteerDialSchema, STEER_SOURCES, STEER_HANDS, STEER_FEATURES, STEER_HAND_FEATURES, STEER_FACE_FEATURES, STEER_DIAL_NAMES } from '@/nodes/mapping/indirect_map.schema';
 export type { SteerConfig, SteerStrain, SteerDial } from '@/nodes/mapping/indirect_map.schema';
-import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor';
+import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor.schema';
 import { DEFAULT_ORCHESTRA, OrchestraSettingsSchema } from '@/nodes/output/orchestra.schema';
 // The extensions' dials (today the air instruments') are folded in from the manifests:
 // the runtime shape from the injected list, the TYPE from its generated declaration

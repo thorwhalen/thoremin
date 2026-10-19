@@ -13,7 +13,7 @@ import { useEffect } from 'react';
 import { dispatchCommand } from './dispatchDial';
 import { useControls } from './store';
 import { cancelLeadTake, formatLag, jointLabel, leadTakeBpm, startLeadTake, useLeadCalibration, LEAD_TAKE, REFUSAL_WORDS } from './conductorLead';
-import { firstTempo } from '@/nodes/features/conductor';
+import { firstTempo } from '@thoremin/sdk/score/schema';
 import type { ConductorSettings } from '@/settings/schema';
 
 export default function ConductorTiming({ dial }: { dial: Partial<ConductorSettings> }) {
