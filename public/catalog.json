@@ -1055,7 +1055,7 @@
       },
       {
         "name": "voicing",
-        "type": "enum(spread | bassTriad | close | shell | power)",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
         "default": "spread"
       },
       {
@@ -1255,7 +1255,7 @@
       },
       {
         "name": "voicing",
-        "type": "enum(spread | bassTriad | close | shell | power)",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
         "default": "spread"
       },
       {
@@ -1696,7 +1696,7 @@
       },
       {
         "name": "voicing",
-        "type": "enum(spread | bassTriad | close | shell | power)",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
         "default": "spread"
       },
       {
@@ -2891,7 +2891,7 @@
       },
       {
         "name": "voicing",
-        "type": "enum(spread | bassTriad | close | shell | power)",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
         "default": "spread"
       },
       {
@@ -3207,7 +3207,7 @@
       },
       {
         "name": "voicing",
-        "type": "enum(spread | bassTriad | close | shell | power)",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
         "default": "spread"
       },
       {

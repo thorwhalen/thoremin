@@ -35,12 +35,15 @@ function play(spec: ScaleSpec, voicing: (typeof VOICINGS)[number], rendering: (t
   );
 }
 
+/** The voicing idioms the goldens were recorded for (voiceLed, H3, has its own tests). */
+const IDIOMS = VOICINGS.filter((v) => v !== 'voiceLed');
+
 const hash = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
 
 describe('the chord renderer, golden', () => {
   it('renders every voicing and rendering exactly as recorded', () => {
     const hashes: Record<string, string> = {};
-    for (const [key, spec] of Object.entries(SPECS)) for (const v of VOICINGS) for (const r of RENDERINGS) hashes[`${key}|${v}|${r}`] = hash(play(spec, v, r));
+    for (const [key, spec] of Object.entries(SPECS)) for (const v of IDIOMS) for (const r of RENDERINGS) hashes[`${key}|${v}|${r}`] = hash(play(spec, v, r));
     expect(hashes).toMatchSnapshot();
   });
 

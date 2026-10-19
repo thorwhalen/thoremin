@@ -63,6 +63,8 @@
     "./harmony/chord": "./src/harmony/chord.ts",
     "./harmony/qualities": "./src/harmony/qualities.ts",
     "./harmony/realize": "./src/harmony/realize.ts",
+    "./harmony/strategies": "./src/harmony/strategies.ts",
+    "./harmony/voice_leading": "./src/harmony/voice_leading.ts",
     "./music/voicing": "./src/music/voicing.ts",
     "./music/chord_render": "./src/music/chord_render.ts",
     "./nodes/cell_grid": "./src/nodes/cell_grid.ts",

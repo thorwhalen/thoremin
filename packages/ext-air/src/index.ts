@@ -85,7 +85,8 @@ export const AIR_EXTENSION = defineExtension({
     // Point at a key's chords (Pur Pasteur's harmonic map): the left hand over a chord holds
     // it, the right hand's height plays a melody on its tones. C major, as in the video; the
     // key is the chord-source scale (the Sound section's root and scale).
-    { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true } } },
+    // Each change voice-led, common tones held, as the video voices it (H3 of #613).
+    { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true } } },
     // The same map, strummed: the right hand strums the chord under the left, predicted
     // before the frame that shows the strum (the air guitar's timing).
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
