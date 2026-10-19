@@ -213,15 +213,39 @@ describe('holding', () => {
     expect(switched.at(-1)!.mode).toBe('following');
   });
 
-  it('a paused song idles at the player\'s tempo, and forgets the lock', () => {
+  it('a paused song idles at the player\'s tempo, and keeps the lock (#346 item 5)', () => {
     const c = createPaceController();
     const D = (4 * P0) / 1.05;
     run(10, (t) => dancer(t, D), { controller: c });
     expect(c.state().mode).toBe('following');
     const s = c.step({ t: 10, pulse: dancer(10, D), song: songAt(10, 5, 1, false), rate: 1.05, base: 0.9 });
     expect(s).toMatchObject({ mode: 'idle', rate: 0.9 });
+    // A long pause, then playing again: followed at once, the rate where it was, no relock.
+    const back = c.step({ t: 40, pulse: dancer(40, D), song: songAt(40, 5, 1), rate: 1, base: 1 });
+    expect(back.mode).toBe('following');
+    expect(back.ratio).toBe(4);
+    // Where it was, within the phase nudge (3 %) the new position may call for.
+    expect(Math.abs(back.rate - 1.05)).toBeLessThan(0.04);
+  });
+
+  it('a reset (a different song) forgets the lock', () => {
+    const c = createPaceController();
+    const D = (4 * P0) / 1.05;
+    run(10, (t) => dancer(t, D), { controller: c });
+    c.reset();
     const back = c.step({ t: 10.1, pulse: dancer(10.1, D), song: songAt(10.1, 5, 1), rate: 1, base: 1 });
     expect(back.mode).toBe('locking');
+  });
+
+  it('a level half-seen before a pause does not count the pause as persistence', () => {
+    const c = createPaceController();
+    const D = (4 * P0) / 1.05;
+    run(10, (t) => dancer(t, D), { controller: c });
+    // A different level starts to be seen, then the song pauses for a long time.
+    c.step({ t: 10.1, pulse: dancer(10.1, 2 * P0), song: songAt(10.1, 5, 1), rate: 1, base: 1 });
+    c.step({ t: 10.2, pulse: dancer(10.2, 2 * P0), song: songAt(10.2, 5, 1, false), rate: 1, base: 1 });
+    const back = c.step({ t: 60, pulse: dancer(60, 2 * P0), song: songAt(60, 5, 1), rate: 1, base: 1 });
+    expect(back.mode).toBe('switching');
   });
 });
 

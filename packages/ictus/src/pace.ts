@@ -40,8 +40,8 @@
  *
  * Below the pulse's trust threshold (`trustedConfidence`), or with no relation in
  * capture, the rate HOLDS: a dancer who stops does not stop the song, and a dancer who
- * wanders is not followed into noise. A song that is not playing resets the controller
- * to `base`.
+ * wanders is not followed into noise. A song that is not playing idles at `base` and keeps
+ * its lock for when it plays again; a different song is the caller's `reset()`.
  *
  * Pure, causal and clock-free like the rest of ictus: the caller passes the time.
  */
@@ -200,7 +200,14 @@ export function createPaceController(options: PaceOptions = {}): PaceController 
       const lo = Math.max(o.minRate, base * (1 - r));
       const hi = Math.min(o.maxRate, base * (1 + r));
       if (song.state !== 'running' || !(song.period > 0) || !(rate > 0) || !(base > 0)) {
-        reset();
+        // Not playing (paused, or not started): the song idles at the player's tempo, but the
+        // lock is KEPT (the level followed and the smoothed rate), so playing again carries on
+        // at once instead of relocking for `persistS` (#346 item 5). What was half-seen is not
+        // kept (a candidate level would count its pause as persistence), nor the song's period
+        // average (it is the old position's). A different song is the caller's reset.
+        level.step(t, NaN, NaN);
+        nudge = 0;
+        periods = [];
         lastT = t;
         last = IDLE(t, base > 0 ? base : 1);
         return last;
