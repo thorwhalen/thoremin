@@ -124,6 +124,8 @@ export const FACE_TAKE_DEFAULTS = {
   motionMinFrames: 15,
   /** Frames of the modality a burst needs to be a hold (#385 E7; about 0.17 s at 30 fps). */
   minBurstFrames: 5,
+  /** The most holds a lean (#349) is spread into: its frames sorted by distance and cut into this many. */
+  leanHolds: 5,
 } as const;
 
 /** A median absolute deviation as a frame-to-frame jitter: the normal's 1.4826 (MAD to a
@@ -203,7 +205,11 @@ export interface FaceTake {
   facesStartedAt(): number | null;
   /** Begin a burst (#385 E7) from `faces` or `paused`, named `label` when given. Returns whether
    *  one began. */
-  beginBurst(tMs: number, label?: string): boolean;
+  beginBurst(tMs: number, label?: string, options?: { lean?: boolean }): boolean;
+  /** Holds a lean (#349) made, by index, each to the index of the hold it leans on (the hold taken
+   *  just before it began): the same face, held at several distances, so the distance fit has a
+   *  category to learn within. */
+  leans(): ReadonlyMap<number, number>;
   /** End the burst: one hold of its frames when there were enough. Returns whether it took one. */
   endBurst(tMs: number): boolean;
   /** The burst under way: its name ('' for none) and frames so far; null when none. */
@@ -217,8 +223,10 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
   const restMs = options.restMs ?? FACE_TAKE_DEFAULTS.restMs;
   const minRestFrames = options.minRestFrames ?? FACE_TAKE_DEFAULTS.minRestFrames;
   const minBurstFrames = Math.max(1, Math.floor(options.minBurstFrames ?? FACE_TAKE_DEFAULTS.minBurstFrames));
+  const leanHolds = FACE_TAKE_DEFAULTS.leanHolds;
   /** The burst under way: where it came from, its name, its frames (the modality in view). */
-  let bursting: { label: string; t: number; frames: FeatureVector[] } | null = null;
+  let bursting: { label: string; t: number; frames: FeatureVector[]; lean?: number } | null = null;
+  const leans = new Map<number, number>();
   const labels = new Map<number, string>();
   const modality = options.modality ?? faceModality;
   // A modality with its own keys (a side-relative hand) resolves its cues against its own space.
@@ -261,15 +269,20 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     const b = bursting;
     if (!b) return false;
     bursting = null;
-    const took = b.frames.length >= minBurstFrames;
-    const mean = took ? meanOf(b.frames) : null;
-    if (mean) {
-      const index = session.points().length;
-      segment++;
-      session.beginCue(segmentCue(modality, segment), { after: mean });
-      session.addPoint({ vector: mean, t: b.t, cue: '' });
-      supports[index] = thin(b.frames.map((f) => keepOnly(modality, f)), supportFrames);
-      if (b.label) labels.set(index, b.label);
+    const parts = b.lean === undefined ? [b.frames] : leanParts(modality, b.frames, minBurstFrames, leanHolds);
+    const took = b.frames.length >= minBurstFrames && parts.length > 0;
+    if (took) {
+      parts.forEach((frames, n) => {
+        const mean = meanOf(frames)!;
+        const index = session.points().length;
+        segment++;
+        session.beginCue(segmentCue(modality, segment), { after: mean });
+        session.addPoint({ vector: mean, t: b.t + n, cue: '' });
+        supports[index] = thin(frames.map((f) => keepOnly(modality, f)), supportFrames);
+        if (b.label) labels.set(index, b.label);
+        if (b.lean !== undefined) leans.set(index, b.lean);
+        if (n < parts.length - 1) session.endCue();
+      });
       justTaken = true;
       if (phase === 'paused') session.endCue();
     } else if (phase === 'faces') {
@@ -426,20 +439,37 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
     pointCount: () => session.points().length,
     support: (index) => supports[index] ?? [],
     facesStartedAt: () => facesAt,
-    beginBurst(tMs, label = '') {
+    beginBurst(tMs, label = '', options = {}) {
       if (bursting || (phase !== 'faces' && phase !== 'paused')) return false;
+      // A lean leans on the hold taken before it: nothing to lean on, no lean.
+      if (options.lean && session.points().length === 0) return false;
       // The capture's hold in progress is dropped with its segment (as a pause drops it).
       if (phase === 'faces') session.endCue();
       watch = null;
       justTaken = false;
-      bursting = { label: label.trim(), t: tMs, frames: [] };
+      bursting = { label: label.trim(), t: tMs, frames: [], ...(options.lean ? { lean: session.points().length - 1 } : {}) };
       return true;
     },
     endBurst: () => endBurst(),
     burst: () => (bursting ? { label: bursting.label, frames: bursting.frames.length } : null),
     labels: () => labels,
+    leans: () => leans,
     session: () => session,
   };
+}
+
+/**
+ * A lean's frames cut into the holds it becomes (#349): sorted by the modality's distance proxy
+ * (the first one most frames carry), then split into equal groups so the holds span the range
+ * leaned through; with no proxy, in time order. Groups of fewer than `minFrames` are not holds,
+ * so a short lean becomes fewer holds, down to one.
+ */
+export function leanParts(modality: CarveModality, frames: readonly FeatureVector[], minFrames: number, most: number): FeatureVector[][] {
+  const proxy = (modality.nuisance.distance ?? []).find((p) => frames.filter((f) => (f[p] ?? 0) > 0).length * 2 >= frames.length);
+  const ordered = proxy ? [...frames].sort((a, b) => Math.log(a[proxy] ?? 1) - Math.log(b[proxy] ?? 1)) : [...frames];
+  const count = Math.max(1, Math.min(most, Math.floor(ordered.length / minFrames)));
+  const per = ordered.length / count;
+  return Array.from({ length: count }, (_, i) => ordered.slice(Math.round(i * per), Math.round((i + 1) * per))).filter((g) => g.length >= minFrames);
 }
 
 /** The mean of `vectors` over the union of their finite keys. */

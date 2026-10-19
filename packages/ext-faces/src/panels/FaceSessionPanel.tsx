@@ -430,6 +430,7 @@ function BurstControls({ s }: { s: FaceSessionState }) {
     };
   }, [beginBurst, endBurst]);
   const name = s.burstName.trim();
+  const leanable = (s.modality.nuisance.distance ?? []).length > 0;
   return (
     <div className="space-y-1 rounded-md border border-white/10 p-2" data-faces-burst={s.burst ? 'on' : 'off'}>
       <div className="flex flex-wrap items-center gap-2">
@@ -462,6 +463,22 @@ function BurstControls({ s }: { s: FaceSessionState }) {
         >
           {s.burst ? 'Recording... let go to keep it' : 'Hold to record a burst (B)'}
         </button>
+        {leanable && (
+          <button
+            type="button"
+            className={btn}
+            disabled={s.points === 0 || s.burst !== null}
+            title={`Make the ${one} you just held again and lean toward the camera and away while you hold this: it teaches the Distance dial`}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+              beginBurst(true);
+            }}
+            onPointerUp={() => endBurst()}
+            onPointerCancel={() => endBurst()}
+          >
+            Hold to lean in and out
+          </button>
+        )}
       </div>
       <p className={hint} aria-live="polite" data-faces-burst-says>
         {s.burst
