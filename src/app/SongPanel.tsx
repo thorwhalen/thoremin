@@ -232,7 +232,7 @@ export default function SongPanel() {
                   </label>
                   <label className="flex items-center justify-between gap-2 text-xs text-white/80" data-testid="song-align-start">
                     <span>
-                      Start on your step <span className="text-white/40">(a Play lands the beat on it at once)</span>
+                      Start on your step <span className="text-white/40">(a Play lands a beat on it at once)</span>
                     </span>
                     <input
                       type="checkbox"

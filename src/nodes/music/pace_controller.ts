@@ -32,7 +32,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { createBeatServo, createPaceController, PACE_DEFAULTS, SERVO_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState, type ServoState } from '@thoremin/ictus';
+import { beatAt, createBeatServo, createPaceController, PACE_DEFAULTS, SERVO_DEFAULTS, UNKNOWN_PULSE, type MusicalTime, type PaceState, type PulseState, type ServoState } from '@thoremin/ictus';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import type { LoadStatus } from '@thoremin/lazy';
 import { songPlayable } from '../output/song_player';
@@ -170,7 +170,9 @@ export const paceControllerNode = defineNode<Params>({
         if (!song || song.state !== 'running') aligned = false;
         else if (!aligned && inputs.alignStart === true && pace.mode === 'following' && Number.isFinite(pace.phaseError)) {
           aligned = true;
-          if (Math.abs(pace.phaseError) > ALIGN_MIN_BEATS) cue = { id: ALIGN_CUE_ID_BASE + ++alignCue, beat: Math.max(0, song.beat - pace.phaseError) };
+          if (Math.abs(pace.phaseError) > ALIGN_MIN_BEATS) // The error was measured at THIS tick (the song's beat extrapolated from its delayed reading), so the target is
+          // that beat less the error; a negative beat is a position before the first tracked beat, which the player clamps.
+          cue = { id: ALIGN_CUE_ID_BASE + ++alignCue, beat: beatAt(song, ctx.time) - pace.phaseError };
         }
         return { rate: pace.rate, pace, ...(cue ? { cue } : {}) };
       },
