@@ -59,6 +59,15 @@ export type BranchEdge = z.infer<typeof BranchEdgeSchema>;
 export const BranchVoiceSchema = z.object({ from: PortRefSchema, role: z.enum(VOICE_ROLES) });
 export type BranchVoice = z.infer<typeof BranchVoiceSchema>;
 
+/**
+ * A chord producer a branch contributes (#600 S4): a `number[]` stream of chord tones the composer
+ * wires into a free input of the chord selector, so the overlay's chord display shows it. Higher
+ * `priority` wins when several sound at once (the face chord 30, the pose chord 20); ties go by
+ * branch order. A pool, like `voices`: no branch names the selector's inputs.
+ */
+export const BranchChordSchema = z.object({ from: PortRefSchema, priority: z.number() });
+export type BranchChord = z.infer<typeof BranchChordSchema>;
+
 export const GraphBranchSchema = z.object({
   id: z.string().min(1),
   /** One line for the catalog and the composer's error messages. */
@@ -77,6 +86,8 @@ export const GraphBranchSchema = z.object({
   edges: z.array(BranchEdgeSchema).default([]),
   /** `synth-params` streams this branch contributes; the composer allocates merge inputs. */
   voices: z.array(BranchVoiceSchema).default([]),
+  /** Chord-tone streams this branch contributes; the composer allocates chord-selector inputs. */
+  chords: z.array(BranchChordSchema).default([]),
   /** Overlay element ids this branch wants drawn (the overlay intersects with its dials). */
   overlay: z.array(z.string()).default([]),
   /** Feature-catalog group ids whose live demand implies this branch at runtime. */

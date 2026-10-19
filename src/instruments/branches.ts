@@ -175,9 +175,10 @@ export const faceChordVoice = defineBranch({
     to(ui('faceMapping'), { node: 'exprChord', port: 'faceMapping' }),
     to(ui('chordConfig'), { node: 'exprChord', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'exprChord', port: 'octaveShift' }),
-    to({ node: 'exprChord', port: 'triad' }, { node: 'chordSel', port: 'a' }),
   ],
   voices: [{ from: { node: 'exprChord', port: 'params' }, role: 'instrument' }],
+  // The face's expression chord leads the chord display (the selector's first input).
+  chords: [{ from: { node: 'exprChord', port: 'triad' }, priority: 30 }],
   overlay: ['chordGuide', 'chordName'],
 });
 
@@ -208,9 +209,9 @@ export const faceControls = defineBranch({
     to(ui('faceMapping'), { node: 'poseChord', port: 'faceMapping' }),
     to(ui('chordConfig'), { node: 'poseChord', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'poseChord', port: 'octaveShift' }),
-    to({ node: 'poseChord', port: 'chord' }, { node: 'chordSel', port: 'b' }),
   ],
   voices: [{ from: { node: 'poseChord', port: 'params' }, role: 'instrument' }],
+  chords: [{ from: { node: 'poseChord', port: 'chord' }, priority: 20 }],
   overlay: ['faceLandmarks', 'chordGuide', 'chordName'],
 });
 

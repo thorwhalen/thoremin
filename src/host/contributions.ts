@@ -23,6 +23,9 @@
  */
 import type { DialSlice, Extension, ExtensionInstrument, TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
+import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
+import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
+import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
 import {
   EXTENSIONS,
   EXTENSION_SETTINGS_SHAPE,
@@ -53,6 +56,23 @@ export interface Contributions {
   /** Every training route (ids unique) and the branch -> route table, tried before core's Trainer. */
   trainingRoutes: readonly TrainingRoute[];
   trainingByBranch: readonly (readonly [branch: string, route: string])[];
+  /** The fan-in pools sized for every branch there is, core's and the extensions' (#600 S4): the
+   *  merge's voice pools and the chord selector's, never below today's 8 + 2 and 3. */
+  pools: { merge: PoolSizes; chords: number };
+}
+
+/**
+ * Pool sizes that fit every branch composed at once: one input per declared voice of each role,
+ * and per declared chord producer plus one for an explicit edge into the selector (an extension
+ * that predates the chord pool wires its own), never below the defaults.
+ */
+export function poolSizesFor(branches: readonly GraphBranch[]): { merge: PoolSizes; chords: number } {
+  const count = (role: 'instrument' | 'score') => branches.reduce((n, b) => n + b.voices.filter((v) => v.role === role).length, 0);
+  const chords = branches.reduce((n, b) => n + b.chords.length, 0);
+  return {
+    merge: { instrument: Math.max(DEFAULT_MERGE_POOL_SIZES.instrument, count('instrument')), score: Math.max(DEFAULT_MERGE_POOL_SIZES.score, count('score')) },
+    chords: Math.max(DEFAULT_CHORD_POOL_SIZE, chords + 1),
+  };
 }
 
 /**
@@ -81,16 +101,18 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
   // so they share one namespace.
   const storeFields = new Map<string, string>();
   const dialSlices = keyed('dial key or transient field', extensions, (e) => e.dials, (d) => d.key, storeFields);
+  const branches = keyed('branch', extensions, (e) => e.branches, (b) => b.id);
   const transientFields = keyed('dial key or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields).map((t) => t.field);
   return {
     extensions,
     dialSlices,
     transientFields,
-    branches: keyed('branch', extensions, (e) => e.branches, (b) => b.id),
+    branches,
     nodeTypes: keyed('node type', extensions, (e) => [...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])], (t) => t),
     instruments: keyed('instrument', extensions, (e) => e.instruments ?? [], (i) => i.name),
     trainingRoutes: keyed('training route', extensions, (e) => e.training?.routes ?? [], (r) => r.id),
     trainingByBranch: extensions.flatMap((e) => e.training?.byBranch ?? []),
+    pools: poolSizesFor([...CORE_BRANCHES, ...branches]),
   };
 }
 

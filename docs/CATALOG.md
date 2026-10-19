@@ -311,7 +311,7 @@ Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive 
 - **params:** minCutoff (number=1), beta (number=0.01), dCutoff (number=1), fallbackDt (number=0.016666666666666666)
 
 #### `synth-merge` — Synth Merge
-Union the synth-params voice streams into one: eight instrument inputs (hushable) and two score inputs (kept under hush); master mute. `unmuted` is the same stream before the master mute (for MIDI out).
+Union the synth-params voice streams into one: a pool of instrument inputs (hushable; eight at least) and of score inputs (kept under hush; two at least); master mute. `unmuted` is the same stream before the master mute (for MIDI out).
 
 - **roles:** mapping
 - **in:** voice1:synth-params, voice2:synth-params, voice3:synth-params, voice4:synth-params, voice5:synth-params, voice6:synth-params, voice7:synth-params, voice8:synth-params, score1:synth-params, score2:synth-params, mute:boolean, hush:boolean
@@ -319,7 +319,7 @@ Union the synth-params voice streams into one: eight instrument inputs (hushable
 - **params:** —
 
 #### `chord-select` — Chord Select
-Pick the first non-empty of up to three chord-tone streams (emotion triad, pose chord, sign chord) for the overlay.
+Pick the first non-empty of a pool of chord-tone streams (the face chord, the pose chord, the sign chord, and any an extension declares), highest priority first, for the overlay.
 
 - **roles:** mapping
 - **in:** a:number[], b:number[], c:number[]
