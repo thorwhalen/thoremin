@@ -23,16 +23,22 @@
  * melody ladder and the moves around the sounding chord are drawn by the overlay's generic
  * `cellGrid` element, from the `grid` output.
  *
+ * The face can colour it (`face`, H7 of #613, `docs/design/harmonic-layers.md` §5.4): valence
+ * (a smile against a furrowed brow) moves the key to its parallel major or minor after a dwell,
+ * so a passing smile does not modulate, and arousal (an open mouth, raised brows) adds the key's
+ * tensions to the chord (the seventh, then the ninth), never choosing it: the hands choose.
+ *
  * Off by default; pure and Node-safe.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
+import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import { LM, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { LM, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import {
@@ -76,6 +82,19 @@ export const CHORD_MAP_MELODY_VOICE_ID = CHORD_MAP_VOICE_ID_BASE + 100;
 /** The grid and the ladder keep this far from the frame's top and bottom (the shell's bars). */
 const REGION_TOP = 0.1;
 const REGION_BOTTOM = 0.9;
+/** The face's valence levels: below -0.3 the darker parallel, above 0.3 the brighter, crossed by
+ *  0.08 (a held smile on the face fixture reads 0.9, a resting face about 0). */
+const VALENCE_EDGES = [-0.3, 0.3] as const;
+const VALENCE_MARGIN = 0.08;
+/** The face's arousal levels, each a tension step (the seventh, then the ninth): a closed smile
+ *  reads about 0.1 on the face fixture, a resting face 0.25, an open-mouthed one with the brows
+ *  up 0.6. Quicker than a modulation: a colour, not a key. */
+const AROUSAL_EDGES = [0.35, 0.55] as const;
+const AROUSAL_MARGIN = 0.05;
+const AROUSAL_DWELL_S = 0.25;
+/** The tension steps of `byTension` (seventh, ninth, eleventh or thirteenth). */
+const TENSION_STEPS = 3;
+
 /** The palm's centre: the wrist and the four knuckles. */
 const PALM_POINTS = [LM.wrist, LM.index_mcp, LM.middle_mcp, LM.ring_mcp, LM.pinky_mcp] as const;
 
@@ -133,6 +152,14 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.7),
   /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
   mirrorHandedness: z.boolean().default(true),
+  /** The face colours the chords (composes the face model): its valence and its arousal. */
+  face: z.boolean().default(false),
+  /** With the face: a smile turns the key to its parallel major, a frown to its parallel minor. */
+  faceMode: z.boolean().default(true),
+  /** With the face: an open mouth and raised brows add the seventh, then the ninth. */
+  faceTension: z.boolean().default(true),
+  /** With the face: seconds a smile or a frown must last before the key changes. */
+  modeDwellS: z.number().min(0).max(4).default(1),
 });
 type Params = z.infer<typeof Params>;
 
@@ -170,6 +197,9 @@ export interface ChordMapStatus {
   lastLead: number;
   /** Whether the strumming hand's stroke floor has been learned. */
   ready: boolean;
+  /** With the face: the key's mode in force ('key': the key's own) and the tension steps added. */
+  mode: 'key' | 'darker' | 'brighter';
+  tension: number;
 }
 
 export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
@@ -185,6 +215,8 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   predicted: 0,
   lastLead: 0,
   ready: false,
+  mode: 'key',
+  tension: 0,
 };
 
 /** The point a hand chooses with, in display fractions (the mirrored frame). */
@@ -229,6 +261,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'spec', kind: 'scale-spec' },
     { name: 'chordConfig', kind: 'chord-config' },
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // The face's smoothed controls, while the face colours the map (`face`).
+    { name: 'face', kind: 'face-features' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -257,6 +291,9 @@ export const chordMapNode = defineNode<Params>({
     let melodySet: MelodySet = 'chord';
     let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
+    let valence: LevelTracker | null = null;
+    let valenceDwell = -1;
+    const arousal = createLevelTracker({ edges: AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -288,6 +325,8 @@ export const chordMapNode = defineNode<Params>({
       melodySet = 'chord';
       otherTilt = null;
       status = { ...IDLE_CHORD_MAP_STATUS };
+      valence?.reset();
+      arousal.reset();
     };
 
     return {
@@ -295,15 +334,26 @@ export const chordMapNode = defineNode<Params>({
         const c = resolveConfig(inputs.config);
         const chordCfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
+        // The face's affect (H7): the mode in force and the tension steps, both levels with a dwell.
+        const now = typeof ctx?.time === 'number' ? ctx.time : 0;
+        const face = c.enabled && c.face ? (inputs.face as FaceFeatures | undefined) : undefined;
+        if (!valence || valenceDwell !== c.modeDwellS) {
+          valence = createLevelTracker({ edges: VALENCE_EDGES, hysteresis: VALENCE_MARGIN, dwellS: c.modeDwellS, rest: VALENCE_LEVELS.key });
+          valenceDwell = c.modeDwellS;
+        }
+        const modeLevel = c.face && c.faceMode ? valence.push(valenceOf(face), now) : VALENCE_LEVELS.key;
+        const tensionLevel = c.face && c.faceTension ? arousal.push(arousalOf(face), now) : 0;
+        const tension = Math.max(c.sevenths ? 1 : 0, tensionLevel);
         const rawSpec = inputs.spec as ScaleSpec | undefined;
-        const spec = rawSpec ? letterChordSpec(rawSpec) : undefined;
+        const spec = rawSpec ? letterChordSpec(parallelSpec(rawSpec, modeLevel)) : undefined;
         const render = (degree: number) =>
           renderer.render({
             degree,
             spec,
             voicing: chordCfg.voicing ?? c.voicing,
             rendering: chordCfg.rendering ?? c.rendering,
-            coloration: c.sevenths ? 'diatonicSeventh' : undefined,
+            coloration: c.face && c.faceTension ? 'byTension' : c.sevenths ? 'diatonicSeventh' : undefined,
+            tension: tension / TENSION_STEPS,
             bpm: chordCfg.bpm ?? c.bpm,
             octaveShift: shift,
             gain: chordCfg.gain ?? c.gain,
@@ -415,6 +465,8 @@ export const chordMapNode = defineNode<Params>({
           numeral: active?.numeral ?? null,
           melody: melodyNote,
           melodySet,
+          mode: modeLevel === VALENCE_LEVELS.darker ? 'darker' : modeLevel === VALENCE_LEVELS.brighter ? 'brighter' : 'key',
+          tension: c.face && c.faceTension ? tension : 0,
         };
         const grid: CellGrid = chordMapGrid({
           layout: c.layout,

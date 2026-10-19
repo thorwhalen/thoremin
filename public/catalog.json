@@ -1163,6 +1163,10 @@
         "name": "octaveShift",
         "kind": "number",
         "default": 0
+      },
+      {
+        "name": "face",
+        "kind": "face-features"
       }
     ],
     "outputs": [
@@ -1332,6 +1336,26 @@
         "name": "mirrorHandedness",
         "type": "boolean",
         "default": true
+      },
+      {
+        "name": "face",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "faceMode",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "faceTension",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "modeDwellS",
+        "type": "number",
+        "default": 1
       }
     ]
   },

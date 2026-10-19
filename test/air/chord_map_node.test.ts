@@ -12,7 +12,7 @@ import type { NoteEvent } from '@thoremin/ext-air/nodes/note_events';
 import { diatonicChords, layoutCells, melodyLadder, type ChordMapLayoutId } from '@thoremin/ext-air/lib/chord_map';
 import { guitarVoicing, parseChordName } from '@thoremin/ext-air/lib/guitar';
 import { freqToMidi, type ScaleSpec } from '@thoremin/sdk/music/theory';
-import type { HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
+import { ABSENT_FACE, type FaceFeatures, type HandsFrame, type SynthParams } from '@thoremin/sdk/nodes/domain';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { chordMapTake, W, H } from './synthetic_chord_map';
 
@@ -27,11 +27,11 @@ interface Out {
   triad: number[];
 }
 
-function play(frames: HandsFrame[], config: Record<string, unknown>, spec: ScaleSpec = C_MAJOR) {
+function play(frames: HandsFrame[], config: Record<string, unknown>, spec: ScaleSpec = C_MAJOR, faceAt?: (t: number) => FaceFeatures) {
   const h = chordMapNode.make(chordMapNode.params.parse({}));
   const outs: { t: number; out: Out }[] = [];
   for (const f of frames) {
-    const out = h.process({ hands: f, config, spec, octaveShift: 0 }, { time: f.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    const out = h.process({ hands: f, config, spec, octaveShift: 0, face: faceAt?.(f.t!) }, { time: f.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
     outs.push({ t: f.t!, out });
   }
   return outs;
@@ -146,6 +146,37 @@ describe('the chord-map node, strumming', () => {
   it('strums nothing while no chord is pointed at', () => {
     const outs = play(chordMapTake({ duration: 3, chordAt: () => null, strumPeriod: 0.5 }), { ...ON, play: 'strum' });
     expect(outs.flatMap((o) => o.out.notes)).toEqual([]);
+  });
+});
+
+describe('the chord-map node, coloured by the face (H7 of #613)', () => {
+  const A_MINOR: ScaleSpec = { root: 9, type: 'minor', octaves: 2, baseOctave: 3 };
+  // A resting face, a smile from 0.5 s, the mouth open and the brows up from 2.2 s.
+  const faceAt = (t: number): FaceFeatures => ({
+    ...ABSENT_FACE,
+    present: true,
+    smile: t >= 0.5 ? 0.9 : 0,
+    mouthOpen: t >= 2.2 ? 0.6 : 0.1,
+    browRaise: t >= 2.2 ? 0.7 : 0.3,
+  });
+  const take = () => chordMapTake({ duration: 3.2, chordAt: () => cellOf(0) });
+
+  it('turns the key major a second into a smile, then adds the seventh and the ninth to an open mouth', () => {
+    const outs = play(take(), { ...ON, face: true }, A_MINOR, faceAt);
+    const at = (t: number) => outs.find((o) => o.t >= t)!.out;
+    expect(soundingPcs(at(1.2).params)).toEqual([0, 4, 9]); // A minor: the smile is not yet a second old
+    expect(at(1.2).status.mode).toBe('key');
+    expect(soundingPcs(at(1.8).params)).toEqual([1, 4, 9]); // A major
+    expect(at(1.8).status).toMatchObject({ mode: 'brighter', key: 'A', tension: 0 });
+    expect(soundingPcs(at(3.0).params)).toEqual([1, 4, 8, 9, 11]); // Amaj9: G# and B added
+    expect(at(3.0).status.tension).toBe(2);
+  });
+
+  it('leaves the key and the chord alone with the face off, or with no face in view', () => {
+    const off = play(take(), { ...ON, face: false }, A_MINOR, faceAt);
+    expect(soundingPcs(off.find((o) => o.t >= 3.0)!.out.params)).toEqual([0, 4, 9]);
+    const unseen = play(take(), { ...ON, face: true }, A_MINOR, () => ABSENT_FACE);
+    expect(unseen.find((o) => o.t >= 3.0)!.out.status).toMatchObject({ mode: 'key', tension: 0 });
   });
 });
 

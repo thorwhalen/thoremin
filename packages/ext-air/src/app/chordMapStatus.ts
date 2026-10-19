@@ -30,7 +30,7 @@ export function describeChordMapLive(live: ChordMapLive): string {
   if (!live.enabled) return 'Off. Tick "Play the chord map" (the Chord Map instruments have it on).';
   if (!live.pointing) return 'Show your chord hand: put its palm over a chord on the screen.';
   if (live.chord === null) return `Key of ${live.key}. Move your chord hand over a chord.`;
-  const chord = `${live.chord} (${live.numeral})`;
+  const chord = `${live.chord} (${live.numeral})${live.mode === 'brighter' ? ', the smile made it major' : live.mode === 'darker' ? ', the frown made it minor' : ''}${live.tension > 1 ? ', with a ninth' : live.tension > 0 ? ', with a seventh' : ''}`;
   if (live.play === 'hold') return live.melody ? `${chord}, melody ${live.melody} (${live.melodySet === 'chord' ? 'chord tones' : live.melodySet}).` : `${chord}. Raise or lower your other hand for a melody on its notes.`;
   if (!live.ready) return `${chord}. Strum down once with your other hand to teach it your stroke.`;
   if (live.strums === 0) return `${chord}. Strum with your other hand.`;
