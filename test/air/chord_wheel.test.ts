@@ -1,0 +1,118 @@
+/**
+ * The chord wheel (H5 of #613): the direction stepper (one move per push, re-armed at the
+ * centre), and the `chord-wheel` node on a scripted hand: from the tonic, a push up makes the
+ * fourth-up move (C to F), the hand back in the middle re-arms, a second push up goes on (F to
+ * B°), a push down comes back; the Tonnetz wheel's P turns C into C minor and back; the chord
+ * sounds only while the hand is seen; its grid draws the centre and a wedge per move with the
+ * target chord's name. (A move that cannot apply is the state reducer's, tested there.)
+ */
+import { describe, it, expect } from 'vitest';
+import { createDirectionStepper } from '@thoremin/sdk/harmony/navigate';
+import { radial } from '@thoremin/sdk/harmony/layout';
+import { chordWheelNode, wheelRegion, CHORD_WHEEL_VOICE_ID_BASE, type ChordWheelStatus } from '@thoremin/ext-air/nodes/chord_wheel';
+import { freqToMidi, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import type { HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
+import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
+import { palmAt, W, H } from './synthetic_chord_map';
+
+const C: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
+const ASPECT = W / H;
+
+describe('the direction stepper', () => {
+  it('commits one move per push, after the dwell, and re-arms only back in the centre', () => {
+    const s = createDirectionStepper({ wedges: 6, dead: 0.07, reach: 0.14, enterFrames: 3 });
+    const up = { dx: 0, dy: -0.2 };
+    expect(s.push({ dx: 0, dy: 0 }).armed).toBe(true);
+    expect(s.push(up).committed).toBeNull();
+    expect(s.push(up).committed).toBeNull();
+    expect(s.push(up)).toEqual({ pointing: 0, committed: 0, armed: false });
+    for (let i = 0; i < 10; i++) expect(s.push(up).committed).toBeNull(); // held out: no walking on
+    expect(s.push({ dx: 0, dy: 0.1 }).committed).toBeNull(); // past the dead zone, not back in it
+    expect(s.push({ dx: 0, dy: 0 }).armed).toBe(true);
+    const down = { dx: 0, dy: 0.3 };
+    s.push(down);
+    s.push(down);
+    expect(s.push(down).committed).toBe(3);
+  });
+
+  it('chooses nothing short of the reach, and forgets a half-made choice when the point is lost', () => {
+    const s = createDirectionStepper({ wedges: 6, dead: 0.07, reach: 0.14, enterFrames: 2 });
+    for (let i = 0; i < 5; i++) expect(s.push({ dx: 0.1, dy: 0 }).committed).toBeNull();
+    s.push({ dx: 0.3, dy: 0 });
+    s.push(null);
+    expect(s.push({ dx: 0.3, dy: 0 }).committed).toBeNull();
+    expect(s.push({ dx: 0.3, dy: 0 }).committed).not.toBeNull();
+  });
+});
+
+interface Out {
+  params: SynthParams;
+  grid: CellGrid;
+  status: ChordWheelStatus;
+  triad: number[];
+}
+
+/** The wheel's centre and the point `r` frame heights out at wedge angle `k` of 6. */
+const centre = radial(wheelRegion('left'), 6, { aspect: ASPECT, radius: 0.3 })[0];
+const at = (k: number | null, r = 0.2) => (k === null ? { x: centre.x, y: centre.y } : { x: centre.x + (r * Math.sin((2 * Math.PI * k) / 6)) / ASPECT, y: centre.y - r * Math.cos((2 * Math.PI * k) / 6) });
+
+/** Play a script of hand positions (null = no hand), five frames each. */
+function play(script: ({ x: number; y: number } | null)[], config: Record<string, unknown> = {}) {
+  const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+  const outs: Out[] = [];
+  let i = 0;
+  for (const p of script) {
+    for (let f = 0; f < 5; f++, i++) {
+      const t = i / 30;
+      const frame: HandsFrame = { t, width: W, height: H, hands: p ? [palmAt(p, 'Left')] : [] };
+      outs.push(h.process({ hands: frame, config: { enabled: true, mirrorHandedness: false, ...config }, spec: C, octaveShift: 0 }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out);
+    }
+  }
+  return outs;
+}
+const pcs = (p: SynthParams) => [...new Set(p.voices.filter((v) => v.id >= CHORD_WHEEL_VOICE_ID_BASE && v.present && v.gain > 0).map((v) => Math.round(freqToMidi(v.freq)) % 12))].sort((a, b) => a - b);
+
+describe('the chord-wheel node', () => {
+  it('walks the key\'s moves: up is a fourth up (C to F), back to the middle, up again (to B°), down back', () => {
+    const outs = play([at(null), at(0), at(null), at(0), at(null), at(3)]);
+    const chords = outs.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1]);
+    expect(chords).toEqual(['C', 'F', 'B°', 'F']);
+    const last = outs[outs.length - 1];
+    expect(last.status).toMatchObject({ moveCount: 3, lastMove: '4th down', numeral: 'IV' });
+    expect(pcs(last.params)).toEqual([0, 5, 9]); // F A C
+  });
+
+  it('the Tonnetz wheel leaves the key: P turns C into C minor, L into E minor', () => {
+    expect(play([at(null), at(0)], { moves: 'tonnetz' }).at(-1)!.status.chord).toBe('Cm');
+    expect(play([at(null), at(1)], { moves: 'tonnetz' }).at(-1)!.status.chord).toBe('Em');
+    // N from C is F minor, outside C major: named, no numeral but its borrowed function.
+    const n = play([at(null), at(3)], { moves: 'tonnetz' }).at(-1)!;
+    expect(n.status.chord).toBe('Fm');
+  });
+
+  it('moves around the key and back: a second down from C is B°, then a fourth up is Em; P toggles C and Cm', () => {
+    const outs = play([at(null), at(5), at(null), at(0)]);
+    expect(outs.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1])).toEqual(['C', 'B°', 'Em']);
+    const t = play([at(null), at(0), at(null), at(0), at(null), at(0)], { moves: 'tonnetz' });
+    expect(t.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1])).toEqual(['C', 'Cm', 'C', 'Cm']);
+  });
+
+  it('sounds only while the hand is seen, and draws the centre and a wedge per move', () => {
+    const outs = play([null, at(null), null, null, null]);
+    expect(pcs(outs[2].params)).toEqual([]); // before the hand: silent
+    expect(pcs(outs[7].params)).toEqual([0, 4, 7]); // C while seen
+    expect(pcs(outs.at(-1)!.params)).toEqual([]); // lost for long enough: silent
+    const g = outs[7].grid;
+    expect(g.cells).toHaveLength(7);
+    expect(g.cells[0]).toMatchObject({ label: 'C', sub: 'I', state: 'active' });
+    expect(g.cells.slice(1).map((c) => c.label)).toEqual(['F', 'Em', 'Dm', 'G', 'Am', 'B°']);
+    expect(g.cells.slice(1).map((c) => c.sub)).toEqual(['4th up', '3rd up', '2nd up', '4th down', '3rd down', '2nd down']);
+  });
+
+  it('is silent and draws nothing with the dial off', () => {
+    const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+    const out = h.process({ hands: { t: 0, width: W, height: H, hands: [palmAt(at(null), 'Left')] }, config: { enabled: false }, spec: C }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    expect(out.grid.cells).toEqual([]);
+    expect(pcs(out.params)).toEqual([]);
+  });
+});

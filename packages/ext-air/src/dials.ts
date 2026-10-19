@@ -19,6 +19,7 @@ import { AirBassDialSchema } from './nodes/air_bass';
 import { AirGuitarDialSchema } from './nodes/air_guitar';
 import { AirFluteDialSchema } from './nodes/air_flute';
 import { ChordMapDialSchema } from './nodes/chord_map';
+import { ChordWheelDialSchema } from './nodes/chord_wheel';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from './lib/fingering_prior';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 
@@ -50,6 +51,10 @@ export const ChordMapSettingsSchema = ChordMapDialSchema;
 export type ChordMapSettings = z.infer<typeof ChordMapSettingsSchema>;
 export const DEFAULT_CHORD_MAP: ChordMapSettings = ChordMapSettingsSchema.parse({});
 
+/** The chord wheel: the node's params ARE the dial. */
+export const ChordWheelSettingsSchema = ChordWheelDialSchema;
+export const DEFAULT_CHORD_WHEEL = ChordWheelSettingsSchema.parse({});
+
 /** The settings-schema shape the air extension contributes (spread into `SettingsSchema`). */
 export const AIR_SETTINGS_SHAPE = {
   airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM),
@@ -57,6 +62,7 @@ export const AIR_SETTINGS_SHAPE = {
   airGuitar: AirGuitarSettingsSchema.default(DEFAULT_AIR_GUITAR),
   airFlute: AirFluteSettingsSchema.default(DEFAULT_AIR_FLUTE),
   chordMap: ChordMapSettingsSchema.default(DEFAULT_CHORD_MAP),
+  chordWheel: ChordWheelSettingsSchema.default(DEFAULT_CHORD_WHEEL),
 };
 
 /** The same four keys as dial slices: what `store-controls` and the dials form fold over. */
@@ -115,6 +121,16 @@ export const AIR_DIAL_SLICES = [
       facets: ['Chord map'],
       title: 'Chord map',
       description: "Point at a key's chords on the screen: on/off, the layout (the harmonic map, a row by fifths, a row in scale order), hold or strum, which hand points, the melody on the chord's tones",
+    },
+  }),
+  dialSlice({
+    key: 'chordWheel',
+    schema: AIR_SETTINGS_SHAPE.chordWheel,
+    kind: 'chord-wheel-config',
+    meta: {
+      facets: ['Chord wheel'],
+      title: 'Chord wheel',
+      description: 'A next-chord wheel: on/off, which moves (the key\'s diatonic moves, or the Tonnetz\'s), which hand steers, its size, how far to push and how long to hold',
     },
   }),
 ] as const;

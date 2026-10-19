@@ -18,6 +18,7 @@
     "./app/airFluteStatus": "./src/app/airFluteStatus.ts",
     "./app/airGuitarStatus": "./src/app/airGuitarStatus.ts",
     "./app/chordMapStatus": "./src/app/chordMapStatus.ts",
+    "./app/chordWheelStatus": "./src/app/chordWheelStatus.ts",
     "./app/controls": "./src/app/controls.ts",
     "./app/hitsTap": "./src/app/hitsTap.ts",
     "./app/padLayouts": "./src/app/padLayouts.ts",
@@ -47,6 +48,7 @@
     "./nodes/air_flute": "./src/nodes/air_flute.ts",
     "./nodes/air_guitar": "./src/nodes/air_guitar.ts",
     "./nodes/chord_map": "./src/nodes/chord_map.ts",
+    "./nodes/chord_wheel": "./src/nodes/chord_wheel.ts",
     "./nodes/drum_out": "./src/nodes/drum_out.ts",
     "./nodes/note_events": "./src/nodes/note_events.ts",
     "./nodes/pluck_out": "./src/nodes/pluck_out.ts",
@@ -56,6 +58,7 @@
     "./panels/airFlute": "./src/panels/airFlute.tsx",
     "./panels/airGuitar": "./src/panels/airGuitar.tsx",
     "./panels/chordMap": "./src/panels/chordMap.tsx",
+    "./panels/chordWheel": "./src/panels/chordWheel.tsx",
     "./training": "./src/training.ts",
     "./ui": "./src/ui.tsx"
   },

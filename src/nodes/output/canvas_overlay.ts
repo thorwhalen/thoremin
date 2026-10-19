@@ -59,7 +59,7 @@ import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import { PAD_IDS, anyPadOn, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { gripFulcrum, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
-import { cellGridOf, drawCellGrid } from './cell_grid_draw';
+import { cellGridOf, drawCellGrid } from '@thoremin/sdk/nodes/cell_grid_draw';
 import {
   BODY_BONES,
   BODY_LANDMARK_COUNT,

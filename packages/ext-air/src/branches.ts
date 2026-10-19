@@ -5,6 +5,7 @@
  */
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });
@@ -110,4 +111,25 @@ export const chordMap = defineBranch({
   overlay: ['cellGrid'],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap] as const;
+/** The chord wheel's overlay element (#600 S5): the air extension's own, drawn from its grid. */
+export const CHORD_WHEEL_ELEMENT = 'chordWheel';
+
+export const chordWheel = defineBranch({
+  id: 'chord-wheel',
+  description: 'The chord wheel: the chord in force in the centre, a move per wedge; push the hand toward a move and the wheel recentres.',
+  nodes: [{ id: 'chordWheel', type: 'chord-wheel', params: {} }],
+  edges: [
+    to({ node: TRUNK.cam, port: 'hands' }, { node: 'chordWheel', port: 'hands' }),
+    to(ui('chordWheel'), { node: 'chordWheel', port: 'config' }),
+    to(ui('chordSpec'), { node: 'chordWheel', port: 'spec' }),
+    to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
+    to(ui('octaveShift'), { node: 'chordWheel', port: 'octaveShift' }),
+    to({ node: 'chordWheel', port: 'grid' }, overlay(overlayPortName('air', CHORD_WHEEL_ELEMENT, 'grid'))),
+  ],
+  voices: [{ from: { node: 'chordWheel', port: 'params' }, role: 'instrument' }],
+  // On the shared chord display, after the face, pose and chord-map chords.
+  chords: [{ from: { node: 'chordWheel', port: 'triad' }, priority: 8 }],
+  overlay: [overlayElementId('air', CHORD_WHEEL_ELEMENT)],
+});
+
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordWheel] as const;

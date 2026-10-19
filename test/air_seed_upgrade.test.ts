@@ -57,4 +57,19 @@ describe.runIf(AIR)('upgrading a browser seeded before the air instruments', () 
     const strum = await instruments.load('Chord Map Strum');
     expect((strum?.chordMap as { play?: string } | undefined)?.play).toBe('strum');
   });
+
+  it('a browser at version 8 (before the chord wheel) gains the Chord Wheel and the Tonnetz Wheel', async () => {
+    localStorage.clear();
+    await ensureSeeded();
+    await instruments.remove('Chord Wheel');
+    await instruments.remove('Tonnetz Wheel');
+    localStorage.setItem('thoremin.instruments.seedVersion', '8');
+
+    await ensureSeeded();
+
+    const wheel = await instruments.load('Chord Wheel');
+    expect((wheel?.chordWheel as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+    const tonnetz = await instruments.load('Tonnetz Wheel');
+    expect((tonnetz?.chordWheel as { moves?: string } | undefined)?.moves).toBe('tonnetz');
+  });
 });

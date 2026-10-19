@@ -30,6 +30,9 @@ import { airFluteNode } from './nodes/air_flute';
 import { drumOutNode } from './nodes/drum_out';
 import { pluckOutNode } from './nodes/pluck_out';
 import { chordMapNode } from './nodes/chord_map';
+import { chordWheelNode } from './nodes/chord_wheel';
+import { drawCellGrid, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
+import { CHORD_WHEEL_ELEMENT } from './branches';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
@@ -62,8 +65,22 @@ export const AIR_EXTENSION = defineExtension({
     { id: 'flute', label: 'Air flute', emoji: '🪈', class: 'air', usesScale: false, on: dialOn('airFlute') },
     // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
     { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'air', usesScale: true, on: dialOn('chordMap') },
+    // The chord wheel steps through a space of chords from the chord-source key.
+    { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
   ],
-  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode] as unknown as NodeDef<unknown>[],
+  // The chord wheel's drawing (#600 S5): its own overlay element, fed its grid, configured by its dial.
+  overlay: [{ name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } }],
+  overlayElements: [
+    {
+      name: CHORD_WHEEL_ELEMENT,
+      draw(g, frame, inputs) {
+        if ((inputs.config as { enabled?: boolean } | undefined)?.enabled !== true) return;
+        const grid = cellGridOf(inputs.grid);
+        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
+      },
+    },
+  ],
+  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode, chordWheelNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
   dials: AIR_DIAL_SLICES,
   // The enrolled classifiers: transient hot-store fields the nodes read as ports. Always
@@ -108,6 +125,11 @@ export const AIR_EXTENSION = defineExtension({
     { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt' } } },
     // The same map, strummed: the right hand strums the chord under the left, predicted
     // before the frame that shows the strum (the air guitar's timing).
+    // A next-chord wheel (H5 of #613): the key's six diatonic moves around the chord in force,
+    // voice-led; push the left hand toward a move and hold it.
+    { name: 'Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true } } },
+    // The same wheel with the Tonnetz's moves (P, L, R, N, S, H): it leaves the key.
+    { name: 'Tonnetz Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, moves: 'tonnetz' } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
@@ -119,6 +141,7 @@ export const AIR_EXTENSION = defineExtension({
     if (on(settings.airGuitar)) ids.push('air-guitar');
     if (on(settings.airFlute)) ids.push('air-flute');
     if (on(settings.chordMap)) ids.push('chord-map');
+    if (on(settings.chordWheel)) ids.push('chord-wheel');
     return ids;
   },
 });

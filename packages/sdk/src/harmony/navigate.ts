@@ -109,3 +109,78 @@ export function quantizeIndex(value: number, n: number, lo = 0, hi = 1): number 
   const f = (value - lo) / (hi - lo);
   return Math.min(n - 1, Math.max(0, Math.floor(f * n)));
 }
+
+export interface StepperOptions {
+  /** How many wedges (moves) the radial layout has. */
+  wedges: number;
+  /** The dead zone around the centre, in the displacement's units: inside it nothing is chosen. */
+  dead: number;
+  /** How far out a displacement must reach to choose a wedge, in the same units (past `dead`). */
+  reach: number;
+  /** Camera frames a wedge must be pointed at in a row before its move commits. */
+  enterFrames: number;
+}
+
+export interface StepChoice {
+  /** The wedge pointed at now (reaching or not), or null in the dead zone or with no point. */
+  pointing: number | null;
+  /** The wedge whose move committed on this frame, or null. */
+  committed: number | null;
+  /** Ready for a move: the point has come back to the centre since the last one. */
+  armed: boolean;
+}
+
+export interface DirectionStepper {
+  /** One camera frame: the displacement from the layout's centre (null when the point is not seen). */
+  push(v: { dx: number; dy: number } | null): StepChoice;
+  reset(): void;
+}
+
+/**
+ * The commit policy for a radial ("next chord") layout: a displacement reaching into a wedge for
+ * `enterFrames` frames commits that wedge's move once, and the stepper is then disarmed until the
+ * point comes back into the dead zone. Return to the centre, push toward a move: one move per
+ * push, so a hand held out does not keep walking, and the layout recentring under the hand never
+ * re-triggers (the design's pairing rule for dynamic layouts).
+ */
+export function createDirectionStepper(opts: StepperOptions): DirectionStepper {
+  let armed = true;
+  let candidate: number | null = null;
+  let count = 0;
+  return {
+    push(v) {
+      if (!v) {
+        candidate = null;
+        count = 0;
+        return { pointing: null, committed: null, armed };
+      }
+      const r = Math.hypot(v.dx, v.dy);
+      const pointing = directionIndex(v, opts.wedges, opts.dead);
+      if (pointing === null) {
+        armed = true;
+        candidate = null;
+        count = 0;
+        return { pointing, committed: null, armed };
+      }
+      if (!armed || r < opts.reach) {
+        candidate = null;
+        count = 0;
+        return { pointing, committed: null, armed };
+      }
+      count = pointing === candidate ? count + 1 : 1;
+      candidate = pointing;
+      if (count >= opts.enterFrames) {
+        armed = false;
+        candidate = null;
+        count = 0;
+        return { pointing, committed: pointing, armed };
+      }
+      return { pointing, committed: null, armed };
+    },
+    reset() {
+      armed = true;
+      candidate = null;
+      count = 0;
+    },
+  };
+}

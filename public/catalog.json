@@ -868,6 +868,14 @@
       {
         "name": "airFluteStatus",
         "kind": "air-flute-status"
+      },
+      {
+        "name": "air.chordWheel.grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "air.chordWheel.config",
+        "kind": "chord-wheel-config"
       }
     ],
     "outputs": [],
@@ -1351,6 +1359,134 @@
       }
     ],
     "params": []
+  },
+  {
+    "type": "chord-wheel",
+    "title": "Chord wheel",
+    "description": "A next-chord wheel: the chord in force in the centre, one move per wedge at a fixed angle (the key's diatonic moves, or the Tonnetz's P, L, R and their compounds); push the hand toward a move and hold it, the wheel recentres on the new chord. Off by default.",
+    "roles": [
+      "feature",
+      "mapping",
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "chord-wheel-config"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "status",
+        "kind": "chord-wheel-status"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "moves",
+        "type": "enum(diatonic | tonnetz)",
+        "default": "diatonic"
+      },
+      {
+        "name": "hand",
+        "type": "enum(right | left)",
+        "default": "left"
+      },
+      {
+        "name": "point",
+        "type": "enum(palm | indexTip)",
+        "default": "palm"
+      },
+      {
+        "name": "radius",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "dead",
+        "type": "number",
+        "default": 0.07
+      },
+      {
+        "name": "reach",
+        "type": "number",
+        "default": 0.14
+      },
+      {
+        "name": "enterFrames",
+        "type": "number",
+        "default": 3
+      },
+      {
+        "name": "releaseS",
+        "type": "number",
+        "default": 0.4
+      },
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.22
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "warmPad"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power | voiceLed)",
+        "default": "voiceLed"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      }
+    ]
   },
   {
     "type": "conductor",
@@ -3547,6 +3683,10 @@
         "kind": "chord-map-config"
       },
       {
+        "name": "chordWheel",
+        "kind": "chord-wheel-config"
+      },
+      {
         "name": "asl",
         "kind": "asl-config"
       },
@@ -3631,6 +3771,10 @@
       },
       {
         "name": "voice8",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice9",
         "kind": "synth-params"
       },
       {

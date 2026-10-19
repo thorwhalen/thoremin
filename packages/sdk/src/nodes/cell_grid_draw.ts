@@ -1,10 +1,10 @@
 /**
- * Drawing a cell grid (`CellGrid`, `@thoremin/sdk/nodes/cell_grid`): the overlay's `cellGrid`
- * element, the chord map's targets. Its own module so the overlay node stays a list of
- * elements and grows by the element's wiring only. Pure canvas calls, the ones the recording
+ * Drawing a cell grid (`CellGrid`, `./cell_grid`): core's overlay `cellGrid` element (the chord
+ * map's targets) and any extension's own overlay element (#600 S5) draw through it, so one
+ * picture of a grid serves every layout. In the SDK because an extension may not import core. Pure canvas calls, the ones the recording
  * canvas of the overlay tests records (no `measureText`, no `closePath`).
  */
-import { CellGridSchema, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
+import { CellGridSchema, type CellGrid, type GridCell } from './cell_grid';
 
 /** How strongly a cell is lit, per state: fill alpha, outline alpha, outline width (px). */
 const CELL_LOOK: Record<GridCell['state'], { fill: number; stroke: number; width: number }> = {
