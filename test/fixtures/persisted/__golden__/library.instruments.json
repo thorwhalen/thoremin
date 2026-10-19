@@ -235,6 +235,21 @@
         }
       },
       "categorizerChords": {
+        "blend": "off",
+        "blendValues": {
+          "cat-1": -1,
+          "cat-10": -1,
+          "cat-11": -1,
+          "cat-12": -1,
+          "cat-2": -1,
+          "cat-3": -1,
+          "cat-4": -1,
+          "cat-5": -1,
+          "cat-6": -1,
+          "cat-7": -1,
+          "cat-8": -1,
+          "cat-9": -1
+        },
         "degrees": {
           "cat-1": -2,
           "cat-10": -2,
@@ -899,6 +914,21 @@
         }
       },
       "categorizerChords": {
+        "blend": "off",
+        "blendValues": {
+          "cat-1": -1,
+          "cat-10": -1,
+          "cat-11": -1,
+          "cat-12": -1,
+          "cat-2": -1,
+          "cat-3": -1,
+          "cat-4": -1,
+          "cat-5": -1,
+          "cat-6": -1,
+          "cat-7": -1,
+          "cat-8": -1,
+          "cat-9": -1
+        },
         "degrees": {
           "cat-1": -2,
           "cat-10": -2,

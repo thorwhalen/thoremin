@@ -37,7 +37,7 @@ export function categorizerChordPlay(record: { id: string; name: string; modalit
 /** No reading (the part not in view, or too little of it): absent, every category at 0. */
 export function absentChordScores(play: CategorizerChordPlay): CategoryScores {
   const cats = play.live.model.categories;
-  return { present: false, label: null, labels: cats.map((c) => c.label), scores: cats.map(() => 0), title: play.name };
+  return { present: false, label: null, labels: cats.map((c) => c.label), scores: cats.map(() => 0), ids: cats.map((c) => c.id), title: play.name };
 }
 
 /** One reading as `CategoryScores`: the settled category named, each category's membership as
@@ -48,6 +48,7 @@ export function toChordScores(play: CategorizerChordPlay, reading: Pick<LiveRead
     label: reading.label,
     labels: reading.memberships.map((m) => m.label),
     scores: reading.memberships.map((m) => m.value),
+    ids: reading.memberships.map((m) => m.id),
     title: play.name,
   };
 }

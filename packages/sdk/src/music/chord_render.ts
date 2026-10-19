@@ -34,6 +34,8 @@ export interface ChordRenderInput {
   tension?: number;
   /** The figuration's beat from outside (musical time); absent: the tempo's own clock. */
   beat?: number;
+  /** A live tone brightness the voices carry, 0..1 (a category blend, #372); absent: none. */
+  brightness?: number;
   bpm: number;
   octaveShift: number;
   /** The chord's volume (0..1). */
@@ -61,7 +63,7 @@ export function createChordRenderer({ idBase, maxVoices }: { idBase: number; max
   const realizer = createRealizer({ idBase, maxVoices });
   return {
     beat: () => realizer.beat(),
-    render({ degree, spec, voicing, rendering, coloration, tension, beat, bpm, octaveShift, gain, sound, silentSound, dt }) {
+    render({ degree, spec, voicing, rendering, coloration, tension, beat, brightness, bpm, octaveShift, gain, sound, silentSound, dt }) {
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
       const { voices, voiced } = realizer.render({
         tones: tonesInRegister(triad),
@@ -70,6 +72,7 @@ export function createChordRenderer({ idBase, maxVoices }: { idBase: number; max
         controls: { ...DEFAULT_CONTROLS, register: octaveShift, tension: tension ?? DEFAULT_CONTROLS.tension },
         bpm,
         beat,
+        brightness,
         gain,
         sound,
         silentSound,

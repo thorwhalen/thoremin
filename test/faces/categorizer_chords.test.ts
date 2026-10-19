@@ -35,8 +35,9 @@ import { HAND_SCRIPT, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { SYNTHETIC_HAND_TIMELINE, syntheticHandShapeAt, syntheticHandVector } from '@thoremin/ext-faces/lib/synthetic_hand';
 import { categorizerChordPlay, type CategorizerChordPlay } from '@thoremin/ext-faces/lib/categorizerChord';
 import { categorizerChordNode, CATEGORIZER_CHORD_VOICE_ID_BASE } from '@thoremin/ext-faces/nodes/categorizer_chord';
+import { categoryBlendNode, type BlendControls } from '@thoremin/ext-faces/nodes/category_blend';
 import { startCategorizerChords, useCategorizerChords, type CategorizerChordsDeps } from '@thoremin/ext-faces/app/categorizerChords';
-import { AUTO_DEGREE, chordDegreeOf, chordModalityOf, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
+import { AUTO_DEGREE, UNSET_BLEND_VALUE, chordDegreeOf, chordModalityOf, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '@thoremin/ext-faces/schema';
 import type { FaceModelRecord } from '@thoremin/ext-faces/app/models';
 import { FACES } from '../helpers/extensions';
 import { POSES, poseVector, scriptedPoseCategorizer } from '../helpers/body_poses';
@@ -66,8 +67,14 @@ describe('the dial (pure)', () => {
     expect(chordDegreeOf(dial, 'cat-9', 7)).toBe(ORDER_DEGREES[0]);
     const writes = chooseCategorizerChordsWrites('hand:x');
     expect(writes[0]).toEqual(['categorizerChords.id', 'hand:x']);
-    // Every slot back to Auto, and its target back to '' (its degree, H6 of #613).
-    expect(writes.slice(1).every(([k, v]) => (k.startsWith('categorizerChords.degrees.') ? v === AUTO_DEGREE : k.startsWith('categorizerChords.targets.') && v === ''))).toBe(true);
+    // Every slot back to Auto, its target back to '' (its degree, H6 of #613), its blend value unset (#372).
+    expect(
+      writes
+        .slice(1)
+        .every(([k, v]) =>
+          k.startsWith('categorizerChords.degrees.') ? v === AUTO_DEGREE : k.startsWith('categorizerChords.targets.') ? v === '' : k.startsWith('categorizerChords.blendValues.') && v === UNSET_BLEND_VALUE,
+        ),
+    ).toBe(true);
   });
 });
 
@@ -90,6 +97,12 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     expect(chordInputs(composed.spec).at(-1)).toBe('catChord.triad');
     expect(into(composed.spec, 'overlay', 'chord')).toEqual(['chordSel.chord']);
     expect(composed.elements).toEqual(expect.arrayContaining(['categoryLabel', 'categoryBars', 'chordName', 'chordGuide']));
+    // The category blend (#372): the reading in, the dial in, its controls back a tick later.
+    expect(into(composed.spec, 'catBlend', 'category')).toEqual(['catChord.category']);
+    expect(into(composed.spec, 'catBlend', 'config')).toEqual(['ui.categorizerChords']);
+    const back = composed.spec.edges.find((e) => e.to.node === 'catChord' && e.to.port === 'controls');
+    expect(back?.from).toEqual({ node: 'catBlend', port: 'controls' });
+    expect(back?.delayed).toBe(true);
     // Its voices reach the merge (the structural guard: a chord nobody hears is not shipped).
     expect(composed.spec.edges.some((e) => e.from.node === 'catChord' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
   });
@@ -101,6 +114,7 @@ describe.runIf(FACES)('the dial composes the branch of its categorizer\'s modali
     const composed = composeInstrumentGraph(ids, {}, createAppRegistry());
     expect(composed.branches).toContain('body-source');
     expect(into(composed.spec, 'catChord', 'vector')).toEqual(['bodyVec.vector']);
+    expect(into(composed.spec, 'catBlend', 'category')).toEqual(['catChord.category']);
     // The pose categorizer's reading first, the categorizer chord's second (#600 S10b: the pool).
     expect(into(composed.spec, 'overlay', 'categorizer2')).toEqual(['catChord.category']);
     expect(into(composed.spec, 'overlay', 'categorizer1')).toEqual(['poseCat.category']);
@@ -183,11 +197,15 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     return out;
   };
 
-  const replay = async (config: Partial<CategorizerChordsDial>, model: CategorizerChordPlay | null = play) => {
+  const replay = async (config: Partial<CategorizerChordsDial>, model: CategorizerChordPlay | null = play, controls?: readonly (BlendControls | undefined)[]) => {
     const frames = script();
     const node = categorizerChordNode.make(categorizerChordNode.params.parse({}));
     const n = frames.length;
-    const out = await replayNode(node, { vector: frames.map((x) => x.vector), model: frames.map(() => model), config: frames.map(() => config), spec: frames.map(() => cMajor), octaveShift: frames.map(() => 0), chordConfig: frames.map(() => ({})) }, { dt: 1 / 30 });
+    const out = await replayNode(
+      node,
+      { vector: frames.map((x) => x.vector), model: frames.map(() => model), config: frames.map(() => config), spec: frames.map(() => cMajor), octaveShift: frames.map(() => 0), chordConfig: frames.map(() => ({})), controls: frames.map((_, i) => controls?.[i]) },
+      { dt: 1 / 30 },
+    );
     expect(out).toHaveLength(n);
     return frames.map((x, i) => ({ ...x, params: out[i].params as SynthParams, category: out[i].category as CategoryScores, triad: out[i].triad as number[] }));
   };
@@ -256,6 +274,64 @@ describe.runIf(FACES)('a saved hand categorizer plays chords (the scripted hand,
     for (const x of fists) {
       const pcs = new Set(x.params.voices.filter((v) => v.present).map((v) => Math.round(12 * Math.log2(v.freq / 440) + 69) % 12));
       expect(pcs.size, `fist at ${x.ms} ms`).toBe(4); // a seventh chord
+    }
+  });
+
+  /** The categorizer chord with the category blend fed back on its delayed edge, as composed. */
+  const replayBlended = async (config: Partial<CategorizerChordsDial>) => {
+    const first = await replay(config);
+    const blend = categoryBlendNode.make(categoryBlendNode.params.parse({}));
+    const controls = (await replayNode(blend, { category: first.map((x) => x.category), config: first.map(() => config) }, { dt: 1 / 30 })).map((o) => o.controls as BlendControls);
+    // The delayed edge: the blend from the tick before (the category stream is the same either way).
+    return { out: await replay(config, play, [undefined, ...controls.slice(0, -1)]), controls };
+  };
+  const valuesFor = (fist: number, other: number) =>
+    Object.fromEntries(categorizer.categories.map((c) => [c.id, c.label === 'fist' ? fist : other])) as CategorizerChordsDial['blendValues'];
+
+  it('the category blend (#372) moves the chord\'s brightness between the categories\' values, smoothly', async () => {
+    const config = { ...DEFAULT_CATEGORIZER_CHORDS, id: record.id, blend: 'brightness' as const, blendValues: valuesFor(1, 0) };
+    const { out, controls } = await replayBlended(config);
+    const at = settled(out);
+    const bright = (x: (typeof at)[number]) => x.params.voices.find((v) => v.present)?.brightness;
+    const fists = at.filter((x) => x.shape === 'fist');
+    const others = at.filter((x) => x.shape !== 'fist' && x.shape !== 'rest' && x.params.voices.some((v) => v.present));
+    expect(fists.length).toBeGreaterThan(0);
+    expect(others.length).toBeGreaterThan(0);
+    for (const x of fists) expect(bright(x), `fist at ${x.ms} ms`).toBeGreaterThan(0.8);
+    for (const x of others) expect(bright(x), `${x.shape} at ${x.ms} ms`).toBeLessThan(0.2);
+    // Between the holds it passes through the middle rather than switching: some frame reads 0.3..0.7.
+    const values = controls.map((c) => c.brightness).filter((v): v is number => typeof v === 'number');
+    expect(values.some((v) => v > 0.3 && v < 0.7)).toBe(true);
+    // Off (the default): no brightness on any voice.
+    const plain = await replay({ ...DEFAULT_CATEGORIZER_CHORDS, id: record.id });
+    expect(plain.every((x) => x.params.voices.every((v) => v.brightness === undefined))).toBe(true);
+  });
+
+  it('blended to tension, the fist\'s chord gains the key\'s seventh and the others stay triads', async () => {
+    const config = { ...DEFAULT_CATEGORIZER_CHORDS, id: record.id, blend: 'tension' as const, blendValues: valuesFor(1, 0) };
+    const at = settled((await replayBlended(config)).out);
+    const pcs = (x: (typeof at)[number]) => new Set(x.params.voices.filter((v) => v.present).map((v) => Math.round(12 * Math.log2(v.freq / 440) + 69) % 12)).size;
+    const fists = at.filter((x) => x.shape === 'fist');
+    const others = at.filter((x) => x.shape !== 'fist' && x.shape !== 'rest' && x.params.voices.some((v) => v.present));
+    expect(fists.length).toBeGreaterThan(0);
+    for (const x of fists) expect(pcs(x), `fist at ${x.ms} ms`).toBeGreaterThanOrEqual(4);
+    for (const x of others) expect(pcs(x), `${x.shape} at ${x.ms} ms`).toBe(3);
+  });
+
+  it('a category whose target adds the seventh keeps it under a blended tension of 0 (one colouring rule)', async () => {
+    const fist = categorizer.categories.find((c) => c.label === 'fist')!;
+    const config = {
+      ...DEFAULT_CATEGORIZER_CHORDS,
+      id: record.id,
+      targets: { ...DEFAULT_CATEGORIZER_CHORDS.targets, [fist.id]: 'ctl:seventh' },
+      blend: 'tension' as const,
+      blendValues: valuesFor(0, 0),
+    };
+    const fists = settled((await replayBlended(config)).out).filter((x) => x.shape === 'fist');
+    expect(fists.length).toBeGreaterThan(0);
+    for (const x of fists) {
+      const pcs = new Set(x.params.voices.filter((v) => v.present).map((v) => Math.round(12 * Math.log2(v.freq / 440) + 69) % 12));
+      expect(pcs.size, `fist at ${x.ms} ms`).toBe(4);
     }
   });
 

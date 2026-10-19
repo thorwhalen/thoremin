@@ -19,6 +19,7 @@
  * per frame, #492, and the pose-chords edge is there for one wiring), while the chord renderer runs
  * every tick (its beat clock).
  */
+import { SEVENTH_TENSION, type BlendControls } from './category_blend';
 import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -78,6 +79,8 @@ export const categorizerChordNode = defineNode<Params>({
     { name: 'spec', kind: 'scale-spec' },
     { name: 'octaveShift', kind: 'number', default: 0 },
     { name: 'chordConfig', kind: 'chord-config' },
+    // The category blend's controls (#372), on a delayed edge: the chord's brightness or tension.
+    { name: 'controls', kind: 'blend-controls' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -137,9 +140,16 @@ export const categorizerChordNode = defineNode<Params>({
         // played by the same target player as the face chord's.
         const spec = inputs.spec as ScaleSpec | undefined;
         const { degree, coloration } = targetPlayer.step({ category: current ? lastId : null, target: lastId ? ownTargets(config)[lastId] : undefined, degree: degree0, spec, now: ctx?.time });
+        // The category blend (#372): a brightness the voices carry, or a tension the colour reads.
+        const blend = (inputs.controls as BlendControls | undefined) ?? {};
+        // Blended tension colours every chord by `byTension`; a category whose target adds the
+        // seventh keeps at least that step, so moving into it changes no colouring rule.
+        const blendTension = typeof blend.tension === 'number' ? (coloration === 'diatonicSeventh' ? Math.max(blend.tension, SEVENTH_TENSION) : blend.tension) : undefined;
         const { voices, triad } = renderer.render({
           degree,
-          coloration,
+          coloration: blendTension === undefined ? coloration : 'byTension',
+          tension: blendTension,
+          brightness: blend.brightness,
           spec: inputs.spec as ScaleSpec | undefined,
           voicing: cfg.voicing ?? p.voicing,
           rendering: cfg.rendering ?? p.rendering,

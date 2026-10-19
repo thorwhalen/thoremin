@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (59)
+## Nodes (60)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -342,6 +342,14 @@ Emit the input value from N ticks ago; nothing until that much history exists.
 - **out:** value:any
 - **params:** ticks (number=1)
 
+#### `category-blend` — Category blend
+Continuous control from a categorizer's memberships: each category's value, weighed by how much the player is in it, smoothed, to the chord's brightness or tension. Moving between two hand shapes or poses moves the sound between their settings.
+
+- **roles:** mapping
+- **in:** category:category-scores, config:categorizer-chords-config
+- **out:** controls:blend-controls
+- **params:** smoothingS (number=0.15), tensionDwellS (number=0.15)
+
 ### Music logic (tonal guidance)
 _Harmony kept in-key._
 
@@ -381,7 +389,7 @@ Head/face pose axes → a voiced, rendered diatonic chord (head-yaw→degree, pi
 Your own hand-shape or pose categorizer (#450), read live: each of your categories plays a chord on the chord-source scale.
 
 - **roles:** feature, music
-- **in:** vector:feature-vector, frame:any, model:categorizer-chords-model, config:categorizer-chords-config, spec:scale-spec, octaveShift:number, chordConfig:chord-config
+- **in:** vector:feature-vector, frame:any, model:categorizer-chords-model, config:categorizer-chords-config, spec:scale-spec, octaveShift:number, chordConfig:chord-config, controls:blend-controls
 - **out:** params:synth-params, category:category-scores, triad:number[]
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 

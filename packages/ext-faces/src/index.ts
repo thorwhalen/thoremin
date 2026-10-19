@@ -27,7 +27,7 @@ import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, ty
 export const FACES_EXTENSION = defineExtension({
   id: 'faces',
   // The node type `./lazy.ts` defines (the registry checks the two lists agree on load).
-  provides: ['face-categorizer', 'pose-categorizer', 'categorizer-chord'],
+  provides: ['face-categorizer', 'pose-categorizer', 'categorizer-chord', 'category-blend'],
   branches: FACES_BRANCHES,
   dials: FACES_DIAL_SLICES,
   // The carve commands (#600 S11; they were core's), declared here so they are listed before

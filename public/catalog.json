@@ -1050,6 +1050,10 @@
       {
         "name": "chordConfig",
         "kind": "chord-config"
+      },
+      {
+        "name": "controls",
+        "kind": "blend-controls"
       }
     ],
     "outputs": [
@@ -1091,6 +1095,42 @@
         "name": "bpm",
         "type": "number",
         "default": 100
+      }
+    ]
+  },
+  {
+    "type": "category-blend",
+    "title": "Category blend",
+    "description": "Continuous control from a categorizer's memberships: each category's value, weighed by how much the player is in it, smoothed, to the chord's brightness or tension. Moving between two hand shapes or poses moves the sound between their settings.",
+    "roles": [
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "category",
+        "kind": "category-scores"
+      },
+      {
+        "name": "config",
+        "kind": "categorizer-chords-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "controls",
+        "kind": "blend-controls"
+      }
+    ],
+    "params": [
+      {
+        "name": "smoothingS",
+        "type": "number",
+        "default": 0.15
+      },
+      {
+        "name": "tensionDwellS",
+        "type": "number",
+        "default": 0.15
       }
     ]
   },
