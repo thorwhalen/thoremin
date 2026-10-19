@@ -1693,6 +1693,8 @@
           "droppedBelow": 0.2,
           "stillBelow": 8,
           "moveAbove": 9,
+          "upbeat": "speed",
+          "riseMin": 0.12,
           "readyS": 0.4,
           "holdAfterPeriods": 1.5,
           "stopAfterPeriods": 1

@@ -114,6 +114,13 @@ describe('Conduct with body', () => {
     await waitFor(() => expect((conductor() as { transport: { rules: boolean } }).transport.rules).toBe(false));
     fireEvent.click(toggle);
     await waitFor(() => expect((conductor() as { transport: { rules: boolean } }).transport.rules).toBe(true));
+    // How the upbeat is recognised (D15): speed by default, shape on the player's choice, through the dial path.
+    const upbeat = screen.getByTestId('conductor-transport-upbeat') as HTMLSelectElement;
+    expect(upbeat.value).toBe('speed');
+    fireEvent.change(upbeat, { target: { value: 'shape' } });
+    await waitFor(() => expect((conductor() as { transport: { upbeat: string } }).transport.upbeat).toBe('shape'));
+    fireEvent.change(upbeat, { target: { value: 'speed' } });
+    await waitFor(() => expect((conductor() as { transport: { upbeat: string } }).transport.upbeat).toBe('speed'));
     const live = { ...useConductorStatus.getState().live, enabled: true, state: 'ready' as const, anchors: 0 };
     expect(describeLive({ ...live, transport: 'idle' }, 'body')).toMatch(/Raise your beating arm/);
     expect(describeLive({ ...live, transport: 'armed' }, 'body')).toMatch(/upbeat/);
