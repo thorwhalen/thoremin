@@ -17,27 +17,30 @@
  * Pure: no audio, no DOM.
  */
 import { NOTES } from '@thoremin/sdk/music/theory';
+import { QUALITIES as Q } from '@thoremin/sdk/harmony/qualities';
 
 /** Standard tuning, low to high: E2 A2 D3 G3 B3 E4. */
 export const STANDARD_TUNING = [40, 45, 50, 55, 59, 64] as const;
 /** How far up the neck an open-chord voicing reaches on each string. */
 export const MAX_FRET = 4;
 
-/** Chord qualities: the intervals above the root, by the suffix that names them. */
+/** Chord qualities: the intervals above the root, by the suffix that names them. The
+ *  intervals are the harmony layer's quality table (`@thoremin/sdk/harmony/qualities`), the
+ *  one SSOT; this map is the suffixes a player may type. */
 export const CHORD_QUALITIES = {
-  '': [0, 4, 7],
-  m: [0, 3, 7],
-  '7': [0, 4, 7, 10],
-  m7: [0, 3, 7, 10],
-  maj7: [0, 4, 7, 11],
-  sus2: [0, 2, 7],
-  sus4: [0, 5, 7],
-  '5': [0, 7],
-  dim: [0, 3, 6],
-  aug: [0, 4, 8],
-  '6': [0, 4, 7, 9],
-  m6: [0, 3, 7, 9],
-  add9: [0, 2, 4, 7],
+  '': Q.maj.intervals,
+  m: Q.min.intervals,
+  '7': Q['7'].intervals,
+  m7: Q.min7.intervals,
+  maj7: Q.maj7.intervals,
+  sus2: Q.sus2.intervals,
+  sus4: Q.sus4.intervals,
+  '5': Q['5'].intervals,
+  dim: Q.dim.intervals,
+  aug: Q.aug.intervals,
+  '6': Q.maj6.intervals,
+  m6: Q.min6.intervals,
+  add9: Q.add9.intervals,
 } as const satisfies Record<string, readonly number[]>;
 export type ChordQuality = keyof typeof CHORD_QUALITIES;
 

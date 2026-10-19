@@ -21,19 +21,8 @@
  * across and down (a hexagon) are computed in frame HEIGHTS and converted with the frame's
  * aspect ratio.
  */
-import {
-  classifyChord,
-  diatonicTriad,
-  keyName,
-  letterChordSpec,
-  midiToName,
-  NOTE_LETTERS,
-  romanNumeral,
-  spellOnLetter,
-  type ChordQuality,
-  type NoteLetter,
-  type ScaleSpec,
-} from '@thoremin/sdk/music/theory';
+import { classifyChord, diatonicTriad, letterChordSpec, midiToName, romanNumeral, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { chordName, chordSymbol, diatonicChords as harmonyChords, keyOf } from '@thoremin/sdk/harmony/chord';
 import type { CellGrid, GridCaption, GridCell } from '@thoremin/sdk/nodes/cell_grid';
 
 /** The number of chords a key has, and so the period of every layout. */
@@ -82,30 +71,20 @@ export interface DiatonicChord {
   triad: number[];
 }
 
-const QUALITY_TEXT: Partial<Record<ChordQuality, { shown: string; parsed: string }>> = {
-  maj: { shown: '', parsed: '' },
-  min: { shown: 'm', parsed: 'm' },
-  dim: { shown: '°', parsed: 'dim' },
-  aug: { shown: '+', parsed: 'aug' },
-};
-
 /**
  * The seven chords of a key, spelled in the key (the third chord of F major is "Am", its
- * fourth "Bb", not "A#"). A key without seven notes is read through its seven-note embedding
- * (a pentatonic melody's chords are its parent major's), keeping the register.
+ * fourth "Bb", not "A#"), with each one's triad on the spec's register. A key without seven
+ * notes is read through its seven-note embedding (a pentatonic melody's chords are its parent
+ * major's), keeping the register. Names, symbols and numerals are the harmony layer's chord
+ * model (`@thoremin/sdk/harmony/chord`).
  */
 export function diatonicChords(spec: ScaleSpec): DiatonicChord[] {
   const key = letterChordSpec(spec);
-  const tonicLetter = keyName(key)[0] as NoteLetter;
-  const t = NOTE_LETTERS.indexOf(tonicLetter);
-  return Array.from({ length: DEGREES }, (_, degree) => {
+  const k = keyOf(key);
+  return harmonyChords(k).map((chord, degree) => {
     const triad = diatonicTriad(key, degree);
-    const info = classifyChord(triad);
-    const quality = info?.quality ?? 'unknown';
-    const root = mod(triad[0], 12);
-    const spelled = spellOnLetter(root, NOTE_LETTERS[(t + degree) % DEGREES]);
-    const text = QUALITY_TEXT[quality] ?? { shown: '', parsed: '' };
-    return { degree, root, name: spelled + text.shown, symbol: spelled + text.parsed, numeral: romanNumeral(degree, quality), quality, triad };
+    const quality = classifyChord(triad)?.quality ?? 'unknown';
+    return { degree, root: chord.root, name: chordName(chord, k), symbol: chordSymbol(chord, k), numeral: romanNumeral(degree, quality), quality, triad };
   });
 }
 

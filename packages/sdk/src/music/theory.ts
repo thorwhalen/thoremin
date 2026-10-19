@@ -10,6 +10,7 @@
  * and `midiToFreq(69) === 440`.
  */
 import { clamp01 } from '../features/math';
+import { QUALITIES, qualityOfIntervals, type QualityId } from '../harmony/qualities';
 
 /** Re-exported from the scalar-math SSOT (`@thoremin/sdk/features/math`), which owns the single
  *  definition; kept on the theory surface because the mapping layer imports it from here. */
@@ -71,50 +72,41 @@ export interface ChordInfo {
   symbol: string;
 }
 
-/** Suffix (after the root note name) for each chord quality. */
-const QUALITY_SUFFIX: Record<ChordQuality, string> = {
-  maj: '',
-  min: 'm',
+/** Each classified quality's row in the harmony layer's quality table (`../harmony/qualities`),
+ *  the one SSOT of intervals, suffixes and function marks: this module keeps its own names
+ *  (`dom7`, `m7b5`, `power`) because every caller and stored label uses them. */
+const QUALITY_ID: Record<Exclude<ChordQuality, 'unknown'>, QualityId> = {
+  maj: 'maj',
+  min: 'min',
   dim: 'dim',
   aug: 'aug',
   power: '5',
   maj7: 'maj7',
   dom7: '7',
-  min7: 'm7',
-  m7b5: 'm7b5',
+  min7: 'min7',
+  m7b5: 'hdim7',
   dim7: 'dim7',
-  minMaj7: 'mMaj7',
-  augMaj7: 'augMaj7',
-  unknown: '',
+  minMaj7: 'minmaj7',
+  augMaj7: 'augmaj7',
 };
+const QUALITY_OF_ID = Object.fromEntries(Object.entries(QUALITY_ID).map(([q, id]) => [id, q])) as Partial<Record<QualityId, ChordQuality>>;
+const row = (q: ChordQuality) => (q === 'unknown' ? undefined : QUALITIES[QUALITY_ID[q]]);
 
 /**
  * Classify a chord from its MIDI tones: the lowest tone is the root, and the set
  * of intervals above it selects the quality. Sevenths are tested BEFORE the plain
- * triads (a maj7 contains a major triad), so the most specific shape wins. Returns
- * `null` for no tones; an unrecognized shape falls back to the bare root note name
- * (quality `unknown`, empty suffix).
+ * triads (a maj7 contains a major triad), so the most specific shape wins
+ * (`CLASSIFY_ORDER` in `../harmony/qualities`). Returns `null` for no tones; an
+ * unrecognized shape falls back to the bare root note name (quality `unknown`,
+ * empty suffix).
  */
 export function classifyChord(tones: number[]): ChordInfo | null {
   if (!tones.length) return null;
   const sorted = [...tones].sort((a, b) => a - b);
   const root = (((sorted[0] % 12) + 12) % 12);
-  const iv = new Set(sorted.map((m) => ((((m - sorted[0]) % 12) + 12) % 12)));
-  const has = (i: number) => iv.has(i);
-  let quality: ChordQuality = 'unknown';
-  if (has(4) && has(7) && has(11)) quality = 'maj7';
-  else if (has(4) && has(7) && has(10)) quality = 'dom7';
-  else if (has(3) && has(7) && has(10)) quality = 'min7';
-  else if (has(3) && has(6) && has(10)) quality = 'm7b5';
-  else if (has(3) && has(6) && has(9)) quality = 'dim7';
-  else if (has(3) && has(7) && has(11)) quality = 'minMaj7';
-  else if (has(4) && has(8) && has(11)) quality = 'augMaj7'; // e.g. harmonic-minor III + brow 7th
-  else if (has(4) && has(7)) quality = 'maj';
-  else if (has(3) && has(7)) quality = 'min';
-  else if (has(3) && has(6)) quality = 'dim';
-  else if (has(4) && has(8)) quality = 'aug';
-  else if (has(7) && !has(3) && !has(4)) quality = 'power';
-  return { root, quality, symbol: NOTES[root] + QUALITY_SUFFIX[quality] };
+  const id = qualityOfIntervals(sorted.map((m) => m - sorted[0]));
+  const quality: ChordQuality = (id && QUALITY_OF_ID[id]) ?? 'unknown';
+  return { root, quality, symbol: NOTES[root] + (row(quality)?.symbol ?? '') };
 }
 
 /**
@@ -128,37 +120,13 @@ export function chordName(tones: number[]): string {
 }
 
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'] as const;
-/** Qualities that render lowercase (minor-ish) in Roman analysis. */
-const MINORISH_QUALITIES: ReadonlySet<ChordQuality> = new Set([
-  'min',
-  'dim',
-  'min7',
-  'm7b5',
-  'dim7',
-  'minMaj7',
-]);
-/**
- * The function-label suffix (after the Roman numeral / Nashville number) per
- * quality — the mark that encodes the chord's colour. The major/minor distinction
- * is carried separately (Roman = case, Nashville = a leading `m`); these marks add
- * only what case can't: the diminished/augmented/half-diminished symbol and the
- * seventh. `ø` already denotes a half-diminished *seventh*, so it stands alone.
- */
-const FUNCTION_MARK: Record<ChordQuality, string> = {
-  maj: '',
-  min: '',
-  dim: '°',
-  aug: '+',
-  power: '5',
-  maj7: 'maj7',
-  dom7: '7',
-  min7: '7',
-  m7b5: 'ø',
-  dim7: '°7',
-  minMaj7: 'maj7',
-  augMaj7: '+maj7',
-  unknown: '',
-};
+/** Whether Roman analysis writes the quality lowercase (a minor-ish third), and the colour
+ *  mark after the numeral (the diminished/augmented/half-diminished symbol and the seventh;
+ *  the major/minor distinction is carried by case, or by the Nashville `m`): both from the
+ *  quality table (`../harmony/qualities`). `ø` already denotes a half-diminished SEVENTH,
+ *  so it stands alone. */
+const minorish = (q: ChordQuality): boolean => row(q)?.minorish ?? false;
+const functionMark = (q: ChordQuality): string => row(q)?.functionMark ?? '';
 
 /**
  * The scale degree (0 = tonic … 6) whose pitch class equals `pitchClass`, or -1
@@ -179,21 +147,21 @@ export function scaleDegreeOf(pitchClass: number, scale: number[]): number {
 
 /**
  * The Roman-numeral function of a chord on scale `degree` (0..6) with the given
- * `quality`: case encodes major/minor (upper/lower) and {@link FUNCTION_MARK} adds
+ * `quality`: case encodes major/minor (upper/lower) and the quality's function mark adds
  * the colour (e.g. `I`, `ii`, `V7`, `vii°`, `iiø`, `Imaj7`). Returns "" for an
  * out-of-range degree.
  */
 export function romanNumeral(degree: number, quality: ChordQuality): string {
   if (degree < 0 || degree > 6) return '';
-  const r = MINORISH_QUALITIES.has(quality)
+  const r = minorish(quality)
     ? ROMAN_NUMERALS[degree].toLowerCase()
     : (ROMAN_NUMERALS[degree] as string);
-  return r + FUNCTION_MARK[quality];
+  return r + functionMark(quality);
 }
 
 /**
  * The Nashville-number function of a chord: the degree as 1..7, a trailing `m`
- * for plain minor qualities, and {@link FUNCTION_MARK} for the colour (e.g. `1`,
+ * for plain minor qualities, and the quality's function mark for the colour (e.g. `1`,
  * `2m`, `57`, `7°`, `7ø`, `1maj7`). The number-first shorthand many non-classical
  * players prefer. Returns "" for an out-of-range degree.
  */
@@ -201,7 +169,7 @@ export function nashvilleNumber(degree: number, quality: ChordQuality): string {
   if (degree < 0 || degree > 6) return '';
   // A plain minor triad/seventh gets an `m`; dim/aug/half-dim carry their own mark.
   const m = quality === 'min' || quality === 'min7' || quality === 'minMaj7' ? 'm' : '';
-  return String(degree + 1) + m + FUNCTION_MARK[quality];
+  return String(degree + 1) + m + functionMark(quality);
 }
 
 export interface ScaleSpec {
