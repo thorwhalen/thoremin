@@ -14,6 +14,7 @@ import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { useControls } from '../../store';
 import { formatPartsSelection, parsePartsSelection } from '@thoremin/sdk/score/prepare';
+import { standInFor } from '@/nodes/output/orchestra_map.schema';
 import type { ConductorSettings } from '@/settings/schema';
 
 export function PartsControls() {
@@ -21,6 +22,7 @@ export function PartsControls() {
   const doc = useControls((s) => s.scoreDoc);
   const c = (state.effective.conductor ?? {}) as Partial<ConductorSettings>;
   const parts = doc?.parts ?? [];
+  const orchestraOn = (c.orchestra as { enabled?: boolean } | undefined)?.enabled === true;
   if (parts.length < 2) return null;
 
   const ids = parts.map((p) => p.id);
@@ -50,6 +52,7 @@ export function PartsControls() {
             onChange={(e) => toggle(p.id, e.target.checked)}
           />
           <span>{p.name || p.id}</span>
+          {orchestraOn && standInFor(p) && <span className="text-white/40" data-testid={`conductor-part-standin-${p.id}`}>(the orchestra plays it as {standInFor(p)})</span>}
           {p.percussion && <span className="text-white/40">(drums: the orchestra has no drum kit yet; with only drums selected the oscillator score plays them)</span>}
         </label>
       ))}

@@ -2,7 +2,7 @@
  * The orchestra's lazy load, in a real browser against the built bundle (#187 PR 5).
  *
  * The rule (`docs/design/lazy-loading.md`): the synth chunk (`spessasynth_lib`), its
- * AudioWorklet processor and the 3.7 MB soundfont are fetched only when the player asks
+ * AudioWorklet processor and the 6.0 MB soundfont are fetched only when the player asks
  * for the orchestra, never on a cold load and never by opening the Conductor. Then the
  * walk the PR states, click by click: Tap to play, Conductor, Play with the orchestra
  * (the download, with its readout reaching `ready`), Start conducting (the orchestra

@@ -153,11 +153,12 @@ describe('orchestra node: playing the piece', () => {
       fermatas: [],
       lengthBeats: 1,
     } as ScoreDoc);
-    // Violins share channel 0; the horn (not in the cut bank) maps to the nearest kept
-    // program in its family or the default; the programless part plays the default.
+    // Violins share channel 0; the horn (GM 60, in the cut bank since #334) has its own; the
+    // programless part plays the default.
     expect(plan.channels.map((c) => [c.channel, c.program])).toEqual([
       [0, 40],
-      [1, 48],
+      [1, 60],
+      [2, 48],
     ]);
     expect(plan.events.map((e) => e.channel)).toEqual([0, 0, 1]);
   });

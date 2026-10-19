@@ -16,22 +16,9 @@
  * Pure and Node-safe: no audio, no DOM.
  */
 import type { ScorePart } from '@thoremin/sdk/score/schema';
-import { type Section } from './orchestra_map.schema';
-export { SECTIONS } from './orchestra_map.schema';
+import { BANK_PROGRAMS, DEFAULT_PROGRAM, bankProgramFor, type Section } from './orchestra_map.schema';
+export { SECTIONS, BANK_PROGRAMS, BANK_PROGRAM_NAMES, DEFAULT_PROGRAM, bankProgramFor, standInFor } from './orchestra_map.schema';
 export type { Section } from './orchestra_map.schema';
-
-/** The program a part with no program plays (GM 49, String Ensemble 1, zero-based 48). */
-export const DEFAULT_PROGRAM = 48;
-
-/**
- * The GM programs (zero-based) the shipped soundfont keeps: every program the shipped
- * scores name (`public/scores/`: Beethoven 5's winds, timpani and strings; the Haydn
- * quartet's strings) plus {@link DEFAULT_PROGRAM}. D10 on #168 is the rule: cut to what
- * the shipped scores use. Adding a shipped score that names another program means
- * adding it here and re-running the cut (`scripts/orchestra/cut_soundfont.ts`); a test
- * pins that every shipped score's programs are in this list.
- */
-export const BANK_PROGRAMS: readonly number[] = [40, 41, 42, 43, 47, 48, 68, 69, 70, 71, 73];
 
 /** GM drum channel (zero-based 9). */
 export const PERCUSSION_CHANNEL = 9;
@@ -47,20 +34,6 @@ export function sectionOf(program: number, percussion = false): Section {
   if (program >= 56 && program <= 63) return 'brass';
   if (program >= 64 && program <= 79) return 'woodwinds'; // reeds + pipes
   return 'other';
-}
-
-/** The program the bank plays for a requested one: itself when kept, else the nearest
- *  kept program in the same GM family of eight, else {@link DEFAULT_PROGRAM}. */
-export function bankProgramFor(program: number | undefined, bank: readonly number[] = BANK_PROGRAMS): number {
-  if (program === undefined) return DEFAULT_PROGRAM;
-  if (bank.includes(program)) return program;
-  const family = Math.floor(program / 8);
-  let best: number | null = null;
-  for (const p of bank) {
-    if (Math.floor(p / 8) !== family) continue;
-    if (best === null || Math.abs(p - program) < Math.abs(best - program)) best = p;
-  }
-  return best ?? DEFAULT_PROGRAM;
 }
 
 /** One part's place in the synth. */
