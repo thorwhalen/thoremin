@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { defineNode, type NodeDef } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
-import { assertNoCoreClash, checkUiDecls, foldContributions, type UiDecls } from '@/host/contributions';
+import { assertNoCoreClash, checkUiDecls, foldContributions, loadExtensionNodes, overlayConfigEdges, type UiDecls } from '@/host/contributions';
 import { PROBE_EXTENSION } from './fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from './fixtures/ext-probe/lazy_stub';
 
@@ -41,6 +41,61 @@ describe('foldContributions', () => {
   ];
   it.each(cases)('refuses a clashing $point, naming both extensions', ({ other, message }) => {
     expect(() => foldContributions([probe, other])).toThrow(message);
+  });
+
+  it('folds the overlay elements with their ports, kinds and config (#600 S5)', () => {
+    const [meter] = foldContributions([probe]).overlayElements;
+    expect(meter).toMatchObject({ id: 'probe/meter', extension: 'probe', ports: { level: 'probe.meter.level', config: 'probe.meter.config' }, kinds: { level: 'number', config: 'probe-config' } });
+    expect(meter.impl()?.name).toBe('meter');
+  });
+
+  it('refuses an overlay element declared twice, and one whose config dial is not its own', () => {
+    const element = probe.overlay![0];
+    expect(() => foldContributions([probe, twin({ id: 'probe', overlay: [element], overlayElements: probe.overlayElements })])).toThrow(/declares the overlay element "probe\/meter"/);
+    expect(() => foldContributions([twin({ overlay: [{ ...element, config: { dialKey: 'probe' } }], overlayElements: probe.overlayElements })])).toThrow(/reads its config from the dial "probe", which is not one of its own/);
+  });
+
+  it('refuses overlay names that would build clashing ports, a reserved `config` input and an input declared twice', () => {
+    const el = { name: 'bar', category: 'output' as const, inputs: [{ name: 'x', kind: 'number' }] };
+    const impl = { name: 'bar', draw: () => undefined };
+    expect(() => foldContributions([twin({ overlay: [{ ...el, name: 'b.ar' }], overlayElements: [{ ...impl, name: 'b.ar' }] })])).toThrow(/may not contain "\." or "\/": "b\.ar"/);
+    expect(() => foldContributions([twin({ id: 'a/b', overlay: [el], overlayElements: [impl] })])).toThrow(/may not contain/);
+    expect(() => foldContributions([twin({ overlay: [{ ...el, inputs: [{ name: 'config', kind: 'x' }] }], overlayElements: [impl] })])).toThrow(/"config", which is reserved/);
+    expect(() => foldContributions([twin({ overlay: [{ ...el, inputs: [el.inputs[0], el.inputs[0]] }], overlayElements: [impl] })])).toThrow(/declares an input twice/);
+  });
+
+  it('refuses an eager extension whose drawing code does not match its declarations', () => {
+    const el = { name: 'bar', category: 'output' as const, inputs: [] };
+    expect(() => foldContributions([twin({ overlay: [el] })])).toThrow(/"bar" is declared but has no implementation/);
+    expect(() => foldContributions([twin({ overlay: [el], overlayElements: [{ name: 'baz', draw: () => undefined }, { name: 'bar', draw: () => undefined }] })])).toThrow(/"baz" matches no declared element/);
+  });
+
+  it('a lazy element has no drawing code until its half loads, then has it; a half missing one fails to load and can be retried', async () => {
+    const el = { name: 'bar', category: 'output' as const, inputs: [] };
+    let good = false;
+    const lazy: Extension = {
+      ...empty('lazy-overlay-probe'),
+      nodes: undefined,
+      provides: [],
+      overlay: [el],
+      load: async () => ({ nodes: [], overlayElements: good ? [{ name: 'bar', draw: () => undefined }] : [] }),
+    };
+    const [contributed] = foldContributions([lazy]).overlayElements;
+    expect(contributed.impl()).toBeUndefined();
+    await expect(loadExtensionNodes(lazy)).rejects.toThrow(/"bar" is declared but has no implementation/);
+    expect(contributed.impl()).toBeUndefined();
+    good = true;
+    await loadExtensionNodes(lazy);
+    expect(contributed.impl()?.name).toBe('bar');
+  });
+
+  it('delivers a composed element\'s config from its own dial, and refuses a branch edge into a config port', () => {
+    const [meter] = foldContributions([probe]).overlayElements;
+    const nodes = { ui: 'ui', overlay: 'overlay' };
+    expect(overlayConfigEdges({ elements: ['probe/meter'], edges: [] }, [meter], nodes)).toEqual([{ from: { node: 'ui', port: 'probe' }, to: { node: 'overlay', port: 'probe.meter.config' } }]);
+    expect(overlayConfigEdges({ elements: [], edges: [] }, [meter], nodes)).toEqual([]);
+    const stray = { from: { node: 'ui', port: 'overlay' }, to: { node: 'overlay', port: 'probe.meter.config' } };
+    expect(() => overlayConfigEdges({ elements: ['probe/meter'], edges: [stray] }, [meter], nodes)).toThrow(/feeds the overlay element config port "probe\.meter\.config"/);
   });
 
   it('refuses a key one extension declares twice', () => {

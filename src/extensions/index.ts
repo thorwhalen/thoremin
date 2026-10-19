@@ -13,7 +13,7 @@
  *
  * Pure: the React halves are listed in `src/app/extensions`.
  */
-import { extensionsSettingsShape, type DialSlice, type Extension, type ExtensionNodes, type ExtensionsSettingsShape, type ExtensionsTransients } from '@thoremin/sdk/instruments/extension';
+import { extensionsSettingsShape, overlayImplProblems, type DialSlice, type Extension, type ExtensionNodes, type ExtensionsSettingsShape, type ExtensionsTransients, type OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import listed from 'virtual:thoremin/extensions';
 
 type Listed = typeof listed;
@@ -83,6 +83,7 @@ export const EXTENSION_SETTINGS_SHAPE: ExtensionSettingsShape = extensionsSettin
  * nodes at once instead of declaring them again.
  */
 const nodesLoaded = new Map<string, ExtensionNodes['nodes']>();
+const overlayLoaded = new Map<string, readonly OverlayElementImpl[]>();
 const nodesLoading = new Map<string, Promise<ExtensionNodes['nodes']>>();
 
 export function loadExtensionNodes(e: Extension): Promise<ExtensionNodes['nodes']> {
@@ -93,7 +94,15 @@ export function loadExtensionNodes(e: Extension): Promise<ExtensionNodes['nodes'
   if (!p) {
     p = e.load().then(
       (m) => {
+        // A declared overlay element with no drawing code would silently never draw: refuse the
+        // half (the load fails loudly and can be retried) rather than ship a dead element.
+        const problems = overlayImplProblems(e.overlay ?? [], m.overlayElements ?? []);
+        if (problems.length) {
+          nodesLoading.delete(e.id);
+          throw new Error(`extension "${e.id}": ${problems.join('; ')}`);
+        }
         nodesLoaded.set(e.id, m.nodes);
+        overlayLoaded.set(e.id, m.overlayElements ?? []);
         nodesLoading.delete(e.id);
         return m.nodes;
       },
@@ -111,6 +120,12 @@ export function loadExtensionNodes(e: Extension): Promise<ExtensionNodes['nodes'
  *  once {@link loadExtensionNodes} has resolved; `undefined` before that. */
 export function loadedExtensionNodes(e: Extension): ExtensionNodes['nodes'] | undefined {
   return e.load ? nodesLoaded.get(e.id) : (e.nodes ?? []);
+}
+
+/** The overlay drawing code of `e` if it is in hand: an eager extension's always, a lazy one's
+ *  once its deferred half has loaded (#600 S5); `undefined` before that. */
+export function loadedOverlayElements(e: Extension): readonly OverlayElementImpl[] | undefined {
+  return e.load ? overlayLoaded.get(e.id) : (e.overlayElements ?? []);
 }
 
 /** The listed extension that provides node type `type` lazily, if any. */

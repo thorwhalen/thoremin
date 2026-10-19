@@ -4,9 +4,9 @@
  */
 import { z } from 'zod';
 import { defineNode, type NodeDef } from '@thoremin/dag';
-import type { ExtensionNodes } from '@thoremin/sdk/instruments/extension';
+import type { ExtensionNodes, OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
-import { PROBE_LAZY_NODE_TYPE, type ProbeLazyDial } from './lazy_stub';
+import { PROBE_LAZY_ELEMENT, PROBE_LAZY_NODE_TYPE, type ProbeLazyDial } from './lazy_stub';
 
 /** The lazy probe's voice id. */
 export const PROBE_LAZY_VOICE_ID = 9002;
@@ -35,6 +35,17 @@ export const probeLazyNode = defineNode<Record<string, never>>({
   },
 });
 
-const PROBE_LAZY_NODES: ExtensionNodes = { nodes: [probeLazyNode as unknown as NodeDef<unknown>] };
+/** The lazy probe's cue: the tick count, in a box the shared cue layout places on the left edge. */
+export const probeBadge: OverlayElementImpl = {
+  name: PROBE_LAZY_ELEMENT,
+  measure: (_frame, inputs) => (typeof inputs.ticks === 'number' ? { w: 80, h: 24 } : null),
+  positionOf: () => 'left',
+  draw(g, frame, inputs) {
+    if (!frame.origin || typeof inputs.ticks !== 'number') return;
+    g.fillText(`probe ${inputs.ticks}`, frame.origin.x, frame.origin.y);
+  },
+};
+
+const PROBE_LAZY_NODES: ExtensionNodes = { nodes: [probeLazyNode as unknown as NodeDef<unknown>], overlayElements: [probeBadge] };
 
 export default PROBE_LAZY_NODES;

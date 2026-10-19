@@ -21,7 +21,7 @@
  * settings schema (`src/settings`) read it, and those are Node-safe core that never imports the
  * app shell (`test/layering.test.ts`).
  */
-import type { DialSlice, Extension, ExtensionInstrument, TrainingRoute } from '@thoremin/sdk/instruments/extension';
+import { overlayElementId, overlayImplProblems, overlayPortName, type DialSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
@@ -32,12 +32,29 @@ import {
   lazyExtensionProviding,
   loadExtensionNodes,
   loadedExtensionNodes,
+  loadedOverlayElements,
   type ExtensionSettingsShape,
   type ExtensionTransients,
 } from '@/extensions';
 
 export type { ExtensionSettingsShape, ExtensionTransients };
-export { lazyExtensionProviding, loadExtensionNodes, loadedExtensionNodes };
+export { lazyExtensionProviding, loadExtensionNodes, loadedExtensionNodes, loadedOverlayElements };
+
+/**
+ * An overlay element an extension contributes, as the overlay node needs it (#600 S5): its
+ * namespaced id, its declaration, the overlay port of each input (`config` among them when the
+ * element declares one), and a getter for its drawing code (undefined until a lazy extension's
+ * node half has loaded: the element is then simply not drawn).
+ */
+export interface ContributedOverlayElement {
+  id: string;
+  extension: string;
+  decl: OverlayElementDecl;
+  ports: Readonly<Record<string, string>>;
+  /** Each input's port kind (`config`: the dial slice's kind). */
+  kinds: Readonly<Record<string, string>>;
+  impl: () => OverlayElementImpl | undefined;
+}
 
 /** What the extensions contribute, folded: read-only views, in `extensions.json`'s order. */
 export interface Contributions {
@@ -59,6 +76,72 @@ export interface Contributions {
   /** The fan-in pools sized for every branch there is, core's and the extensions' (#600 S4): the
    *  merge's voice pools and the chord selector's, never below today's 8 + 2 and 3. */
   pools: { merge: PoolSizes; chords: number };
+  /** Every extension overlay element (#600 S5), in list order; ids unique. */
+  overlayElements: readonly ContributedOverlayElement[];
+}
+
+/** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
+const BUILDING_NAME = /^[^./]+$/;
+
+/**
+ * The overlay elements of `extensions`, checked: each id once; the extension id, element names and
+ * input names free of `.` and `/` (so no two generated ports can coincide); `config` reserved for
+ * the declared config dial, which must be one of the extension's own slices; and an eager
+ * extension's drawing code matching its declarations (a lazy one's is checked when it loads).
+ */
+function overlayElementsOf(extensions: readonly Extension[]): ContributedOverlayElement[] {
+  for (const e of extensions) {
+    if (!e.overlay?.length) continue;
+    const bad = [e.id, ...e.overlay.flatMap((d) => [d.name, ...d.inputs.map((i) => i.name)])].filter((n) => !BUILDING_NAME.test(n));
+    if (bad.length) throw new Error(`extension "${e.id}": overlay names may not contain "." or "/": ${bad.map((n) => `"${n}"`).join(', ')}`);
+    for (const d of e.overlay) {
+      const names = d.inputs.map((i) => i.name);
+      if (names.includes('config')) throw new Error(`extension "${e.id}": overlay element "${d.name}" declares an input named "config", which is reserved for its config dial`);
+      if (new Set(names).size !== names.length) throw new Error(`extension "${e.id}": overlay element "${d.name}" declares an input twice`);
+    }
+    if (!e.load) {
+      const problems = overlayImplProblems(e.overlay, e.overlayElements ?? []);
+      if (problems.length) throw new Error(`extension "${e.id}": ${problems.join('; ')}`);
+    }
+  }
+  const decls = keyed('overlay element', extensions, (e) => (e.overlay ?? []).map((decl) => ({ e, decl })), ({ e, decl }) => overlayElementId(e.id, decl.name));
+  return decls.map(({ e, decl }) => {
+    const slice = decl.config ? e.dials.find((d) => d.key === decl.config!.dialKey) : undefined;
+    if (decl.config && !slice) {
+      throw new Error(`extension "${e.id}": overlay element "${decl.name}" reads its config from the dial "${decl.config.dialKey}", which is not one of its own`);
+    }
+    const inputs = [...decl.inputs.map((i) => i.name), ...(slice ? ['config'] : [])];
+    const ports = Object.fromEntries(inputs.map((name) => [name, overlayPortName(e.id, decl.name, name)]));
+    const kinds = Object.fromEntries([...decl.inputs.map((i) => [i.name, i.kind]), ...(slice ? [['config', slice.kind]] : [])]);
+    let cached: OverlayElementImpl | undefined;
+    const impl = (): OverlayElementImpl | undefined => (cached ??= loadedOverlayElements(e)?.find((i) => i.name === decl.name));
+    return { id: overlayElementId(e.id, decl.name), extension: e.id, decl, ports, kinds, impl };
+  });
+}
+
+/**
+ * Deliver each composed contributed element's config dial (#600 S5): for every element in the
+ * composed element set that declares `config`, the edge `<ui>.<dialKey>` -> `<overlay>.<its config
+ * port>`, so no branch writes it and none can forget it. A branch edge into a config port (some
+ * other dial, another extension's) is refused: an element reads only its own extension's dial.
+ * Pure: returns the edges to add; throws on a refused edge.
+ */
+export function overlayConfigEdges(
+  composed: { elements: readonly string[]; edges: readonly { from: { node: string; port: string }; to: { node: string; port: string } }[] },
+  elements: readonly ContributedOverlayElement[],
+  nodes: { ui: string; overlay: string },
+): { from: { node: string; port: string }; to: { node: string; port: string } }[] {
+  const out: { from: { node: string; port: string }; to: { node: string; port: string } }[] = [];
+  const configPorts = new Set(elements.filter((c) => c.ports.config).map((c) => c.ports.config));
+  for (const e of composed.edges) {
+    if (e.to.node === nodes.overlay && configPorts.has(e.to.port)) throw new Error(`a branch feeds the overlay element config port "${e.to.port}"; the host delivers it from the element's own dial`);
+  }
+  const wanted = new Set(composed.elements);
+  for (const c of elements) {
+    if (!c.ports.config || !c.decl.config || !wanted.has(c.id)) continue;
+    out.push({ from: { node: nodes.ui, port: c.decl.config.dialKey }, to: { node: nodes.overlay, port: c.ports.config } });
+  }
+  return out;
 }
 
 /**
@@ -113,6 +196,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     trainingRoutes: keyed('training route', extensions, (e) => e.training?.routes ?? [], (r) => r.id),
     trainingByBranch: extensions.flatMap((e) => e.training?.byBranch ?? []),
     pools: poolSizesFor([...CORE_BRANCHES, ...branches]),
+    overlayElements: overlayElementsOf(extensions),
   };
 }
 

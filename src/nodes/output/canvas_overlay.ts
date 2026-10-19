@@ -26,6 +26,10 @@ import { z } from 'zod';
 import type { MusicalTime } from '@thoremin/ictus';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
+import { OVERLAY_CORE_INPUTS } from './canvas_overlay.schema';
+import { adaptContributed, contributedInputs, withContributed, type ContributedElement } from './overlay_contributions';
+
+export type { ContributedElement } from './overlay_contributions';
 import {
   chordName,
   classifyChord,
@@ -361,6 +365,10 @@ export interface OverlayView {
    * own `show` dial still applies: this is an intersection, never an override.
    */
   elements?: readonly OverlayElement[];
+  /** True on the overlay-only (alpha) pass (#88), so a contributed element can leave a backdrop out. */
+  overlayOnly?: boolean;
+  /** Each contributed element's inputs this tick, by element id (#600 S5): what its impl sees. */
+  contributed?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
 export type OverlayCategory = 'input' | 'output' | 'guide' | 'backdrop';
@@ -2120,202 +2128,180 @@ function layoutCues(view: OverlayView): Record<string, { x: number; y: number }>
   return layout;
 }
 
-export const canvasOverlayNode = defineNode<Params>({
-  type: 'canvas-overlay',
-  roles: ['overlay'],
-  title: 'Canvas Overlay',
-  description: 'Mirrored video + composable overlay elements (guides, landmarks, markers, cues).',
-  inputs: [
-    { name: 'hands', kind: 'hands-frame' },
-    { name: 'features', kind: 'hand-features' },
-    { name: 'params', kind: 'synth-params' },
-    { name: 'scale', kind: 'number[]' },
-    { name: 'scaleLeft', kind: 'number[]' },
-    { name: 'chordScale', kind: 'number[]' },
-    { name: 'chord', kind: 'number[]' },
-    { name: 'faceFrame', kind: 'face-frame' },
-    // The body branch (#186): the latest pose + the model's load state, for the skeleton.
-    { name: 'bodyFrame', kind: 'body-frame' },
-    { name: 'bodyStatus', kind: 'body-status' },
-    // The conductor (#187): its musical time + enable flag, for the beat HUD.
-    { name: 'conductorTime', kind: 'musical-time' },
-    { name: 'conductorEnabled', kind: 'boolean', default: false },
-    // The air drum (#245): its config (for the pads) and its hits (for the flash).
-    { name: 'airDrumConfig', kind: 'air-drum-config' },
-    { name: 'drumHits', kind: 'drum-hits' },
-    // A node's on-screen targets (the chord map's), for the cell grid.
-    { name: 'cellGrid', kind: 'cell-grid' },
-    { name: 'expression', kind: 'face-expression' },
-    // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
-    { name: 'categoryDegrees', kind: 'category-degrees' },
-    { name: 'octaveShift', kind: 'number', default: 0 },
-    { name: 'overlayConfig', kind: 'overlay-config' },
-    // The air flute's status, for its breath cue (#249).
-    { name: 'airFluteStatus', kind: 'air-flute-status' },
-    // A classifier's reading and per-class captions, for the category cues.
-    { name: 'categories', kind: 'category-scores' },
-    { name: 'categoryCaptions', kind: 'string[]' },
-    // A player's own learned categories (#384: a saved pose categorizer), drawn by the same cues
-    // while the classifier above is not reading. Its own port: two branches can never feed one.
-    { name: 'learnedCategories', kind: 'category-scores' },
-    // The categorizer that plays chords (#450: a hand-shape or pose categorizer), drawn while
-    // neither above is reading. Its own port, for the same reason.
-    { name: 'chordCategories', kind: 'category-scores' },
-    // The chord that categorizer plays (#491), named and highlighted by `chordName` /
-    // `chordGuide` while the chord selector (`chord`: the face, pose and sign chords) is empty.
-    // Its own port: the selector's three inputs are taken, and a branch without a face has none.
-    { name: 'categorizerChord', kind: 'number[]' },
-    // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
-    // the current instrument. Absent → every element (headless tests, pre-composition).
-    { name: 'elements', kind: 'string[]' },
-    // Raw feature vectors for the Feature Lab (#119). Additive: the vector nodes
-    // tap the existing camFace/cam edges; the lab element normalizes + draws them.
-    { name: 'faceVector', kind: 'feature-vector' },
-    { name: 'handVector', kind: 'feature-vector' },
-    { name: 'bodyVector', kind: 'feature-vector' },
-  ],
-  outputs: [],
-  params: Params,
-  make(p) {
-    // The Feature Lab's statistics (#119) are a stateful online computation, not a
-    // drawing concern: one opaque handle owns the normalizer + the derived formulas
-    // (see @/features/labMeters), so this node stays a pure RENDERER.
-    const computeLabMeters = createLabMeterComputer();
-    // When each pad was last struck (engine seconds): the one piece of drawing state
-    // the pads need, so a hit flashes for a moment after the tick that carried it.
-    const lastHit: Partial<Record<PadId, number>> = {};
-    const padFlash = (raw: unknown, now: number): Partial<Record<PadId, number>> => {
-      if (Array.isArray(raw)) for (const h of raw as { pad?: PadId | null; t?: number }[]) if (h?.pad) lastHit[h.pad] = Math.max(now, h.t ?? now);
-      const out: Partial<Record<PadId, number>> = {};
-      for (const id of PAD_IDS) {
-        const t = lastHit[id];
-        if (t === undefined) continue;
-        // Flash from the moment the hit SOUNDS (a predicted hit is scheduled ahead).
-        const age = now - t;
-        if (age >= 0 && age < PAD_FLASH_SECONDS) out[id] = 1 - age / PAD_FLASH_SECONDS;
-      }
-      return out;
-    };
+/** The draw (z) order of the core elements with `contributed` in place, by element name. */
+export function overlayElementOrder(contributed: readonly ContributedElement[]): string[] {
+  return withContributed<OverlayElement>(OVERLAY_ELEMENTS, contributed.map((c) => adaptContributed<OverlayView>(c))).map((e) => e.name);
+}
 
-    return {
-      process(inputs, ctx: NodeContext) {
-        const canvas = ctx.resources.canvas as HTMLCanvasElement | undefined;
-        const video = ctx.resources.video as HTMLVideoElement | undefined;
-        if (!canvas) return {};
-        const g = canvas.getContext('2d');
-        if (!g) return {};
 
-        const W = canvas.width;
-        const H = canvas.height;
-        g.clearRect(0, 0, W, H);
-
-        // Live control store: the hand map (note source + finger routing) and the
-        // expression→degree map, so cues reflect the ACTUAL mapping. Read like
-        // voice-mapping (ctx.resources.controls); absent in headless tests.
-        const controls = (
-          ctx.resources.controls as
-            | (() => {
-                handMap?: HandMap;
-                faceExpr?: { degrees?: Record<string, number> };
-                faceMapping?: string;
-              })
-            | undefined
-        )?.();
-
-        // Burned-in tag HUD (#92): read the runtime snapshot (null unless a take is
-        // recording) and derive this tick's frame from the engine clock. A no-op
-        // resource means frame === null and the tagHud element draws nothing.
-        const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
-        const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
-        // Trainer guidance (#163): null unless a routine is running; the element is then
-        // a no-op. Same holder-plus-synchronous-read shape as the tag HUD.
-        const trainerHudFn = ctx.resources.trainerHud as (() => TrainerHudSnapshot | null) | undefined;
-        const trainerHudSnapshot = trainerHudFn?.() ?? null;
-
-        const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
-        const view: OverlayView = {
-          W,
-          H,
-          video,
-          params: liveConfig ?? p,
-          layout: {},
-          inputs: {
-            hands: inputs.hands as HandsFrame | undefined,
-            features: inputs.features as HandFeatures | undefined,
-            params: inputs.params as SynthParams | undefined,
-            scale: inputs.scale as number[] | undefined,
-            scaleLeft: inputs.scaleLeft as number[] | undefined,
-            chordScale: inputs.chordScale as number[] | undefined,
-            octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
-            chord: pickChord(inputs.chord, inputs.categorizerChord),
-            faceFrame: inputs.faceFrame as FaceFrame | undefined,
-            bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
-            bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
-            conductorTime: inputs.conductorTime as MusicalTime | undefined,
-            conductorEnabled: inputs.conductorEnabled === true,
-            drumPads: drumPadsOf(inputs.airDrumConfig),
-            drumStickLength: drumStickLengthOf(inputs.airDrumConfig),
-            padFlash: padFlash(inputs.drumHits, ctx.time),
-            cellGrid: cellGridOf(inputs.cellGrid),
-            expression: inputs.expression as ExpressionScores | undefined,
-            handMap: controls?.handMap,
-            faceDegrees: controls?.faceExpr?.degrees,
-            categoryDegrees: inputs.categoryDegrees as Record<string, number> | undefined,
-            faceMapping: controls?.faceMapping,
-            tagOverlay,
-            trainerHud: trainerHudSnapshot,
-            airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
-            ...pickCategories(
-              inputs.categories as CategoryScores | null | undefined,
-              inputs.categoryCaptions as readonly string[] | null | undefined,
-              inputs.learnedCategories as CategoryScores | null | undefined,
-              inputs.chordCategories as CategoryScores | null | undefined,
-            ),
-          },
-        };
-        if (Array.isArray(inputs.elements)) {
-          const wanted = new Set(inputs.elements as string[]);
-          view.elements = OVERLAY_ELEMENTS.filter((e) => wanted.has(e.name));
+/**
+ * The overlay node for a list of contributed elements (#600 S5): the core inputs, plus one input
+ * per contributed element's input (its generated port), decided once, when the registry is built
+ * (`src/nodes/browser.ts`), like `store-controls`' ports. With none it is the core overlay.
+ */
+export function makeCanvasOverlayNode(contributed: readonly ContributedElement[] = []) {
+  const adapted = contributed.map((c) => adaptContributed<OverlayView>(c));
+  const ALL_ELEMENTS = withContributed<OverlayElement>(OVERLAY_ELEMENTS, adapted);
+  const ALL_NAMES: ReadonlySet<string> = new Set(ALL_ELEMENTS.map((e) => e.name));
+  const contributedPorts = contributed.flatMap((c) => Object.entries(c.ports).map(([input, port]) => ({ name: port, kind: c.kinds[input] })));
+  return defineNode<Params>({
+    type: 'canvas-overlay',
+    roles: ['overlay'],
+    title: 'Canvas Overlay',
+    description: 'Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.',
+    // The air drum's config and hits (the pads) and the air flute's status (the breath cue):
+    // extension ports still in core until S10 of #600 moves those two elements out.
+    inputs: [...OVERLAY_CORE_INPUTS, { name: 'airDrumConfig', kind: 'air-drum-config' }, { name: 'drumHits', kind: 'drum-hits' }, { name: 'airFluteStatus', kind: 'air-flute-status' }, ...contributedPorts],
+    outputs: [],
+    params: Params,
+    make(p) {
+      // The Feature Lab's statistics (#119) are a stateful online computation, not a
+      // drawing concern: one opaque handle owns the normalizer + the derived formulas
+      // (see @/features/labMeters), so this node stays a pure RENDERER.
+      const computeLabMeters = createLabMeterComputer();
+      // When each pad was last struck (engine seconds): the one piece of drawing state
+      // the pads need, so a hit flashes for a moment after the tick that carried it.
+      const lastHit: Partial<Record<PadId, number>> = {};
+      const padFlash = (raw: unknown, now: number): Partial<Record<PadId, number>> => {
+        if (Array.isArray(raw)) for (const h of raw as { pad?: PadId | null; t?: number }[]) if (h?.pad) lastHit[h.pad] = Math.max(now, h.t ?? now);
+        const out: Partial<Record<PadId, number>> = {};
+        for (const id of PAD_IDS) {
+          const t = lastHit[id];
+          if (t === undefined) continue;
+          // Flash from the moment the hit SOUNDS (a predicted hit is scheduled ahead).
+          const age = now - t;
+          if (age >= 0 && age < PAD_FLASH_SECONDS) out[id] = 1 - age / PAD_FLASH_SECONDS;
         }
-        const elements = view.elements ?? OVERLAY_ELEMENTS;
+        return out;
+      };
 
-        // Compute the Feature Lab meters once per tick (the normalizer observes here);
-        // the featureLab element and the alpha pass both draw from this.
-        view.featureMeters = computeLabMeters(
-          view.params.featureLab,
-          inputs.faceVector as FeatureVector | undefined,
-          inputs.handVector as FeatureVector | undefined,
-          ctx.dt,
-          inputs.bodyVector as FeatureVector | undefined,
-        );
+      return {
+        process(inputs, ctx: NodeContext) {
+          const canvas = ctx.resources.canvas as HTMLCanvasElement | undefined;
+          const video = ctx.resources.video as HTMLVideoElement | undefined;
+          if (!canvas) return {};
+          const g = canvas.getContext('2d');
+          if (!g) return {};
 
-        view.layout = layoutCues(view);
-        for (const element of elements) element.draw(g, view);
+          const W = canvas.width;
+          const H = canvas.height;
+          g.clearRect(0, 0, W, H);
 
-        // Overlay-only (alpha) pass (#88): when a transparent overlay canvas is
-        // injected via resources (only while the overlay-alpha stream is being
-        // recorded — Chromium alpha-WebM), redraw the SAME elements onto it with
-        // the webcam backdrop suppressed, so the landmarks/cues sit on
-        // transparency. Reuses the exact element draw list (no duplicated drawing
-        // logic, no drift) and is a no-op — zero cost — whenever the resource is
-        // absent (i.e. always, except during an alpha take).
-        const alphaCanvas = ctx.resources.overlayAlphaCanvas as HTMLCanvasElement | undefined;
-        if (alphaCanvas) {
-          const ga = alphaCanvas.getContext('2d');
-          if (ga) {
-            ga.clearRect(0, 0, alphaCanvas.width, alphaCanvas.height);
-            const alphaView: OverlayView = {
-              ...view,
-              W: alphaCanvas.width,
-              H: alphaCanvas.height,
-              params: { ...view.params, video: { ...view.params.video, show: false } },
-            };
-            for (const element of elements) element.draw(ga, alphaView);
+          // Live control store: the hand map (note source + finger routing) and the
+          // expression→degree map, so cues reflect the ACTUAL mapping. Read like
+          // voice-mapping (ctx.resources.controls); absent in headless tests.
+          const controls = (
+            ctx.resources.controls as
+              | (() => {
+                  handMap?: HandMap;
+                  faceExpr?: { degrees?: Record<string, number> };
+                  faceMapping?: string;
+                })
+              | undefined
+          )?.();
+
+          // Burned-in tag HUD (#92): read the runtime snapshot (null unless a take is
+          // recording) and derive this tick's frame from the engine clock. A no-op
+          // resource means frame === null and the tagHud element draws nothing.
+          const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
+          const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
+          // Trainer guidance (#163): null unless a routine is running; the element is then
+          // a no-op. Same holder-plus-synchronous-read shape as the tag HUD.
+          const trainerHudFn = ctx.resources.trainerHud as (() => TrainerHudSnapshot | null) | undefined;
+          const trainerHudSnapshot = trainerHudFn?.() ?? null;
+
+          const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
+          const view: OverlayView = {
+            W,
+            H,
+            video,
+            params: liveConfig ?? p,
+            layout: {},
+            inputs: {
+              hands: inputs.hands as HandsFrame | undefined,
+              features: inputs.features as HandFeatures | undefined,
+              params: inputs.params as SynthParams | undefined,
+              scale: inputs.scale as number[] | undefined,
+              scaleLeft: inputs.scaleLeft as number[] | undefined,
+              chordScale: inputs.chordScale as number[] | undefined,
+              octaveShift: typeof inputs.octaveShift === 'number' ? inputs.octaveShift : 0,
+              chord: pickChord(inputs.chord, inputs.categorizerChord),
+              faceFrame: inputs.faceFrame as FaceFrame | undefined,
+              bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
+              bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
+              conductorTime: inputs.conductorTime as MusicalTime | undefined,
+              conductorEnabled: inputs.conductorEnabled === true,
+              drumPads: drumPadsOf(inputs.airDrumConfig),
+              drumStickLength: drumStickLengthOf(inputs.airDrumConfig),
+              padFlash: padFlash(inputs.drumHits, ctx.time),
+              cellGrid: cellGridOf(inputs.cellGrid),
+              expression: inputs.expression as ExpressionScores | undefined,
+              handMap: controls?.handMap,
+              faceDegrees: controls?.faceExpr?.degrees,
+              categoryDegrees: inputs.categoryDegrees as Record<string, number> | undefined,
+              faceMapping: controls?.faceMapping,
+              tagOverlay,
+              trainerHud: trainerHudSnapshot,
+              airFluteStatus: inputs.airFluteStatus as BreathStatus | undefined,
+              ...pickCategories(
+                inputs.categories as CategoryScores | null | undefined,
+                inputs.categoryCaptions as readonly string[] | null | undefined,
+                inputs.learnedCategories as CategoryScores | null | undefined,
+                inputs.chordCategories as CategoryScores | null | undefined,
+              ),
+            },
+          };
+          let drawn: ReadonlySet<string> = ALL_NAMES;
+          if (Array.isArray(inputs.elements)) {
+            const wanted = new Set(inputs.elements as string[]);
+            view.elements = ALL_ELEMENTS.filter((e) => wanted.has(e.name));
+            drawn = wanted;
+          } else if (adapted.length) view.elements = ALL_ELEMENTS;
+          const elements = view.elements ?? OVERLAY_ELEMENTS;
+          if (contributed.length) view.contributed = contributedInputs(contributed, drawn, inputs);
+
+          // Compute the Feature Lab meters once per tick (the normalizer observes here);
+          // the featureLab element and the alpha pass both draw from this.
+          view.featureMeters = computeLabMeters(
+            view.params.featureLab,
+            inputs.faceVector as FeatureVector | undefined,
+            inputs.handVector as FeatureVector | undefined,
+            ctx.dt,
+            inputs.bodyVector as FeatureVector | undefined,
+          );
+
+          view.layout = layoutCues(view);
+          for (const element of elements) element.draw(g, view);
+
+          // Overlay-only (alpha) pass (#88): when a transparent overlay canvas is
+          // injected via resources (only while the overlay-alpha stream is being
+          // recorded — Chromium alpha-WebM), redraw the SAME elements onto it with
+          // the webcam backdrop suppressed, so the landmarks/cues sit on
+          // transparency. Reuses the exact element draw list (no duplicated drawing
+          // logic, no drift) and is a no-op — zero cost — whenever the resource is
+          // absent (i.e. always, except during an alpha take).
+          const alphaCanvas = ctx.resources.overlayAlphaCanvas as HTMLCanvasElement | undefined;
+          if (alphaCanvas) {
+            const ga = alphaCanvas.getContext('2d');
+            if (ga) {
+              ga.clearRect(0, 0, alphaCanvas.width, alphaCanvas.height);
+              const alphaView: OverlayView = {
+                ...view,
+                W: alphaCanvas.width,
+                H: alphaCanvas.height,
+                params: { ...view.params, video: { ...view.params.video, show: false } },
+              overlayOnly: true,
+              };
+              for (const element of elements) element.draw(ga, alphaView);
+            }
           }
-        }
 
-        return {};
-      },
-    };
-  },
-});
+          return {};
+        },
+      };
+    },
+  });
+}
+
+/** The core overlay (no contributed element): the core node library's. */
+export const canvasOverlayNode = makeCanvasOverlayNode();

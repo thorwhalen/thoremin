@@ -20,9 +20,10 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
+import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
-import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
+import { makeRecordingCanvas } from './helpers/canvas';
+import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
 
 afterEach(cleanup);
@@ -156,6 +157,38 @@ describe('the probe contributes a chord producer (#600 S4)', () => {
     expect([into('exprChord'), into('poseChord'), into(PROBE_NODE_ID)]).toEqual(['a', 'b', 'c']);
     // The registry sized the selector for every producer there is (two core, the probe, one spare).
     expect(reg.get('chord-select').inputs.map((p) => p.name)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('the probe draws overlay elements (#600 S5)', () => {
+  it('the overlay grows the probes\' ports, and both elements draw in the composed graph from their own inputs', async () => {
+    const reg = app.registry.createAppRegistry();
+    await reg.ensure([PROBE_LAZY_NODE_TYPE]);
+    const overlayPorts = reg.get('canvas-overlay').inputs.map((p) => p.name);
+    expect(overlayPorts).toEqual(expect.arrayContaining(['probe.meter.level', 'probe.meter.config', 'probe-lazy.badge.ticks']));
+    const composed = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID, PROBE_LAZY_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    expect(composed.elements).toEqual(expect.arrayContaining([PROBE_ELEMENT_ID, PROBE_LAZY_ELEMENT_ID]));
+    // The meter's config dial arrives from the host, not from the probe's branch.
+    expect(composed.spec.edges).toContainEqual({ from: { node: 'ui', port: 'probe' }, to: { node: 'overlay', port: 'probe.meter.config' } });
+    const rc = makeRecordingCanvas();
+    const controls = { ...app.store.useControls.getState(), probe: { enabled: true, freq: 440 }, probeLazy: { enabled: true }, probeModel: { gain: 0.5 }, graphElements: composed.elements };
+    const engine = new Engine(composed.spec, reg, { resources: { controls: () => controls, canvas: rc.canvas, video: rc.video }, validatePorts: true });
+    engine.tick(0);
+    engine.tick(1 / 30);
+    // The meter: a bar half the frame wide (level 0.5) in the probe's colour.
+    expect(rc.calls.some((c) => c.m === 'fillRect' && c.args[2] === 640 && c.fill === '#a855f7')).toBe(true);
+    // The lazy badge: a cue, laid out on the left edge with the tick count.
+    expect(rc.texts().some((t) => /^probe \d+$/.test(t))).toBe(true);
+  });
+
+  it('an element the composed set leaves out is never drawn', async () => {
+    const reg = app.registry.createAppRegistry();
+    const composed = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    const rc = makeRecordingCanvas();
+    const controls = { ...app.store.useControls.getState(), probe: { enabled: true, freq: 440 }, probeModel: { gain: 0.5 }, graphElements: composed.elements.filter((e) => e !== PROBE_ELEMENT_ID) };
+    const engine = new Engine(composed.spec, reg, { resources: { controls: () => controls, canvas: rc.canvas, video: rc.video } });
+    engine.tick(0);
+    expect(rc.calls.some((c) => c.fill === '#a855f7')).toBe(false);
   });
 });
 

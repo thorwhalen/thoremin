@@ -5,7 +5,7 @@
  * carries them and nothing of the shipped extensions (`scripts/check_core_bundle.ts`).
  *
  * Two manifests, because an extension is either eager or lazy: this one is EAGER (a node, a
- * branch with a voice and a chord producer, a dial slice, a transient port, a seed instrument, a training route);
+ * branch with a voice, a chord producer and an overlay element, a dial slice, a transient port, a seed instrument, a training route);
  * `./lazy_stub.ts` is the LAZY one (a node type declared now and loaded on first use).
  *
  * The rule for later steps (`docs/design/vertical-slices.md` §5, S1): every new contribution
@@ -16,7 +16,7 @@
 import { z } from 'zod';
 import { defineNode, type NodeDef } from '@thoremin/dag';
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
-import { defineExtension, dialSlice, transientPort } from '@thoremin/sdk/instruments/extension';
+import { defineExtension, dialSlice, overlayElementId, overlayPortName, transientPort, type OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 
@@ -65,6 +65,19 @@ export const probeNode = defineNode<Record<string, never>>({
   },
 });
 
+/** The probe's overlay element (#600 S5): a bar as long as the probe's level, while its dial is on. */
+export const PROBE_ELEMENT = 'meter';
+export const PROBE_ELEMENT_ID = overlayElementId('probe', PROBE_ELEMENT);
+export const probeMeter: OverlayElementImpl = {
+  name: PROBE_ELEMENT,
+  draw(g, frame, inputs) {
+    if ((inputs.config as ProbeDial | undefined)?.enabled !== true) return;
+    const level = typeof inputs.level === 'number' ? inputs.level : 0;
+    g.fillStyle = '#a855f7';
+    g.fillRect(16, frame.H - 24, level * frame.W, 8);
+  },
+};
+
 export const PROBE_BRANCH = defineBranch({
   id: PROBE_BRANCH_ID,
   description: 'The probe voice (test-only).',
@@ -72,7 +85,11 @@ export const PROBE_BRANCH = defineBranch({
   edges: [
     { from: { node: TRUNK.ui, port: 'probe' }, to: { node: PROBE_NODE_ID, port: 'cfg' } },
     { from: { node: TRUNK.ui, port: 'probeModel' }, to: { node: PROBE_NODE_ID, port: 'model' } },
+    // Its overlay element's input, on the port the overlay grew for it (its config dial, `probe`,
+    // is delivered by the host: no branch writes that edge).
+    { from: { node: PROBE_NODE_ID, port: 'level' }, to: { node: TRUNK.overlay, port: overlayPortName('probe', PROBE_ELEMENT, 'level') } },
   ],
+  overlay: [PROBE_ELEMENT_ID],
   voices: [{ from: { node: PROBE_NODE_ID, port: 'params' }, role: 'instrument' }],
   // Below the face's chords (30, 20): shown when neither sounds.
   chords: [{ from: { node: PROBE_NODE_ID, port: 'chord' }, priority: 5 }],
@@ -91,6 +108,8 @@ export const PROBE_EXTENSION = defineExtension({
     }),
   ] as const,
   transient: [transientPort<ProbeModel>()('probeModel', 'probe-model')] as const,
+  overlay: [{ name: PROBE_ELEMENT, category: 'output', inputs: [{ name: 'level', kind: 'number' }], config: { dialKey: 'probe' } }],
+  overlayElements: [probeMeter],
   instruments: [{ name: PROBE_INSTRUMENT, patch: { probe: { enabled: true, freq: 330 } } }],
   training: {
     routes: [{ id: 'probe', label: 'Train the probe', hint: 'Test-only.', tool: PROBE_TOOL_ID }],

@@ -548,10 +548,10 @@ Sends the merged voices to a Web MIDI output as note-on/off + CC (WEBMIDI.js). O
 _Audio + the captured video with overlaid guides._
 
 #### `canvas-overlay` — Canvas Overlay
-Mirrored video + composable overlay elements (guides, landmarks, markers, cues).
+Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, airDrumConfig:air-drum-config, drumHits:drum-hits, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, airFluteStatus:air-flute-status, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, airDrumConfig:air-drum-config, drumHits:drum-hits, airFluteStatus:air-flute-status
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), cellGrid (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 
