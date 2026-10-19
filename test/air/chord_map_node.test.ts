@@ -335,6 +335,17 @@ describe('the chord-map node, on musical time (H9 of #613)', () => {
     expect(outs[outs.length - 1].out.status.chord).toBe('C'); // the beat never reaches 2: the change waits with the music
   });
 
+  it('a hold that lasts (the piece ended) hands back to the tempo: the change lands', () => {
+    const c = cellOf(0);
+    const am = cellOf(5);
+    const take = chordMapTake({ duration: 7, chordAt: (t) => (t < 1.05 ? c : am) });
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const conductor = (t: number) => (t < 1.2 ? { t, beat: ((t - 0.2) * 90) / 60, tempo: 90, state: 'running' } : { t, beat: 1.5, tempo: 0, state: 'hold' });
+    const outs = take.map((fr) => ({ t: fr.t!, out: h.process({ hands: fr, config: { ...ON, clock: 'conductor', commit: 'beat' }, spec: C_MAJOR, octaveShift: 0, conductorTime: conductor(fr.t!) }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out }));
+    expect(outs.find((o) => o.t >= 3)!.out.status.chord).toBe('C'); // a fermata: still waiting
+    expect(outs[outs.length - 1].out.status.chord).toBe('Am'); // held over four seconds: the tempo carries on
+  });
+
   it('keeps time with the song: a held change lands on the song\'s beat', () => {
     const c = cellOf(0);
     const am = cellOf(5);

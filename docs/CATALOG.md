@@ -578,7 +578,7 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues),
 Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.
 
 - **roles:** mapping, music
-- **in:** time:musical-time, doc:score-doc, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
+- **in:** time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
 - **out:** params:synth-params, status:chord-chart-status, triad:number[]
 - **params:** enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)
 

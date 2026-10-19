@@ -29,16 +29,30 @@ const same = (a: Chord, b: Chord) => a.root === b.root && a.quality === b.qualit
 /** Onsets within this of a step's start count as on it (a float sum of beats). */
 const EPS = 1e-6;
 
-/** The piece's chords, a segment per change (`step`: beats read as one chord). */
+/** Charts already read, per piece and step: a piece is reduced once, never on every tick. */
+const CACHE = new WeakMap<object, Map<number, ChordChart>>();
+
+/** The piece's chords, a segment per change (`step`: beats read as one chord). One sweep over the
+ *  notes in onset order with the set sounding (O(n log n + steps x sounding)): a quartet movement
+ *  of thousands of beats and notes reads in milliseconds. */
 export function chartOfScore(doc: Pick<ScoreDoc, 'parts' | 'lengthBeats'>, { step = 1 }: { step?: number } = {}): ChordChart {
-  const notes = doc.parts.filter((p) => !p.percussion).flatMap((p) => p.notes);
+  const cached = CACHE.get(doc)?.get(step);
+  if (cached) return cached;
+  const notes = doc.parts
+    .filter((p) => !p.percussion)
+    .flatMap((p) => p.notes)
+    .slice()
+    .sort((a, b) => a.start - b.start);
   const span = Math.max(step, Math.ceil(doc.lengthBeats / step) * step);
   const segments: ChartSegment[] = [];
+  let next = 0;
+  let active: typeof notes = [];
   for (let b = 0; b < span; b += step) {
+    while (next < notes.length && notes[next].start < b + step) active.push(notes[next++]);
+    active = active.filter((n) => n.start + n.duration > b);
     // The notes that make the harmony: sounding at the step's start, or held for half of it; a
     // short note inside the step is a passing or neighbour tone, not the chord.
-    const sounding = notes
-      .filter((n) => n.start < b + step && n.start + n.duration > b)
+    const sounding = active
       .filter((n) => (n.start <= b + EPS && n.start + n.duration > b + EPS) || Math.min(n.start + n.duration, b + step) - Math.max(n.start, b) >= step / 2 - EPS)
       .map((n) => n.midi);
     const chord = chordOfPitchClasses(sounding);
@@ -46,17 +60,26 @@ export function chartOfScore(doc: Pick<ScoreDoc, 'parts' | 'lengthBeats'>, { ste
     const last = segments[segments.length - 1];
     if (!last || !same(last.chord, chord)) segments.push({ beat: b, chord });
   }
-  return { segments, lengthBeats: span };
+  const chart = { segments, lengthBeats: span };
+  const perStep = CACHE.get(doc) ?? new Map<number, ChordChart>();
+  perStep.set(step, chart);
+  CACHE.set(doc, perStep);
+  return chart;
 }
 
-/** The segment in force at `beat` (the chart repeats past its end, as the conductor loops the
- *  piece), its index, and the next one; null for an empty chart. */
-export function chartAt(chart: ChordChart, beat: number): { index: number; segment: ChartSegment; next: ChartSegment } | null {
+/** The segment in force at `beat` (in the piece's own beats: the conductor loops the piece and
+ *  reports its beat in the piece, so past the end there is no chord), its index, and the next one;
+ *  null for an empty chart, a beat before 0 or past the end. Before the first change, the first
+ *  chord (a pickup over no chord yet). Binary search: cheap on every tick. */
+export function chartAt(chart: ChordChart, beat: number): { index: number; segment: ChartSegment; next: ChartSegment | null } | null {
   const { segments, lengthBeats } = chart;
-  if (segments.length === 0 || !(lengthBeats > 0) || !Number.isFinite(beat)) return null;
-  const b = ((beat % lengthBeats) + lengthBeats) % lengthBeats;
-  // Before the first change, the chart's first chord sounds (a pickup over no chord).
-  let index = 0;
-  for (let i = 0; i < segments.length; i++) if (segments[i].beat <= b) index = i;
-  return { index, segment: segments[index], next: segments[(index + 1) % segments.length] };
+  if (segments.length === 0 || !Number.isFinite(beat) || beat < 0 || beat >= lengthBeats) return null;
+  let lo = 0;
+  let hi = segments.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (segments[mid].beat <= beat) lo = mid;
+    else hi = mid - 1;
+  }
+  return { index: lo, segment: segments[lo], next: segments[lo + 1] ?? null };
 }

@@ -23,13 +23,15 @@ export const useChordChartStatus = create<ChordChartStatusState>((set) => ({
 /** What to tell the player, per state. */
 export function describeChordChartLive(live: ChordChartStatus): string {
   if (!live.enabled) return 'Off. Tick "Play the chord chart" (the Conduct the Chords instrument has it on).';
-  if (!live.hasChart) return 'No chords yet: choose a piece in the Conductor tool (it is read beat by beat for its chords).';
+  if (!live.conducting && !live.hasChart) return 'Turn conducting on in the Conductor tool and choose a piece: it is read beat by beat for its chords.';
+  if (!live.hasChart) return 'No chords in this piece yet: choose another in the Conductor tool.';
+  if (!live.conducting) return `${live.changes} chord changes. Turn conducting on in the Conductor tool to play them.`;
   if (!live.running) return `${live.changes} chord changes. Conduct: the chart starts on your downbeat.`;
   return `${live.chord ?? ''}${live.next ? `, then ${live.next}` : ''}.`;
 }
 
 export function chordChartLiveKey(l: ChordChartStatus): string {
-  return [l.enabled ? 1 : 0, l.hasChart ? 1 : 0, l.changes, l.running ? 1 : 0, l.chord ?? '-', l.next ?? '-'].join('|');
+  return [l.enabled ? 1 : 0, l.hasChart ? 1 : 0, l.changes, l.running ? 1 : 0, l.conducting ? 1 : 0, l.chord ?? '-', l.next ?? '-'].join('|');
 }
 
 export function makeChordChartReporter(engine: { getOutput(nodeId: string, port: string): unknown }, store: Pick<ChordChartStatusState, 'report'> = useChordChartStatus.getState()): () => void {

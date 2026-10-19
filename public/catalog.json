@@ -1155,6 +1155,16 @@
         "kind": "score-doc"
       },
       {
+        "name": "leads",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "velocityScale",
+        "kind": "number",
+        "default": 1
+      },
+      {
         "name": "config",
         "kind": "chord-chart-config"
       },

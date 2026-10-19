@@ -44,13 +44,17 @@ describe.runIf(AIR)('the chord chart', () => {
       [6, 0, 'maj'],
     ]);
     expect(chartAt(chart, 4.5)!.segment.chord).toEqual({ root: 7, quality: '7' });
-    expect(chartAt(chart, 9)!.segment.chord.root).toBe(0); // past the end: round again, as the conductor loops
-    expect(chartAt(chart, 7)!.next.chord.root).toBe(0);
+    expect(chartAt(chart, 9)).toBeNull(); // past the end: nothing (the conductor loops the piece himself)
+    expect(chartAt(chart, 3)!.next!.chord.root).toBe(7);
+    expect(chartAt(chart, 7)!.next).toBeNull();
   });
 
-  it('reads the shipped Haydn quartet; a coarser step makes fewer changes', async () => {
+  it('reads the shipped Haydn quartet quickly and once; a coarser step makes fewer changes', async () => {
     const doc = await loadScore(new Uint8Array(readFileSync('public/scores/haydn-op76-3.mxl')), 'haydn-op76-3.mxl');
+    const t0 = performance.now();
     const everyBeat = chartOfScore(doc, { step: 1 });
+    expect(performance.now() - t0).toBeLessThan(250); // a sweep, not beats x notes (it was ~1.8 s)
+    expect(chartOfScore(doc, { step: 1 })).toBe(everyBeat); // cached per piece and step
     const everyBar = chartOfScore(doc, { step: 4 });
     expect(everyBeat.segments.length).toBeGreaterThan(50);
     expect(everyBar.segments.length).toBeLessThan(everyBeat.segments.length);
@@ -65,12 +69,12 @@ describe.runIf(AIR)('the chord-chart node', () => {
   }
   const pcs = (p: SynthParams) => [...new Set(p.voices.filter((v) => v.id >= CHORD_CHART_VOICE_ID_BASE && v.present && v.gain > 0).map((v) => Math.round(freqToMidi(v.freq)) % 12))].sort((a, b) => a - b);
   const time = (t: number, beat: number, state: string) => ({ t, beat, tempo: 120, state, phase: 0, period: 0.5, confidence: 1, nextBeatAt: 0, beatsPerBar: 4, beatInBar: 0, anchors: 0 });
-  function run(timeAt: (t: number) => unknown, config: Record<string, unknown> = { enabled: true, rendering: 'sustained' }, seconds = 4) {
+  function run(timeAt: (t: number) => unknown, config: Record<string, unknown> = { enabled: true, rendering: 'sustained' }, seconds = 4, leads = true, velocityScale = 1) {
     const h = chordChartNode.make(chordChartNode.params.parse({}));
     const outs: { t: number; out: Out }[] = [];
     for (let i = 0; i < seconds * 30; i++) {
       const t = i / 30;
-      outs.push({ t, out: h.process({ time: timeAt(t), doc: DOC, config, octaveShift: 0 }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out });
+      outs.push({ t, out: h.process({ time: timeAt(t), doc: DOC, config, octaveShift: 0, leads, velocityScale }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out });
     }
     return outs;
   }
@@ -88,9 +92,19 @@ describe.runIf(AIR)('the chord-chart node', () => {
     expect(pcs(at(3.5).params)).toEqual([0, 5, 9]);
   });
 
-  it('is silent with the chart off', () => {
-    const outs = run((t) => time(t, t * 2, 'running'), { enabled: false });
-    expect(outs.every((o) => pcs(o.out.params).length === 0)).toBe(true);
+  it('is silent with the chart off, while the conductor does not lead the score, and past the end', () => {
+    const silent = (outs: { out: Out }[]) => outs.every((o) => pcs(o.out.params).length === 0);
+    expect(silent(run((t) => time(t, t * 2, 'running'), { enabled: false }))).toBe(true);
+    expect(silent(run((t) => time(t, t * 2, 'running'), undefined, 4, false))).toBe(true); // a recording led, or cut off
+    const ended = run((t) => time(t, 9 + t, 'hold'));
+    expect(silent(ended)).toBe(true); // past the piece's 8 beats: no chord drones on
+  });
+
+  it('follows the conductor\'s dynamics', () => {
+    const gainOf = (o: Out) => Math.max(...o.params.voices.filter((v) => v.present).map((v) => v.gain));
+    const soft = run((t) => time(t, t * 2, 'running'), undefined, 1, true, 0.5);
+    const loud = run((t) => time(t, t * 2, 'running'), undefined, 1, true, 1);
+    expect(gainOf(soft[soft.length - 1].out)).toBeLessThan(gainOf(loud[loud.length - 1].out));
   });
 });
 
@@ -105,6 +119,9 @@ describe.runIf(AIR)('Conduct the Chords', () => {
     const has = (fn: string, fp: string, tn: string, tp: string) => g.edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
     expect(has('conductor', 'time', 'chordChart', 'time')).toBe(true);
     expect(has('ui', 'scoreDoc', 'chordChart', 'doc')).toBe(true);
+    expect(has('conductor', 'leadsScore', 'chordChart', 'leads')).toBe(true); // silent when the score is
+    expect(has('conductor', 'velocityScale', 'chordChart', 'velocityScale')).toBe(true);
+    expect(settings.conductor.parts).toBe('violin'); // the conductor's score plays the tune alone: no doubled quartet
     expect(g.edges.some((e) => e.from.node === 'chordChart' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
   });
 });

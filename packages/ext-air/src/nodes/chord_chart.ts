@@ -4,7 +4,9 @@
  * is walked by the conductor's own beat: the chord in force at the beat sounds, voice-led, and
  * its figuration (an arpeggio, a pulse) steps on the conductor's beats, so the accompaniment
  * follows the conductor's tempo, holds through a fermata and waits while he waits, as the
- * orchestra does. Nothing sounds before the first downbeat.
+ * orchestra does, and its loudness follows his dynamics. It sounds only while the conductor leads
+ * the score (`leadsScore`: conducting, not a recording, not cut off) and within the piece: nothing
+ * before the first downbeat, nothing past the end.
  *
  * Composed from the harmonic layers: the chart is a path through chords, the conductor's
  * musical time is the navigation (`harmony/clock`), the realization pipeline voices and figures
@@ -64,9 +66,11 @@ export interface ChordChartStatus {
   next: string | null;
   /** The beat the conductor is on. */
   beat: number | null;
+  /** The conductor leads the score (conducting is on, not leading a recording). */
+  conducting: boolean;
 }
 
-export const IDLE_CHORD_CHART_STATUS: ChordChartStatus = { enabled: false, hasChart: false, changes: 0, running: false, chord: null, next: null, beat: null };
+export const IDLE_CHORD_CHART_STATUS: ChordChartStatus = { enabled: false, hasChart: false, changes: 0, running: false, chord: null, next: null, beat: null, conducting: false };
 
 /** A chord's tones on the chart's register, root first. */
 function tonesOf(chord: Chord): number[] {
@@ -85,6 +89,10 @@ export const chordChartNode = defineNode<Params>({
     { name: 'time', kind: 'musical-time' },
     // The piece being conducted.
     { name: 'doc', kind: 'score-doc' },
+    // Whether the conductor leads the score now: the chart plays only with it, as the score does.
+    { name: 'leads', kind: 'boolean', default: false },
+    // The conductor's dynamics, as the orchestra reads them (1 = as set).
+    { name: 'velocityScale', kind: 'number', default: 1 },
     { name: 'config', kind: 'chord-chart-config' },
     { name: 'chordConfig', kind: 'chord-config' },
     { name: 'octaveShift', kind: 'number', default: 0 },
@@ -127,7 +135,8 @@ export const chordChartNode = defineNode<Params>({
         }
         const time = inputs.time as (BeatSource & { tempo: number }) | undefined;
         // A fermata holds the beat (the harmony waits with the music); before the downbeat, nothing.
-        const beat = c.enabled ? beatAt(time, now, { holds: true }) : null;
+        const leads = inputs.leads === true;
+        const beat = c.enabled && leads ? beatAt(time, now, { holds: true }) : null;
         const at = chart && beat !== null ? chartAt(chart, beat) : null;
         const chord = at?.segment.chord ?? null;
         const tones = chord ? tonesOf(chord) : [];
@@ -137,7 +146,7 @@ export const chordChartNode = defineNode<Params>({
           controls: { ...DEFAULT_CONTROLS, register: shift },
           bpm: time && Number.isFinite(time.tempo) && time.tempo > 0 ? time.tempo : (chordCfg.bpm ?? c.bpm),
           beat: beat ?? undefined,
-          gain: chordCfg.gain ?? c.gain,
+          gain: (chordCfg.gain ?? c.gain) * (typeof inputs.velocityScale === 'number' && Number.isFinite(inputs.velocityScale) ? Math.max(0, Math.min(2, inputs.velocityScale)) : 1),
           sound: chordCfg.sound ?? c.sound,
           silentSound: p.sound,
           dt: typeof ctx?.dt === 'number' ? ctx.dt : 0,
@@ -148,7 +157,8 @@ export const chordChartNode = defineNode<Params>({
           changes: chart?.segments.length ?? 0,
           running: beat !== null,
           chord: chord ? chordName(chord) : null,
-          next: at && at.next !== at.segment ? chordName(at.next.chord) : null,
+          next: at?.next ? chordName(at.next.chord) : null,
+          conducting: leads,
           beat,
         };
         return { params: { voices } satisfies SynthParams, status, triad: tones };

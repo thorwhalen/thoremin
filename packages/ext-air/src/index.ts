@@ -181,9 +181,10 @@ export const AIR_EXTENSION = defineExtension({
     // The design's next-chord wheel (§6.2, H10 of #613): the likeliest next chord on top (Piston's
     // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space.
     { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps' } } },
-    // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's Emperor quartet read for its
-    // chords, played voice-led and arpeggiated on the conductor's beat; the orchestra stays off.
-    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3' }, chordChart: { enabled: true } } },
+    // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's quartet read for its chords,
+    // played voice-led and arpeggiated on the conductor's beat under the first violin's tune,
+    // which is all the conductor's own score plays (the quartet is not doubled).
+    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin' }, chordChart: { enabled: true } } },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,

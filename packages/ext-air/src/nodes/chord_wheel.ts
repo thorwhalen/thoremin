@@ -33,7 +33,7 @@ import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/mus
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { TENSION_MODEL_IDS, TENSION_MODELS, tensionText } from '@thoremin/sdk/harmony/tension';
 import { TRANSITION_PRIORS, rankByPrior } from '@thoremin/sdk/harmony/prior';
-import { CLOCKS, clockBeat, type BeatSource } from '@thoremin/sdk/harmony/clock';
+import { CLOCKS, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
 import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -226,6 +226,7 @@ export const chordWheelNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
+    const clockReader = createClockReader();
     const realizer = createRealizer({ idBase: CHORD_WHEEL_VOICE_ID_BASE, maxVoices: MAX_CHORD_WHEEL_VOICES });
     let cfg: Params = p;
     let lastConfigRef: unknown = undefined;
@@ -274,7 +275,7 @@ export const chordWheelNode = defineNode<Params>({
         const spec = rawSpec ? letterChordSpec(rawSpec) : undefined;
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
         const dt = typeof ctx?.dt === 'number' ? ctx.dt : 0;
-        const outsideBeat = clockBeat(c.clock, { song: inputs.time as BeatSource | undefined, conductor: inputs.conductorTime as BeatSource | undefined }, typeof ctx?.time === 'number' ? ctx.time : 0);
+        const outsideBeat = clockReader.read(c.clock, { song: inputs.time as BeatSource | undefined, conductor: inputs.conductorTime as BeatSource | undefined }, typeof ctx?.time === 'number' ? ctx.time : 0);
         const render = (chord: Chord | null) =>
           realizer.render({
             beat: outsideBeat ?? undefined,

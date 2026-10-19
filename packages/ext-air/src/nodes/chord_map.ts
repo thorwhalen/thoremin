@@ -45,7 +45,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
-import { CLOCKS, clockBeat, createBeatQuantizer, type BeatSource } from '@thoremin/sdk/harmony/clock';
+import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -364,6 +364,7 @@ export const chordMapNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
+    const clockReader = createClockReader();
     const renderer = createChordRenderer({ idBase: CHORD_MAP_VOICE_ID_BASE, maxVoices: MAX_CHORD_MAP_VOICES });
     let cfg: Params = p;
     let lastConfigRef: unknown = undefined;
@@ -459,7 +460,7 @@ export const chordMapNode = defineNode<Params>({
         const ownSpec = rawSpec ? letterChordSpec(rawSpec) : undefined;
         const spec = ownSpec ? parallelSpec(ownSpec, modeLevel) : undefined;
         // The song's beat now, while the map keeps time with it and the song plays (else the tempo's).
-        const outsideBeat = clockBeat(c.clock, { song: inputs.time as BeatSource | undefined, conductor: inputs.conductorTime as BeatSource | undefined }, typeof ctx?.time === 'number' ? ctx.time : 0);
+        const outsideBeat = clockReader.read(c.clock, { song: inputs.time as BeatSource | undefined, conductor: inputs.conductorTime as BeatSource | undefined }, typeof ctx?.time === 'number' ? ctx.time : 0);
         const render = (degree: number) =>
           renderer.render({
             beat: outsideBeat ?? undefined,

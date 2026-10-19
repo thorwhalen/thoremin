@@ -48,6 +48,33 @@ export function clockBeat(clock: ClockId, streams: { song?: BeatSource | null; c
   return null;
 }
 
+/** How long a conductor's hold keeps an instrument's beat before it hands back to the tempo: a
+ *  fermata is a few seconds; a hold that lasts (the piece ended, the conductor walked away) must
+ *  not freeze an instrument that only keeps time with him. */
+export const MAX_HOLD_S = 4;
+
+/** `clockBeat` with memory: a conductor's hold counts for `maxHoldS`, then the instrument's own
+ *  tempo takes over until he runs again. */
+export function createClockReader({ maxHoldS = MAX_HOLD_S }: { maxHoldS?: number } = {}) {
+  let heldBeat: number | null = null;
+  let since = 0;
+  return {
+    read(clock: ClockId, streams: { song?: BeatSource | null; conductor?: BeatSource | null }, now: number): number | null {
+      const beat = clockBeat(clock, streams, now);
+      const holding = clock === 'conductor' && streams.conductor?.state === 'hold' && beat !== null;
+      if (!holding) {
+        heldBeat = null;
+        return beat;
+      }
+      if (heldBeat !== beat) {
+        heldBeat = beat;
+        since = now;
+      }
+      return now - since > maxHoldS ? null : beat;
+    },
+  };
+}
+
 /** A beat this close ahead is reached (a beat count is a float sum of ticks). */
 const EPS = 1e-6;
 
