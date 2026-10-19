@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./app/guitarImport": "./src/app/guitarImport.ts",
+    "./app/midiChordIn": "./src/app/midiChordIn.ts",
     "./app/FingeringGuide": "./src/app/FingeringGuide.tsx",
     "./app/PatternStrip": "./src/app/PatternStrip.tsx",
     "./app/PatternTrainer": "./src/app/PatternTrainer.tsx",
@@ -30,6 +31,7 @@
     "./branches": "./src/branches.ts",
     "./dials": "./src/dials.ts",
     "./lib/chord_map": "./src/lib/chord_map.ts",
+    "./lib/midi_held": "./src/lib/midi_held.ts",
     "./lib/drum_patterns": "./src/lib/drum_patterns.ts",
     "./lib/event_batch": "./src/lib/event_batch.ts",
     "./lib/fingering_prior": "./src/lib/fingering_prior.ts",

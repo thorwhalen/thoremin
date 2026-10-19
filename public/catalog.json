@@ -1165,6 +1165,10 @@
         "default": 0
       },
       {
+        "name": "midi",
+        "kind": "held-notes"
+      },
+      {
         "name": "face",
         "kind": "face-features"
       }
@@ -1336,6 +1340,16 @@
         "name": "mirrorHandedness",
         "type": "boolean",
         "default": true
+      },
+      {
+        "name": "follow",
+        "type": "enum(hands | midi)",
+        "default": "hands"
+      },
+      {
+        "name": "midiDwellS",
+        "type": "number",
+        "default": 0.08
       },
       {
         "name": "anchor",
@@ -3891,6 +3905,10 @@
       {
         "name": "airDrumPattern",
         "kind": "drum-pattern"
+      },
+      {
+        "name": "chordMapMidi",
+        "kind": "held-notes"
       },
       {
         "name": "faceCategorizerModel",

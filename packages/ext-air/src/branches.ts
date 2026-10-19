@@ -106,6 +106,7 @@ export const chordMap = defineBranch({
     to(ui('chordSpec'), { node: 'chordMap', port: 'spec' }),
     to(ui('chordConfig'), { node: 'chordMap', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
+    to(ui('chordMapMidi'), { node: 'chordMap', port: 'midi' }),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
     to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
     to({ node: 'chordMap', port: 'grid' }, overlay('cellGrid')),

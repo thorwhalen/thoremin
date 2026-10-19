@@ -23,6 +23,11 @@
  * melody ladder and the moves around the sounding chord are drawn by the overlay's generic
  * `cellGrid` element, from the `grid` output.
  *
+ * A MIDI keyboard can choose the chord instead of the pointing hand (`follow` = `midi`, H8 of
+ * #613, "MIDI chooses, the camera performs"): the chord the keys hold, in any inversion and after
+ * a short dwell, lights its cell; the hands then play the melody over it or strum it (a chord
+ * outside the key is strummed by its name and named in the status).
+ *
  * The face can colour it (`face`, H7 of #613, `docs/design/harmonic-layers.md` §5.4): valence
  * (a smile against a furrowed brow) moves the key to its parallel major or minor after a dwell,
  * so a passing smile does not modulate, and arousal (an open mouth, raised brows) adds the key's
@@ -34,6 +39,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
+import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
+import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, type Chord } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -63,6 +70,7 @@ import {
   type Region,
 } from '../lib/chord_map';
 import { createStrumDetector, type StrumDetector } from '../lib/strum';
+import type { MidiHeld } from '../lib/midi_held';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
 import { LATE_VELOCITY, strumNotes } from './air_guitar';
@@ -157,6 +165,10 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.7),
   /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
   mirrorHandedness: z.boolean().default(true),
+  /** What chooses the chord: the pointing hand, or the chord a MIDI keyboard holds. */
+  follow: z.enum(['hands', 'midi']).default('hands'),
+  /** With MIDI: seconds a new chord must be held before it is the harmony (passing tones pass). */
+  midiDwellS: z.number().min(0).max(0.5).default(0.08),
   /** Where the map keeps its place: the key's home in the middle, or the seven letters fixed
    *  (a key's home where its tonic sits, a modulation relighting the chords it changes). */
   anchor: z.enum(CHORD_MAP_ANCHORS).default('home'),
@@ -205,6 +217,9 @@ export interface ChordMapStatus {
   lastLead: number;
   /** Whether the strumming hand's stroke floor has been learned. */
   ready: boolean;
+  /** With MIDI: whether a keyboard can be heard, and the chord it holds (null: none yet). */
+  midi: 'off' | 'unavailable' | 'no-input' | 'listening';
+  midiChord: string | null;
   /** With the face: the key's mode in force ('key': the key's own) and the tension steps added. */
   mode: 'key' | 'darker' | 'brighter';
   tension: number;
@@ -223,9 +238,24 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   predicted: 0,
   lastLead: 0,
   ready: false,
+  midi: 'off',
+  midiChord: null,
   mode: 'key',
   tension: 0,
 };
+
+/** The cell of a degree nearest the middle of its region (null: none of that degree). */
+function nearestOfDegree(cells: readonly MapCell[], degree: number, region: Region): number | null {
+  if (degree < 0) return null;
+  const cx = (region.x0 + region.x1) / 2;
+  const cy = (region.y0 + region.y1) / 2;
+  let best: number | null = null;
+  cells.forEach((cell, i) => {
+    if (cell.degree !== degree) return;
+    if (best === null || Math.hypot(cell.x - cx, cell.y - cy) < Math.hypot(cells[best].x - cx, cells[best].y - cy)) best = i;
+  });
+  return best;
+}
 
 /** The point a hand chooses with, in display fractions (the mirrored frame). */
 export function displayPoint(hand: Hand, frame: HandsFrame, point: (typeof CHORD_MAP_POINTS)[number] | (typeof STRUM_MAP_POINTS)[number]): { x: number; y: number } {
@@ -269,6 +299,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'spec', kind: 'scale-spec' },
     { name: 'chordConfig', kind: 'chord-config' },
     { name: 'octaveShift', kind: 'number', default: 0 },
+    // The notes a MIDI keyboard holds, while the map follows MIDI (`follow`).
+    { name: 'midi', kind: 'held-notes' },
     // The face's smoothed controls, while the face colours the map (`face`).
     { name: 'face', kind: 'face-features' },
   ],
@@ -301,6 +333,8 @@ export const chordMapNode = defineNode<Params>({
     let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
     let valence: LevelTracker | null = null;
+    let follower: ChordFollower | null = null;
+    let followerDwell = -1;
     /** The letters map: the anchor it was read under, each letter's chord as shown, what changed. */
     let letterAnchor = '';
     let letterNames: string[] = [];
@@ -440,6 +474,27 @@ export const chordMapNode = defineNode<Params>({
         // Each cell's degree in the key (the letters map reads its letter in the key).
         const placed = keyedCells(cells, c.anchor, letterSpec);
 
+        // MIDI chooses (H8): the chord the keys hold lights its cell (the one nearest the middle,
+        // or the one already lit); a chord outside the key lights none.
+        const midi = c.follow === 'midi' ? ((inputs.midi as MidiHeld | null | undefined) ?? null) : null;
+        let midiChord: Chord | null = null;
+        if (c.follow === 'midi') {
+          if (!follower || followerDwell !== c.midiDwellS) {
+            follower = createChordFollower({ dwellS: c.midiDwellS });
+            followerDwell = c.midiDwellS;
+          }
+          midiChord = follower.push(midi?.held ?? [], now);
+          const key = keyOf(spec);
+          const d = midiChord ? [keyChords(key), keyChords(key, 4)].reduce((found, set) => (found >= 0 ? found : set.findIndex((x) => x.root === midiChord!.root && x.quality === midiChord!.quality)), -1) : -1;
+          const lit = choice.active !== null && placed[choice.active]?.degree === d ? choice.active : nearestOfDegree(placed, d, regions.chords);
+          choice = { active: lit, candidate: null };
+        } else if (follower) {
+          follower = null;
+          followerDwell = -1;
+        }
+        const midiStatus: ChordMapStatus['midi'] = c.follow !== 'midi' ? 'off' : !midi ? 'off' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';
+        const midiName = midiChord ? chordName(midiChord, keyOf(spec)) : null;
+
         // One camera frame: choose the chord, then hear the other hand.
         const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
         const fresh = frame !== lastFrame && !sameStamp;
@@ -450,7 +505,7 @@ export const chordMapNode = defineNode<Params>({
           const chordHand = frame.hands.find((h) => h.handedness === labelFor(c.chordHand, c.mirrorHandedness));
           const other = frame.hands.find((h) => h.handedness === labelFor(otherHand, c.mirrorHandedness));
           chordPoint = chordHand ? displayPoint(chordHand, frame, c.point) : null;
-          choice = tracker.push(cells, chordPoint, t, aspect, shape);
+          if (c.follow !== 'midi') choice = tracker.push(cells, chordPoint, t, aspect, shape);
           otherPoint = other ? displayPoint(other, frame, c.play === 'strum' ? c.strumPoint : 'palm') : null;
           otherTilt = other ? handTilt(other) : null;
           status = { ...status, pointing: !!chordHand };
@@ -460,7 +515,9 @@ export const chordMapNode = defineNode<Params>({
               // The chord is the one in force at the decision, about the lead plus the frame's age
               // before the strum sounds (the air guitar's rule): a chord reached later is heard on
               // the next strum. No chord, a strum of nothing.
-              const chord = choice.active !== null ? chords[placed[choice.active].degree] : undefined;
+              // A MIDI chord outside the key is strummed by its own name.
+              const inKey = choice.active !== null ? chords[placed[choice.active].degree] : undefined;
+              const chord = inKey ?? (midiChord ? { symbol: chordSymbol(midiChord, keyOf(spec)) } : undefined);
               if (!chord) continue;
               const velocity = s.late ? s.strength * c.volume * LATE_VELOCITY : s.strength * c.volume;
               const strummed = strumNotes(chord.symbol, s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
@@ -509,6 +566,8 @@ export const chordMapNode = defineNode<Params>({
           melody: melodyNote,
           melodySet,
           // What changed, not what the face reads: a frown on a minor key changes nothing.
+          midi: midiStatus,
+          midiChord: midiName && !active && midiChord ? `${midiName} (outside the key)` : midiName,
           mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',
           tension: tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
