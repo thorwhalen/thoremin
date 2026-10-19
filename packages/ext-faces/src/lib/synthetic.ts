@@ -1,7 +1,7 @@
 /**
  * A synthetic face for the categorizer session (#330 P2): feature vectors that rest, then hold
  * three expressions in turn with a relaxed face between them, on a timeline. The verification
- * affordance `?faces.source=synthetic` selects it (like `?slot.source=synthetic-hands` for the
+ * affordance `?carve.source=synthetic` selects it (like `?slot.source=synthetic-hands` for the
  * instrument), so the whole session runs with no camera and no face model: the browser smoke
  * drives it, and a developer can see the grid without making faces.
  *

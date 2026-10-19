@@ -22,7 +22,7 @@ import { join } from 'node:path';
 const FIXTURE = join(__dirname, '../../test/faces/fixtures/two_faces.categorizer.json');
 const NAME = 'Smoke play';
 
-const URL_PARAMS = '?slot.source=synthetic-hands&faces.source=synthetic';
+const URL_PARAMS = '?slot.source=synthetic-hands&carve.source=synthetic';
 /** In the `face-categorizer` node definition only (`packages/ext-faces/src/nodes/face_categorizer.ts`). */
 const NODE_MARKER = 'Your own face categorizer (#330), read live';
 /** The node's id in the composed graph (`packages/ext-faces/src/branches.ts`). */
