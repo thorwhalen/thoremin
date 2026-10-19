@@ -15,7 +15,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR, LAB } from './helpers/extensions';
 
 describe('production app graph', () => {
   it.runIf(BODY)('builds with a valid topology', () => {
@@ -220,12 +220,14 @@ describe('production app graph', () => {
     // The vectors tap the SAME face/hand frames the rest of the graph reads (fan-out).
     expect(has('camFace', 'face', 'faceVec', 'face')).toBe(true);
     expect(has('cam', 'hands', 'handVec', 'hands')).toBe(true);
-    // ...and feed the overlay's featureLab meters.
-    expect(has('faceVec', 'vector', 'overlay', 'faceVector')).toBe(true);
-    expect(has('handVec', 'vector', 'overlay', 'handVector')).toBe(true);
+    // ...and feed the Feature Lab's meters (the Lab slice's element since #600 S16b, on its own ports).
+    if (LAB) {
+      expect(has('faceVec', 'vector', 'overlay', 'feature-lab.meters.face')).toBe(true);
+      expect(has('handVec', 'vector', 'overlay', 'feature-lab.meters.hand')).toBe(true);
+      expect(has('bodyVec', 'vector', 'overlay', 'feature-lab.meters.body')).toBe(true);
+    }
     // The body tap (#186): same additive shape off the gated body branch.
     expect(has('camBody', 'body', 'bodyVec', 'body')).toBe(true);
-    expect(has('bodyVec', 'vector', 'overlay', 'bodyVector')).toBe(true);
     // The original face-mesh + hand-feature edges are untouched (additive).
     expect(has('camFace', 'face', 'overlay', 'faceFrame')).toBe(true);
     expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);
@@ -237,13 +239,17 @@ describe('production app graph', () => {
     // broken — the panel would just capture nothing and the coverage meter would sit at
     // zero, with every unit test still green. That is #137's failure shape, so the edge
     // names are asserted structurally here rather than trusted.
+    // A tap observes every output a node produces, consumed or not, so the check is that the node
+    // is in the graph and DECLARES that output (was: some edge consumes it; since #600 S16b the
+    // Lab's meters, its only consumer, are a slice's, absent from a core-alone build).
     const g = defaultGraph();
+    const registry = createAppRegistry();
     for (const key of FEATURE_VECTOR_EDGES) {
       const [nodeId, port] = key.split('.');
       const node = g.nodes.find((n) => n.id === nodeId);
       expect(node, `tap edge "${key}" names a node that is not in the graph`).toBeTruthy();
-      const emits = g.edges.some((e) => e.from.node === nodeId && e.from.port === port);
-      expect(emits, `tap edge "${key}" names a port nothing emits`).toBe(true);
+      const emits = registry.get(node!.type!).outputs.some((o) => o.name === port);
+      expect(emits, `tap edge "${key}" names a port its node does not declare`).toBe(true);
     }
   });
 

@@ -20,12 +20,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_HUSH_ID, PROBE_HUSH_REASON, PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds } from './fixtures/ext-probe/index';
+import { PROBE_HUSH_ID, PROBE_HUSH_REASON, PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds, probeOverlay } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { toolPanelProps } from './helpers/toolPanel';
 
 afterEach(cleanup);
@@ -327,6 +327,21 @@ describe('the probe draws overlay elements (#600 S5)', () => {
     expect(rc.calls.some((c) => c.m === 'fillRect' && c.args[2] === 640 && c.fill === '#a855f7')).toBe(true);
     // The lazy badge: a cue, laid out on the left edge with the tick count.
     expect(rc.texts().some((t) => /^probe \d+$/.test(t))).toBe(true);
+  });
+
+  it('the meter\'s update runs once per tick, even when the overlay-only pass draws it twice (#600 S16b)', async () => {
+    const reg = app.registry.createAppRegistry();
+    const composed = app.graph.composeInstrumentGraph([PROBE_BRANCH_ID], { source: 'synthetic-hands' }, reg);
+    const rc = makeRecordingCanvas();
+    const alpha = makeRecordingCanvas();
+    const controls = { ...app.store.useControls.getState(), probe: { enabled: true, freq: 440 }, probeModel: { gain: 0.5 }, graphElements: composed.elements };
+    const engine = new Engine(composed.spec, reg, { resources: { controls: () => controls, canvas: rc.canvas, video: rc.video, overlayAlphaCanvas: alpha.canvas } });
+    const before = probeOverlay.updates;
+    engine.tick(0);
+    engine.tick(1 / 30);
+    expect(probeOverlay.updates - before).toBe(2);
+    // ...while both passes drew the bar each tick.
+    expect(alpha.calls.filter((c) => c.m === 'fillRect' && c.fill === '#a855f7')).toHaveLength(2);
   });
 
   it('an element the composed set leaves out is never drawn', async () => {

@@ -5,11 +5,10 @@
  * own (#600 S15: `ExtensionTool.icon`), folded in here.
  */
 import type { ComponentType } from 'react';
-import { FlaskConical, Command, BookOpen, Hand, GraduationCap, Bot } from 'lucide-react';
+import { Command, BookOpen, Hand, GraduationCap, Bot } from 'lucide-react';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 
 export const TOOL_ICONS: Record<string, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>> = {
-  lab: FlaskConical,
   commands: Command,
   gestures: Hand,
   trainer: GraduationCap,

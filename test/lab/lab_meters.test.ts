@@ -1,5 +1,5 @@
 /**
- * The Feature Lab's statistics engine (`src/features/labMeters.ts`), unit-tested with NO
+ * The Feature Lab's statistics engine (`src/slices/lab/lib/labMeters.ts`), unit-tested with NO
  * canvas — the point of extracting it from the overlay node.
  *
  * Covers what the renderer used to hide: the show-gate, the normalizer lifecycle (warm-up,
@@ -9,8 +9,9 @@
  * DRAWN (see feature_lab_overlay.test.ts).
  */
 import { describe, it, expect } from 'vitest';
-import { createLabMeterComputer, type LabMeterConfig } from '@/features/labMeters';
+import { createLabMeterComputer, type LabMeterConfig } from '@/slices/lab/lib/labMeters';
 import { DERIVED_GROUP } from '@thoremin/sdk/features/catalog';
+import { LAB } from '../helpers/extensions';
 
 const JAW = 'face.blendshape.jaw';
 const JAW_OPEN = 'face.blendshape.jaw.open';
@@ -44,7 +45,7 @@ function run(
   return out;
 }
 
-describe('createLabMeterComputer (#119)', () => {
+describe.runIf(LAB)('createLabMeterComputer (#119)', () => {
   it('is opt-in: hidden → nothing is computed', () => {
     expect(run(createLabMeterComputer(), cfg({ show: false }), 5)).toBeUndefined();
   });
@@ -165,7 +166,7 @@ describe('createLabMeterComputer (#119)', () => {
  * all-but-one, and a correlation coefficient that survived a recalibrate would be a
  * stale number sitting beside freshly-zeroed meters, indistinguishable from a live one.
  */
-describe('correlation matrix lifecycle (#150)', () => {
+describe.runIf(LAB)('correlation matrix lifecycle (#150)', () => {
   const GROUPS = [JAW];
 
   /** Drive the computer with jaw-open sweeping and jaw-left tracking it exactly, so the
@@ -239,7 +240,7 @@ describe('correlation matrix lifecycle (#150)', () => {
  * ids — `hand.right.palm.roll` is `circular`, its neighbour `hand.right.palm.pitch` is
  * not — and make the assertion at the level a player experiences.
  */
-describe('circular features reach the matrix unwrapped (#144 wiring)', () => {
+describe.runIf(LAB)('circular features reach the matrix unwrapped (#144 wiring)', () => {
   const ROLL = 'hand.right.palm.roll';
   const PITCH = 'hand.right.palm.pitch';
   const ORIENTATION = 'hand.palm.orientation';

@@ -12,10 +12,11 @@
  */
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { slugId } from '@thoremin/sdk/util/ids';
-import { LabViewSchema, type LabView, type LabViewConfig } from './schema';
+import { LabViewSchema, type LabView, type LabViewConfig } from './viewSchema';
+import { LAB_STORES } from '../stores';
 
 /** localStorage key holding the saved lab views (the browser default target). */
-export const LAB_VIEWS_STORAGE_KEY = 'thoremin-lab-views';
+export const LAB_VIEWS_STORAGE_KEY = LAB_STORES.views.legacyKey;
 
 /** Turn a human name into a stable id (the collection key). */
 export const labViewId = (name: string): string => slugId(name, 'view');

@@ -39,6 +39,7 @@
     "./features/body_mirror": "./src/features/body_mirror.ts",
     "./features/catalog": "./src/features/catalog.ts",
     "./features/demand": "./src/features/demand.ts",
+    "./features/sources": "./src/features/sources.ts",
     "./features/face_catalog": "./src/features/face_catalog.ts",
     "./features/face_groups": "./src/features/face_groups.ts",
     "./features/face_labels": "./src/features/face_labels.ts",

@@ -29,7 +29,7 @@
  * The right-hand "derivation" (which dials imply which branch) is not in this file: it is
  * PR 3's `graphFor`, and until then every instrument composes every branch.
  */
-import { FACE_GROUP_IDS } from '@/features/groups';
+import { FACE_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
@@ -59,7 +59,6 @@ export const trunk = defineBranch({
     to({ node: TRUNK.cam, port: 'hands' }, overlay('hands')),
     to({ node: TRUNK.feat, port: 'features' }, overlay('features')),
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'handVec', port: 'hands' }),
-    to({ node: 'handVec', port: 'vector' }, overlay('handVector')),
     to({ node: TRUNK.feat, port: 'features' }, { node: 'gesture', port: 'features' }),
     // The handedness dwell (#148): a dial, live on the sound path's hand reader.
     to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.hands, port: 'hands' }),
@@ -80,7 +79,7 @@ export const trunk = defineBranch({
     // `store-controls` emits it, the overlay draws only these. Data on a port, not a param.
     to(ui('graphElements'), overlay('elements')),
   ],
-  overlay: ['video', 'landmarks', 'featureLab', 'featureCorrelation', 'tagHud', 'trainerHud'],
+  overlay: ['video', 'landmarks', 'tagHud', 'trainerHud'],
 });
 
 export const fieldVoices = defineBranch({
@@ -117,7 +116,6 @@ export const faceSource = defineBranch({
     to({ node: 'camFace', port: 'face' }, { node: 'faceFeat', port: 'face' }),
     to({ node: 'camFace', port: 'face' }, { node: 'faceVec', port: 'face' }),
     to({ node: 'camFace', port: 'face' }, overlay('faceFrame')),
-    to({ node: 'faceVec', port: 'vector' }, overlay('faceVector')),
     to({ node: 'chordSel', port: 'chord' }, overlay('chord')),
   ],
   // No elements of its own: a face borrowed for a breath or a Lab meter draws nothing. The

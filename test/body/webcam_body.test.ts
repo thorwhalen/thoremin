@@ -13,9 +13,9 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { NodeContext } from '@thoremin/dag';
 import { BLM, BODY_LANDMARK_COUNT, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
-import { defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@/slices/lab/schema';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import {
   resultToBodyFrame,
   webcamBodyNode,

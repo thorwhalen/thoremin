@@ -6,21 +6,25 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
-import LabPanel from '@/app/LabPanel';
+import LabPanel from '@/slices/lab/panels/LabPanel';
 import { useTools } from '@/app/toolsStore';
-import { useControls } from '@/app/store';
-import { defaultFeatureLab, labWantsBody } from '@/features/labConfig';
+// The app's hot store, which installs the controls host the Lab's state reads.
+import '@/app/store';
+import { defaultFeatureLab, labWantsBody } from '@/slices/lab/schema';
+import { labConfig, setLab } from '@/slices/lab/app/state';
+// The Lab is its slice's (#600 S16b): these run while it is listed.
+import { LAB } from './helpers/extensions';
 
 beforeEach(() => {
   useTools.setState({ open: null, independentOpen: {}, launcherOpen: false });
-  useControls.getState().setFeatureLab(defaultFeatureLab());
+  if (LAB) setLab(defaultFeatureLab());
 });
 afterEach(cleanup);
 
-describe('the Segment directions group in the Feature Lab', () => {
+describe.runIf(LAB)('the Segment directions group in the Feature Lab', () => {
   it('is listed once the meters start, and checking it claims body.dir and wants the body', async () => {
     useTools.setState({ open: 'lab' });
-    render(<LabPanel />);
+    render(<LabPanel close={() => undefined} />);
     await act(async () => {
       fireEvent.click(screen.getByText(/Start measuring/i));
     });
@@ -29,7 +33,7 @@ describe('the Segment directions group in the Feature Lab', () => {
     await act(async () => {
       fireEvent.click(box);
     });
-    const lab = useControls.getState().featureLab;
+    const lab = labConfig();
     expect(lab.groups).toContain('body.dir');
     expect(labWantsBody(lab)).toBe(true);
   });

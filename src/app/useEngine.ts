@@ -49,7 +49,6 @@ import { useGestureStatus, makeGestureReporter } from './gestureStatus';
 import { createGestureDispatcher } from './gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBinding';
-import { installLabDemand } from './labDemand';
 import { cameraConstraints } from './camera';
 import { latencyHintFor, noteLatencyHintInEffect } from './timing/audioPrefs';
 
@@ -140,7 +139,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     let uninstallDebug: () => void = () => {};
     let uninstallLatency: () => void = () => {};
     let uninstallCategoryDemand: () => void = () => {};
-    let uninstallLabDemand: () => void = () => {};
     let timing: ReturnType<typeof createTimingResource> | null = null;
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
@@ -344,8 +342,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // while binding is on; it is released on teardown.
         const categoryDispatcher = createCategoryDispatcher();
         uninstallCategoryDemand = installCategoryDemand();
-        // The Lab's shown groups, as a feature demand (#600 S16a): what the gates and the derivation read.
-        uninstallLabDemand = installLabDemand();
         void useCategoryBinding.getState().load();
         const reportCategory = (now: number) => categoryDispatcher.tick(now);
 
@@ -433,7 +429,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       uninstallDebug();
       uninstallLatency();
       uninstallCategoryDemand();
-      uninstallLabDemand();
       resetCategoryLive();
       timing?.dispose();
       timing = null;

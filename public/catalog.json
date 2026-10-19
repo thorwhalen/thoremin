@@ -834,18 +834,6 @@
         "kind": "string[]"
       },
       {
-        "name": "faceVector",
-        "kind": "feature-vector"
-      },
-      {
-        "name": "handVector",
-        "kind": "feature-vector"
-      },
-      {
-        "name": "bodyVector",
-        "kind": "feature-vector"
-      },
-      {
         "name": "categorizer1",
         "kind": "category-scores"
       },
@@ -892,6 +880,22 @@
       {
         "name": "air.mouthCue.config",
         "kind": "air-flute-config"
+      },
+      {
+        "name": "feature-lab.meters.lab",
+        "kind": "feature-lab-config"
+      },
+      {
+        "name": "feature-lab.meters.face",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "feature-lab.meters.hand",
+        "kind": "feature-vector"
+      },
+      {
+        "name": "feature-lab.meters.body",
+        "kind": "feature-vector"
       }
     ],
     "outputs": [],
@@ -993,11 +997,6 @@
       },
       {
         "name": "keyboardStrip",
-        "type": "object",
-        "default": {}
-      },
-      {
-        "name": "featureLab",
         "type": "object",
         "default": {}
       },
@@ -4091,6 +4090,10 @@
       {
         "name": "conductorLeadOffsets",
         "kind": "lead-offsets"
+      },
+      {
+        "name": "featureLabConfig",
+        "kind": "feature-lab-config"
       },
       {
         "name": "airGuitarModel",

@@ -10,8 +10,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
-import { createLabViewStore } from '@/app/lab/labViews';
-import { LabViewConfigSchema, type LabView, type LabViewConfig } from '@/app/lab/schema';
+import { createLabViewStore } from '@/slices/lab/app/labViews';
+import { LabViewConfigSchema, type LabView, type LabViewConfig } from '@/slices/lab/app/viewSchema';
+import { LAB } from '../helpers/extensions';
 
 function sampleConfig(overrides: Partial<LabViewConfig> = {}): LabViewConfig {
   return LabViewConfigSchema.parse({
@@ -27,7 +28,7 @@ function store() {
   return createLabViewStore(createInMemoryProvider<LabView>([], { searchFields: ['name'] }));
 }
 
-describe('saved lab views', () => {
+describe.runIf(LAB)('saved lab views', () => {
   it('round-trips the config payload (groups + mode + columns + derived)', async () => {
     const s = store();
     await s.save('Mouth Grip', sampleConfig(), 1000);

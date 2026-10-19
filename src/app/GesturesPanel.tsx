@@ -21,7 +21,7 @@
  * picker (`CommandBindingFields`).
  *
  * All writes here go to the `gestures` tooling pref on the hot store (direct
- * `setGestures`, like the Feature Lab's `setFeatureLab`) — this panel configures
+ * `setGestures`, like the Feature Lab's `setLab`) — this panel configures
  * the DISPATCHER; it never writes a dial itself.
  */
 import { Hand, X } from 'lucide-react';

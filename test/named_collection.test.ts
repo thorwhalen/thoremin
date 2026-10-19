@@ -14,10 +14,10 @@
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { createPresetStore, presetId, PRESETS_STORAGE_KEY } from '@/settings/presets';
-import { createLabViewStore, labViewId, LAB_VIEWS_STORAGE_KEY } from '@/app/lab/labViews';
+import { createLabViewStore, labViewId, LAB_VIEWS_STORAGE_KEY } from '@/slices/lab/app/labViews';
 import type { NamedCollectionStore, NamedRecord } from '@thoremin/sdk-ui/namedCollection';
 import { SettingsSchema, type Preset } from '@/settings/schema';
-import { LabViewConfigSchema, type LabView } from '@/app/lab/schema';
+import { LabViewConfigSchema, type LabView } from '@/slices/lab/app/viewSchema';
 
 /** One collection under test: how to build an empty store, its id rule, and a payload. */
 interface Case<T extends NamedRecord, P> {

@@ -7,7 +7,7 @@
  * SAVE/LOAD of named lab views (a zodal collection, the project persistence rule — its
  * own store, out of the control-store version).
  *
- * Every edit writes the per-device `featureLab` config on the hot control store, which
+ * Every edit writes the per-device `featureLab` config (the slice's pref, #600 S16b), which
  * `store-controls` composes into the overlay node's params each tick — so meters respond
  * live. It deliberately does NOT write a dial (#136): the Lab measures the instrument
  * rather than being part of it, so a meter toggle must not mark an instrument as having
@@ -16,11 +16,11 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FEATURE_GROUPS, ALL_SAFE_NAMES, groupInvarianceSummary } from '@thoremin/sdk/features/catalog';
-import { compileFormula, DEFAULT_HELPERS, STATEFUL_HELPERS } from '@/features/formula';
-import { useControls } from './store';
-import type { FeatureLabConfig } from '@/features/labConfig';
-import { createLabViewStore } from './lab/labViews';
-import type { LabViewConfig, LabViewSummary } from './lab/schema';
+import { compileFormula, DEFAULT_HELPERS, STATEFUL_HELPERS } from '../lib/formula';
+import type { FeatureLabConfig } from '../schema';
+import { setLab, useLab } from '../app/state';
+import { createLabViewStore } from '../app/labViews';
+import type { LabViewConfig, LabViewSummary } from '../app/viewSchema';
 
 const selectCls = 'rounded bg-white/10 px-2 py-1 text-xs outline-none focus:bg-white/20';
 const btnCls = 'rounded bg-white/10 px-2 py-0.5 text-[10px] text-white/80 hover:bg-white/20';
@@ -40,8 +40,8 @@ function formulaError(formula: string): string | null {
 }
 
 export default function LabControls() {
-  const fl = useControls((s) => s.featureLab);
-  const patch = useControls((s) => s.setFeatureLab);
+  const fl = useLab();
+  const patch = setLab;
 
   const toggleGroup = (id: string, on: boolean) =>
     patch({ groups: on ? [...new Set([...fl.groups, id])] : fl.groups.filter((g) => g !== id) });

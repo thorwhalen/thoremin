@@ -149,15 +149,10 @@ function ToolButton({
  *  shell knows what that means for each one (an extension's tool says it itself, #600 S15:
  *  `ExtensionTool.detached`). A detached tool with no entry here gets no stop control, which `tools_shell.test.tsx` refuses. */
 function useDetached(): Record<string, { running: boolean; stop: () => void; hint: string }> {
-  const metersOn = useControls((s) => s.featureLab.show);
-  const setFeatureLab = useControls((s) => s.setFeatureLab);
   // An extension's detached tools (#600 S15): the list is fixed for the build, so the hooks run in
   // a stable order on every render.
   const contributed = Object.fromEntries(UI_CONTRIBUTIONS.toolDetached.map(({ id, detached }) => [id, { running: detached.useRunning(), stop: detached.stop, hint: detached.hint }]));
-  return {
-    ...contributed,
-    lab: { running: metersOn, stop: () => setFeatureLab({ show: false }), hint: 'turn the meters off' },
-  };
+  return contributed;
 }
 
 export default function ToolsBar() {

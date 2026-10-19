@@ -9,14 +9,16 @@
  * `overlay` dial — otherwise opening a measuring tool marks your instrument dirty and
  * switching instruments silently re-configures your meters (#136).
  *
- * Two consumers share this SSOT:
- *  - the `canvas-overlay` node, whose `featureLab` element draws the meters (the node's
- *    params still carry the config — `store-controls` composes it in each tick);
- *  - the app's hot control store, which owns the value and persists it per-device.
+ * Since #600 S16b it is the Lab slice's: its per-device `PrefSlice` (`featureLab`, the key it
+ * always had), read by its overlay element through a derived `store-controls` port and by its panel
+ * through the SDK's controls seam.
  */
 import { z } from 'zod';
 import { DEFAULT_LAB_GROUPS } from '@thoremin/sdk/features/catalog';
-import { BODY_GROUP_IDS, FACE_GROUP_IDS, HAND_GROUP_IDS } from './groups';
+import { BODY_GROUP_IDS, FACE_GROUP_IDS, HAND_GROUP_IDS } from '@thoremin/sdk/features/sources';
+
+/** The hot-store field of the Lab's per-device pref (the key it had in core). */
+export const LAB_PREF = 'featureLab';
 
 /**
  * A dense grid of grouped, online-normalized meters over the raw face/hand feature

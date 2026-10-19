@@ -27,7 +27,7 @@
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
-import { demandWantsHands } from '../features/groups';
+import { demandWantsHands } from '@thoremin/sdk/features/sources';
 
 /** How many hands the model can be told to look for. It always looks for at least one. */
 export type HandCount = 1 | 2;

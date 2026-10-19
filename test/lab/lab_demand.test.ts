@@ -5,9 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { createFeatureDemand } from '@thoremin/sdk/features/demand';
-import { installLabDemand, LAB_DEMAND_OWNER, labDemandGroups } from '@/app/labDemand';
+import { installLabDemand, LAB_DEMAND_OWNER, labDemandGroups } from '@/slices/lab/app/labDemand';
+import { LAB } from '../helpers/extensions';
 
-describe('the Lab claims its shown groups', () => {
+describe.runIf(LAB)('the Lab claims its shown groups', () => {
   it('claims nothing while hidden, its groups while shown', () => {
     expect(labDemandGroups(undefined)).toEqual([]);
     expect(labDemandGroups({ show: false, groups: ['face.head'] })).toEqual([]);

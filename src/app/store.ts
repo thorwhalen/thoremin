@@ -19,7 +19,6 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
-import { FeatureLabSchema, defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import {
@@ -138,22 +137,8 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  `expression-chord`). */
   faceExpr: FaceExpr;
   /** Composable overlay element config (see canvas_overlay.ts). Live-controlled.
-   *  This is the DIAL-facing overlay — the Feature Lab is deliberately not in it
-   *  (see {@link featureLab}). */
+   *  This is the DIAL-facing overlay: tooling prefs (the trainer HUD) are not in it. */
   overlay: OverlayDialParams;
-  /**
-   * Feature Instrumentation Lab config (#119): which feature groups are measured,
-   * how they are normalized, the derived formulas.
-   *
-   * A TOOLING preference, not an instrument parameter — like {@link faceCalibration},
-   * it is persisted per-device but is NOT a preset field, so it never rides an
-   * instrument. Before #136 it lived inside the `overlay` dial, which meant opening a
-   * measuring tool marked the instrument dirty and loading an instrument silently
-   * reconfigured the meters. `store-controls` composes it into the overlay node's
-   * params each tick, and `webcam-face` reads it to decide whether the face model is
-   * wanted (so you can measure the face without the face driving the sound).
-   */
-  featureLab: FeatureLabConfig;
   /** The hand→sound mapping: note source (index/wrist), finger→effect routing, and
    *  the once-static voice knobs. Read live by `voice-mapping` via
    *  `ctx.resources.controls`. See src/nodes/mapping/hand_map.ts. */
@@ -188,7 +173,7 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   faceCalibration: Record<string, number> | null;
   /**
    * Gesture dispatch config (#129): enable flag, hold/cooldown timing, and the
-   * gesture → command binding map. A TOOLING preference like {@link featureLab} —
+   * gesture → command binding map. A TOOLING preference like {@link faceCalibration} —
    * persisted per-device via `partialize`, NOT a preset field and NOT a dial:
    * gestures bind to commands the way the keyboard does, and keybindings are not
    * instrument state (loading an instrument must never rebind your hands). Read
@@ -198,7 +183,7 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   gestures: GesturePrefs;
   /**
    * The trainer's on-video guidance HUD (#163): shown, and on which edge. A per-DEVICE
-   * tooling pref like {@link featureLab} — the trainer is a shell tool, so hiding its
+   * tooling pref like {@link faceCalibration} — the trainer is a shell tool, so hiding its
    * banner must not mark the instrument edited nor flip when an instrument loads.
    * `store-controls` composes it into the overlay node's params each tick.
    */
@@ -231,8 +216,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   setExpressionDegree(expr: string, degree: number): void;
   /** Patch one overlay element's options (e.g. setOverlayElement('indexGuide', { show: true })). */
   setOverlayElement<K extends keyof OverlayDialParams>(key: K, patch: Partial<OverlayDialParams[K]>): void;
-  /** Patch the Feature Lab config (e.g. setFeatureLab({ show: true })). */
-  setFeatureLab(patch: Partial<FeatureLabConfig>): void;
   /** Shallow-patch the hand map (e.g. setHandMap({ positionSource: 'wrist' }), or a new
    *  `fingers` object for a route change). */
   setHandMap(patch: Partial<HandMap>): void;
@@ -340,8 +323,6 @@ export const HEAL_RULES: CoreHealRules = {
   // Fills defaults for overlay elements added since the blob was written (e.g. `chordGuide`
   // in #64, whose absence would otherwise throw in `overlay.chordGuide.show`).
   overlay: { schema: OverlayDialSchema },
-  // An older blob has no lab config → the default meters.
-  featureLab: { schema: FeatureLabSchema },
   // The trainer HUD pref (#163).
   trainerHud: { schema: TrainerHudParamsSchema },
   // Completed from the defaults, then validated, so a UI control never binds to an
@@ -434,7 +415,7 @@ export function withExtensionPrefs<S extends object>(state: S, prefSlices: reado
  * prefs (core's below and every extension's pref slice: persisted, never in an instrument), and
  * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
  */
-const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
+const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'gestures', 'trainerHud', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
 const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
 
 /** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
@@ -521,7 +502,6 @@ export const useControls = create<ControlState>()(
         targets: { ...DEFAULT_FACE_EXPR.targets },
       },
       overlay: defaultOverlay(),
-      featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       hands: { ...DEFAULT_HANDS },
       graphElements: null,
@@ -574,7 +554,6 @@ export const useControls = create<ControlState>()(
         set((s) => ({
           overlay: { ...s.overlay, [key]: { ...s.overlay[key], ...patch } } as OverlayDialParams,
         })),
-      setFeatureLab: (patch) => set((s) => ({ featureLab: { ...s.featureLab, ...patch } })),
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),

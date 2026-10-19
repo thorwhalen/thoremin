@@ -38,6 +38,9 @@ export const BODY = hasExtension('body-tracking');
 /** The conductor slice (#600 S18b): the conductor, its orchestra, the score library and loader. */
 export const CONDUCTOR = hasExtension('conductor-tool');
 
+/** True when the build ships the Feature Lab slice (#600 S16b). */
+export const LAB = hasExtension('feature-lab');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not

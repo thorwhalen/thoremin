@@ -41,7 +41,6 @@ export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   ls('thoremin-presets', 'core', 'settings presets'),
   ls('thoremin-cues', 'core', 'the trainer\'s cues'),
   ls('thoremin-routines', 'core', 'the trainer\'s routines'),
-  ls('thoremin-lab-views', 'core', 'the Feature Lab\'s saved views'),
   ls('thoremin.toolPins', 'core', 'which shell tools keep a bar button'),
   ls('thoremin.instrumentsView', 'core', 'the Instruments view\'s remembered choices'),
   // The instrument library.

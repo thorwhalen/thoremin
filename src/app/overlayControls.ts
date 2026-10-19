@@ -21,8 +21,9 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay.schema';
  * `'instrument'` — the Overlay section of the per-instrument settings panel: the
  * element is a property of the instrument, saved and loaded with it.
  *
- * `'lab'` — the Feature Lab panel ({@link LabPanel}), a TOOLING surface reached from
- * the app shell's tools bar. Its element's config is per-device, not per-instrument.
+ * `'trainer'` — the Trainer's panel, a TOOLING surface reached from the app shell's tools bar.
+ * Its element's config is per-device, not per-instrument. (The Feature Lab's `'lab'` surface was
+ * the first; its element is the Lab slice's since #600 S16b.)
  *
  * This field exists because the old invariant ("every element has a descriptor") was
  * satisfied while the Feature Lab was, in practice, unreachable (#136): a descriptor
@@ -30,7 +31,7 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay.schema';
  * surface named here must be reachable from the app shell — `tools.ts` is the registry
  * of shell surfaces and a test ties the two together.
  */
-export type OverlaySurface = 'instrument' | 'lab' | 'trainer';
+export type OverlaySurface = 'instrument' | 'trainer';
 
 export interface OverlayControlDesc {
   /** The overlay ELEMENT this descriptor controls. Usually also the params key — see
@@ -38,11 +39,10 @@ export interface OverlayControlDesc {
   name: string;
   /**
    * The params sub-object this descriptor's controls write, when it differs from
-   * {@link OverlayControlDesc.name}. Mirrors `OverlayElement.configKey`: the correlation
-   * matrix (#150) is its own element but is configured by the `featureLab` block, because
-   * it is a Lab diagnostic and must not become an instrument parameter (#136).
+   * {@link OverlayControlDesc.name}. Mirrors `OverlayElement.configKey` (the Lab's correlation
+   * matrix was the case, #150, until the Lab became a slice, #600 S16b).
    *
-   * Only ever set on `surface: 'lab'` descriptors — the instrument panel builds
+   * Never set on an instrument-surface descriptor — the instrument panel builds
    * `overlay.<name>.<field>` dispatch paths straight from `name`, and a test pins that
    * assumption rather than leaving it to be discovered by a control that silently
    * refuses every write.
@@ -71,29 +71,8 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
   { name: 'bodySkeleton', label: 'Body skeleton' },
   { name: 'conductorHud', label: 'Conductor beat' },
-  {
-    // Feature Instrumentation Lab (#119) — owned by the LAB panel, not the instrument's
-    // Overlay section: the Lab measures the instrument, so its config is a per-device
-    // tooling pref rather than a saved instrument parameter (#136).
-    name: 'featureLab',
-    label: 'Feature Lab',
-    surface: 'lab',
-    toggles: [
-      { key: 'showMarkers', label: 'Percentile ticks' },
-      { key: 'showValues', label: 'Raw values' },
-    ],
-  },
-  {
-    // The Lab's rolling correlation matrix (#150). Its own element (the meters panel is
-    // already dense), configured by the `featureLab` block it belongs to — hence
-    // `configKey`. Its controls are hand-rendered in LabControls, like every other
-    // featureLab field (`normalizer`, `columns`, `derived`); this descriptor exists so
-    // the element↔descriptor invariant stays exact.
-    name: 'featureCorrelation',
-    configKey: 'featureLab',
-    label: 'Correlation matrix',
-    surface: 'lab',
-  },
+  // (The Feature Lab's meters and correlation matrix were here, `surface: 'lab'`: the Lab slice's
+  // element since #600 S16b, configured by its own panel.)
   { name: 'markers', label: 'Control markers', toggles: [{ key: 'showNotes', label: 'Note names' }] },
   {
     name: 'fingerLines',
