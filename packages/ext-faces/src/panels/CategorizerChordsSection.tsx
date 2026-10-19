@@ -4,6 +4,8 @@
  * choice is one `dial.patch` (the id, every slot back to Auto); a degree is a `dial.setIn` by the
  * category's slot (`categorizerChords.degrees.cat-1`), the single write path. The section reads the
  * resolved categorizer from {@link useCategorizerChords}, which the extension's mount effect keeps.
+ * The blend (#372) turns the categories' memberships into one continuous control: each category
+ * a value, the reading their membership-weighted mean, moving the chord's brightness or tension.
  */
 import { useEffect, useState } from 'react';
 import { TARGET_CHOICES, targetChoice } from '@thoremin/sdk/harmony/target';
@@ -14,11 +16,12 @@ import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { useCategorizerChords } from '../app/categorizerChords';
 import { onFaceModelsChanged } from '../app/models';
 import { CHORD_MODALITY } from '../lib/categorizerChord';
-import { AUTO_DEGREE, CATEGORY_SLOTS, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '../schema';
+import { AUTO_DEGREE, BLEND_TARGETS, CATEGORY_SLOTS, chooseCategorizerChordsWrites, DEFAULT_BLEND_VALUE, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, type CategorizerChordsDial } from '../schema';
 
 const DEGREES = [0, 1, 2, 3, 4, 5, 6] as const;
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'] as const;
 const degreeName = (d: number): string => (d < 0 ? 'silence' : `degree ${ROMAN[d] ?? d + 1}`);
+const BLEND_LABELS: Record<(typeof BLEND_TARGETS)[number], string> = { off: 'nothing (off)', brightness: 'brightness', tension: 'tension' };
 
 /** The player's saved hand-shape and pose categorizers, kept fresh across saves and deletes. */
 export function useSavedChordCategorizers(): { hand: NamedSummary[]; body: NamedSummary[] } {
@@ -83,8 +86,25 @@ export default function CategorizerChordsSection() {
           <p className="text-[10px] leading-relaxed text-white/40">
             The chord each category plays, on the chord scale. Auto goes by the category's place: I, IV, V, vi, ii, iii, vii. Neutral plays nothing.
           </p>
+          <label className="flex items-center gap-2">
+            <span>Between categories, blend</span>
+            <select
+              className={selectCls}
+              aria-label="Category blend"
+              value={dial.blend}
+              title="The categories' memberships, each category's value weighted by how much the reading is that category, move one continuous control"
+              onChange={(e) => void dispatchDialSetIn('categorizerChords.blend', e.target.value)}
+            >
+              {BLEND_TARGETS.map((t) => (
+                <option key={t} value={t}>
+                  {BLEND_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
           {play.categories.map((c, i) => {
             const slot = CATEGORY_SLOTS.includes(c.id) ? c.id : null;
+            const blendValue = slot ? ((dial.blendValues as Record<string, number> | undefined)?.[slot] ?? DEFAULT_BLEND_VALUE) : DEFAULT_BLEND_VALUE;
             const own = slot ? ((dial.degrees as Record<string, number>)[slot] ?? AUTO_DEGREE) : AUTO_DEGREE;
             return (
               <div key={c.id} className="flex items-center justify-between gap-2">
@@ -117,6 +137,20 @@ export default function CategorizerChordsSection() {
                     </option>
                   ))}
                 </select>
+                {dial.blend !== 'off' && (
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={blendValue}
+                    disabled={!slot}
+                    className="w-16"
+                    aria-label={`${dial.blend} for ${c.name}`}
+                    data-category-blend={c.id}
+                    onChange={(e) => slot && void dispatchDialSetIn(`categorizerChords.blendValues.${slot}`, Number(e.target.value))}
+                  />
+                )}
               </div>
             );
           })}

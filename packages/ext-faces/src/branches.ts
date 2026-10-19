@@ -14,6 +14,7 @@ const to = (from: { node: string; port: string }, toRef: { node: string; port: s
 
 export const FACE_CATEGORIZER_NODE_ID = 'faceCat';
 export const FACE_CATEGORIZER_BRANCH_ID = 'face-categorizer';
+const face = (port: string) => ({ node: FACE_CATEGORIZER_NODE_ID, port });
 
 // Core's face nodes this branch reads and feeds (`src/instruments/branches.ts`).
 const CAM_FACE = 'camFace';
@@ -30,16 +31,16 @@ export const faceCategorizer = defineBranch({
   replaces: ['face-chord'],
   nodes: [{ id: FACE_CATEGORIZER_NODE_ID, type: 'face-categorizer', params: {} }],
   edges: [
-    to({ node: CAM_FACE, port: 'face' }, { node: FACE_CATEGORIZER_NODE_ID, port: 'face' }),
-    to({ node: GENERAL, port: 'expression' }, { node: FACE_CATEGORIZER_NODE_ID, port: 'general' }),
-    to(ui('faceCategorizerModel'), { node: FACE_CATEGORIZER_NODE_ID, port: 'model' }),
-    to(ui('faceCategorizer'), { node: FACE_CATEGORIZER_NODE_ID, port: 'config' }),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'expression' }, { node: CHORD, port: 'expression' }),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'degrees' }, { node: CHORD, port: 'categoryDegrees' }),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'targets' }, { node: CHORD, port: 'categoryTargets' }),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'expression' }, overlay('expression')),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'degrees' }, overlay('categoryDegrees')),
-    to({ node: FACE_CATEGORIZER_NODE_ID, port: 'targets' }, overlay('categoryTargets')),
+    to({ node: CAM_FACE, port: 'face' }, face('face')),
+    to({ node: GENERAL, port: 'expression' }, face('general')),
+    to(ui('faceCategorizerModel'), face('model')),
+    to(ui('faceCategorizer'), face('config')),
+    to(face('expression'), { node: CHORD, port: 'expression' }),
+    to(face('degrees'), { node: CHORD, port: 'categoryDegrees' }),
+    to(face('targets'), { node: CHORD, port: 'categoryTargets' }),
+    to(face('expression'), overlay('expression')),
+    to(face('degrees'), overlay('categoryDegrees')),
+    to(face('targets'), overlay('categoryTargets')),
   ],
   overlay: ['faceLandmarks', 'faceExpression', 'chordGuide', 'chordName'],
 });
@@ -70,19 +71,27 @@ export const poseCategorizer = defineBranch({
 });
 
 export const CATEGORIZER_CHORD_NODE_ID = 'catChord';
+export const CATEGORY_BLEND_NODE_ID = 'catBlend';
 export const HAND_CHORDS_BRANCH_ID = 'hand-chords';
 export const POSE_CHORDS_BRANCH_ID = 'pose-chords';
 
+const chord = (port: string) => ({ node: CATEGORIZER_CHORD_NODE_ID, port });
+const blend = (port: string) => ({ node: CATEGORY_BLEND_NODE_ID, port });
+
 /** The categorizer chord's edges, but for the vector it reads (#450). */
 const chordEdges = (vector: { node: string; port: string }, frame: { node: string; port: string }) => [
-  to(vector, { node: CATEGORIZER_CHORD_NODE_ID, port: 'vector' }),
+  to(vector, chord('vector')),
   // The camera frame the vector came from: the hysteresis counts camera frames, not ticks.
-  to(frame, { node: CATEGORIZER_CHORD_NODE_ID, port: 'frame' }),
-  to(ui('categorizerChordsModel'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'model' }),
-  to(ui('categorizerChords'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'config' }),
-  to(ui('chordSpec'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'spec' }),
-  to(ui('chordConfig'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'chordConfig' }),
-  to(ui('octaveShift'), { node: CATEGORIZER_CHORD_NODE_ID, port: 'octaveShift' }),
+  to(frame, chord('frame')),
+  to(ui('categorizerChordsModel'), chord('model')),
+  to(ui('categorizerChords'), chord('config')),
+  to(ui('chordSpec'), chord('spec')),
+  to(ui('chordConfig'), chord('chordConfig')),
+  to(ui('octaveShift'), chord('octaveShift')),
+  // The category blend (#372), fed back a tick later.
+  to(chord('category'), blend('category')),
+  to(ui('categorizerChords'), blend('config')),
+  { ...to(blend('controls'), chord('controls')), delayed: true },
 ];
 
 /** The categorizer chord's priority on the chord display: below every other producer's (the face
@@ -90,11 +99,17 @@ const chordEdges = (vector: { node: string; port: string }, frame: { node: strin
  *  as it always did (#491). A test keeps it the lowest declared. */
 export const CATEGORIZER_CHORD_PRIORITY = 0;
 
-/** What the categorizer chord shows (#600 S10b): its reading on the category cues, below the pose
- *  categorizer's, and the chord it plays on the chord display (#491), below every other chord. */
+/** The categorizer chord's nodes and voices, and what it shows (#600 S10b): its reading on the category
+ *  cues, below the pose categorizer's, and its chord on the chord display (#491), below every other. */
 const chordShows = {
-  categories: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'category' }, kind: 'categorizer' as const, priority: 10 }],
-  chords: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'triad' }, priority: CATEGORIZER_CHORD_PRIORITY }],
+  nodes: [
+    { id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} },
+    { id: CATEGORY_BLEND_NODE_ID, type: 'category-blend', params: {} },
+  ],
+  voices: [{ from: chord('params'), role: 'instrument' as const }],
+  categories: [{ from: chord('category'), kind: 'categorizer' as const, priority: 10 }],
+  chords: [{ from: chord('triad'), priority: CATEGORIZER_CHORD_PRIORITY }],
+  overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 };
 
 /**
@@ -104,11 +119,8 @@ const chordShows = {
 export const handChords = defineBranch({
   id: HAND_CHORDS_BRANCH_ID,
   description: 'Your own hand shapes play chords: each category of a saved hand-shape categorizer a chord on the chord-source scale.',
-  nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: 'handVec', port: 'vector' }, { node: TRUNK.cam, port: 'hands' }),
-  voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
   ...chordShows,
-  overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 
 /** A saved pose categorizer plays chords (#450, and #468): the body source's vector, the same node.
@@ -119,11 +131,8 @@ export const poseChords = defineBranch({
   description: 'Your own poses play chords: each category of a saved pose categorizer a chord on the chord-source scale.',
   requires: ['body-source'],
   replaces: [HAND_CHORDS_BRANCH_ID],
-  nodes: [{ id: CATEGORIZER_CHORD_NODE_ID, type: 'categorizer-chord', params: {} }],
   edges: chordEdges({ node: BODY_VECTOR, port: 'vector' }, { node: 'camBody', port: 'body' }),
-  voices: [{ from: { node: CATEGORIZER_CHORD_NODE_ID, port: 'params' }, role: 'instrument' }],
   ...chordShows,
-  overlay: ['categoryLabel', 'categoryBars', 'chordName', 'chordGuide'],
 });
 
 export const FACES_BRANCHES = [faceCategorizer, poseCategorizer, handChords, poseChords] as const;

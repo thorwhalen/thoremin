@@ -148,7 +148,7 @@ const LATER_EXTENSION_NODES = new Set([
   'chordWheel',
   // The chord chart (air, H9 of #613); its wiring is `test/air/chord_chart.test.ts`.
   'chordChart',
-  ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord'] : [])]);
+  ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord', 'catBlend'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
  *  aside above, so they are restored here to compare with the core + air snapshot. */

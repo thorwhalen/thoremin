@@ -800,6 +800,9 @@ export interface CategoryScores {
   labels: readonly string[];
   /** 0..1 per class, aligned with `labels`. */
   scores: readonly number[];
+  /** Each class's id, aligned with `labels`, when the reader has ids (a player's categorizer): what
+   *  a per-category setting is keyed by (#372). */
+  ids?: readonly string[];
   /** A small title over the bars ("ASL"). */
   title?: string;
 }

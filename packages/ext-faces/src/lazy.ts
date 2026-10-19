@@ -9,7 +9,8 @@ import type { ExtensionNodes } from '@thoremin/sdk/instruments/extension';
 import { faceCategorizerNode } from './nodes/face_categorizer';
 import { poseCategorizerNode } from './nodes/pose_categorizer';
 import { categorizerChordNode } from './nodes/categorizer_chord';
+import { categoryBlendNode } from './nodes/category_blend';
 
-const FACES_NODES: ExtensionNodes = { nodes: [faceCategorizerNode, poseCategorizerNode, categorizerChordNode] as unknown as NodeDef<unknown>[] };
+const FACES_NODES: ExtensionNodes = { nodes: [faceCategorizerNode, poseCategorizerNode, categorizerChordNode, categoryBlendNode] as unknown as NodeDef<unknown>[] };
 
 export default FACES_NODES;
