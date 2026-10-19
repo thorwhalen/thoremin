@@ -126,7 +126,7 @@ Camera-free animated hand landmark source for tests & demos.
 - **roles:** source
 - **in:** —
 - **out:** hands:hands-frame
-- **params:** width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80)
+- **params:** width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80), strike (boolean=false), strikePeriod (number=0.9)
 
 #### `replay-source` — Replay Source
 Emits a recorded value stream, one value per tick.
