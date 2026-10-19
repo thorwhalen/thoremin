@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import {
-  AIR_INSTRUMENTS,
+  INSTRUMENT_CATALOG,
   INSTRUMENT_CLASSES,
   airInstrumentsOf,
   categoryOf,
@@ -18,7 +18,7 @@ import {
 } from '@/app/library/category';
 import { summarizeInstrument, summaryLines } from '@/app/library/summarize';
 import { deriveSystemTags } from '@/app/library/systemTags';
-import { AIR } from './helpers/extensions';
+import { AIR, ASL } from './helpers/extensions';
 
 const settingsOf = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -35,13 +35,15 @@ describe('instrument categories', () => {
     expect(airInstrumentsOf(settingsOf('Air Bass'))).toEqual(['bass']);
   });
 
-  it('is derived: a theremin with its air drum on is an air instrument', () => {
+  // The air class and the air drum's row are the air extension's contributions (#600 S8).
+  it.runIf(AIR)('is derived: a theremin with its air drum on is an air instrument', () => {
     const s = settingsOf('Pentatonic');
     expect(categoryOf(s)).toBe('field');
     expect(categoryOf({ ...s, airDrum: { ...s.airDrum, enabled: true } })).toBe('air');
   });
 
-  it('groups in category order, keeping the incoming order inside a group, unknown as theremin', () => {
+  // The air class and the air drum's row are the air extension's contributions (#600 S8).
+  it.runIf(AIR)('groups in category order, keeping the incoming order inside a group, unknown as theremin', () => {
     const cats: Record<string, 'air' | 'field' | undefined> = { b: 'air', a: 'field', c: undefined, d: 'air' };
     const groups = groupByCategory(['d', 'a', 'b', 'c'], (n) => cats[n]);
     expect(groups.map((g) => g.id)).toEqual(INSTRUMENT_CLASSES.map((c) => c.id));
@@ -50,7 +52,7 @@ describe('instrument categories', () => {
   });
 
   it('every air instrument has a label and an emoji for its tag', () => {
-    for (const a of AIR_INSTRUMENTS) {
+    for (const a of INSTRUMENT_CATALOG) {
       expect(a.label.length).toBeGreaterThan(0);
       expect(a.emoji.length).toBeGreaterThan(0);
     }
@@ -117,7 +119,8 @@ describe.runIf(AIR)('an air instrument that plays the scale keeps describing it'
 });
 
 describe('instrument classes (the ADR\'s PR 2)', () => {
-  it('has unique ids, each with a label, an emoji and a colour', () => {
+  // `air` and `sign` are contributed by the air extension and (the fallback) the ASL plugin (#600 S8).
+  it.runIf(AIR && ASL)('has unique ids, each with a label, an emoji and a colour', () => {
     const ids = INSTRUMENT_CLASSES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const c of INSTRUMENT_CLASSES) {
@@ -128,7 +131,7 @@ describe('instrument classes (the ADR\'s PR 2)', () => {
     expect(ids).toEqual(['field', 'air', 'sign']);
   });
 
-  it('normalises the former id `theremin` to `field` and rejects unknown ids', () => {
+  it.runIf(AIR)('normalises the former id `theremin` to `field` and rejects unknown ids', () => {
     expect(normaliseClassId('theremin')).toBe('field');
     expect(normaliseClassId('field')).toBe('field');
     expect(normaliseClassId('air')).toBe('air');

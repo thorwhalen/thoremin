@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXTENSION_PANELS, EXTENSION_MOUNT_EFFECTS, EXTENSION_UI_IDS, extensionStatusHooks, loadExtensionUi } from '@/app/extensions';
 import { EXTENSIONS } from '@/extensions';
-import { AIR_INSTRUMENTS } from '@/app/library/category';
+import { INSTRUMENT_CATALOG } from '@/app/library/category';
 import { AIR } from '../helpers/extensions';
 
 describe('the React halves of the extensions', () => {
@@ -21,7 +21,7 @@ describe('the React halves of the extensions', () => {
     // An add-on section belongs to no instrument of its own: the faces extension's "Face
     // categorizer" is a section of the face chords (#330 P4).
     const ADD_ON_SECTIONS = new Set(['faces']);
-    expect(EXTENSION_PANELS.map((p) => p.instrumentId).filter((id) => !ADD_ON_SECTIONS.has(id)).sort()).toEqual(AIR_INSTRUMENTS.map((a) => a.id).sort());
+    expect(EXTENSION_PANELS.map((p) => p.instrumentId).filter((id) => !ADD_ON_SECTIONS.has(id)).sort()).toEqual(INSTRUMENT_CATALOG.map((a) => a.id).sort());
     for (const p of EXTENSION_PANELS) {
       expect(p.section.length).toBeGreaterThan(0);
       expect(typeof p.Controls).toBe('function');

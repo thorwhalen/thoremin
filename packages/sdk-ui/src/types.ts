@@ -4,7 +4,7 @@
  * pure half is `packages/sdk/src/instruments/extension.ts`.
  *
  *  - `panels`: one editor section per instrument the extension ships (its controls and its
- *    live readout), keyed by the instrument id `AIR_INSTRUMENTS` uses. `DialsControlsPanel`
+ *    live readout), keyed by the instrument id of its catalog row (`Extension.catalog`). `DialsControlsPanel`
  *    folds over these instead of importing a hand-listed table.
  *  - `statusHooks`: per-tick sinks that mirror a node's outputs into a React store (a
  *    status readout, a live shape for enrolment). `useEngine` builds each with the engine,
@@ -33,7 +33,7 @@ export interface ExtensionPanel {
   /**
    * When the chosen instrument's row shows this panel's `Readout` (#367), given the live
    * settings. Absent: while the instrument id is one of the library's air or sign instruments
-   * and on (`AIR_INSTRUMENTS`). A panel that is not such an instrument (the faces extension's
+   * and on (the instrument catalog, `INSTRUMENT_CATALOG`). A panel that is not such an instrument (the faces extension's
    * categorizers) says here when its readout is worth a line under the row. Pure and cheap:
    * it is part of a lazy extension's eager stub, and runs on every settings change.
    */

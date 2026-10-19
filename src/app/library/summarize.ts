@@ -15,7 +15,7 @@ import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import type { Settings } from '@/settings/schema';
 import type { PositionSource, FingerTarget } from '@/nodes/mapping/hand_map.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
-import { AIR_INSTRUMENTS, airInstrumentsOf, classOfEntry, type AirInstrumentId } from './category';
+import { INSTRUMENT_CATALOG, INSTRUMENT_CLASSES, DEFAULT_CLASS, airInstrumentsOf, classOfEntry, type AirInstrumentId } from './category';
 
 /** The coarse scale quality used for the scale-quality system tag + the tooltip. */
 export type ScaleQuality =
@@ -142,7 +142,7 @@ export function summarizeInstrument(s: Settings): InstrumentSummary {
     fingerFx: activeFingerFx(s.handMap),
     air: airInstrumentsOf(s),
     handVoices: s.handMap.maxGain > 0,
-    scaleHeard: s.handMap.maxGain > 0 || AIR_INSTRUMENTS.some((a) => a.usesScale && a.on(s)),
+    scaleHeard: s.handMap.maxGain > 0 || INSTRUMENT_CATALOG.some((a) => a.usesScale && a.on(s as unknown as Readonly<Record<string, unknown>>)),
     masterVolume: s.masterVolume,
     magnetism: s.magnetism,
     octaveShift: s.octaveShift,
@@ -189,11 +189,13 @@ const MASTER_DEFAULTS = { masterVolume: 0.4, magnetism: 0.8, octaveShift: 0 } as
 export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
   const lines: SummaryLine[] = [];
   if (sum.air.length > 0) {
-    // One line per class: the air instruments under "Air", the sign reader under "Sign".
-    const entries = sum.air.map((id) => AIR_INSTRUMENTS.find((a) => a.id === id)).filter((a): a is (typeof AIR_INSTRUMENTS)[number] => !!a);
-    for (const cls of ['air', 'sign'] as const) {
-      const of = entries.filter((a) => classOfEntry(a) === cls);
-      if (of.length) lines.push({ label: cls === 'air' ? 'Air' : 'Sign', value: of.map((a) => a.label).join(', ') });
+    // One line per contributed class, in class order, named by its label's first word: the air
+    // instruments under "Air", the sign reader under "Sign".
+    const entries = sum.air.map((id) => INSTRUMENT_CATALOG.find((a) => a.id === id)).filter((a): a is (typeof INSTRUMENT_CATALOG)[number] => !!a);
+    for (const cls of INSTRUMENT_CLASSES) {
+      if (cls.id === DEFAULT_CLASS) continue;
+      const of = entries.filter((a) => classOfEntry(a) === cls.id);
+      if (of.length) lines.push({ label: cls.label.split(' ')[0], value: of.map((a) => a.label).join(', ') });
     }
   }
   if (sum.scaleHeard) {

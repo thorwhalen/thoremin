@@ -9,7 +9,7 @@
 import type { InstrumentSpec } from '@/instruments/spec';
 import { BRANCHES } from '@/instruments/branches';
 import { INSTRUMENT_CLASSES } from '@/instruments/classes';
-import { AIR_INSTRUMENTS } from './category';
+import { INSTRUMENT_CATALOG } from './category';
 import type { InstrumentListItem } from './instrumentsCollection';
 import type { FacetItem } from './instrumentsFacets';
 
@@ -55,7 +55,7 @@ export const USES_SAID_ELSEWHERE: ReadonlySet<string> = new Set([
   // The face chord's two pieces (#330 P4): they compose with it and say nothing it does not.
   'face-expression',
   'face-chord-voice',
-  ...AIR_INSTRUMENTS.map((a) => `air-${a.id}`),
+  ...INSTRUMENT_CATALOG.map((a) => `air-${a.id}`),
 ]);
 
 const classLabel = (id: string): string => {

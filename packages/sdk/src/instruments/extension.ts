@@ -175,6 +175,35 @@ export function overlayImplProblems(decls: readonly OverlayElementDecl[], impls:
   return out;
 }
 
+/** One class of instrument: the grouping, tint and glyph the Instruments view shows (#600 S8:
+ *  core has `field`; an extension contributes its own, as the air instruments do `air`). */
+export interface InstrumentClass {
+  id: string;
+  label: string;
+  emoji: string;
+  /** A CSS colour the view may tint a class's cards with. */
+  colour: string;
+}
+
+/**
+ * A row of the instrument catalog (#600 S8): an instrument an extension contributes, detected
+ * from the settings, never stored (a category is a fact about the parametrization, Decision 2 of
+ * `docs/design/instrument-library.md`). Its id and emoji become a system tag; the first row an
+ * instrument plays decides the class it is listed under.
+ */
+export interface CatalogEntry {
+  id: string;
+  /** The system tag's tooltip and the parametrization tooltip. */
+  label: string;
+  emoji: string;
+  /** The class an instrument playing it is listed under (core's `field`, or a contributed one). */
+  class: string;
+  /** Whether it plays the instrument's scale (the Sound section's scale, root and range). */
+  usesScale: boolean;
+  /** True when these settings play it. Pure and cheap: it runs on every settings change. */
+  on: (settings: ExtensionDerivationSettings) => boolean;
+}
+
 /** What a LAZY extension's deferred half provides (`docs/design/lazy-extensions.md`): its node
  *  definitions, exactly the types its stub {@link Extension.provides}, and the drawing code of
  *  the overlay elements its stub declares. */
@@ -205,6 +234,10 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   instruments?: readonly ExtensionInstrument[];
   /** Its training routes, tried before core's Trainer tool. */
   training?: ExtensionTraining;
+  /** Instrument classes it contributes (#600 S8); ids unique across core and extensions. */
+  classes?: readonly InstrumentClass[];
+  /** Its rows of the instrument catalog (#600 S8), in display order. */
+  catalog?: readonly CatalogEntry[];
   /** Overlay elements it contributes, as data (#600 S5): ports, category, config. */
   overlay?: readonly OverlayElementDecl[];
   /** An EAGER extension's overlay drawing code (a lazy one's arrives with {@link load}). */

@@ -71,7 +71,8 @@ describe('one line per instrument', () => {
 });
 
 describe('collapsible classes', () => {
-  it('both classes start open, and a heading collapses its class, keeping its count', async () => {
+  // Both classes: field and the air extension's air (#600 S8).
+  it.runIf(AIR)('both classes start open, and a heading collapses its class, keeping its count', async () => {
     render(<InstrumentsPanel />);
     const field = await group('Field instruments');
     expect(within(field).getByText('Pentatonic')).toBeTruthy();

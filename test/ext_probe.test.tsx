@@ -47,6 +47,7 @@ type App = {
   entries: typeof import('@/app/entryPoints');
   uis: typeof import('@/app/extensions');
   store: typeof import('@/app/store');
+  category: typeof import('@/app/library/category');
 };
 let app: App;
 /** The lazy probe's React half, as the host loads it (one module instance after the reset). */
@@ -68,7 +69,8 @@ beforeAll(async () => {
     import('@/app/extensions'),
     import('@/app/store'),
   ]);
-  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store };
+  const category = await import('@/app/library/category');
+  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category };
 });
 
 describe('the probe reaches every pure contribution point', () => {
@@ -103,6 +105,14 @@ describe('the probe reaches every pure contribution point', () => {
     const seed = app.seeds.SEED_INSTRUMENTS.find((i) => i.name === PROBE_INSTRUMENT);
     expect(seed).toBeDefined();
     expect(JSON.stringify(seed)).toContain('330');
+  });
+
+  it('library (#600 S8): the probe\'s class joins the classes, its row the catalog, and its instrument is listed under it', () => {
+    expect(app.category.INSTRUMENT_CLASSES.map((c) => c.id)).toEqual(['field', 'probe-class']);
+    expect(app.category.INSTRUMENT_CATALOG.map((r) => r.id)).toEqual(['probe']);
+    const settings = { ...app.store.toSettings(app.store.useControls.getState()), probe: { enabled: true, freq: 440 } };
+    expect(app.category.airInstrumentsOf(settings as never)).toEqual(['probe']);
+    expect(app.category.categoryOf(settings as never)).toBe('probe-class');
   });
 
   it('training: the probe route is known, and its branch leads to it', () => {

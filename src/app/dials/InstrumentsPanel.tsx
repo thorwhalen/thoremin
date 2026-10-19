@@ -52,7 +52,7 @@ import TagsEditor from '@/app/library/TagsEditor';
 import { TrainingLink } from '@/app/training/TrainingLink';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
-import { AIR_INSTRUMENTS, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
+import { INSTRUMENT_CATALOG, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
 import { assembleSpec } from '@/app/graph';
 import { type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
@@ -95,7 +95,7 @@ export function pictureRefProblem(ref: string): string | undefined {
 /** The glyph a picture-less card shows: the instrument's own emoji, else the emoji of the
  *  air instrument it plays (from its branches); undefined leaves the tile its initials. */
 const tileEmoji = (spec: { emoji?: string; features: readonly string[] }): string | undefined =>
-  spec.emoji ?? AIR_INSTRUMENTS.find((a) => spec.features.includes(`air-${a.id}`))?.emoji;
+  spec.emoji ?? INSTRUMENT_CATALOG.find((a) => spec.features.includes(`air-${a.id}`))?.emoji;
 
 /**
  * The picture field in an instrument's editor: a reference (a URL, or a path under the
@@ -805,7 +805,7 @@ export default function InstrumentsPanel() {
                     {g.items.map(gallery ? renderCard : renderRow)}
                     {g.items.length === 0 && (
                       <li className="col-span-full px-2 py-2 text-[10px] leading-relaxed text-white/40">
-                        None saved. Turn on {AIR_INSTRUMENTS.filter((a) => classOfEntry(a) === g.id).map((a) => a.label.toLowerCase()).join(' or ')} in any
+                        None saved. Turn on {INSTRUMENT_CATALOG.filter((a) => classOfEntry(a) === g.id).map((a) => a.label.toLowerCase()).join(' or ')} in any
                         instrument’s settings and save it.
                       </li>
                     )}
