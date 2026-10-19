@@ -40,7 +40,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
-import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, type Chord } from '@thoremin/sdk/harmony/chord';
+import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -71,6 +71,7 @@ import {
 } from '../lib/chord_map';
 import { createStrumDetector, type StrumDetector } from '../lib/strum';
 import type { MidiHeld } from '../lib/midi_held';
+import { parseChordName } from '../lib/guitar';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
 import { LATE_VELOCITY, strumNotes } from './air_guitar';
@@ -218,7 +219,7 @@ export interface ChordMapStatus {
   /** Whether the strumming hand's stroke floor has been learned. */
   ready: boolean;
   /** With MIDI: whether a keyboard can be heard, and the chord it holds (null: none yet). */
-  midi: 'off' | 'unavailable' | 'no-input' | 'listening';
+  midi: 'off' | 'waiting' | 'denied' | 'unavailable' | 'no-input' | 'listening';
   midiChord: string | null;
   /** With the face: the key's mode in force ('key': the key's own) and the tension steps added. */
   mode: 'key' | 'darker' | 'brighter';
@@ -243,6 +244,23 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   mode: 'key',
   tension: 0,
 };
+
+/** A chord's tones on the map's register, root first (a keyboard's chord outside the key). */
+function midiChordTones(chord: Chord, spec: ScaleSpec): number[] {
+  const base = (spec.baseOctave + 1) * 12 + chord.root;
+  return pitchClasses(chord).map((p) => base + ((p - chord.root + 12) % 12));
+}
+
+/** The triad under each four-note quality: what is strummed when the guitar has no shape for the chord. */
+const TRIAD_OF: Partial<Record<Chord['quality'], Chord['quality']>> = { maj7: 'maj', '7': 'maj', min7: 'min', hdim7: 'dim', dim7: 'dim', minmaj7: 'min', augmaj7: 'aug' };
+
+/** A chord's name the guitar voicing can strum: its own, else its triad's (C#dim7 strums C#dim). */
+function strummable(chord: Chord, key: Key): string {
+  const own = chordSymbol(chord, key);
+  if (parseChordName(own)) return own;
+  const triad = TRIAD_OF[chord.quality];
+  return triad ? chordSymbol({ root: chord.root, quality: triad }, key) : own;
+}
 
 /** The cell of a degree nearest the middle of its region (null: none of that degree). */
 function nearestOfDegree(cells: readonly MapCell[], degree: number, region: Region): number | null {
@@ -369,6 +387,8 @@ export const chordMapNode = defineNode<Params>({
       chordPoint = null;
       otherPoint = null;
       lastCell = -1;
+      follower = null;
+      followerDwell = -1;
       letterAnchor = '';
       letterNames = [];
       changedLetters = new Set();
@@ -392,7 +412,8 @@ export const chordMapNode = defineNode<Params>({
         valence.setDwell(c.modeDwellS);
         // A gate turned off forgets its level, so turning it back on starts from the key. Tensions
         // colour a held chord only: a strum plays the guitar's voicing of the chord's name.
-        const modeOn = c.enabled && c.face && c.faceMode;
+        // Following a keyboard, the keyboard's chords are the mode: the face's parallel stays off.
+        const modeOn = c.enabled && c.face && c.faceMode && c.follow !== 'midi';
         const tensionOn = c.enabled && c.face && c.faceTension && c.play === 'hold';
         if (!modeOn) valence.reset();
         if (!tensionOn) arousal.reset();
@@ -492,7 +513,10 @@ export const chordMapNode = defineNode<Params>({
           follower = null;
           followerDwell = -1;
         }
-        const midiStatus: ChordMapStatus['midi'] = c.follow !== 'midi' ? 'off' : !midi ? 'off' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';
+        const midiStatus: ChordMapStatus['midi'] =
+          c.follow !== 'midi' ? 'off' : !midi || midi.reason === 'pending' ? 'waiting' : midi.reason === 'denied' ? 'denied' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';
+        // A keyboard's chord outside the key: no cell, but its own tones in the map's register.
+        const outsideTones = midiChord && choice.active === null ? midiChordTones(midiChord, spec) : null;
         const midiName = midiChord ? chordName(midiChord, keyOf(spec)) : null;
 
         // One camera frame: choose the chord, then hear the other hand.
@@ -517,7 +541,7 @@ export const chordMapNode = defineNode<Params>({
               // the next strum. No chord, a strum of nothing.
               // A MIDI chord outside the key is strummed by its own name.
               const inKey = choice.active !== null ? chords[placed[choice.active].degree] : undefined;
-              const chord = inKey ?? (midiChord ? { symbol: chordSymbol(midiChord, keyOf(spec)) } : undefined);
+              const chord = inKey ?? (midiChord ? { symbol: strummable(midiChord, keyOf(spec)) } : undefined);
               if (!chord) continue;
               const velocity = s.late ? s.strength * c.volume * LATE_VELOCITY : s.strength * c.volume;
               const strummed = strumNotes(chord.symbol, s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
@@ -541,7 +565,7 @@ export const chordMapNode = defineNode<Params>({
         let ladder: { region: Region; notes: number[]; band: number | null; set: MelodySet } | null = null;
         let melodyNote: string | null = null;
         if (c.play === 'hold' && c.melody) {
-          const over = chords[lastCell >= 0 && placed[lastCell] ? placed[lastCell].degree : 0].tones;
+          const over = outsideTones ?? chords[lastCell >= 0 && placed[lastCell] ? placed[lastCell].degree : 0].tones;
           const base = (spec.baseOctave + 2) * 12;
           // The tilt chooses the set only while the hand is seen; a lost hand keeps the last one.
           melodySet = c.melodyNotes !== 'tilt' ? c.melodyNotes : otherTilt === null ? melodySet : setForTilt(otherTilt, melodySet);

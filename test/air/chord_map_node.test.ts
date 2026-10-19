@@ -290,6 +290,19 @@ describe('the chord-map node, chords from MIDI (H8 of #613)', () => {
     expect([...pcs].sort((a, b) => a - b)).toEqual([2, 5, 10]); // Bb D F
   });
 
+  it('strums a chord outside the key the guitar has no shape for by its triad (C#dim7 as C#dim)', () => {
+    const outs = playMidi(() => [61, 64, 67, 70], { play: 'strum' }, 3, 0.5);
+    const notes = outs.flatMap((o) => o.out.notes).filter((n) => n.velocity > 0);
+    expect(notes.length).toBeGreaterThan(0);
+    expect([...new Set(notes.map((n) => n.midi % 12))].sort((a, b) => a - b)).toEqual([1, 4, 7]);
+  });
+
+  it('holding a chord outside the key plays the melody over its own notes', () => {
+    const outs = playMidi(() => [58, 62, 65], {}); // Bb
+    const ladder = outs[outs.length - 1].out.grid.cells.filter((x) => x.shape === 'rect').map((x) => x.label.replace(/\d+$/, ''));
+    expect(ladder.slice(0, 3)).toEqual(['A#', 'D', 'F']);
+  });
+
   it('says when no keyboard can be heard', () => {
     const h = chordMapNode.make(chordMapNode.params.parse({}));
     const fr = chordMapTake({ duration: 0.1, chordAt: () => null })[0];

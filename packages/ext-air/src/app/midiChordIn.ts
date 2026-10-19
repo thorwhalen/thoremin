@@ -18,7 +18,8 @@ type MapState = { chordMap?: { enabled?: boolean; follow?: string } };
 /** The smallest slice of Web MIDI this reads (so a test can hand it a fake). */
 export interface MidiAccessLike {
   inputs: { forEach(cb: (input: MidiInputLike) => void): void };
-  onstatechange: ((e: unknown) => void) | null;
+  /** A port came or went: `port.state` is 'disconnected' for an unplugged one. */
+  onstatechange: ((e: { port?: { id: string; state?: string } }) => void) | null;
 }
 export interface MidiInputLike {
   id: string;
@@ -45,17 +46,27 @@ export function startMidiChordIn(deps: MidiChordInDeps = {}): () => void {
   let listening = false;
   let generation = 0;
   const notes = createHeldNotes();
+  let inputs = 0;
+  /** What was published last, so a clock tick or active sensing writes nothing. */
+  let lastSent = '';
+  const send = (held: MidiHeld | null) => {
+    const key = JSON.stringify(held);
+    if (key === lastSent) return;
+    lastSent = key;
+    publish(held);
+  };
+  const sendHeld = () => send({ available: true, inputs, held: notes.held() });
 
   const attach = (a: MidiAccessLike) => {
-    let count = 0;
+    inputs = 0;
     a.inputs.forEach((input) => {
-      count += 1;
+      inputs += 1;
       input.onmidimessage = (e) => {
         notes.message(input.id, e.data);
-        publish({ available: true, inputs: count, held: notes.held() });
+        sendHeld();
       };
     });
-    publish({ available: true, inputs: count, held: notes.held() });
+    sendHeld();
   };
   const detach = () => {
     access?.inputs.forEach((input) => {
@@ -63,6 +74,8 @@ export function startMidiChordIn(deps: MidiChordInDeps = {}): () => void {
     });
     if (access) access.onstatechange = null;
     access = null;
+    // Keys released while nobody listened must not come back held.
+    notes.clear();
   };
 
   const apply = (s: MapState) => {
@@ -72,25 +85,28 @@ export function startMidiChordIn(deps: MidiChordInDeps = {}): () => void {
     const mine = ++generation;
     if (!want) {
       detach();
-      publish(null);
+      send(null);
       return;
     }
     if (!request) {
-      publish({ available: false, inputs: 0, held: [] });
+      send({ available: false, inputs: 0, held: [], reason: 'unsupported' });
       return;
     }
+    send({ available: false, inputs: 0, held: [], reason: 'pending' });
     request()
       .then((a) => {
         if (mine !== generation) return;
         access = a;
         attach(a);
-        // A keyboard plugged in later is heard too.
-        a.onstatechange = () => {
-          if (mine === generation) attach(a);
+        // A keyboard plugged in later is heard too; one unplugged mid-chord lets its notes go.
+        a.onstatechange = (e) => {
+          if (mine !== generation) return;
+          if (e?.port?.state === 'disconnected') notes.clear(e.port.id);
+          attach(a);
         };
       })
       .catch(() => {
-        if (mine === generation) publish({ available: false, inputs: 0, held: [] });
+        if (mine === generation) send({ available: false, inputs: 0, held: [], reason: 'denied' });
       });
   };
   apply(store.getState());
@@ -99,6 +115,6 @@ export function startMidiChordIn(deps: MidiChordInDeps = {}): () => void {
     unsubscribe();
     generation += 1;
     detach();
-    publish(null);
+    send(null);
   };
 }

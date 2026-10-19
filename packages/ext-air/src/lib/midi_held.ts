@@ -4,17 +4,22 @@
  * is the app half (`../app/midiChordIn`).
  */
 
-/** What the chord map reads: the notes held, and whether there is anything to hear them from. */
+/** What the chord map reads: the notes held, and whether there is anything to hear them from.
+ *  `reason` says why nothing can be heard: the browser has no Web MIDI, the player refused it, or
+ *  the browser is still asking. */
 export interface MidiHeld {
   available: boolean;
   inputs: number;
   held: number[];
+  reason?: 'unsupported' | 'denied' | 'pending';
 }
 
 const NOTE_OFF = 0x80;
 const NOTE_ON = 0x90;
 const CONTROL = 0xb0;
 const SUSTAIN = 64;
+/** All sound off, all notes off: a keyboard's panic, which must free every note. */
+const ALL_OFF = [120, 123];
 
 /** The held-note bookkeeping, per input and channel, with the sustain pedal. Pure. */
 export function createHeldNotes() {
@@ -35,6 +40,9 @@ export function createHeldNotes() {
       } else if (kind === NOTE_OFF || (kind === NOTE_ON && value === 0)) {
         of(down, key).delete(note);
         if (pedal.has(key)) of(sustained, key).add(note);
+      } else if (kind === CONTROL && ALL_OFF.includes(note)) {
+        of(down, key).clear();
+        of(sustained, key).clear();
       } else if (kind === CONTROL && note === SUSTAIN) {
         if (value >= 64) pedal.add(key);
         else {
@@ -42,6 +50,11 @@ export function createHeldNotes() {
           of(sustained, key).clear();
         }
       }
+    },
+    /** Forget an input's notes (it was unplugged), or every input's. */
+    clear(source?: string): void {
+      for (const m of [down, sustained]) for (const k of [...m.keys()]) if (source === undefined || k.startsWith(`${source}:`)) m.delete(k);
+      for (const k of [...pedal]) if (source === undefined || k.startsWith(`${source}:`)) pedal.delete(k);
     },
     held(): number[] {
       const all = new Set<number>();

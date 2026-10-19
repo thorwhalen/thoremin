@@ -28,9 +28,14 @@ export const useChordMapStatus = create<ChordMapStatusState>((set) => ({
 /** What to tell the player, per state. */
 export function describeChordMapLive(live: ChordMapLive): string {
   if (!live.enabled) return 'Off. Tick "Play the chord map" (the Chord Map instruments have it on).';
+  if (live.midi === 'waiting') return 'Waiting for the browser: allow MIDI access to hear your keyboard.';
+  if (live.midi === 'denied') return 'MIDI access was refused. Allow it in the site settings, or choose the chords with your hand.';
   if (live.midi === 'unavailable') return 'This browser cannot hear MIDI (Safari has no Web MIDI): use Chrome, Edge or Firefox, or choose the chords with your hand.';
   if (live.midi === 'no-input') return 'No MIDI keyboard found. Plug one in: it is heard as soon as it appears.';
-  if (live.midi === 'listening' && live.chord === null) return live.midiChord ? `${live.midiChord}. Strum it with your other hand.` : `Key of ${live.key}. Play a chord on your MIDI keyboard.`;
+  if (live.midi === 'listening' && live.chord === null) {
+    if (!live.midiChord) return `Key of ${live.key}. Play a chord on your MIDI keyboard.`;
+    return live.play === 'strum' ? `${live.midiChord}. Strum it with your other hand.` : `${live.midiChord}. Raise or lower your other hand for a melody on its notes.`;
+  }
   if (!live.pointing && live.midi === 'off') return 'Show your chord hand: put its palm over a chord on the screen.';
   if (live.chord === null) return `Key of ${live.key}. Move your chord hand over a chord.`;
   const chord = `${live.chord} (${live.numeral})${live.mode === 'brighter' ? ', the smile made it major' : live.mode === 'darker' ? ', the frown made it minor' : ''}${live.tension > 1 ? ', with a ninth' : live.tension > 0 ? ', with a seventh' : ''}`;

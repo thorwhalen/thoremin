@@ -4,16 +4,17 @@
  * from a MIDI keyboard (or, later, a microphone's chroma); this module turns a stream of held
  * note sets into a chord:
  *
- * - `chordOfPitchClasses`: the chord a set of pitch classes spells in ANY inversion or spacing
- *   (each held pitch class tried as the root, in the quality table's order, the bass first on a
- *   tie), so E-G-C reads C, not the "E with a sixth" the bass-is-root rule would give;
+ * - `chordOfPitchClasses`: the chord a set of pitch classes spells in ANY inversion or spacing:
+ *   each held pitch class is tried as the root, and the reading that accounts for the most held
+ *   notes wins (E-G-B-C is Cmaj7, not E minor with a stray C), the bass breaking a tie; so E-G-C
+ *   reads C, not the "E with a sixth" the bass-is-root rule would give;
  * - `createChordFollower`: a chord commits once the held set has stayed the same chord for a
  *   dwell (a passing tone or a hand changing shape note by note never flickers the harmony), and
  *   holds while the keys are released (a pianist lifts between chords); a new chord replaces it.
  *
  * Pure: no Web MIDI, no audio.
  */
-import { qualityOfIntervals } from './qualities';
+import { QUALITIES, qualityOfIntervals } from './qualities';
 import type { Chord } from './chord';
 
 const pc = (n: number): number => ((Math.round(n) % 12) + 12) % 12;
@@ -23,13 +24,20 @@ export function chordOfPitchClasses(midis: readonly number[]): Chord | null {
   const pcs = [...new Set(midis.map(pc))];
   if (pcs.length < 2) return null;
   const bass = midis.length ? pc(Math.min(...midis)) : pcs[0];
-  // The bass first, so a chord that reads two ways (C6 and Am7 share their notes) takes the bass's.
+  // The reading that explains the most held notes; the bass first on a tie.
   const roots = [bass, ...pcs.filter((p) => p !== bass)];
+  let best: Chord | null = null;
+  let covered = 0;
   for (const root of roots) {
     const quality = qualityOfIntervals(pcs.map((p) => p - root));
-    if (quality && quality !== '5') return { root, quality };
+    if (!quality || quality === '5') continue;
+    const n = QUALITIES[quality].intervals.length;
+    if (n > covered) {
+      best = { root, quality };
+      covered = n;
+    }
   }
-  return null;
+  return best;
 }
 
 export interface ChordFollowerOptions {

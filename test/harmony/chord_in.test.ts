@@ -10,6 +10,13 @@ describe('the chord held', () => {
     expect(chordOfPitchClasses([64, 67, 72])).toEqual({ root: 0, quality: 'maj' }); // E G C: C, first inversion
     expect(chordOfPitchClasses([43, 59, 62, 65])).toEqual({ root: 7, quality: '7' }); // G7, spread
     expect(chordOfPitchClasses([57, 60, 64, 67])).toEqual({ root: 9, quality: 'min7' }); // A C E G: the bass's reading (Am7, not C6)
+    // Seventh chords in inversion: the reading that explains every held note, not the bass's triad.
+    expect(chordOfPitchClasses([52, 55, 59, 60])).toEqual({ root: 0, quality: 'maj7' }); // E G B C
+    expect(chordOfPitchClasses([47, 50, 53, 55])).toEqual({ root: 7, quality: '7' }); // B D F G
+    expect(chordOfPitchClasses([57, 60, 64, 65])).toEqual({ root: 5, quality: 'maj7' }); // A C E F
+    expect(chordOfPitchClasses([51, 55, 58, 60])).toEqual({ root: 0, quality: 'min7' }); // Cm7/Eb
+    // The voicing order does not change the reading.
+    expect(chordOfPitchClasses([55, 60, 64, 69])).toEqual(chordOfPitchClasses([55, 57, 60, 64]));
     expect(chordOfPitchClasses([60, 64])).toBeNull();
     expect(chordOfPitchClasses([48, 55])).toBeNull();
     expect(chordOfPitchClasses([])).toBeNull();
