@@ -93,7 +93,8 @@ export const chordMap = defineBranch({
     { id: 'chordStrumOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
   ],
   edges: [
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'chordMap', port: 'hands' }),
+    // Through the handedness dwell (#314): at the default dwell of 0 it is the camera's own frame.
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'chordMap', port: 'hands' }),
     to(ui('chordMap'), { node: 'chordMap', port: 'config' }),
     // The chord-source scale is the key; the Chord sound section is how a held chord sounds.
     to(ui('chordSpec'), { node: 'chordMap', port: 'spec' }),
@@ -119,7 +120,7 @@ export const chordWheel = defineBranch({
   description: 'The chord wheel: the chord in force in the centre, a move per wedge; push the hand toward a move and the wheel recentres.',
   nodes: [{ id: 'chordWheel', type: 'chord-wheel', params: {} }],
   edges: [
-    to({ node: TRUNK.cam, port: 'hands' }, { node: 'chordWheel', port: 'hands' }),
+    to({ node: TRUNK.hands, port: 'hands' }, { node: 'chordWheel', port: 'hands' }),
     to(ui('chordWheel'), { node: 'chordWheel', port: 'config' }),
     to(ui('chordSpec'), { node: 'chordWheel', port: 'spec' }),
     to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
