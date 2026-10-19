@@ -62,6 +62,8 @@ export const AIR_SETTINGS_SHAPE = {
 /** The same four keys as dial slices: what `store-controls` and the dials form fold over. */
 export const AIR_DIAL_SLICES = [
   dialSlice({
+    // This slice's own schema version (#600 S9): a stored-shape change bumps it with a migration.
+    version: 1,
     key: 'airDrum',
     schema: AIR_SETTINGS_SHAPE.airDrum,
     kind: 'air-drum-config',
@@ -72,6 +74,7 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
+    version: 1,
     key: 'airBass',
     schema: AIR_SETTINGS_SHAPE.airBass,
     kind: 'air-bass-config',
@@ -82,6 +85,7 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
+    version: 1,
     key: 'airGuitar',
     schema: AIR_SETTINGS_SHAPE.airGuitar,
     kind: 'air-guitar-config',
@@ -92,6 +96,7 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
+    version: 1,
     key: 'airFlute',
     schema: AIR_SETTINGS_SHAPE.airFlute,
     kind: 'air-flute-config',
@@ -102,6 +107,7 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
+    version: 1,
     key: 'chordMap',
     schema: AIR_SETTINGS_SHAPE.chordMap,
     kind: 'chord-map-config',

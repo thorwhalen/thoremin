@@ -59,10 +59,14 @@ import {
   DEFAULT_FACE_CONTROLS_DIAL,
   type FaceControlsDialParams,
 } from '@/nodes/features/face_controls.schema';
-import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, LEGACY_CONDUCTOR_PRIOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
+import { ConductorSettingsSchema, DEFAULT_CONDUCTOR, type ConductorSettings, EXTENSION_DIAL_SCHEMAS, extensionDialDefaults, extensionTransientDefaults, type ExtensionDials, type ExtensionTransients } from '@/settings/schema';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import type { SongHandle } from '@/nodes/output/song_player.schema';
 import { AudioPrefsSchema, DEFAULT_AUDIO_PREFS, type AudioPrefs } from './timing/audioPrefs';
+import { CONTROLS_VERSION, migrateCoreControls } from './storeMigrations';
+import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
+import type { PrefSlice } from '@thoremin/sdk/instruments/extension';
+import { migrateSlices, sliceChains, sliceVersionsToWrite, SLICE_VERSIONS_KEY } from '@/host/slices';
 
 /** A fresh deep copy of the default hand map (nested fingers/routes), so the store's
  *  initializer and healers never share mutable sub-objects with the constant. */
@@ -345,6 +349,9 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   setTrainerHud(patch: Partial<TrainerHudParams>): void;
   /** Shallow-patch the per-device audio pref (#240; e.g. setAudioPrefs({ lowLatency: true })). */
   setAudioPrefs(patch: Partial<AudioPrefs>): void;
+  /** Replace an extension's per-device pref (#600 S9), validated by its slice's schema (an
+   *  invalid value is ignored; an unknown key throws: it would silently create a store field). */
+  setPref(key: string, value: unknown): void;
   /** Replace all live controls from a settings snapshot (loading a preset). */
   applySettings(s: Settings): void;
 }
@@ -378,14 +385,6 @@ export function toSettings(s: ControlState): Settings {
   return pickSettings(s as unknown as Record<string, unknown>);
 }
 
-/** A copy of a settings sub-object with its legacy `instrument` timbre field renamed to
- *  `sound`, so a returning player keeps their selection after the rename. A copy, never an
- *  edit: the object belongs to the caller's persisted blob. */
-function migrateInstrumentField(o: Record<string, unknown>): Record<string, unknown> {
-  const { instrument, ...rest } = o;
-  return instrument !== undefined && rest.sound === undefined ? { ...rest, sound: instrument } : rest;
-}
-
 /** The MIDI block healed field by field against its schema: a field that parses is kept,
  *  one that is absent or corrupt takes `fallback`'s value (the shipped default on a first
  *  load). Never throws, never undefined. */
@@ -401,163 +400,12 @@ function healMidi(stored: unknown, fallback: MidiSettings): MidiSettings {
 }
 
 /**
- * One step of the persist migration: a blob written at version `n` becomes a version `n + 1`
- * blob. A step returns a NEW blob and never edits its argument or anything nested in it: the
- * blob belongs to the caller (zustand's rehydrated value), and `migrateControls` is tested
- * directly for exactly that (test/store_migrate_no_mutation.test.ts).
- */
-type ControlsMigration = (s: Record<string, unknown>) => Record<string, unknown>;
-
-/**
- * The persist version this build writes, and its history. Only some versions carry a data
- * transform (they are the steps in {@link CONTROLS_MIGRATIONS}, which repeat the reason
- * beside the code); the rest are ADDITIVE schema growth that {@link mergeControls} heals
- * (a field an older blob lacks takes its default), so the bump is only the version marker.
- *
- * - v2 (#64): the face-mapping chooser replaced the boolean `faceEnabled` with the
- *   tri-state `faceMapping`. Step.
- * - v3: the per-hand / chord timbre field was renamed `instrument` → `sound`. Step.
- * - v4: added the `handMap`.
- * - v5: the abstention retune raised the fearful/disgusted sensitivity default 0.5 → 0.7,
- *   delivered to a returning player who never customized it. Step.
- * - v6: #75 (decoupled chord-source scale — faceChord.chordSource/chordRoot/chordType) +
- *   #63 (per-voice octave RANGE — right/left.rangeLow/rangeHigh). Both ADDITIVE with
- *   defaults: mergeControls re-parses faceChord through FaceChordSchema (filling
- *   chordSource='auto' etc. for returning users → identical sound on their seven-note
- *   melodies), and the range fields are optional (absent → the legacy `octaves` scale path,
- *   byte-identical).
- * - v7 (#136): the Feature Lab moved out of the `overlay` dial onto its own per-device
- *   `featureLab` field (a tooling pref, like `faceCalibration`). Step.
- * - v8 (#137): the `midi` preset field (enabled/port), default off / first available port.
- * - v9 (#129): the `gestures` per-device tooling pref (enable flag, hold/cooldown timing,
- *   gesture → command bindings), defaults disabled; fist → silence, pinch → restore
- *   volume, open unbound.
- * - v10 (#76): the `faceControls` preset field (per-axis gain / deadzone / neutral zero /
- *   smoothing for the head-pose control mode). Its default is the shipped tuning, which is
- *   byte-identical to the build-time params the node used before the dial existed, so a
- *   returning player's `controls` mode sounds and feels exactly as it did.
- * - v11 (#188): the `steer` preset field (the generative layer: enabled / volume /
- *   config), default off. The transport (`steerPlaying`) is transient and not persisted,
- *   like `muted`.
- * - v12 (#187): the `conductor` preset field (the conductor node's params: off by default,
- *   hand/point, servo horizon, fallback + dynamics ranges).
- * - v13 (#186): `body` + `bodyMap` (a pre-#186 blob reads as off / no routes).
- * - v14 (#233): `airDrum` (the air-drum node's params, off by default).
- * - v15 (#249): `airBass`, the same way. v16: `airGuitar`. v17: `airFlute`.
- * - v18: the trainer HUD pref's default flipped to off (the Trainer's banner is the
- *   on-screen instruction now). Step.
- * - v19 (#263): `airFlute.prior` (the fingering-chart prior: on, the flute chart, strength
- *   10, C4..C#6).
- * - v20 (#269): `airDrum.pattern` (the trained pattern in play, '' for none).
- * - v21 (#232): the conductor dial gained `prior`; a returning player's conductor stays on
- *   the oscillator (LEGACY_CONDUCTOR_PRIOR). Step.
- * - v22 (#148): `hands` (the handedness dwell, default 0 = the raw per-frame label every
- *   earlier blob played by); healed after the v21 step runs.
- * - v23 (#168 Q3): `midi.muteFollowsMaster` (default true = the master mute silences MIDI,
- *   as every earlier blob played), healed field by field by healMidi.
- * - v24 (#240): `audioPrefs`, a per-device tooling pref (not a preset field): `lowLatency`,
- *   default off = the `interactive` hint every earlier blob ran with.
- *   Then, WITHOUT a bump (#336, #187 PR 5): `conductor.orchestra` (the sampled orchestra:
- *   on/off, overall and per-section level), default DEFAULT_ORCHESTRA. ADDITIVE and nested
- *   in the conductor dial, so the conductor heal (the schema parse over the current
- *   conductor) fills it for any earlier blob; no transform was ever needed, and this line
- *   is its history entry. A later bump is not owed for it.
- * - v25 (#186 PR G): `songPrefs`, a per-device tooling pref (not a preset field): the
- *   song's level and rate, defaults 0.8 / 1. The song itself and its transport are
- *   transient and never persisted.
- * - v26 (#186 PR H): `songPrefs` gained `follow` (default off: the song plays at its own
- *   tempo, as every earlier blob did) and `followRange` (0.1), healed over DEFAULT_SONG.
- *   Then, WITHOUT a bump (#375): `conductor.source` (`hands`) and `conductor.bodyPoint`
- *   (`impact`), additive in the conductor dial like `conductor.orchestra`; `hands` is what
- *   every earlier blob conducted with, so the conductor heal fills both and no transform
- *   is owed. And, WITHOUT a bump (#376): `conductor.markLevel` (`beat`), additive in the
- *   same way; `beat` is what every earlier blob marked. And, WITHOUT a bump (#377):
- *   `conductor.transport` (the body's start / hold / stop rules, `rules` on), additive and
- *   nested like `conductor.orchestra`; it acts only while the source is `body` (#375, the
- *   day before), so no earlier blob's hand conductor changes and no transform is owed.
- *   And, WITHOUT a bump (#427): `conductorPrefs` (the body conductor's lead offsets, a
- *   per-device pref like `songPrefs`), healed over DEFAULT_CONDUCTOR_PREFS: an earlier blob
- *   has none, which is no offset, what every earlier conductor played.
- *
- * Bump this and, if the change needs a transform, add `CONTROLS_MIGRATIONS[old]` together.
- */
-const CONTROLS_VERSION = 26;
-
-/**
- * The persist migration steps, keyed by the version they READ (like
- * `CATEGORIZER_MIGRATIONS`): `CONTROLS_MIGRATIONS[n]` takes a version-n blob to n + 1. A
- * version with no entry needs no transform (see {@link CONTROLS_VERSION}'s history).
- */
-const CONTROLS_MIGRATIONS: Readonly<Record<number, ControlsMigration>> = {
-  // → v2 (#64): `faceEnabled` (boolean) → `faceMapping` (tri-state); an explicit
-  // `faceMapping` wins over the legacy flag.
-  1: ({ faceEnabled, ...rest }) =>
-    rest.faceMapping === undefined ? { ...rest, faceMapping: legacyFaceToMapping(faceEnabled as boolean | undefined) } : rest,
-  // → v3: the timbre field `instrument` → `sound`, so a returning player keeps their sound.
-  2: (s) => {
-    const out = { ...s };
-    for (const key of ['right', 'left', 'faceChord'] as const) {
-      const sub = s[key];
-      if (sub && typeof sub === 'object') out[key] = migrateInstrumentField(sub as Record<string, unknown>);
-    }
-    return out;
-  },
-  // → v5: the abstention retune raised the fearful/disgusted firing default 0.5 → 0.7.
-  // Deliver it to a returning player who never customized those two (persisted value
-  // still === the OLD default), while preserving any value they DID set.
-  4: (s) => {
-    const fe = s.faceExpr as { sensitivity?: Record<string, number> } | undefined;
-    if (!fe?.sensitivity) return s;
-    const sensitivity = { ...fe.sensitivity };
-    for (const e of ['fearful', 'disgusted'] as const) {
-      if (sensitivity[e] === 0.5) sensitivity[e] = 0.7;
-    }
-    return { ...s, faceExpr: { ...fe, sensitivity } };
-  },
-  // → v7 (#136): the Feature Lab moved OUT of the `overlay` dial (an instrument parameter)
-  // and onto its own per-device tooling field. Carry a returning player's lab config across
-  // rather than dropping it on the floor: `overlay` is re-parsed through the lab-free
-  // OverlayDialSchema in mergeControls, which would strip it silently (and drop the key
-  // anyway; removing it here keeps the directly-tested migrate honest).
-  6: (s) => {
-    const ov = s.overlay as Record<string, unknown> | undefined;
-    if (ov?.featureLab === undefined) return s;
-    const { featureLab: lifted, ...overlay } = ov;
-    return { ...s, featureLab: s.featureLab === undefined ? lifted : s.featureLab, overlay };
-  },
-  // → v18: the Trainer's running banner moved above every panel (it is now the on-screen
-  // instruction), so painting the same words into the video is opt-in. A returning
-  // player's persisted `show: true` is the OLD default, not a choice (nothing ever asked),
-  // so it follows the new default once; re-ticking it in the panel sticks.
-  17: (s) => {
-    const hud = s.trainerHud as Record<string, unknown> | undefined;
-    return hud && hud.show === true ? { ...s, trainerHud: { ...hud, show: false } } : s;
-  },
-  // → v21 (#232): the conductor dial gained `prior`, whose default (`blend`) is a behaviour
-  // change. A returning player's conductor was the oscillator; it stays so (as a saved
-  // instrument's does in `normalizeLayer`), and the panel's chooser is how they move.
-  20: (s) => {
-    const cond = s.conductor as Record<string, unknown> | undefined;
-    return cond && typeof cond === 'object' && cond.prior === undefined ? { ...s, conductor: { ...cond, prior: LEGACY_CONDUCTOR_PRIOR } } : s;
-  },
-};
-
-/** The steps as `[readVersion, step]`, oldest first: the order a chain must run in. */
-const MIGRATION_CHAIN = Object.entries(CONTROLS_MIGRATIONS)
-  .map(([from, step]) => [Number(from), step] as const)
-  .sort((a, b) => a[0] - b[0]);
-
-/**
- * Persist migration: run every step whose target version (`from + 1`) is above the blob's
- * (a version-`version` blob needs each step that produces a later version), oldest first.
- * Written as `version < from + 1`, not `version <= from`, so a non-integer version (1.5)
- * runs the same steps the original `version < n` chain did. The result is a new object
- * even when no step runs; the caller's blob is never edited. Exported for direct testing.
+ * Persist migration of the CORE fields: every step whose target version is above the blob's,
+ * oldest first (the chain, the version and its history are in `./storeMigrations.ts`). The result
+ * is a new object; the caller's blob is never edited. Exported for direct testing.
  */
 export function migrateControls(persisted: unknown, version: number): ControlState {
-  let s = { ...(persisted as Record<string, unknown>) };
-  for (const [from, step] of MIGRATION_CHAIN) if (version < from + 1) s = step(s);
-  return s as unknown as ControlState;
+  return migrateCoreControls(persisted, version) as unknown as ControlState;
 }
 
 /**
@@ -679,9 +527,49 @@ export const HEAL_RULES: CoreHealRules = {
 
 /** The extensions' whole-object dials (the air instruments' today), each healed through its
  *  own slice schema over the current value, like the conductor. */
-const EXTENSION_HEAL_RULES: Readonly<Record<string, HealRule<unknown>>> = Object.fromEntries(
-  Object.entries(EXTENSION_DIAL_SCHEMAS).map(([key, schema]) => [key, { schema, complete: overCurrent }]),
-);
+const EXTENSION_HEAL_RULES: Readonly<Record<string, HealRule<unknown>>> = Object.fromEntries([
+  ...Object.entries(EXTENSION_DIAL_SCHEMAS).map(([key, schema]) => [key, { schema, complete: overCurrent }]),
+  // The extensions' per-device prefs (#600 S9), healed the same way.
+  ...CONTRIBUTIONS.prefSlices.map((p) => [p.key, { schema: p.schema, complete: overCurrent }]),
+]);
+
+/** Each extension dial's and pref's migration chain (#600 S9), run on rehydrate before the heal. */
+const SLICE_CHAINS = sliceChains([...CONTRIBUTIONS.dialSlices, ...CONTRIBUTIONS.prefSlices]);
+
+/** The slices the last rehydrated blob had that no listed extension claims (an extension removed
+ *  from the build), with their stored versions: carried through every write untouched. */
+let foreignSlices: Readonly<Record<string, number>> = {};
+
+/**
+ * The initial state with the extensions' per-device prefs added at their schema defaults (a first
+ * load). A pref named like a core field (or a dial, or a transient) would replace that field's
+ * default and its heal rule, and a returning player's value would be healed through the wrong
+ * schema: refused, loudly, when the store is built. Exported for direct testing.
+ */
+export function withExtensionPrefs<S extends object>(state: S, prefSlices: readonly PrefSlice[] = CONTRIBUTIONS.prefSlices): S {
+  assertNoCoreClash('hot-store field (as a pref)', Object.keys(state), prefSlices.map((p) => p.key));
+  return { ...state, ...Object.fromEntries(prefSlices.map((p) => [p.key, structuredClone(p.schema.parse(undefined))])) };
+}
+
+/**
+ * The three groups of {@link ControlState} (#600 S9), declared once so what is saved is computed,
+ * never hand-kept: PRESET dials (the settings schema's keys, saved in an instrument too), DEVICE
+ * prefs (core's below and every extension's pref slice: persisted, never in an instrument), and
+ * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
+ */
+const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'featureLab', 'gestures', 'trainerHud', 'audioPrefs', 'songPrefs', 'conductorPrefs'] as const satisfies readonly (keyof ControlState)[];
+const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
+
+/** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
+ *  were stored, and every slice's version. Exported for direct testing. */
+export function persistedControls(s: ControlState): Record<string, unknown> {
+  const state = s as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of PERSISTED_KEYS) out[k] = state[k];
+  for (const k of Object.keys(foreignSlices)) out[k] = state[k];
+  out[SLICE_VERSIONS_KEY] = sliceVersionsToWrite(SLICE_CHAINS, foreignSlices);
+  return out;
+}
 
 /** Every rule of `rules` applied to `stored` over `current`: the healed fields only. */
 function healAll(stored: Record<string, unknown>, current: Record<string, unknown>, rules: Readonly<Record<string, HealRule<unknown> | undefined>>): Record<string, unknown> {
@@ -699,7 +587,12 @@ function healAll(stored: Record<string, unknown>, current: Record<string, unknow
  * from any legacy `faceEnabled`, else `none`). Exported for direct testing.
  */
 export function mergeControls(persisted: unknown, current: ControlState): ControlState {
-  const p = (persisted ?? {}) as Partial<ControlState> & { faceEnabled?: boolean };
+  // The extensions' slices first (#600 S9): each runs its own chain, and a slice no listed
+  // extension claims is remembered, to be written back untouched.
+  const migrated = migrateSlices(persisted ?? {}, SLICE_CHAINS);
+  // A stored version on a core field is not a foreign slice: core's fields are written anyway.
+  foreignSlices = Object.fromEntries(Object.entries(migrated.foreign).filter(([k]) => !PERSISTED_KEYS.includes(k)));
+  const p = migrated.blob as Partial<ControlState> & { faceEnabled?: boolean };
   const stored = p as Record<string, unknown>;
   const cur = current as unknown as Record<string, unknown>;
   const healed = {
@@ -742,7 +635,7 @@ const controlsStorage = (): StateStorage =>
 
 export const useControls = create<ControlState>()(
   persist(
-    (set) => ({
+    (set) => withExtensionPrefs({
       right: defaultVoice(DEFAULT_SOUND_RIGHT),
       left: defaultVoice(DEFAULT_SOUND_LEFT),
       syncHands: true,
@@ -851,6 +744,12 @@ export const useControls = create<ControlState>()(
       setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),
       setTrainerHud: (patch) => set((s) => ({ trainerHud: { ...s.trainerHud, ...patch } })),
       setAudioPrefs: (patch) => set((s) => ({ audioPrefs: { ...s.audioPrefs, ...patch } })),
+      setPref: (key, value) => {
+        const slice = CONTRIBUTIONS.prefSlices.find((p) => p.key === key);
+        if (!slice) throw new Error(`setPref: "${key}" is not a pref any listed extension declares`);
+        const r = slice.schema.safeParse(value);
+        if (r.success) set({ [key]: r.data } as Partial<ControlState>);
+      },
       // Restore exactly the schema fields (the setters are left untouched). Derived
       // from SETTINGS_KEYS, so a new preset field needs no edit.
       applySettings: (st) =>
@@ -872,16 +771,8 @@ export const useControls = create<ControlState>()(
       storage: createJSONStorage(controlsStorage),
       // Persist the preset fields (schema-derived) + the per-device tooling prefs
       // (calibration, feature lab, gesture bindings), never the setter functions.
-      partialize: (s) => ({
-        ...pickSettings(s as unknown as Record<string, unknown>),
-        faceCalibration: s.faceCalibration,
-        featureLab: s.featureLab,
-        gestures: s.gestures,
-        trainerHud: s.trainerHud,
-        audioPrefs: s.audioPrefs,
-        songPrefs: s.songPrefs,
-        conductorPrefs: s.conductorPrefs,
-      }),
+      // The preset dials, the device prefs and the slices' versions (computed from the groups).
+      partialize: persistedControls,
     },
   ),
 );
@@ -899,6 +790,7 @@ provideControls({
     useControls.setState({ [field]: value } as Partial<ControlState>);
   },
   setHush: (claimer, on) => useControls.getState().setHush(claimer, on),
+  setPref: (key, value) => useControls.getState().setPref(key, value),
   subscribe: (listener) => useControls.subscribe(listener),
 });
 

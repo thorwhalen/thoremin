@@ -30,12 +30,12 @@ describe('foldContributions', () => {
 
   const twin = (over: Partial<Extension>): Extension => ({ ...empty('probe-twin'), ...over });
   const cases: { point: string; other: Extension; message: RegExp }[] = [
-    { point: 'dial key', other: twin({ dials: probe.dials }), message: /extensions "probe" and "probe-twin" both declare the dial key or transient field "probe"/ },
+    { point: 'dial key', other: twin({ dials: probe.dials }), message: /extensions "probe" and "probe-twin" both declare the dial key, pref or transient field "probe"/ },
     { point: 'node type (eager)', other: twin({ nodes: [node('probe-tone')] }), message: /extensions "probe" and "probe-twin" both declare the node type "probe-tone"/ },
     { point: 'node type (lazy)', other: twin({ nodes: undefined, provides: ['probe-tone'] }), message: /extensions "probe" and "probe-twin" both declare the node type "probe-tone"/ },
     { point: 'branch', other: twin({ branches: probe.branches }), message: /extensions "probe" and "probe-twin" both declare the branch "probe-branch"/ },
-    { point: 'transient field', other: twin({ transient: probe.transient }), message: /both declare the dial key or transient field "probeModel"/ },
-    { point: 'a transient named like a dial', other: twin({ transient: [{ field: 'probe', kind: 'x' }] }), message: /both declare the dial key or transient field "probe"/ },
+    { point: 'transient field', other: twin({ transient: probe.transient }), message: /both declare the dial key, pref or transient field "probeModel"/ },
+    { point: 'a transient named like a dial', other: twin({ transient: [{ field: 'probe', kind: 'x' }] }), message: /both declare the dial key, pref or transient field "probe"/ },
     { point: 'instrument', other: twin({ instruments: probe.instruments }), message: /both declare the instrument "Probe Instrument"/ },
     { point: 'training route', other: twin({ training: { routes: probe.training!.routes, byBranch: [] } }), message: /both declare the training route "probe"/ },
   ];
