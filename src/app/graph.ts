@@ -37,7 +37,7 @@ import { chordPool } from '@/nodes/mapping/chord_select.schema';
 import { DEFAULT_STEER_CONFIG } from '@/settings/schema';
 import { composeGraph, type ChordTarget, type Composed } from '@/instruments/compose';
 import { BRANCHES, TRUNK, trunk } from '@/instruments/branches';
-import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
+import { assertNoCoreClash, CONTRIBUTIONS, overlayConfigEdges } from '@/host/contributions';
 import { deriveBranchIds, type DerivationContext, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
 import { assembleSpecWith, type InstrumentSpec, type SpecParts } from '@/instruments/spec';
 
@@ -243,7 +243,10 @@ export function composeInstrumentGraph(
 ): Composed {
   // The trunk is implied: every instrument shares it, so no spec has to name it.
   const ids = branchIds.includes(trunk.id) ? branchIds : [trunk.id, ...branchIds];
-  return composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET });
+  const composed = composeGraph(ids, ALL_BRANCHES, { slots: resolveSlots(selection, registry), merge: MERGE_TARGET, chords: CHORD_TARGET });
+  // A contributed overlay element's config dial reaches it from the host, never a branch (#600 S5).
+  const config = overlayConfigEdges({ elements: composed.elements, edges: composed.spec.edges }, CONTRIBUTIONS.overlayElements, { ui: TRUNK.ui, overlay: TRUNK.overlay });
+  return config.length ? { ...composed, spec: { ...composed.spec, edges: [...composed.spec.edges, ...config] } } : composed;
 }
 
 /** The full graph: every branch. The selection swaps node types inside it (see SLOTS). */

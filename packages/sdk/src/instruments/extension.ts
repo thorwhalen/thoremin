@@ -99,10 +99,88 @@ export interface ExtensionTraining {
   byBranch: readonly (readonly [branch: string, route: string])[];
 }
 
+/**
+ * An overlay element an extension contributes, as DATA (#600 S5; `docs/design/vertical-slices.md`
+ * §4.2): the overlay grows one input port per declared input, named
+ * {@link overlayPortName}(extension, element, input), and lists the element under
+ * {@link overlayElementId}(extension, element) in the composed element set. The drawing code is
+ * {@link OverlayElementImpl}, in the extension's node half (eager: {@link Extension.overlayElements};
+ * lazy: {@link ExtensionNodes.overlayElements}), so a lazy element's code loads with its nodes and
+ * a frame drawn before that simply leaves it out.
+ */
+export interface OverlayElementDecl {
+  /** Unique within the extension; the host namespaces it. No `.` or `/` (they build the ids). */
+  name: string;
+  category: 'input' | 'output' | 'guide' | 'backdrop';
+  /** A HUD cue, laid out at an edge with the core cues (its impl's `measure` / `positionOf`),
+   *  instead of an in-scene drawing. */
+  cue?: boolean;
+  /** The element's inputs; a branch wires each to its generated overlay port. */
+  inputs: readonly { name: string; kind: string }[];
+  /** The extension dial slice that holds the element's options (its show flag among them): it
+   *  arrives as the input `config`. The host wires it whenever the element is composed (no branch
+   *  writes that edge, and one that feeds the `config` port is refused). `config` is therefore a
+   *  reserved input name. */
+  config?: { dialKey: string };
+}
+
+/** What an extension's overlay element sees of the frame: its size, and a cue's origin. */
+export interface OverlayFrame {
+  W: number;
+  H: number;
+  /** A cue's top-left corner, from the shared cue layout; absent for an in-scene element. */
+  origin?: { x: number; y: number };
+  /** True while drawing the overlay-only take (a transparent canvas recorded without the video):
+   *  an element that paints a backdrop leaves it out then. */
+  overlayOnly?: boolean;
+}
+
+/**
+ * An overlay element's drawing code (#600 S5). It sees ONLY its declared inputs (by input name,
+ * `config` among them when declared), and the frame: never the overlay's other inputs, never the
+ * hot store.
+ */
+export interface OverlayElementImpl {
+  /** Matches an {@link OverlayElementDecl.name} of the same extension. */
+  name: string;
+  draw(g: CanvasRenderingContext2D, frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): void;
+  /** A cue's box, or null while it has nothing to show. */
+  measure?(frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): { w: number; h: number } | null;
+  /** A cue's edge (default `right`). */
+  positionOf?(frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): 'left' | 'right' | 'top' | 'bottom';
+}
+
+/** The id an extension's overlay element has in a branch's `overlay` list and the element set. */
+export const overlayElementId = (extension: string, element: string): string => `${extension}/${element}`;
+
+/** The overlay input port an extension element's input arrives on (a branch's edge targets it). */
+export const overlayPortName = (extension: string, element: string, input: string): string => `${extension}.${element}.${input}`;
+
+/**
+ * What is wrong between an extension's overlay declarations and its drawing code (empty when
+ * nothing): a declared element with no impl (it would silently never draw), an impl nobody
+ * declared, an impl given twice. The host checks an eager extension when it folds the list and a
+ * lazy one when its node half arrives.
+ */
+export function overlayImplProblems(decls: readonly OverlayElementDecl[], impls: readonly OverlayElementImpl[]): string[] {
+  const declared = new Set(decls.map((d) => d.name));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const i of impls) {
+    if (seen.has(i.name)) out.push(`the overlay element "${i.name}" has two implementations`);
+    else if (!declared.has(i.name)) out.push(`the overlay element implementation "${i.name}" matches no declared element`);
+    seen.add(i.name);
+  }
+  for (const d of decls) if (!seen.has(d.name)) out.push(`the overlay element "${d.name}" is declared but has no implementation`);
+  return out;
+}
+
 /** What a LAZY extension's deferred half provides (`docs/design/lazy-extensions.md`): its node
- *  definitions, exactly the types its stub {@link Extension.provides}. */
+ *  definitions, exactly the types its stub {@link Extension.provides}, and the drawing code of
+ *  the overlay elements its stub declares. */
 export interface ExtensionNodes {
   nodes: readonly NodeDef<unknown>[];
+  overlayElements?: readonly OverlayElementImpl[];
 }
 
 export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[], Tr extends readonly TransientPort[] = readonly TransientPort[]> {
@@ -127,6 +205,10 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   instruments?: readonly ExtensionInstrument[];
   /** Its training routes, tried before core's Trainer tool. */
   training?: ExtensionTraining;
+  /** Overlay elements it contributes, as data (#600 S5): ports, category, config. */
+  overlay?: readonly OverlayElementDecl[];
+  /** An EAGER extension's overlay drawing code (a lazy one's arrives with {@link load}). */
+  overlayElements?: readonly OverlayElementImpl[];
   /**
    * Which of this extension's branches the settings imply (the derivation column of the ADR,
    * §3.4, for this extension). Called by `branchIdsFor` when no explicit set is given.

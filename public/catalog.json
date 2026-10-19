@@ -746,7 +746,7 @@
   {
     "type": "canvas-overlay",
     "title": "Canvas Overlay",
-    "description": "Mirrored video + composable overlay elements (guides, landmarks, markers, cues).",
+    "description": "Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.",
     "roles": [
       "overlay"
     ],
@@ -801,14 +801,6 @@
         "default": false
       },
       {
-        "name": "airDrumConfig",
-        "kind": "air-drum-config"
-      },
-      {
-        "name": "drumHits",
-        "kind": "drum-hits"
-      },
-      {
         "name": "cellGrid",
         "kind": "cell-grid"
       },
@@ -828,10 +820,6 @@
       {
         "name": "overlayConfig",
         "kind": "overlay-config"
-      },
-      {
-        "name": "airFluteStatus",
-        "kind": "air-flute-status"
       },
       {
         "name": "categories",
@@ -868,6 +856,18 @@
       {
         "name": "bodyVector",
         "kind": "feature-vector"
+      },
+      {
+        "name": "airDrumConfig",
+        "kind": "air-drum-config"
+      },
+      {
+        "name": "drumHits",
+        "kind": "drum-hits"
+      },
+      {
+        "name": "airFluteStatus",
+        "kind": "air-flute-status"
       }
     ],
     "outputs": [],

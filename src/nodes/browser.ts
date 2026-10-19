@@ -17,7 +17,7 @@ import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { CONTRIBUTIONS, foldContributions, loadExtensionNodes, loadedExtensionNodes } from '@/host/contributions';
 import type { NodeDef } from '@thoremin/dag';
 import { webAudioSynthNode } from './output/webaudio_synth';
-import { canvasOverlayNode } from './output/canvas_overlay';
+import { canvasOverlayNode, makeCanvasOverlayNode } from './output/canvas_overlay';
 import { midiOutNode } from './output/midi_out';
 
 export { webcamHandsNode } from './sources/webcam_hands';
@@ -61,10 +61,11 @@ export const BROWSER_NODES = [
 export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIONS.extensions): NodeRegistry {
   // The fan-in nodes are sized for what this list of extensions can compose (#600 S4); the core
   // library's default-sized ones are left out in their favour.
-  const { pools } = extensions === CONTRIBUTIONS.extensions ? CONTRIBUTIONS : foldContributions(extensions);
-  const sized = [makeSynthMergeNode(pools.merge), makeChordSelectNode(pools.chords)];
-  const core = CORE_NODES.filter((n) => !sized.some((s) => s.type === n.type));
-  const registry = createRegistry([...core, ...BROWSER_NODES, makeStoreControlsNode(extensions), ...sized]);
+  const { pools, overlayElements } = extensions === CONTRIBUTIONS.extensions ? CONTRIBUTIONS : foldContributions(extensions);
+  // ...and the overlay grows a port per input of each element the extensions contribute (#600 S5).
+  const sized = [makeSynthMergeNode(pools.merge), makeChordSelectNode(pools.chords), makeCanvasOverlayNode(overlayElements)];
+  const keep = (n: { type: string }) => !sized.some((s) => s.type === n.type);
+  const registry = createRegistry([...CORE_NODES.filter(keep), ...BROWSER_NODES.filter(keep), makeStoreControlsNode(extensions), ...sized]);
   for (const e of extensions) {
     if (e.provides && !e.load) {
       throw new Error(`createAppRegistry: extension "${e.id}" is a lazy stub (it names \`provides\`) with no \`load\`: pass the list from '@/host/contributions', which the build gives a loader, not the package's own export`);

@@ -5,13 +5,17 @@
  */
 import { z } from 'zod';
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
-import { defineExtension, dialSlice } from '@thoremin/sdk/instruments/extension';
+import { defineExtension, dialSlice, overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 
 export const PROBE_LAZY_NODE_TYPE = 'probe-lazy-tone';
 export const PROBE_LAZY_NODE_ID = 'probeLazy';
 export const PROBE_LAZY_BRANCH_ID = 'probe-lazy-branch';
 export const PROBE_LAZY_TOOL_ID = 'probe-lazy-tool';
+
+/** The lazy probe's overlay element (#600 S5): a HUD cue whose drawing code loads with its node. */
+export const PROBE_LAZY_ELEMENT = 'badge';
+export const PROBE_LAZY_ELEMENT_ID = overlayElementId('probe-lazy', PROBE_LAZY_ELEMENT);
 
 export const ProbeLazyDialSchema = z.object({ enabled: z.boolean() });
 export type ProbeLazyDial = z.infer<typeof ProbeLazyDialSchema>;
@@ -20,13 +24,18 @@ export const PROBE_LAZY_BRANCH = defineBranch({
   id: PROBE_LAZY_BRANCH_ID,
   description: 'The lazy probe voice (test-only).',
   nodes: [{ id: PROBE_LAZY_NODE_ID, type: PROBE_LAZY_NODE_TYPE }],
-  edges: [{ from: { node: TRUNK.ui, port: 'probeLazy' }, to: { node: PROBE_LAZY_NODE_ID, port: 'cfg' } }],
+  edges: [
+    { from: { node: TRUNK.ui, port: 'probeLazy' }, to: { node: PROBE_LAZY_NODE_ID, port: 'cfg' } },
+    { from: { node: PROBE_LAZY_NODE_ID, port: 'ticks' }, to: { node: TRUNK.overlay, port: overlayPortName('probe-lazy', PROBE_LAZY_ELEMENT, 'ticks') } },
+  ],
+  overlay: [PROBE_LAZY_ELEMENT_ID],
   voices: [{ from: { node: PROBE_LAZY_NODE_ID, port: 'params' }, role: 'instrument' }],
 });
 
 export const PROBE_LAZY_EXTENSION = defineExtension({
   id: 'probe-lazy',
   provides: [PROBE_LAZY_NODE_TYPE],
+  overlay: [{ name: PROBE_LAZY_ELEMENT, category: 'output', cue: true, inputs: [{ name: 'ticks', kind: 'number' }] }],
   branches: [PROBE_LAZY_BRANCH],
   dials: [
     dialSlice({
