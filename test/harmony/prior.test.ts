@@ -3,7 +3,7 @@
  * ranking moves by it, the likeliest first.
  */
 import { describe, it, expect } from 'vitest';
-import { TRANSITION_PRIORS, rankByPrior } from '@thoremin/sdk/harmony/prior';
+import { TRANSITION_PRIORS, rankByPrior, rankBySurprise } from '@thoremin/sdk/harmony/prior';
 
 const piston = TRANSITION_PRIORS.piston;
 
@@ -38,5 +38,17 @@ describe("Piston's usual root progressions", () => {
     // From I: IV (usual), iii, ii (less often), V (usual), vi (sometimes), vii° (unnamed).
     expect(rankByPrior(piston, 0, [3, 2, 1, 4, 5, 6])).toEqual([0, 3, 4, 1, 2, 5]);
     expect(rankByPrior(piston, 0, [null, 4])).toEqual([1, 0]);
+  });
+});
+
+describe('surprise (#672)', () => {
+  // From I: IV (usually), iii, ii (less often), V (usually), vi (sometimes), vii° (unnamed).
+  const targets = [3, 2, 1, 4, 5, 6];
+  it('puts the usual first at 0, the "sometimes" in the middle, the rare at 1', () => {
+    expect(rankBySurprise(piston, 0, targets, 0)).toEqual(rankByPrior(piston, 0, targets));
+    // A half aims between "sometimes" and "less often": iii, ii and vi first, the usual IV and V after.
+    expect(new Set(rankBySurprise(piston, 0, targets, 0.5).slice(0, 3))).toEqual(new Set([1, 2, 4]));
+    expect(rankBySurprise(piston, 0, targets, 1)[0]).toBe(5); // vii°, not in the table
+    expect(rankBySurprise(piston, 0, [null, 4], 1)).toEqual([1, 0]); // outside the key still last
   });
 });

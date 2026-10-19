@@ -34,7 +34,7 @@ void _breath;
 describe('the extension list', () => {
   it.runIf(AIR)('ships the air extension, whose instruments are its branches and dial slices', () => {
     expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(ASL ? ['asl'] : []), ...(MIDI ? ['midi-output'] : []), ...(FACES ? ['faces'] : [])]);
-    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', 'chord-map', 'chord-map-face', 'chord-wheel', 'chord-wheel-face', 'chord-chart', ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(MIDI ? ['midi-out'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
+    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', 'chord-map', 'chord-map-face', 'chord-wheel', 'chord-wheel-face', 'chord-wheel-affect', 'chord-chart', ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(MIDI ? ['midi-out'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
     expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', 'chordMap', 'chordWheel', 'chordChart', ...(ASL ? ['asl'] : []), ...(MIDI ? ['midi'] : []), ...(FACES ? ['faceCategorizer', 'poseCategorizer', 'categorizerChords'] : [])]);
     expect(ALL_BRANCH_IDS).toEqual(expect.arrayContaining(['trunk', 'field-voices', 'air-drum', 'air-flute']));
   });

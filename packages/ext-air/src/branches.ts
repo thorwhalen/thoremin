@@ -178,6 +178,16 @@ export const chordMapFace = defineBranch({
   overlay: ['faceLandmarks'],
 });
 
+/** The face sets the next-chord wheel's surprise (#672): its smoothed controls into the wheel,
+ *  composed only while the face is the surprise's source. */
+export const chordWheelAffect = defineBranch({
+  id: 'chord-wheel-affect',
+  description: "The face sets the next-chord wheel's surprise: an open mouth and raised brows put the rarer progressions on top.",
+  requires: ['chord-wheel', 'face-source'],
+  nodes: [],
+  edges: [to({ node: 'faceFeat', port: 'features' }, { node: 'chordWheel', port: 'face' })],
+});
+
 /**
  * Conduct a chord chart (H9 of #613, the design's 6.6): the conducted piece's chords, walked by
  * the conductor's beat. It requires the conductor, whose branch it composes; the conductor then
@@ -202,4 +212,4 @@ export const chordChart = defineBranch({
   chords: [{ from: { node: 'chordChart', port: 'triad' }, priority: 7 }],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordMapFace, chordWheel, chordWheelFace, chordChart] as const;
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap, chordMapFace, chordWheel, chordWheelFace, chordWheelAffect, chordChart] as const;

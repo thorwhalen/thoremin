@@ -65,3 +65,23 @@ export function rankByPrior(prior: TransitionPrior, from: number, targets: reado
   const w = (t: number | null) => (t === null ? -1 : prior.weight(from, t));
   return targets.map((_, i) => i).sort((a, b) => w(targets[b]) - w(targets[a]) || a - b);
 }
+
+/** The likeliest weight a prior gives (Piston's "usually") and its least (unnamed). */
+const MAX_WEIGHT = 3;
+const MIN_WEIGHT = 0;
+
+/**
+ * Indices ordered by surprise (#672, the design's 6.2): 0 puts the likeliest first (as
+ * `rankByPrior`), 1 the least likely, and a value between puts first the moves whose likelihood
+ * is nearest the target that much of the way down: at a half, the "sometimes" and "less often"
+ * progressions, where listeners' pleasure peaks between the expected and the strange (Cheung et
+ * al., 2019). Ties keep their given order; a target outside the key still goes last.
+ */
+export function rankBySurprise(prior: TransitionPrior, from: number, targets: readonly (number | null)[], surprise: number): number[] {
+  const s = Math.max(0, Math.min(1, Number.isFinite(surprise) ? surprise : 0));
+  const want = MAX_WEIGHT - s * (MAX_WEIGHT - MIN_WEIGHT);
+  const distance = (t: number | null) => (t === null ? Infinity : Math.abs(prior.weight(from, t) - want));
+  // Equally near the target: the likelier first (a "sometimes" before a rare one), then as given.
+  const weight = (t: number | null) => (t === null ? -1 : prior.weight(from, t));
+  return targets.map((_, i) => i).sort((a, b) => distance(targets[a]) - distance(targets[b]) || weight(targets[b]) - weight(targets[a]) || a - b);
+}

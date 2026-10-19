@@ -65,6 +65,8 @@ export function ChordWheelControls() {
   const tension = c.tension ?? 'off';
   const order = c.order ?? 'fixed';
   const clock = c.clock ?? 'tempo';
+  const surprise = c.surprise ?? 0;
+  const surpriseFrom = c.surpriseFrom ?? 'dial';
   const walkBeats = c.walkBeats ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
@@ -139,6 +141,19 @@ export function ChordWheelControls() {
           <option value="likely">likeliest next chord on top</option>
         </select>
       </label>
+      {order === 'likely' && (
+        <label className="flex items-center justify-between gap-2 text-xs" title="How surprising the top moves are: the usual progressions, the 'sometimes' ones (where listeners like it most), or the rare ones. From this setting, your other hand's height (raise it for surprise), or your face (an open mouth and raised brows).">
+          Surprise from
+          <select className={selectCls} value={surpriseFrom} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.surpriseFrom', e.target.value)}>
+            <option value="dial">this setting</option>
+            <option value="hand">the other hand's height</option>
+            <option value="face">the face (open mouth, raised brows)</option>
+          </select>
+        </label>
+      )}
+      {order === 'likely' && surpriseFrom === 'dial' && (
+        <Range label={`Surprise (${Math.round(surprise * 100)}%)`} path="chordWheel.surprise" value={surprise} min={0} max={1} step={0.05} enabled={enabled} />
+      )}
       <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the functional ladder makes V tenser than ii; Lerdahl's distance and the key profile put ii further from home), so a number always comes with its model.">
         Tension shown
         <select className={selectCls} value={tension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.tension', e.target.value)}>
