@@ -801,10 +801,6 @@
         "default": false
       },
       {
-        "name": "cellGrid",
-        "kind": "cell-grid"
-      },
-      {
         "name": "expression",
         "kind": "face-expression"
       },
@@ -880,6 +876,14 @@
       {
         "name": "air.drumPads.config",
         "kind": "air-drum-config"
+      },
+      {
+        "name": "air.chordMap.grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "air.chordMap.config",
+        "kind": "chord-map-config"
       },
       {
         "name": "air.mouthCue.status",

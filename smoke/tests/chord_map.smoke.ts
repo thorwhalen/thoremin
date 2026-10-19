@@ -2,7 +2,7 @@
  * The chord map in a real browser against the built bundle: a cold load, then the Chord Map
  * instrument chosen from the Instruments view the way a player does (one click on its row).
  * The node must join the live graph and emit its grid of chords, the overlay must be asked to
- * draw that grid (the composed element set names `cellGrid`), its settings readout must appear
+ * draw that grid (the composed element set names `air/chordMap`, the air extension's own element), its settings readout must appear
  * under the row, and the page must keep running without an error. Then Chord Map Strum: the
  * same grid, now strummed.
  */
@@ -43,7 +43,7 @@ test('the Chord Map instrument loads, emits its grid of chords and asks the over
   const labels = await page.evaluate(() => ((window.thoremin!.getOutput('chordMap', 'grid') as Grid)?.cells ?? []).filter((c) => c.shape === 'hex').map((c) => c.label));
   expect([...new Set(labels)].sort()).toEqual(['Am', 'B°', 'C', 'Dm', 'Em', 'F', 'G']);
   const elements = await page.evaluate(() => window.thoremin!.getOutput('ui', 'graphElements') as string[] | undefined);
-  expect(elements).toContain('cellGrid');
+  expect(elements).toContain('air/chordMap');
   await expect(page.getByTestId('chord-map-live')).toBeVisible();
   const status = await page.evaluate(() => window.thoremin!.getOutput('chordMap', 'status') as { enabled: boolean; play: string; key: string });
   expect(status).toMatchObject({ enabled: true, play: 'hold', key: 'C' });

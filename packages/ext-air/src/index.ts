@@ -33,7 +33,7 @@ import { pluckOutNode } from './nodes/pluck_out';
 import { chordMapNode } from './nodes/chord_map';
 import { chordWheelNode } from './nodes/chord_wheel';
 import { drawCellGrid, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
-import { CHORD_WHEEL_ELEMENT } from './branches';
+import { CHORD_MAP_ELEMENT, CHORD_WHEEL_ELEMENT } from './branches';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
@@ -78,12 +78,24 @@ export const AIR_EXTENSION = defineExtension({
   // it. Every element's options are this extension's dials, delivered by the host.
   overlay: [
     { name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } },
-    { name: DRUM_PADS_ELEMENT, category: 'guide', drawBefore: 'cellGrid', inputs: [{ name: 'hits', kind: 'drum-hits' }, { name: 'hands', kind: 'hands-frame' }], config: { dialKey: 'airDrum' } },
+    { name: DRUM_PADS_ELEMENT, category: 'guide', drawBefore: 'markers', inputs: [{ name: 'hits', kind: 'drum-hits' }, { name: 'hands', kind: 'hands-frame' }], config: { dialKey: 'airDrum' } },
+    // The chord map's grid (#610 item 4; core's `cellGrid` before): just above the drum pads and
+    // beneath the markers, where core drew it.
+    { name: CHORD_MAP_ELEMENT, category: 'guide', drawBefore: 'markers', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordMap' } },
     { name: BREATH_CUE_ELEMENT, category: 'output', cue: true, drawBefore: 'faceExpression', inputs: [{ name: 'status', kind: 'air-flute-status' }], config: { dialKey: 'airFlute' } },
   ],
   overlayElements: [
     drumPadsElement,
     breathCueElement,
+    {
+      name: CHORD_MAP_ELEMENT,
+      draw(g, frame, inputs) {
+        const config = inputs.config as { enabled?: boolean; gridOnVideo?: { show?: boolean } } | undefined;
+        if (config?.enabled !== true || config.gridOnVideo?.show === false) return;
+        const grid = cellGridOf(inputs.grid);
+        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
+      },
+    },
     {
       name: CHORD_WHEEL_ELEMENT,
       draw(g, frame, inputs) {

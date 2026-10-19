@@ -70,6 +70,7 @@ export function ChordMapControls() {
   const enabled = c.enabled === true;
   const layout = c.layout ?? 'harmonic';
   const anchor = c.anchor ?? 'home';
+  const gridOnVideo = (c.gridOnVideo as { show?: boolean } | undefined)?.show ?? true;
   const follow = c.follow ?? 'hands';
   const clock = c.clock ?? 'tempo';
   const commit = c.commit ?? 'now';
@@ -184,6 +185,10 @@ export function ChordMapControls() {
       {play === 'hold' && melody && (
         <Range label={`Melody volume (${Math.round(melodyVolume * 100)}%)`} path="chordMap.melodyVolume" value={melodyVolume} min={0} max={1} step={0.05} enabled={enabled} />
       )}
+      <label className="flex items-center gap-2 text-xs" title="The chords and the melody ladder drawn over the video. Off, the map still plays where it would be drawn.">
+        <input type="checkbox" checked={gridOnVideo} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.gridOnVideo.show', e.target.checked)} />
+        Draw the map on the video
+      </label>
       <label className="flex items-center gap-2 text-xs" title="The key's seventh chords: Cmaj7, Dm7, G7, Bø7. Neighbours a third apart then share three notes.">
         <input type="checkbox" checked={sevenths} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.sevenths', e.target.checked)} />
         Seventh chords
