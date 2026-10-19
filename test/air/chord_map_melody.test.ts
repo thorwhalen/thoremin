@@ -19,16 +19,29 @@ const A_MINOR: ScaleSpec = { root: 9, type: 'minor', octaves: 2, baseOctave: 3 }
 const names = (ns: number[]) => ns.map(midiToName);
 
 describe('the melody note sets', () => {
-  it('are the chord\'s tones, the key\'s pentatonic or its whole scale', () => {
-    expect(pentatonicOf(C).sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]);
-    expect(pentatonicOf(A_MINOR).sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]); // A C D E G
+  it('are the chord\'s tones, the chord\'s pentatonic or the whole scale, from the chord\'s root', () => {
+    const chords = diatonicChords(C);
+    const pent = (d: number) => pentatonicOf(C, chords[d].triad)[0];
+    expect([0, 1, 2, 3, 4, 5, 6].map(pent)).toEqual([0, 5, 7, 5, 7, 0, 7]); // C F G F G C, and B° G's
     expect(scaleOf(C)).toEqual([0, 2, 4, 5, 7, 9, 11]);
-    const em = diatonicChords(C)[2].tones;
+    const em = chords[2].tones;
     expect(names(melodyNotesFor('chord', em, C, 60, 1))).toEqual(['E4', 'G4', 'B4', 'E5']);
-    expect(names(melodyNotesFor('pentatonic', em, C, 60, 1))).toEqual(['C4', 'D4', 'E4', 'G4', 'A4', 'C5']);
-    expect(names(melodyNotesFor('scale', em, C, 60, 1))).toEqual(['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']);
-    expect(names(melodyNotesFor('pentatonic', [], A_MINOR, 60, 1))).toEqual(['A4', 'C5', 'D5', 'E5', 'G5', 'A5']);
+    expect(names(melodyNotesFor('pentatonic', em, C, 60, 1))).toEqual(['E4', 'G4', 'A4', 'B4', 'D5', 'E5']);
+    expect(names(melodyNotesFor('scale', em, C, 60, 1))).toEqual(['E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5']);
+    expect(pentatonicOf(A_MINOR, []).sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 9]); // the tonic's: A C D E G
     expect(setLadder([], 0, 60, 2)).toEqual([]);
+  });
+
+  it('nest for six of the seven chords, in every key: chord tones in the chord\'s pentatonic in the scale', () => {
+    for (const spec of [C, A_MINOR, { ...C, root: 5 }, { ...A_MINOR, root: 2 }]) {
+      const scale = new Set(scaleOf(spec));
+      diatonicChords(spec).forEach((chord, d) => {
+        const pent = new Set(pentatonicOf(spec, chord.triad));
+        for (const p of pent) expect(scale.has(p), `${d}`).toBe(true);
+        const inside = chord.triad.every((n) => pent.has(((n % 12) + 12) % 12));
+        expect(inside, `degree ${d}`).toBe(chord.quality !== 'dim'); // the diminished chord alone has a tritone
+      });
+    }
   });
 
   it('picks a set by tilt, upright to chord tones, holding a set within 5 degrees of its edges', () => {

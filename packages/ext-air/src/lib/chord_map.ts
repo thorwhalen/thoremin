@@ -219,16 +219,36 @@ export function melodyLadder(triad: readonly number[], baseMidi: number, octaves
 }
 
 /** The melody hand's note sets, from the fewest to the most (the video's right hand, whose tilt
- *  morphs between the chord's tones, the key's pentatonic and the full scale). */
+ *  morphs between the chord's tones, the chord's pentatonic and the full scale): they nest. */
 export const MELODY_SETS = ['chord', 'pentatonic', 'scale'] as const;
 export type MelodySet = (typeof MELODY_SETS)[number];
 
-/** The key's pentatonic: the major pentatonic of a major key, the minor pentatonic otherwise
- *  (the five notes with no semitone between them, the consonant leads). */
-export function pentatonicOf(spec: ScaleSpec): number[] {
+const MAJOR_PENTATONIC = SCALE_TYPES.pentatonic.intervals;
+
+/** The key's major pentatonics: one on every note of the key whose five notes all lie in it
+ *  (C, F and G in C major, and in A minor). */
+export function keyPentatonics(spec: ScaleSpec): number[][] {
+  const scale = new Set(scaleOf(spec));
+  return [...scale].map((r) => MAJOR_PENTATONIC.map((i) => mod(r + i, 12))).filter((pent) => pent.every((p) => scale.has(p)));
+}
+
+/**
+ * The CHORD's pentatonic (the deep research on the video, §5): the key's pentatonic that holds the
+ * chord's tones, so chord tones lie inside it and it inside the scale, and tilting the melody hand
+ * only ever adds notes (C and Am: C pentatonic; F and Dm: F's; G and Em: G's). A chord no
+ * pentatonic holds (vii°: a pentatonic has no tritone) takes the one sharing most of its tones,
+ * the key's dominant on a tie (B°: G pentatonic). With no chord, the tonic's.
+ */
+export function pentatonicOf(spec: ScaleSpec, chordTones: readonly number[] = []): number[] {
+  const pents = keyPentatonics(spec);
+  if (pents.length === 0) return [];
+  const pcs = [...new Set(chordTones.slice(0, 3).map((n) => mod(n, 12)))];
   const key = letterChordSpec(spec);
-  const intervals = SCALE_TYPES[key.type === 'major' ? 'pentatonic' : 'minorPentatonic'].intervals;
-  return intervals.map((i) => mod(key.root + i, 12));
+  const tonic = mod(key.root, 12);
+  if (pcs.length === 0) return pents.find((p) => p[0] === tonic) ?? pents[0];
+  const dominant = mod(scaleOf(spec)[4], 12);
+  const score = (pent: number[]) => pcs.filter((p) => pent.includes(p)).length;
+  return [...pents].sort((a, b) => score(b) - score(a) || Number(b[0] === dominant) - Number(a[0] === dominant))[0];
 }
 
 /** The key's seven pitch classes. */
@@ -249,12 +269,12 @@ export function setLadder(pcs: readonly number[], first: number, baseMidi: numbe
   return notes;
 }
 
-/** The melody ladder for a set: the chord's tones from its root, or the pentatonic or the scale
- *  from the key's tonic. */
+/** The melody ladder for a set: the chord's tones, the chord's pentatonic or the scale, each from
+ *  the chord's root, so the three ladders share their bottom note and nest. */
 export function melodyNotesFor(set: MelodySet, chordTones: readonly number[], spec: ScaleSpec, baseMidi: number, octaves: number): number[] {
   if (set === 'chord') return melodyLadder(chordTones, baseMidi, octaves);
-  const tonic = letterChordSpec(spec).root;
-  return setLadder(set === 'pentatonic' ? pentatonicOf(spec) : scaleOf(spec), tonic, baseMidi, octaves);
+  const first = chordTones.length ? mod(chordTones[0], 12) : mod(letterChordSpec(spec).root, 12);
+  return setLadder(set === 'pentatonic' ? pentatonicOf(spec, chordTones) : scaleOf(spec), first, baseMidi, octaves);
 }
 
 /** How far the melody hand tilts (degrees, either way) at each set's lower edge, and the margin
