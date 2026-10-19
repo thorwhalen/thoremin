@@ -7,9 +7,9 @@ import { beatAt, createBeatQuantizer } from '@thoremin/sdk/harmony/clock';
 import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '@thoremin/sdk/harmony/realize';
 
 describe('the beat from musical time', () => {
-  it('extrapolates a running stream, holds a held one, and has none while it waits', () => {
+  it('extrapolates a running stream; a song loaded but not playing is no clock', () => {
     expect(beatAt({ t: 10, beat: 4, tempo: 120, state: 'running' }, 10.25)).toBeCloseTo(4.5);
-    expect(beatAt({ t: 10, beat: 4, tempo: 120, state: 'hold' }, 11)).toBe(4);
+    expect(beatAt({ t: 10, beat: 4, tempo: 120, state: 'hold' }, 11)).toBeNull();
     expect(beatAt({ t: 10, beat: 0, tempo: 120, state: 'ready' }, 11)).toBeNull();
     expect(beatAt(undefined, 11)).toBeNull();
   });
@@ -39,5 +39,15 @@ describe('committing a change on the beat', () => {
     expect(q.push(5, 4.8, 2)).toBe(3); // every other beat: lands on 6
     expect(q.push(5, 5.5, 2)).toBe(3);
     expect(q.push(5, 6.0, 2)).toBe(5);
+  });
+
+  it('re-aims a wait when the beat jumps back, and keeps the grace a fixed part of a beat', () => {
+    const q = createBeatQuantizer(-1);
+    q.push(2, 300.5, 1); // waiting for beat 301
+    expect(q.push(2, 0.5, 1)).toBe(-1); // the song restarted: the wait now ends at beat 1
+    expect(q.push(2, 1.0, 1)).toBe(2);
+    const bar = createBeatQuantizer(-1);
+    expect(bar.push(4, 4.3, 4)).toBe(-1); // 0.3 beat late in a bar of four is not "on" it
+    expect(bar.push(4, 8, 4)).toBe(4);
   });
 });

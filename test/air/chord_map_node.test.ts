@@ -339,6 +339,38 @@ describe('the chord-map node, on musical time (H9 of #613)', () => {
   });
 });
 
+describe('the chord-map node, on musical time, the edges (H9 review)', () => {
+  const c = cellOf(0);
+  const am = cellOf(5);
+  const run = (config: Record<string, unknown>, time?: (t: number) => unknown, chordAt: (t: number) => { x: number; y: number } | null = (t) => (t < 1.05 ? c : am)) => {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    return chordMapTake({ duration: 2.5, chordAt }).map((fr) => ({ t: fr.t!, out: h.process({ hands: fr, config: { ...ON, bpm: 120, ...config }, spec: C_MAJOR, octaveShift: 0, time: time?.(fr.t!) }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out }));
+  };
+
+  it('a song loaded but not playing is no clock: the change lands on the tempo\'s beat, never stuck', () => {
+    const paused = () => ({ t: 0, beat: 7.3, tempo: 90, state: 'hold', phase: 0, period: 1, confidence: 1, nextBeatAt: 0, beatsPerBar: 4, beatInBar: 0, anchors: 0 });
+    const outs = run({ clock: 'song', commit: 'beat' }, paused);
+    expect(outs[outs.length - 1].out.status.chord).toBe('Am');
+  });
+
+  it('while a change waits, the melody stays on the chord that sounds and the waiting cell is the candidate', () => {
+    const outs = run({ commit: 'beat', commitBeats: 2 });
+    const mid = outs.find((o) => o.t >= 1.3)!.out; // C landed on beat 2 (t = 1); Am waits for beat 4 (t = 2)
+    expect(mid.status.chord).toBe('C');
+    const ladder = mid.grid.cells.filter((x) => x.shape === 'rect').map((x) => x.label.replace(/\d+$/, ''));
+    expect(ladder.slice(0, 3)).toEqual(['C', 'E', 'G']);
+    expect(mid.grid.cells.filter((x) => x.state === 'candidate').map((x) => x.label)).toEqual(['Am']);
+    expect(mid.grid.cells.filter((x) => x.state === 'active').map((x) => x.label)).toEqual(['C']);
+  });
+
+  it('a release waits for the beat too, and switching to strum lets nothing ring on', () => {
+    const outs = run({ commit: 'beat' }, undefined, (t) => (t < 1.05 ? c : null));
+    expect(outs.find((o) => o.t >= 1.4)!.out.status.chord).toBe('C'); // the release waits for beat 3 (t = 1.5)
+    const strum = run({ commit: 'beat', play: 'strum' });
+    expect(chordVoices(strum[strum.length - 1].out.params).every((v) => !v.present || v.gain === 0)).toBe(true);
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {

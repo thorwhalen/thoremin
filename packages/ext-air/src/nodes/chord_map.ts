@@ -491,6 +491,7 @@ export const chordMapNode = defineNode<Params>({
           cells = layoutCells(c.layout, regions.chords, { aspect, cellSize: c.cellSize });
           cellsKey = key;
           lastCell = -1;
+          quantizer.reset(-1);
           tracker?.reset();
           choice = { active: null, candidate: null };
         }
@@ -573,12 +574,23 @@ export const chordMapNode = defineNode<Params>({
           }
         }
 
-        const degree = choice.active !== null && placed[choice.active] ? placed[choice.active].degree : -1;
-        if (degree >= 0) lastCell = choice.active!;
-        // On the beat (H9): the change waits for the clock's next beat, the end of this tick's.
+        const pointed = choice.active !== null && placed[choice.active] ? choice.active : -1;
+        const degree = pointed >= 0 ? placed[pointed].degree : -1;
+        // On the beat (H9): in hold mode the CELL that sounds waits for the clock's next beat (the
+        // end of this tick's), so the melody and the grid follow what sounds; strumming holds nothing.
         const beatNow = songBeat ?? renderer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * (typeof ctx?.dt === 'number' ? ctx.dt : 0);
-        const wanted = c.play === 'hold' ? degree : -1;
-        const held = c.commit === 'beat' ? quantizer.push(wanted, beatNow, c.commitBeats) : (quantizer.reset(wanted), wanted);
+        let heldCell = -1;
+        if (c.play !== 'hold') quantizer.reset(-1);
+        else if (c.commit === 'beat') heldCell = quantizer.push(pointed, beatNow, c.commitBeats);
+        else {
+          quantizer.reset(pointed);
+          heldCell = pointed;
+        }
+        const held = heldCell >= 0 && placed[heldCell] ? placed[heldCell].degree : -1;
+        const sounding = c.play === 'hold' ? heldCell : pointed;
+        if (sounding >= 0) lastCell = sounding;
+        const waiting = quantizer.pending();
+        const shownChoice: CellChoice = c.play === 'hold' && c.commit === 'beat' ? { active: heldCell >= 0 ? heldCell : null, candidate: waiting !== undefined && waiting >= 0 ? waiting : null } : choice;
         const { voices } = render(held);
 
         // The melody: the other hand's height over the chord's tones (the last chord's while
@@ -627,7 +639,7 @@ export const chordMapNode = defineNode<Params>({
           laidOut: cells,
           marks,
           chords,
-          choice,
+          choice: shownChoice,
           captions: c.captions,
           ladder,
           pointers: [chordPoint, c.play === 'hold' && c.melody ? otherPoint : null].filter((x): x is { x: number; y: number } => x !== null),

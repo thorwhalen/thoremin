@@ -86,14 +86,14 @@ export const trunk = defineBranch({
     to(ui('graphElements'), overlay('elements')),
     // The song (#186 PR G): the loaded song by identity, its transport, level and rate, and
     // a tool's claim, which silences it like every other voice.
-    to(ui('songHandle'), { node: 'songPlayer', port: 'song' }),
-    to(ui('songPlaying'), { node: 'songPlayer', port: 'playing' }),
-    to(ui('songPlays'), { node: 'songPlayer', port: 'play' }),
-    to(ui('songRate'), { node: 'songPlayer', port: 'rate' }),
-    to(ui('songVolume'), { node: 'songPlayer', port: 'volume' }),
-    to(ui('songHoldFade'), { node: 'songPlayer', port: 'holdFade' }),
-    to(ui('songHoldSlow'), { node: 'songPlayer', port: 'holdSlow' }),
-    to(ui('claimed'), { node: 'songPlayer', port: 'claimed' }),
+    to(ui('songHandle'), { node: TRUNK.song, port: 'song' }),
+    to(ui('songPlaying'), { node: TRUNK.song, port: 'playing' }),
+    to(ui('songPlays'), { node: TRUNK.song, port: 'play' }),
+    to(ui('songRate'), { node: TRUNK.song, port: 'rate' }),
+    to(ui('songVolume'), { node: TRUNK.song, port: 'volume' }),
+    to(ui('songHoldFade'), { node: TRUNK.song, port: 'holdFade' }),
+    to(ui('songHoldSlow'), { node: TRUNK.song, port: 'holdSlow' }),
+    to(ui('claimed'), { node: TRUNK.song, port: 'claimed' }),
   ],
   overlay: ['video', 'landmarks', 'featureLab', 'featureCorrelation', 'tagHud', 'trainerHud'],
 });
@@ -276,10 +276,10 @@ export const songPace = defineBranch({
   edges: [
     to({ node: 'bodyPulse', port: 'pulse' }, { node: 'pace', port: 'pulse' }, true),
     to({ node: 'conductor', port: 'recordingTime' }, { node: 'pace', port: 'lead' }, true),
-    { from: { node: 'songPlayer', port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
-    { from: { node: 'songPlayer', port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
+    { from: { node: TRUNK.song, port: 'songTime' }, to: { node: 'pace', port: 'song' }, delayed: true },
+    { from: { node: TRUNK.song, port: 'rate' }, to: { node: 'pace', port: 'rate' }, delayed: true },
     // Neither law leads a song still loading (#500).
-    { from: { node: 'songPlayer', port: 'status' }, to: { node: 'pace', port: 'songStatus' }, delayed: true },
+    { from: { node: TRUNK.song, port: 'status' }, to: { node: 'pace', port: 'songStatus' }, delayed: true },
     to(ui('songRate'), { node: 'pace', port: 'base' }),
     to(ui('songFollowRange'), { node: 'pace', port: 'range' }),
     // After a Play, land the song's beat on the dancer's cycle at once (#346 item 1).
@@ -288,9 +288,9 @@ export const songPace = defineBranch({
     to(ui('songStartBeat'), { node: 'pace', port: 'offset' }),
     // A new song restarts the laws (#439): the handle's identity, not its time.
     to(ui('songHandle'), { node: 'pace', port: 'songHandle' }),
-    to({ node: 'pace', port: 'rate' }, { node: 'songPlayer', port: 'followRate' }),
-    to({ node: 'pace', port: 'playing' }, { node: 'songPlayer', port: 'followPlaying' }),
-    to({ node: 'pace', port: 'cue' }, { node: 'songPlayer', port: 'cue' }),
+    to({ node: 'pace', port: 'rate' }, { node: TRUNK.song, port: 'followRate' }),
+    to({ node: 'pace', port: 'playing' }, { node: TRUNK.song, port: 'followPlaying' }),
+    to({ node: 'pace', port: 'cue' }, { node: TRUNK.song, port: 'cue' }),
   ],
 });
 

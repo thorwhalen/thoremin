@@ -107,6 +107,14 @@ describe('the beat walk (H11 of #613)', () => {
     expect(w.walking()).toBe(false);
   });
 
+  it('re-aims at the next beat when the beat jumps back (a song restarted)', () => {
+    const w = createBeatWalk();
+    step(w, 50, { committed: 0 });
+    expect(step(w, 51)).toBe(0);
+    expect(step(w, 0.4)).toBeNull(); // back near the start: the next step is beat 1
+    expect(step(w, 1.0)).toBe(0);
+  });
+
   it('never walks with the walk off', () => {
     const w = createBeatWalk();
     step(w, 0, { committed: 0, beats: 0 });

@@ -14,12 +14,13 @@
  * refused to start (`reason: 'autoplay'`), turns `songPlaying` back off, so the next press
  * of Play is a fresh start rather than a no-op.
  */
+import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
 import type { MusicalTime, PaceMode, PaceState } from '@thoremin/ictus';
 import type { OutputReader } from './generativeStatus';
 
-export const SONG_NODE_ID = 'songPlayer';
+export const SONG_NODE_ID = TRUNK.song;
 /** The pace controller's id in the `song-pace` branch. */
 export const PACE_NODE_ID = 'pace';
 
