@@ -17,7 +17,7 @@
  * Pure.
  */
 
-export const CLOCKS = ['tempo', 'song'] as const;
+export const CLOCKS = ['tempo', 'song', 'conductor'] as const;
 export type ClockId = (typeof CLOCKS)[number];
 
 /** The fields of a musical-time stream this reads (`MusicalTime` has them all). */
@@ -31,11 +31,48 @@ export interface BeatSource {
   state: 'ready' | 'running' | 'hold' | string;
 }
 
-/** The beat at `now` (null: no stream, or it is waiting for its first beat). */
-export function beatAt(time: BeatSource | null | undefined, now: number): number | null {
+/** The beat at `now` (null: no stream, or it is not running). With `holds`, a stream that holds
+ *  (a conductor's fermata, a cut-off held) keeps its beat where it stopped rather than handing back
+ *  to the tempo: the music is waiting, and so is the harmony. */
+export function beatAt(time: BeatSource | null | undefined, now: number, { holds = false }: { holds?: boolean } = {}): number | null {
   if (!time || !Number.isFinite(time.beat)) return null;
   if (time.state === 'running' && Number.isFinite(time.tempo) && time.tempo > 0) return time.beat + ((now - time.t) * time.tempo) / 60;
+  if (holds && time.state === 'hold') return time.beat;
   return null;
+}
+
+/** The beat from whichever clock an instrument keeps (null: its own tempo's). */
+export function clockBeat(clock: ClockId, streams: { song?: BeatSource | null; conductor?: BeatSource | null }, now: number): number | null {
+  if (clock === 'song') return beatAt(streams.song, now);
+  if (clock === 'conductor') return beatAt(streams.conductor, now, { holds: true });
+  return null;
+}
+
+/** How long a conductor's hold keeps an instrument's beat before it hands back to the tempo: a
+ *  fermata is a few seconds; a hold that lasts (the piece ended, the conductor walked away) must
+ *  not freeze an instrument that only keeps time with him. */
+export const MAX_HOLD_S = 4;
+
+/** `clockBeat` with memory: a conductor's hold counts for `maxHoldS`, then the instrument's own
+ *  tempo takes over until he runs again. */
+export function createClockReader({ maxHoldS = MAX_HOLD_S }: { maxHoldS?: number } = {}) {
+  let heldBeat: number | null = null;
+  let since = 0;
+  return {
+    read(clock: ClockId, streams: { song?: BeatSource | null; conductor?: BeatSource | null }, now: number): number | null {
+      const beat = clockBeat(clock, streams, now);
+      const holding = clock === 'conductor' && streams.conductor?.state === 'hold' && beat !== null;
+      if (!holding) {
+        heldBeat = null;
+        return beat;
+      }
+      if (heldBeat !== beat) {
+        heldBeat = beat;
+        since = now;
+      }
+      return now - since > maxHoldS ? null : beat;
+    },
+  };
 }
 
 /** A beat this close ahead is reached (a beat count is a float sum of ticks). */

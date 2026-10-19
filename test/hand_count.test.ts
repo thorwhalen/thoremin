@@ -111,19 +111,22 @@ describe('the shipped instruments', () => {
     }
   });
 
-  // No shipped instrument reads one hand alone: the conducting ones are the field instruments with
-  // the conductor on (they play both hands), and ASL reads one hand (the higher) but declares
-  // nothing, so it is inferred as two until its branch says `hands: 1` (a thoremin-asl change).
-  it('all still look for every hand under D13, skeleton shown (its default)', () => {
+  // One shipped instrument reads one hand alone: Conduct the Chords (H9 of #613), whose only hand
+  // reader is the conductor's beating hand (the chord chart reads none). D13 gives it one. The
+  // other conducting ones are the field instruments with the conductor on (they play both hands),
+  // and ASL reads one hand (the higher) but declares nothing, so it is inferred as two until its
+  // branch says `hands: 1` (a thoremin-asl change).
+  const ONE_HAND = new Set(['Conduct the Chords']);
+  it('all still look for every hand under D13 but the one-hand conductor, skeleton shown (its default)', () => {
     expect(settingsOf.size).toBe(SEED_INSTRUMENTS.length);
     for (const [name, settings] of settingsOf) {
-      expect(deriveHandCount(composed(settings), { skeletonShown: true }), name).toBe(2);
+      expect(deriveHandCount(composed(settings), { skeletonShown: true }), name).toBe(ONE_HAND.has(name) ? 1 : 2);
     }
   });
 
-  it('all still look for every hand under D13 even with the skeleton hidden', () => {
+  it('the same with the skeleton hidden', () => {
     for (const [name, settings] of settingsOf) {
-      expect(deriveHandCount(composed(settings), HIDDEN), name).toBe(2);
+      expect(deriveHandCount(composed(settings), HIDDEN), name).toBe(ONE_HAND.has(name) ? 1 : 2);
     }
   });
 });

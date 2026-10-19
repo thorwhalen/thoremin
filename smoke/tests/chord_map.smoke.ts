@@ -63,17 +63,29 @@ test('the Chord Wheel instrument loads and draws its wheel through its own overl
   expect(await page.evaluate(() => window.thoremin!.getOutput('chordWheel', 'grid'))).toBeUndefined();
 
   await choose(page, 'Chord Wheel');
-  // The centre (the tonic) and a wedge per move, with the moves' targets.
+  // The centre and a wedge per move. The synthetic hand may already have pushed the wheel to
+  // another chord (a move is what it is for), so the check holds for any centre: the key's moves
+  // from any of its chords reach the other six, so the wheel always shows all seven.
   await expect
-    .poll(() => page.evaluate(() => ((window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? []).map((c) => c.label)), { timeout: 20_000 })
-    .toEqual(['C', 'F', 'Em', 'Dm', 'G', 'Am', 'B°']);
+    .poll(() => page.evaluate(() => ((window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? []).map((c) => c.label).sort()), { timeout: 20_000 })
+    .toEqual(['Am', 'B°', 'C', 'Dm', 'Em', 'F', 'G']);
   const elements = await page.evaluate(() => window.thoremin!.getOutput('ui', 'graphElements') as string[] | undefined);
   expect(elements).toContain('air/chordWheel');
   await expect(page.getByTestId('chord-wheel-live')).toBeVisible();
 
   await choose(page, 'Tonnetz Wheel');
+  // The first wedge is P, the parallel of whatever chord is in the centre (C to Cm, Em to E).
   await expect
-    .poll(() => page.evaluate(() => ((window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? []).slice(1, 4).map((c) => c.label)), { timeout: 20_000 })
-    .toEqual(['Cm', 'Em', 'Am']);
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const cells = (window.thoremin!.getOutput('chordWheel', 'grid') as Grid)?.cells ?? [];
+          if (cells.length < 2) return false;
+          const [centre, p] = [cells[0].label, cells[1].label];
+          return p === (centre.endsWith('m') ? centre.slice(0, -1) : `${centre}m`);
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
   expect(errors).toEqual([]);
 });

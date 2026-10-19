@@ -238,6 +238,15 @@
     }
   },
   "categorizerChordsModel": null,
+  "chordChart": {
+    "bpm": 100,
+    "enabled": false,
+    "gain": 0.2,
+    "rendering": "arpUpDown",
+    "sound": "warmPad",
+    "step": 1,
+    "voicing": "voiceLed"
+  },
   "chordMap": {
     "anchor": "home",
     "audioDwellS": 0.25,

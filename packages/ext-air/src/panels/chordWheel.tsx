@@ -155,6 +155,7 @@ export function ChordWheelControls() {
         <select className={selectCls} value={clock} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.clock', e.target.value)}>
           <option value="tempo">the Chord sound's tempo</option>
           <option value="song">the song</option>
+          <option value="conductor">the conductor (while conducting)</option>
         </select>
       </label>
       {walk && (
