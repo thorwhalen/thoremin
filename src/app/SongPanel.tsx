@@ -118,7 +118,7 @@ export default function SongPanel() {
   if (!open) return null;
 
   const tool = toolById(SONG_TOOL_ID);
-  const { volume, rate, follow, followRange, holdFadeS, holdSlow } = prefs;
+  const { volume, rate, follow, followRange, holdFadeS, holdSlow, alignStart } = prefs;
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -228,6 +228,17 @@ export default function SongPanel() {
                       step={0.01}
                       value={followRange}
                       onChange={(e) => setPrefs({ followRange: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 text-xs text-white/80" data-testid="song-align-start">
+                    <span>
+                      Start on your step <span className="text-white/40">(a Play lands the beat on it at once)</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={alignStart}
+                      aria-label="Start on your step"
+                      onChange={(e) => void dispatchCommand('song.alignStart.set', { on: e.target.checked })}
                     />
                   </label>
                 </>

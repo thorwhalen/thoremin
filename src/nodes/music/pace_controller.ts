@@ -67,6 +67,11 @@ type Params = z.infer<typeof Params>;
 
 const finite = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
+/** A start alignment smaller than this (beats) is left to the nudge. */
+const ALIGN_MIN_BEATS = 0.04;
+/** The ids of start-alignment cues, apart from the beat servo's own counter (the node's `cue` output carries either). */
+const ALIGN_CUE_ID_BASE = 1_000_000_000;
+
 export const paceControllerNode = defineNode<Params>({
   type: 'pace-controller',
   roles: ['music', 'control'],
@@ -82,6 +87,7 @@ export const paceControllerNode = defineNode<Params>({
     { name: 'lead', kind: 'musical-time', description: "A conductor's time (#187 PR 7): while present, the song follows it beat for beat (the beat servo) instead of the dancer" },
     { name: 'offset', kind: 'number', default: 0, description: "The song's beat on which the conductor's first beat lands" },
     { name: 'songHandle', kind: 'song-handle', description: 'The loaded song (the store\'s handle): a new one restarts both laws (#439)' },
+    { name: 'alignStart', kind: 'boolean', default: false, description: "The player's choice (the Song tool): after a Play, move the song ONCE so its beat lands on the dancer's cycle start, instead of closing the phase error through the rate nudge over several seconds (#346 item 1)" },
     { name: 'songStatus', kind: 'load-status', description: "The song player's status, a tick old: neither law leads a song that is not playable yet (#500)" },
   ],
   outputs: [
@@ -99,6 +105,9 @@ export const paceControllerNode = defineNode<Params>({
     let led = false;
     /** The loaded song's id, last seen (`SongHandle.id`, fresh per load). */
     let songId: unknown;
+    /** Start alignment (#346 item 1): whether this play has been aligned already, and a counter for the cue ids. */
+    let aligned = false;
+    let alignCue = 0;
     return {
       process(inputs, ctx) {
         // A song replaced by another (#439): what either law learned about the old one (the
@@ -111,6 +120,7 @@ export const paceControllerNode = defineNode<Params>({
         if (swapped) {
           servo.reset();
           controller.reset();
+          aligned = false;
         }
         // A song still loading is not led (#500): the player's `songTime` is then the new
         // song's grid at the OLD position, and a cue made from it would be stale by the time
@@ -154,7 +164,15 @@ export const paceControllerNode = defineNode<Params>({
             range: finite(inputs.range, PACE_DEFAULTS.range),
           });
         }
-        return { rate: pace.rate, pace };
+        // The song is moved to the dancer's cycle ONCE per play, at the first following tick: a seek of at
+        // most half a beat in the song's first moments, instead of a nudge that takes up to ~8 s.
+        let cue: { id: number; beat: number } | undefined;
+        if (!song || song.state !== 'running') aligned = false;
+        else if (!aligned && inputs.alignStart === true && pace.mode === 'following' && Number.isFinite(pace.phaseError)) {
+          aligned = true;
+          if (Math.abs(pace.phaseError) > ALIGN_MIN_BEATS) cue = { id: ALIGN_CUE_ID_BASE + ++alignCue, beat: Math.max(0, song.beat - pace.phaseError) };
+        }
+        return { rate: pace.rate, pace, ...(cue ? { cue } : {}) };
       },
     };
   },

@@ -670,6 +670,7 @@
   "songPlaying": false,
   "songPlays": 0,
   "songPrefs": {
+    "alignStart": false,
     "follow": false,
     "followRange": 0.1,
     "holdFadeS": 0,

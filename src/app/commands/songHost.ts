@@ -23,6 +23,8 @@ export interface SongHost {
    *  per-device prefs. */
   setFollow(follow: boolean): void;
   setFollowRange(range: number): void;
+  /** Whether a Play moves the song once onto the dancer's cycle start (#346 item 1). */
+  setAlignStart(on: boolean): void;
   /** Seconds the song fades out on a conductor's hold and back in on the release (#366). */
   setHoldFade(seconds: number): void;
   setHoldSlow(fraction: number): void;
