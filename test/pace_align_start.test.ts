@@ -66,7 +66,7 @@ describe('start alignment', () => {
     };
     play(0);
     // Stopped: the song reads as not running for a moment.
-    for (let i = 0; i < 10; i++) node.process({ pulse: dancer(6 + i / HZ, P0, 0), song: song(6 + i / HZ, 6, 'stopped'), rate: 1, base: 1, songHandle: { id: 1 }, alignStart: true }, { tick: 1000 + i, time: 6 + i / HZ, dt: 1 / HZ, resources: {} } as NodeContext);
+    for (let i = 0; i < 10; i++) node.process({ pulse: dancer(6 + i / HZ, P0, 0), song: song(6 + i / HZ, 6, 'ready'), rate: 1, base: 1, songHandle: { id: 1 }, alignStart: true }, { tick: 1000 + i, time: 6 + i / HZ, dt: 1 / HZ, resources: {} } as NodeContext);
     play(7);
     expect(n).toBe(2);
   });
