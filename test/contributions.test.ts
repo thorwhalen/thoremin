@@ -22,8 +22,9 @@ describe('foldContributions', () => {
   it('folds the probes in list order', () => {
     const c = foldContributions([probe, { ...PROBE_LAZY_EXTENSION, load: async () => ({ nodes: [] }) }]);
     expect(c.dialSlices.map((d) => d.key)).toEqual(['probe', 'probeLazy']);
-    expect(c.nodeTypes).toEqual(['probe-tone', 'probe-lazy-tone']);
-    expect(c.branches.map((b) => b.id)).toEqual(['probe-branch', 'probe-lazy-branch']);
+    expect(c.nodeTypes).toEqual(['probe-tone', 'probe-body', 'probe-lazy-tone']);
+    expect(c.branches.map((b) => b.id)).toEqual(['probe-branch', 'probe-sense', 'probe-lazy-branch']);
+    expect(c.slotCandidates).toEqual({ body: { types: ['probe-body'] } });
     expect(c.transientFields).toEqual(['probeModel']);
     expect(c.instruments.map((i) => i.name)).toEqual(['Probe Instrument']);
     expect(c.trainingRoutes.map((r) => r.id)).toEqual(['probe']);
