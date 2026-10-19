@@ -4,21 +4,21 @@
  * whose best template is the chord played; silence and a single note read no chord.
  */
 import { describe, it, expect } from 'vitest';
-import { chromaFromSpectrum, matchChord } from '@thoremin/sdk/harmony/chroma';
+import { chromaFromSpectrum, createLevelGate, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { createChordFollower } from '@thoremin/sdk/harmony/chord_in';
 
 const SR = 44100;
 const N = 8192;
 
 /** The magnitude spectrum of notes played together (each with `harmonics` partials at 1/h). */
-function spectrum(midis: readonly number[], harmonics = 4): Float64Array {
+function spectrum(midis: readonly number[], harmonics = 4, tilt = 1): Float64Array {
   const x = new Float64Array(N);
   for (let i = 0; i < N; i++) {
     const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
     let s = 0;
     for (const m of midis) {
       const f = 440 * 2 ** ((m - 69) / 12);
-      for (let h = 1; h <= harmonics; h++) s += Math.sin((2 * Math.PI * f * h * i) / SR) / h;
+      for (let h = 1; h <= harmonics; h++) s += Math.sin((2 * Math.PI * f * h * i) / SR) / h ** tilt;
     }
     x[i] = s * w;
   }
@@ -36,7 +36,7 @@ function spectrum(midis: readonly number[], harmonics = 4): Float64Array {
   }
   return mags;
 }
-const read = (midis: readonly number[]) => matchChord(chromaFromSpectrum(spectrum(midis), { sampleRate: SR, fftSize: N }));
+const read = (midis: readonly number[], harmonics = 4, tilt = 1) => matchChord(chromaFromSpectrum(spectrum(midis, harmonics, tilt), { sampleRate: SR, fftSize: N }));
 
 describe('a chord from its sound', () => {
   it('reads triads, sevenths and a guitar\'s open E, each clearly', () => {
@@ -53,6 +53,26 @@ describe('a chord from its sound', () => {
       expect(m.score).toBeGreaterThan(0.8);
       expect(m.margin).toBeGreaterThan(0.02);
     }
+  });
+
+  it('a bright timbre (ten harmonics): a triad and its own seventh do not cancel, a power chord is no major chord', () => {
+    const c = read([48, 52, 55, 60, 64], 10, 0.7)!; // an open C, bright
+    expect(c.chord.root).toBe(0);
+    expect(['maj', 'maj7']).toContain(c.chord.quality);
+    expect(c.margin).toBeGreaterThan(0.02);
+    const a5 = read([45, 52, 57], 10, 1); // A2 E3 A3: the root's fifth harmonic is a faint C#
+    expect(a5 === null || a5.chord.quality !== 'maj' || a5.chord.root !== 9).toBe(true);
+  });
+
+  it('a sound counts only clearly above the room\'s own floor, whatever the gain', () => {
+    const g = createLevelGate();
+    for (let i = 0; i < 20; i++) expect(g.push(1e-9, 0.1)).toBe(false); // the room
+    expect(g.push(5e-8, 0.1)).toBe(true); // 17 dB over it: a guitar across the room
+    expect(g.push(3e-9, 0.1)).toBe(false); // a breath
+    const loud = createLevelGate();
+    for (let i = 0; i < 20; i++) loud.push(1e-5, 0.1); // a noisy, hot microphone
+    expect(loud.push(5e-5, 0.1)).toBe(false); // not 10 dB over its floor
+    expect(loud.push(5e-4, 0.1)).toBe(true);
   });
 
   it('reads nothing from silence, and no clear chord from a single note', () => {

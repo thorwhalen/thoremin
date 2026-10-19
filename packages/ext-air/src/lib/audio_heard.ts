@@ -6,10 +6,12 @@
 
 export interface AudioHeard {
   available: boolean;
-  /** The energy of each pitch class (C first), the loudest 1; empty while nothing is heard. */
+  /** The energy of each pitch class (C first), the loudest 1, to two decimals; empty while
+   *  nothing is sounding. */
   chroma: number[];
-  /** The total energy in the band read (silence is near 0). */
-  energy: number;
-  /** Why nothing can be heard: no microphone API, the player refused it, or the browser is asking. */
-  reason?: 'unsupported' | 'denied' | 'pending';
+  /** Something is sounding: clearly above the room's own noise floor. */
+  sounding: boolean;
+  /** Why nothing can be heard: no microphone API, the player refused it, the browser is still
+   *  asking, or it opened and then failed. */
+  reason?: 'unsupported' | 'denied' | 'pending' | 'failed';
 }

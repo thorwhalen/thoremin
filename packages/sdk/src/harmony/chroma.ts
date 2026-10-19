@@ -8,8 +8,13 @@
  *   little), over a band that skips the rumble below and the bright overtones above.
  * - `matchChord`: the cosine of the chroma with each chord's template (the 24 major and minor
  *   triads, and the four sevenths that share their tones, which win only when the seventh is
- *   really there); the best, its score and its margin over the runner-up, so a caller commits
- *   only a clear reading. No sound, or a sound that fits no chord, reads nothing.
+ *   really there); a chord whose third is not really sounding is not offered (a power chord's
+ *   root has a fifth harmonic on the major third, a whisper of it), and the margin is taken
+ *   against the best chord that is a DIFFERENT chord (a triad and its own seventh light the same
+ *   cell and must not cancel each other), so a caller commits only a clear reading.
+ * - `createLevelGate`: is anything sounding? A running noise floor (the room, learned while it
+ *   is quiet and rising slowly) and a margin above it, so a guitar across the room counts and the
+ *   room itself does not, whatever the microphone's gain.
  *
  * Pure: the AnalyserNode is the app half. No new dependency.
  */
@@ -55,6 +60,11 @@ export function chromaFromSpectrum(magnitudes: ArrayLike<number>, { sampleRate, 
 /** The qualities matched: the triads, and the sevenths a player strums or a band holds. */
 export const CHROMA_QUALITIES: readonly QualityId[] = ['maj', 'min', '7', 'maj7', 'min7'];
 
+/** The triad under each matched quality: what tells two readings apart as different chords. */
+const TRIAD: Partial<Record<QualityId, QualityId>> = { maj: 'maj', '7': 'maj', maj7: 'maj', min: 'min', min7: 'min' };
+/** A chord's third must sound at least this much of the loudest pitch class to be offered. */
+const MIN_THIRD = 0.15;
+
 export interface ChordMatch {
   chord: Chord;
   /** Cosine of the chroma with the chord's template, 0..1. */
@@ -78,18 +88,55 @@ const cosine = (a: readonly number[], b: readonly number[]): number => {
 /** A seventh beats its triad only by this much (a triad's own overtones are not a seventh). */
 const SEVENTH_PENALTY = 0.04;
 
-export function matchChord(chroma: Chroma, { minEnergy = 1e-6, qualities = CHROMA_QUALITIES }: { minEnergy?: number; qualities?: readonly QualityId[] } = {}): ChordMatch | null {
-  if (!(chroma.energy > minEnergy)) return null;
+export function matchChord(chroma: Chroma, { minEnergy = 0, qualities = CHROMA_QUALITIES, minThird = MIN_THIRD }: { minEnergy?: number; qualities?: readonly QualityId[]; minThird?: number } = {}): ChordMatch | null {
+  if (!(chroma.energy > minEnergy) || chroma.bins.every((b) => b === 0)) return null;
   const scored: { chord: Chord; score: number }[] = [];
   for (let root = 0; root < 12; root++) {
     for (const quality of qualities) {
+      const third = QUALITIES[quality].intervals[1];
+      if (chroma.bins[(root + third) % 12] < minThird) continue;
       const t = new Array<number>(12).fill(0);
       for (const iv of QUALITIES[quality].intervals) t[(root + iv) % 12] = 1;
       const penalty = QUALITIES[quality].intervals.length > 3 ? SEVENTH_PENALTY : 0;
       scored.push({ chord: { root, quality }, score: cosine(chroma.bins, t) - penalty });
     }
   }
+  if (scored.length === 0) return null;
   scored.sort((a, b) => b.score - a.score);
-  const [best, next] = scored;
-  return { chord: best.chord, score: best.score, margin: best.score - (next?.score ?? 0) };
+  const best = scored[0];
+  const same = (c: Chord) => c.root === best.chord.root && TRIAD[c.quality] === TRIAD[best.chord.quality];
+  const rival = scored.find((s) => !same(s.chord));
+  return { chord: best.chord, score: best.score, margin: best.score - (rival?.score ?? 0) };
+}
+
+export interface LevelGateOptions {
+  /** How far above the noise floor a sound must be, as an energy ratio (10 = 10 dB). */
+  ratio?: number;
+  /** How fast the floor creeps up toward a steady level, per second (a fraction of the gap). */
+  rise?: number;
+  /** The quietest floor assumed (a digital silence has no floor to learn). */
+  minFloor?: number;
+}
+
+export interface LevelGate {
+  /** One reading: its energy and the seconds since the last; whether something is sounding. */
+  push(energy: number, dt: number): boolean;
+  reset(): void;
+}
+
+export function createLevelGate({ ratio = 10, rise = 0.05, minFloor = 1e-10 }: LevelGateOptions = {}): LevelGate {
+  let floor = Infinity;
+  return {
+    push(energy, dt) {
+      const e = Number.isFinite(energy) && energy > 0 ? energy : 0;
+      // The floor falls at once to anything quieter, and rises slowly toward a lasting level, so a
+      // held chord is not learned as the room within its few seconds.
+      if (e < floor) floor = Math.max(minFloor, e);
+      else floor += (e - floor) * Math.min(1, rise * Math.max(0, dt));
+      return e > Math.max(minFloor, floor) * ratio;
+    },
+    reset() {
+      floor = Infinity;
+    },
+  };
 }

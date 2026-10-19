@@ -112,9 +112,8 @@ const VALENCE_MARGIN = 0.08;
 const AROUSAL_EDGES = [0.35, 0.55] as const;
 const AROUSAL_MARGIN = 0.05;
 const AROUSAL_DWELL_S = 0.25;
-/** The microphone (H8): the band's energy below which nothing is sounding (about -70 dB a bin
- *  over the band), the template fit a chord must reach, and its lead over the runner-up. */
-const AUDIO_MIN_ENERGY = 1e-5;
+/** The microphone (H8): the template fit a chord must reach, and its lead over the best different
+ *  chord. Whether anything is sounding is the listener's (the room's noise floor plus a margin). */
 const AUDIO_MIN_SCORE = 0.8;
 const AUDIO_MIN_MARGIN = 0.02;
 /** Seconds the cells a modulation changed stay marked (the letters map). */
@@ -547,7 +546,7 @@ export const chordMapNode = defineNode<Params>({
           if (c.follow === 'midi') heard = follower.push(midi?.held ?? [], now);
           else {
             // Only a clear reading counts: loud enough, close to a chord, and clearly that one.
-            const match = audio?.available && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: audio.energy }, { minEnergy: AUDIO_MIN_ENERGY }) : null;
+            const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }) : null;
             heard = follower.pushChord(match && match.score >= AUDIO_MIN_SCORE && match.margin >= AUDIO_MIN_MARGIN ? match.chord : null, now);
           }
           const key = keyOf(spec);
@@ -561,7 +560,7 @@ export const chordMapNode = defineNode<Params>({
         const midiStatus: ChordMapStatus['midi'] =
           c.follow !== 'midi' ? 'off' : !midi || midi.reason === 'pending' ? 'waiting' : midi.reason === 'denied' ? 'denied' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';
         const audioStatus: ChordMapStatus['audio'] =
-          c.follow !== 'audio' ? 'off' : !audio || audio.reason === 'pending' ? 'waiting' : audio.reason === 'denied' ? 'denied' : !audio.available ? 'unavailable' : audio.energy < AUDIO_MIN_ENERGY ? 'quiet' : 'listening';
+          c.follow !== 'audio' ? 'off' : !audio || audio.reason === 'pending' ? 'waiting' : audio.reason === 'denied' ? 'denied' : !audio.available ? 'unavailable' : audio.sounding ? 'listening' : 'quiet';
         // A heard chord outside the key: no cell, but its own tones in the map's register.
         const outsideTones = heard && choice.active === null ? heardChordTones(heard, spec) : null;
         const heardName = heard ? chordName(heard, keyOf(spec)) : null;

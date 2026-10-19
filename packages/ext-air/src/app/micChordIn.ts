@@ -7,10 +7,16 @@
  * it opens nothing (no permission prompt for a player who never asked), and closing the map, or
  * choosing another source, stops the microphone.
  *
- * The browser's own clean-ups (echo cancellation, noise suppression, gain control) are asked off:
- * they are tuned for speech and smear a chord. The `startMidiChordIn` pattern.
+ * Echo cancellation stays ON: without it, the chord the map itself plays comes back in through a
+ * laptop's microphone, mixes with the player's next one and keeps the old one in force. Noise
+ * suppression and gain control, tuned for speech, are asked off. Whether anything is sounding is
+ * the room's own noise floor plus a margin (`createLevelGate`), not a fixed level, and a reading
+ * is published only when it changes (silence once, a held chord rounded to two decimals), since
+ * every hot-store write is a persist pass. The context is resumed (a browser creates it suspended
+ * without a gesture, and a suspended analyser reads silence forever), once more on the next tap
+ * or key if that was refused. The `startMidiChordIn` pattern.
  */
-import { chromaFromSpectrum } from '@thoremin/sdk/harmony/chroma';
+import { chromaFromSpectrum, createLevelGate } from '@thoremin/sdk/harmony/chroma';
 import { airControls } from './controls';
 import type { AudioHeard } from '../lib/audio_heard';
 
@@ -44,12 +50,28 @@ const browserOpen = (): (() => Promise<MicLike>) | null => {
   const Ctx = typeof window === 'undefined' ? undefined : (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
   if (!media?.getUserMedia || !Ctx) return null;
   return async () => {
-    const stream = await media.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    const ctx = new Ctx();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = FFT_SIZE;
-    analyser.smoothingTimeConstant = 0.5;
-    ctx.createMediaStreamSource(stream).connect(analyser);
+    const stream = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } });
+    let ctx: AudioContext | null = null;
+    let analyser: AnalyserNode;
+    try {
+      ctx = new Ctx();
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = FFT_SIZE;
+      analyser.smoothingTimeConstant = 0.5;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+    } catch (e) {
+      // Opened, then failed (a sample-rate mismatch): never leave the microphone on.
+      stream.getTracks().forEach((t) => t.stop());
+      void ctx?.close();
+      throw Object.assign(new Error('the microphone could not be analysed'), { cause: e, failed: true });
+    }
+    const live = ctx;
+    const unlock = () => void live.resume().catch(() => undefined);
+    await live.resume().catch(() => undefined);
+    if (live.state !== 'running' && typeof window !== 'undefined') {
+      window.addEventListener('pointerdown', unlock, { once: true });
+      window.addEventListener('keydown', unlock, { once: true });
+    }
     const db = new Float32Array(analyser.frequencyBinCount);
     return {
       sampleRate: ctx.sampleRate,
@@ -60,7 +82,11 @@ const browserOpen = (): (() => Promise<MicLike>) | null => {
       },
       close() {
         stream.getTracks().forEach((t) => t.stop());
-        void ctx.close();
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('keydown', unlock);
+        }
+        void live.close();
       },
     };
   };
@@ -86,6 +112,15 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
   let stopReading: (() => void) | null = null;
   let listening = false;
   let generation = 0;
+  const gate = createLevelGate();
+  /** What was published last, so an unchanged reading writes nothing. */
+  let lastSent = '';
+  const send = (heard: AudioHeard | null) => {
+    const key = JSON.stringify(heard);
+    if (key === lastSent) return;
+    lastSent = key;
+    publish(heard);
+  };
 
   const stop = () => {
     stopReading?.();
@@ -101,14 +136,14 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
     const mine = ++generation;
     if (!want) {
       stop();
-      publish(null);
+      send(null);
       return;
     }
     if (!open) {
-      publish({ available: false, chroma: [], energy: 0, reason: 'unsupported' });
+      send({ available: false, chroma: [], sounding: false, reason: 'unsupported' });
       return;
     }
-    publish({ available: false, chroma: [], energy: 0, reason: 'pending' });
+    send({ available: false, chroma: [], sounding: false, reason: 'pending' });
     open()
       .then((m) => {
         if (mine !== generation) {
@@ -116,13 +151,15 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
           return;
         }
         mic = m;
+        gate.reset();
         stopReading = every(() => {
           const { bins, energy } = chromaFromSpectrum(magnitudesOf(m.read()), { sampleRate: m.sampleRate, fftSize: m.fftSize });
-          publish({ available: true, chroma: bins, energy });
+          const sounding = gate.push(energy, READ_MS / 1000);
+          send({ available: true, chroma: sounding ? bins.map((b) => Math.round(b * 100) / 100) : [], sounding });
         }, READ_MS);
       })
-      .catch(() => {
-        if (mine === generation) publish({ available: false, chroma: [], energy: 0, reason: 'denied' });
+      .catch((e: unknown) => {
+        if (mine === generation) send({ available: false, chroma: [], sounding: false, reason: (e as { failed?: boolean })?.failed ? 'failed' : 'denied' });
       });
   };
   apply(store.getState());
@@ -131,6 +168,6 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
     unsubscribe();
     generation += 1;
     stop();
-    publish(null);
+    send(null);
   };
 }
