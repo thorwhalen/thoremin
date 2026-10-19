@@ -60,6 +60,12 @@ export const ConductorTransportSchema = z.object({
   upbeat: z.enum(['speed', 'shape']).default(TRANSPORT_DEFAULTS.upbeat),
   /** `shape`: the least rise above the ready height that can be an upbeat, torso lengths. */
   riseMin: z.number().min(0.03).max(0.6).default(TRANSPORT_DEFAULTS.riseMin),
+  /** `shape`: the fall into the downbeat must come within this long of the arm's peak, seconds
+   *  (longer for a slow tempo). */
+  fallWithinS: z.number().min(0.2).max(2).default(TRANSPORT_DEFAULTS.fallWithinS),
+  /** `shape`: a downward first stroke counts as the upbeat when it drops this far below the
+   *  ready height within a quarter of a second, torso lengths. */
+  fastFall: z.number().min(0.1).max(0.8).default(TRANSPORT_DEFAULTS.fastFall),
   /** The ready pose (raised and still) must last this long, seconds. */
   readyS: z.number().min(0).max(5).default(TRANSPORT_DEFAULTS.readyS),
   /** No stroke for this many stroke periods, raised and still: hold (a fermata). */
