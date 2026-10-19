@@ -20,6 +20,7 @@
     "./priors": "./src/priors.ts",
     "./pace": "./src/pace.ts",
     "./pulse": "./src/pulse.ts",
+    "./ritard": "./src/ritard.ts",
     "./scheduler": "./src/scheduler.ts",
     "./servo": "./src/servo.ts",
     "./song_grid": "./src/song_grid.ts",

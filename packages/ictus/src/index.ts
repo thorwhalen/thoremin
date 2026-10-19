@@ -55,6 +55,8 @@ export { createLevelHold, relateLevel, inCapture, paceRatios, conductorRatios, L
 export type { LevelHold, LevelHoldOptions, LevelHoldState, LevelMatch, LevelMode, RelateLevelOptions } from './level';
 export { createPaceController, relatePeriods, PACE_DEFAULTS } from './pace';
 export { createDanceLead, DANCE_LEAD_DEFAULTS } from './dance';
+
+export { createFinalRitard, kthTempoRatio, KTH_RITARD_DEFAULTS, TEMPO_PRIORS, type TempoPriorKind } from './ritard';
 export type { DanceLead, DanceLeadInput, DanceLeadMode, DanceLeadOptions, DanceLeadState } from './dance';
 export type { PaceController, PaceInput, PaceMode, PaceOptions, PaceState } from './pace';
 export { createBeatServo, servoRate, SERVO_DEFAULTS } from './servo';
