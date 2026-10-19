@@ -6,6 +6,10 @@
  * mouth, raised brows) changes the COLOUR, not the chord: AffectMachine found arousal chose no
  * chord and drove density, so here it adds the key's tensions (the seventh, then the ninth).
  *
+ * Read from the player's own rest by default (`createRestBaseline`, #673): what each control
+ * reads at rest, and how much it wanders, is learned and taken away first, so resting brows that
+ * sit high, or a furrow the lighting makes, read as nothing.
+ *
  * Both are levels, not raw numbers: a reading crosses an edge by a margin (hysteresis) and must
  * stay past it for a dwell before the level changes, so a passing smile does not modulate. The
  * weights are data (`AFFECT_WEIGHTS`), so a calibration swaps them without touching the code.
@@ -117,4 +121,138 @@ export const VALENCE_LEVELS = { darker: 0, key: 1, brighter: 2 } as const;
 export function parallelSpec<S extends Pick<ScaleSpec, 'type'>>(spec: S, level: number): S {
   const to = level === VALENCE_LEVELS.darker ? DARKER[spec.type] : level === VALENCE_LEVELS.brighter ? BRIGHTER[spec.type] : undefined;
   return to ? { ...spec, type: to } : spec;
+}
+
+/** The face controls a baseline learns (every `FaceFeatures` number). */
+const CONTROLS = ['smile', 'mouthOpen', 'browRaise', 'browFurrow', 'eyeBlink'] as const;
+
+export interface RestBaselineOptions {
+  /** Seconds of calm frames a control's rest is the low quantile of (a sliding window). */
+  windowS?: number;
+  /** Seconds with no calm frame at all after which the rest is learned again from the face as it
+   *  is now (the lighting changed, the player started mid-smile): long enough that a smile held
+   *  through a phrase keeps counting, short enough that no wrong rest lasts. */
+  relearnS?: number;
+  /** Right after a relearn, every frame counts (calm or not, the face having been neither for
+   *  `relearnS`) until a control has this many samples, so a glitch then is one sample among many
+   *  and the quantile drops it. At a cold start only calm frames count, as always. */
+  minSamples?: number;
+  /** The quantile of that window that is rest (low: a glitch or two above it cost nothing). */
+  quantile?: number;
+  /** A face reads as calm while no control is this far above its rest (and jitter). */
+  calm?: number;
+  /** Seconds after the face is found (or found again) before anything is learned or read: the
+   *  smoother settles, so a cold start or a reacquisition is not taken for the rest. */
+  settleS?: number;
+  /** A control's own jitter, as an exponential mean of its frame-to-frame change on calm frames,
+   *  times this, is how far above rest it must be before it counts (the trainer's noise units). */
+  jitterK?: number;
+  jitterSmoothing?: number;
+}
+
+export interface RestBaseline {
+  /** One reading of the face (dt: seconds since the last): the same controls, each measured
+   *  above the player's own rest and jitter (0 at rest); all 0 while settling; the input as it is
+   *  while the face is lost. */
+  push(face: FaceFeatures | undefined, dt: number): FaceFeatures | undefined;
+  reset(): void;
+}
+
+/**
+ * The player's own face at rest (#673): what each control reads when nothing is meant, and how much
+ * it wanders. Resting brows already read 0.2 to 0.5 on the face fixture, a furrow can come from the
+ * lighting, and absolute thresholds would read either as an expression. Rest is learned only from
+ * CALM frames (no control above its rest), as a low quantile over the last few seconds of them:
+ * an expression never teaches another control's rest (a smile lowers the brows; raised brows lower
+ * the furrow), a glitch frame or two moves nothing, and a long session follows a slow drift. The
+ * samples expire: calm ones after `windowS`, and all of them after `relearnS` with no calm frame
+ * (the lighting changed, the player started mid-smile, a posture shifted), when the rest is
+ * learned again from what the face is now, so no wrong rest can last; a smile held for a phrase
+ * (under `relearnS`) keeps counting. Calm is judged on the controls valence and
+ * arousal read (a blink or a downward gaze is not an expression). The first frames after the face is
+ * found are skipped while the smoother settles. Until a rest is known the face reads as calm. Pure.
+ */
+/** The controls whose rise is an expression (`eyeBlink` moves with gaze and blinks: it is not). */
+const EXPRESSIVE = ['smile', 'mouthOpen', 'browRaise', 'browFurrow'] as const;
+/** A frame's time when a caller passes none (the camera's frame period). */
+const FALLBACK_DT = 1 / 30;
+
+export function createRestBaseline({ windowS = 8, relearnS = 30, minSamples = 15, quantile = 0.2, calm = 0.08, settleS = 0.5, jitterK = 2, jitterSmoothing = 0.1 }: RestBaselineOptions = {}): RestBaseline {
+  type Control = (typeof CONTROLS)[number];
+  const samples: Record<Control, { t: number; v: number }[]> = { smile: [], mouthOpen: [], browRaise: [], browFurrow: [], eyeBlink: [] };
+  const jitter: Partial<Record<Control, number>> = {};
+  const last: Partial<Record<Control, number>> = {};
+  let t = 0;
+  let seenFor = 0;
+  let wasCalm = false;
+  let lastCalm = 0;
+  let relearning = false;
+  /** Calm samples older than the window go; with no calm frame for `relearnS`, all of them. */
+  const expire = () => {
+    if (t - lastCalm > relearnS) {
+      for (const k of CONTROLS) samples[k] = [];
+      relearning = true;
+      lastCalm = t;
+    }
+    for (const k of CONTROLS) while (samples[k].length && samples[k][0].t < Math.min(t - windowS, lastCalm - windowS)) samples[k].shift();
+  };
+  const restOf = (k: Control): number | undefined => {
+    const xs = samples[k].map((s) => s.v).sort((a, b) => a - b);
+    return xs.length ? xs[Math.min(xs.length - 1, Math.floor(quantile * xs.length))] : undefined;
+  };
+  const zero = (face: FaceFeatures): FaceFeatures => ({ ...face, ...Object.fromEntries(CONTROLS.map((k) => [k, 0])) });
+  return {
+    push(face, dt) {
+      const step = Number.isFinite(dt) && dt > 0 ? dt : FALLBACK_DT;
+      t += step;
+      expire();
+      if (!face?.present) {
+        seenFor = 0;
+        for (const k of CONTROLS) delete last[k];
+        return face;
+      }
+      seenFor += step;
+      if (seenFor < settleS) return zero(face);
+      const out: FaceFeatures = { ...face };
+      let calmNow = true;
+      for (const k of CONTROLS) {
+        const v = face[k];
+        if (!Number.isFinite(v)) continue;
+        const rest = restOf(k);
+        // Measured against the rest and the jitter learned so far.
+        const above = rest === undefined ? 0 : Math.max(0, v - rest - jitterK * (jitter[k] ?? 0));
+        out[k] = above;
+        if (above > calm && (EXPRESSIVE as readonly string[]).includes(k)) calmNow = false;
+      }
+      // A calm face teaches: each control's sample, and its jitter.
+      for (const k of CONTROLS) {
+        const v = face[k];
+        if (!Number.isFinite(v)) continue;
+        // A control still short of samples takes every frame (a glitch is then one among many).
+        if (calmNow || (relearning && samples[k].length < minSamples)) {
+          samples[k].push({ t, v });
+          // The jitter learns calm-to-calm changes only (not the step out of an expression).
+          const prev = last[k];
+          if (prev !== undefined && wasCalm) jitter[k] = (jitter[k] ?? 0) + jitterSmoothing * (Math.abs(v - prev) - (jitter[k] ?? 0));
+        }
+        last[k] = v;
+      }
+      wasCalm = calmNow;
+      if (calmNow) lastCalm = t;
+      if (relearning && EXPRESSIVE.every((k) => samples[k].length >= minSamples)) relearning = false;
+      return out;
+    },
+    reset() {
+      for (const k of CONTROLS) {
+        samples[k] = [];
+        delete jitter[k];
+        delete last[k];
+      }
+      t = 0;
+      seenFor = 0;
+      wasCalm = false;
+      lastCalm = 0;
+      relearning = false;
+    },
+  };
 }

@@ -261,6 +261,7 @@
     "enabled": false,
     "enterFrames": 2,
     "face": false,
+    "faceFromRest": true,
     "faceMode": true,
     "faceTension": true,
     "follow": "hands",

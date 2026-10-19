@@ -92,6 +92,7 @@ export function ChordMapControls() {
   const faceMode = c.faceMode ?? true;
   const faceTension = c.faceTension ?? true;
   const modeDwellS = c.modeDwellS ?? 1;
+  const faceFromRest = c.faceFromRest ?? true;
   return (
     <div className="space-y-2" data-testid="chord-map-controls">
       <ChordMapReadout />
@@ -232,6 +233,10 @@ export function ChordMapControls() {
           <label className="flex items-center gap-2 text-xs" title="A smile held a moment turns the key to its parallel major, a frown to its parallel minor; a neutral face plays the key as set.">
             <input type="checkbox" checked={faceMode} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceMode', e.target.checked)} />
             Smile for major, frown for minor
+          </label>
+          <label className="flex items-center gap-2 text-xs" title="Learn your face at rest as you play (a few calm seconds) and read only what rises above it, so brows that rest high or a furrow from the lighting count for nothing. Off: fixed levels.">
+            <input type="checkbox" checked={faceFromRest} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.faceFromRest', e.target.checked)} />
+            Read my face from its own rest
           </label>
           <Range label={`Hold a smile or frown ${modeDwellS.toFixed(1)} s to change the key`} path="chordMap.modeDwellS" value={modeDwellS} min={0} max={4} step={0.1} enabled={enabled && faceMode} />
           {play === 'hold' && (
