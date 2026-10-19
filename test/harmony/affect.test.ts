@@ -82,18 +82,33 @@ describe('the face from its own rest (#673)', () => {
     expect(valenceOf(after)).toBeCloseTo(0, 5);
   });
 
-  it('no wrong rest lasts: a lighting step mid-session is relearned within the window', () => {
+  it('no wrong rest lasts: a lighting step mid-session is relearned within half a minute', () => {
     const b = createRestBaseline();
     const lit = (t: number) => F({ browFurrow: t < 30 ? 0.2 : 0.6 }); // the lamp moves at t = 30
     expect(valenceOf(run(b, 32, lit))).toBeLessThan(-0.2); // just after: it reads as a frown
-    expect(valenceOf(run(b, 10, lit, 32))).toBeCloseTo(0, 5); // ten seconds later: rest again
+    expect(valenceOf(run(b, 32, lit, 32))).toBeCloseTo(0, 5); // half a minute later: rest again
+  });
+
+  it('a smile held through a phrase keeps counting (past the 8 s window)', () => {
+    const b = createRestBaseline();
+    run(b, 3, () => F({}));
+    expect(valenceOf(run(b, 15, () => F({ smile: 0.9, browRaise: 0.1 })))).toBeGreaterThan(0.7); // fifteen seconds in
+  });
+
+  it('a glitch right after a relearn is one sample among many', () => {
+    const b = createRestBaseline();
+    run(b, 3, () => F({}));
+    // A smile held 35 s (past the relearn), a dropped frame just after the relearn, then the smile on.
+    const glitchy = (t: number) => (Math.abs(t - 33.5) < 0.02 ? F({ smile: 0, browRaise: 0 }) : F({ smile: 0.9, browRaise: 0.1 }));
+    const after = run(b, 36, glitchy, 3);
+    expect(after.browRaise).toBeLessThan(0.05); // the zero frame did not become the brows' rest
   });
 
   it('a downward gaze (eyeBlink) is no expression: rest keeps learning through it', () => {
     const b = createRestBaseline();
     run(b, 5, () => F({}));
     // Gaze down (blink control up) while the brows settle 0.15 higher: the new brow rest is learned.
-    expect(run(b, 12, () => F({ eyeBlink: 0.4, browRaise: 0.45 })).browRaise).toBe(0);
+    expect(run(b, 32, () => F({ eyeBlink: 0.4, browRaise: 0.45 })).browRaise).toBe(0);
   });
 
   it('a glitch frame moves nothing, and the first half-second after the face is found reads as calm', () => {
@@ -132,8 +147,8 @@ describe('the recorded face', () => {
   it('a player who starts mid-smile is read right once the window has passed', () => {
     const base = createRestBaseline();
     const neutral = frames.slice(0, 12);
-    // Start one second in (smiling), then rest for twenty seconds.
-    for (const f of [...frames.slice(24), ...Array.from({ length: 40 }, () => neutral).flat()]) base.push(features(f), 1 / 24);
+    // Start one second in (smiling), then rest for thirty-five seconds (past the relearn).
+    for (const f of [...frames.slice(24), ...Array.from({ length: 70 }, () => neutral).flat()]) base.push(features(f), 1 / 24);
     let last: FaceFeatures | undefined;
     for (const f of neutral) last = base.push(features(f), 1 / 24);
     expect(arousalOf(last)).toBe(0);
