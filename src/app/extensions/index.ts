@@ -8,7 +8,7 @@
  * that load that half when first rendered ({@link lazyPanel}), its status hooks join
  * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, ExtensionCommand, KeybindingDecl, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
 import { lazyPanel, lazyToolPanel } from './lazyPanel';
 
@@ -100,6 +100,13 @@ export const EXTENSION_TOOL_DECLS: readonly ExtensionToolDecl[] = LISTED.flatMap
 
 /** Every extension's entry points into a tool from another tool's panel (#465), as data. */
 export const EXTENSION_ENTRY_POINTS: readonly ToolEntryPointDecl[] = LISTED.flatMap((u) => u.entryPoints ?? []);
+
+/** Every extension's keybindings (#600 S11), eager and lazy alike (a lazy one's are in its stub). */
+export const EXTENSION_KEYBINDINGS: readonly KeybindingDecl[] = LISTED.flatMap((u) => u.keybindings ?? []);
+
+/** The extension commands implemented NOW (#600 S11): an eager extension's, and those a lazy one's
+ *  stub carries; a lazy one's other declared commands arrive with {@link loadExtensionUi}. */
+export const EXTENSION_COMMANDS: readonly ExtensionCommand[] = LISTED.flatMap((u) => u.commands ?? []);
 
 /** Every extension tool's panel content, by tool id: an eager one's component, a lazy one's
  *  placeholder that loads the extension's React half when the tool first opens. */

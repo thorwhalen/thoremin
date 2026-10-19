@@ -10,6 +10,8 @@
  */
 import { useMemo, useState } from 'react';
 import { registry } from './commands/registry';
+// The extensions' commands join the registry (#600 S11).
+import '@/app/host/contributions';
 import { isGestureBindable } from './gestureDispatch';
 
 /** A command id + fixed args: the gesture and the category bindings share this shape. */

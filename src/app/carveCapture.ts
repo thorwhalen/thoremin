@@ -1,25 +1,23 @@
 /**
- * The carve host's installation (#385 E2): bridges the SDK's capture seam (where a carve
- * tool's session provides its control while it is live, `@thoremin/sdk-ui/enroll/capture`) to
- * the command layer's carve host (`./commands/carveHost`), which a command may import. Imported
- * by the keyboard shortcuts, so the command and Space work from the moment the shell loads.
+ * Space on a live carve (#385 E2): toggles the carve tool's capture through its command
+ * (`carve.capture.toggle`, the faces extension's since #600 S11, registered by the shell's
+ * contribution registry). The carve is the SDK's capture seam (`@thoremin/sdk-ui/enroll/capture`),
+ * not an extension's internals, so the shell's keymap may bind it.
  */
 import { carveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import './enroll/promptSpeech';
-import { liveCarve, provideCarveHost } from './commands/carveHost';
 import { registry } from './commands/registry';
-
-provideCarveHost({ control: carveCapture });
+// The extension commands (the carve's among them) are registered when the fold point loads.
+import './host/contributions';
 
 /**
  * Space: toggle the live carve's capture through the command. Returns false when no carve is
- * live, so the key stays the browser's (a focused button, a scroll). While one is live, Space is
- * the carve's even during the rest (where it does nothing: a stray press must not press a
- * focused Cancel), and a held key's auto-repeat is swallowed, not dispatched: one press, one
- * toggle.
+ * live (the key is the browser's then); a held key's repeats and a press during the rest are the
+ * carve's even during the rest (where it does nothing: a stray press must not press a
+ * button the page has focused).
  */
 export function toggleCarveCapture(e?: Pick<KeyboardEvent, 'repeat'>): boolean {
-  const control = liveCarve();
+  const control = carveCapture();
   if (!control) return false;
   if (!e?.repeat && control.state() !== 'rest') void registry.dispatch('carve.capture.toggle', {});
   return true;

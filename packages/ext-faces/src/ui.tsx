@@ -3,10 +3,12 @@
  * contributes, as data, so the Tools launcher and the instrument editor list them before
  * anything loads. Their components are `./lazy_ui.tsx`, loaded the first time the tool or the
  * section opens, or a graph names the categorizer node (`docs/design/lazy-extensions.md`). No
- * React import: it is data.
+ * React import: it is data, plus the carve commands, which are thin calls onto the SDK's capture
+ * seam and so run without loading the deferred half (#600 S11).
  */
 import type { ExtensionUiStub } from '@thoremin/sdk-ui/types';
 import type { ExtensionToolDecl, ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
+import { CARVE_COMMANDS } from './carveCommandsUi';
 import { chordModalityOf, isPersonal, playsPoses, type CategorizerChordsDial, type FaceCategorizerDial, type PoseCategorizerDial } from './schema';
 
 /** The chosen row shows which categorizer the face chords read while one of the player's plays
@@ -57,6 +59,8 @@ export const CONDUCTOR_POSES_ENTRY: ToolEntryPointDecl = {
 };
 
 export const FACES_UI_STUB: ExtensionUiStub = {
+  // The carve commands (#600 S11; core's before), declared in the pure manifest.
+  commands: CARVE_COMMANDS,
   id: 'faces',
   // The instrument editor's section (#330 P4): which categorizer the face chords read.
   // And (#384) which saved pose categorizer the instrument reads and conducts with.

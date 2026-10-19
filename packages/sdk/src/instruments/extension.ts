@@ -22,6 +22,7 @@
 import type { z } from 'zod';
 import type { NodeDef } from '@thoremin/dag';
 import type { GraphBranch } from './branch';
+import type { CarveModality } from '../enroll/modality';
 
 /**
  * A whole-object dial the extension owns: one top-level key of the settings schema.
@@ -57,6 +58,23 @@ export interface DialSlice<K extends string = string, S extends z.ZodTypeAny = z
 
 /** One step of a slice's migration chain (see {@link DialSlice.migrations}). */
 export type SliceMigration = (old: unknown, stored: Readonly<Record<string, unknown>>) => unknown;
+
+/**
+ * A command an extension contributes, as DATA (#600 S11): what the palette, the assistant and a
+ * binding can list before the extension's code has loaded (VS Code's `contributes.commands`). The
+ * implementation is in the extension's React half (`ExtensionUi.commands`); for a lazy extension
+ * the host registers a stand-in under this id that loads the extension when the command runs.
+ * Ids already shipped stay as they are (a saved binding names them); a new one is namespaced
+ * `<extension>.<verb>`.
+ */
+export interface CommandDecl {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  /** Its parameters' schema (a Zod object). */
+  params: z.ZodTypeAny;
+}
 
 /**
  * A per-DEVICE preference an extension keeps in the hot store (#600 S9): persisted with the
@@ -276,6 +294,12 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   instruments?: readonly ExtensionInstrument[];
   /** Its training routes, tried before core's Trainer tool. */
   training?: ExtensionTraining;
+  /** The commands it contributes, as data (#600 S11); listed before a lazy extension loads. */
+  commandDecls?: readonly CommandDecl[];
+  /** The carve modalities it contributes (#600 S11): body parts a player carves categories from,
+   *  beside the SDK's face, hand and body. Typed loosely here (the SDK's `CarveModality`), so the
+   *  manifest's type does not pull the enroll library into every extension's stub. */
+  modalities?: readonly CarveModality[];
   /** Instrument classes it contributes (#600 S8); ids unique across core and extensions. */
   classes?: readonly InstrumentClass[];
   /** Its rows of the instrument catalog (#600 S8), in display order. */

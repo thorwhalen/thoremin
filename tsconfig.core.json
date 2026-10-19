@@ -22,6 +22,7 @@
     "src/latency",
     "src/app/graph.ts",
     "src/app/enroll",
+    "src/app/extensions/virtual.d.ts",
     "src/app/lab",
     "src/app/store.ts",
     "src/app/dials/instruments.ts",

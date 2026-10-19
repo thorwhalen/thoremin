@@ -21,10 +21,12 @@
  * settings schema (`src/settings`) read it, and those are Node-safe core that never imports the
  * app shell (`test/layering.test.ts`).
  */
-import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type DialSlice, type InstrumentClass, type PrefSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
+import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type CommandDecl, type DialSlice, type InstrumentClass, type PrefSlice, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { CORE_CLASSES, registerInstrumentClasses } from '@/instruments/classes';
+import { CARVE_MODALITIES, registerCarveModalities } from '@thoremin/sdk/features/modalities';
+import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
 import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
 import {
@@ -39,6 +41,9 @@ import {
 } from '@/extensions';
 
 export type { ExtensionSettingsShape, ExtensionTransients };
+
+/** The SDK's own carve modalities (face, hand, body), before any extension's are registered. */
+const SDK_MODALITY_IDS: readonly string[] = Object.keys(CARVE_MODALITIES);
 export { lazyExtensionProviding, loadExtensionNodes, loadedExtensionNodes, loadedOverlayElements };
 
 /**
@@ -85,6 +90,10 @@ export interface Contributions {
   classes: readonly InstrumentClass[];
   /** Every catalog row (#600 S8), in list order; ids unique, each of a known class. */
   catalog: readonly CatalogEntry[];
+  /** Every declared command (#600 S11) with the extension that declares it; ids unique. */
+  commandDecls: readonly { extension: string; decl: CommandDecl }[];
+  /** Every contributed carve modality (#600 S11); ids unique, and none of the SDK's own. */
+  modalities: readonly CarveModality[];
 }
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
@@ -212,6 +221,8 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     trainingByBranch: extensions.flatMap((e) => e.training?.byBranch ?? []),
     pools: poolSizesFor([...CORE_BRANCHES, ...branches]),
     overlayElements: overlayElementsOf(extensions),
+    commandDecls: keyed('command', extensions, (e) => (e.commandDecls ?? []).map((decl) => ({ extension: e.id, decl })), (c) => c.decl.id),
+    modalities: keyed('carve modality', extensions, (e) => e.modalities ?? [], (m) => m.id, new Map(SDK_MODALITY_IDS.map((id) => [id, 'core']))),
     ...libraryFold(extensions),
   };
 }
@@ -262,6 +273,8 @@ export function checkUiDecls(decls: readonly UiDecls[]): void {
 export const CONTRIBUTIONS: Contributions = foldContributions(EXTENSIONS);
 // The build's classes join core's, for the spec schema and the Instruments view (#600 S8).
 registerInstrumentClasses(CONTRIBUTIONS.classes);
+// ...and its carve modalities join the SDK's (#600 S11).
+registerCarveModalities(CONTRIBUTIONS.modalities);
 
 /** The settings-schema shape the listed extensions contribute, typed from the generated list
  *  declaration (`SettingsSchema` extends the core shape with it). */

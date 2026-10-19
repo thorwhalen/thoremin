@@ -48,6 +48,8 @@
 import { isErr, type Result } from 'acture';
 import type { Pose } from '@/nodes';
 import { registry } from './commands/registry';
+// The extensions' commands join the registry (#600 S11).
+import '@/app/host/contributions';
 import { defaultGetRisk, needsUserActivation } from './commands/confirmation';
 import { useControls } from './store';
 import { useToasts } from './toasts';

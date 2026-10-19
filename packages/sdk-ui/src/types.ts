@@ -67,6 +67,27 @@ export interface ExtensionTool extends ExtensionToolDecl {
   Panel: ComponentType<ExtensionToolPanelProps>;
 }
 
+/**
+ * A key an extension binds to one of its commands (#600 S11), folded into the shell's keymap.
+ * `when` decides per press, synchronously: `pass` leaves the key to the browser (nothing is live
+ * that the command acts on), `swallow` takes it without dispatching (a repeat, a moment the command
+ * would refuse), `dispatch` runs the command. Absent: always dispatch.
+ */
+export interface KeybindingDecl {
+  /** A tinykeys binding string (`Space`, `$mod+k`). */
+  key: string;
+  command: string;
+  params?: Readonly<Record<string, unknown>>;
+  when?: (e?: Pick<KeyboardEvent, 'repeat'>) => 'pass' | 'swallow' | 'dispatch';
+}
+
+/** A command implementation an extension provides (an acture `CommandRecord`), typed
+ *  structurally so the SDK names no command library. */
+export interface ExtensionCommand {
+  readonly id: string;
+  readonly execute: (params: never, ctx: never) => unknown;
+}
+
 export interface ExtensionUi {
   id: string;
   panels: readonly ExtensionPanel[];
@@ -75,6 +96,10 @@ export interface ExtensionUi {
   tools?: readonly ExtensionTool[];
   /** Ways into a tool from another tool's panel (#465), as data. */
   entryPoints?: readonly ToolEntryPointDecl[];
+  /** The implementations of the commands its manifest declares (#600 S11). */
+  commands?: readonly ExtensionCommand[];
+  /** Keys it binds to its commands (#600 S11). */
+  keybindings?: readonly KeybindingDecl[];
 }
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no
@@ -95,4 +120,12 @@ export interface ExtensionUiStub {
   tools?: readonly ExtensionToolDecl[];
   /** Ways into a tool from another tool's panel (#465), as data. */
   entryPoints?: readonly ToolEntryPointDecl[];
+  /** Keys it binds to its commands (#600 S11): eager, so a key works before the extension loads
+   *  (its command's stand-in loads it). */
+  keybindings?: readonly KeybindingDecl[];
+  /** Commands implemented NOW, before the deferred half loads (#600 S11): for a command so thin
+   *  that loading the extension to run it would be waste (the carve's capture, a call onto an SDK
+   *  seam that answers "no carve is live" until the half has loaded). A declared command with no
+   *  implementation here is a stand-in that loads the half when it runs. */
+  commands?: readonly ExtensionCommand[];
 }

@@ -12,6 +12,10 @@ export const PROBE_LAZY_NODE_TYPE = 'probe-lazy-tone';
 export const PROBE_LAZY_NODE_ID = 'probeLazy';
 export const PROBE_LAZY_BRANCH_ID = 'probe-lazy-branch';
 export const PROBE_LAZY_TOOL_ID = 'probe-lazy-tool';
+/** The lazy probe's command (#600 S11): listed now, its code loaded when it first runs. */
+export const PROBE_LAZY_COMMAND_ID = 'probeLazy.ping';
+/** The key its React stub binds to it. */
+export const PROBE_LAZY_KEY = 'Shift+L';
 
 /** The lazy probe's overlay element (#600 S5): a HUD cue whose drawing code loads with its node. */
 export const PROBE_LAZY_ELEMENT = 'badge';
@@ -37,6 +41,7 @@ export const PROBE_LAZY_EXTENSION = defineExtension({
   provides: [PROBE_LAZY_NODE_TYPE],
   overlay: [{ name: PROBE_LAZY_ELEMENT, category: 'output', cue: true, inputs: [{ name: 'ticks', kind: 'number' }] }],
   branches: [PROBE_LAZY_BRANCH],
+  commandDecls: [{ id: PROBE_LAZY_COMMAND_ID, title: 'Lazy probe: ping', description: 'A test-only command whose code loads when it first runs.', category: 'Probe', params: z.object({}) }],
   dials: [
     dialSlice({
       key: 'probeLazy',

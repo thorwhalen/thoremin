@@ -16,6 +16,10 @@
  * An action may return `false` to say "not mine now": the key is then left to the browser
  * (no `preventDefault`). Space is such a binding (#385 E2): it toggles a carve tool's capture
  * only while one is live, and otherwise still presses a focused button or scrolls.
+ *
+ * Extensions add bindings as data (#600 S11): a `KeybindingDecl` names a key and the command it
+ * dispatches, and its `when` may pass the key to the browser or swallow it. They are folded in
+ * after core's; a key core binds, or one two extensions bind, is refused at load, naming both.
  */
 import { tinykeys } from 'tinykeys';
 import { isEditableTarget } from '@/nodes/sources/keyboard.schema';
@@ -23,6 +27,9 @@ import { history, registry } from './commands/registry';
 import { useControls } from './store';
 import { useTools } from './toolsStore';
 import { toggleCarveCapture } from './carveCapture';
+import type { KeybindingDecl } from '@thoremin/sdk-ui/types';
+// The extensions' keybindings; loading it registers the commands they dispatch.
+import { UI_CONTRIBUTIONS } from './host/contributions';
 
 const OCTAVE_MIN = -2;
 const OCTAVE_MAX = 2;
@@ -89,8 +96,8 @@ export function toggleToolsLauncher(): void {
  *  `false` means "not handled". */
 export type Keymap = Record<string, (e?: KeyboardEvent) => void | boolean>;
 
-/** The shipped default keymap (mirrors the retired keyboard-control node). */
-export const DEFAULT_KEYMAP: Keymap = {
+/** Core's own bindings (mirrors the retired keyboard-control node). */
+const CORE_KEYMAP: Keymap = {
   ArrowUp: () => shiftOctave(1),
   ArrowDown: () => shiftOctave(-1),
   ArrowRight: () => adjustMagnetism(MAGNETISM_STEP),
@@ -108,6 +115,32 @@ export const DEFAULT_KEYMAP: Keymap = {
   '$mod+Shift+z': redoLastChange,
   '$mod+y': redoLastChange,
 };
+
+/**
+ * Fold extension keybindings onto `base` (#600 S11). Each binding's command must be registered;
+ * its `when` (default: dispatch) may say `pass` (the browser's key) or `swallow` (handled, nothing
+ * dispatched). A key `base` binds, or one bound twice, is refused. Exported for direct testing.
+ */
+export function withKeybindings(base: Keymap, decls: readonly KeybindingDecl[], commands: { has(id: string): boolean } = registry): Keymap {
+  const out: Keymap = { ...base };
+  const owner = new Map<string, string>(Object.keys(base).map((k) => [k, 'core']));
+  for (const decl of decls) {
+    const taken = owner.get(decl.key);
+    if (taken) throw new Error(`keybinding "${decl.key}" (to "${decl.command}") is already bound by ${taken === 'core' ? 'core' : `the binding to "${taken}"`}`);
+    if (!commands.has(decl.command)) throw new Error(`keybinding "${decl.key}" names "${decl.command}", which no command registers`);
+    owner.set(decl.key, decl.command);
+    out[decl.key] = (e) => {
+      const verdict = decl.when ? decl.when(e) : 'dispatch';
+      if (verdict === 'pass') return false;
+      if (verdict === 'dispatch') void registry.dispatch(decl.command, { ...(decl.params ?? {}) });
+      return true;
+    };
+  }
+  return out;
+}
+
+/** The shipped default keymap: core's bindings, then every listed extension's. */
+export const DEFAULT_KEYMAP: Keymap = withKeybindings(CORE_KEYMAP, UI_CONTRIBUTIONS.keybindings);
 
 /**
  * Install `keymap` on `target` (default `window`) via tinykeys; returns the
