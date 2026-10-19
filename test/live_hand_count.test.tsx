@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { liveHandCount } from '@/app/liveApply';
 import { useControls } from '@/app/store';
+import { labDemandGroups } from '@/app/labDemand';
 
 const initial = useControls.getState();
 afterEach(() => useControls.setState(initial, true));
@@ -36,7 +37,8 @@ describe('liveHandCount', () => {
     // The skeleton alone no longer asks for every hand (#168 D13 b, #480): it draws what is tracked.
     expect(liveHandCount({ ...s, overlay: { ...s.overlay, landmarks: { ...s.overlay.landmarks, show: true } } }, new Set(), null)).toBe(1);
     expect(liveHandCount({ ...s, gestures: { ...s.gestures, enabled: true } }, new Set(), null)).toBe(2);
-    expect(liveHandCount({ ...s, featureLab: { ...s.featureLab, show: true, groups: ['hand.position.raw'] } }, new Set(), null)).toBe(2);
+    // The Lab on a hand group claims it as a demand (#600 S16a).
+    expect(liveHandCount(s, new Set(labDemandGroups({ ...s.featureLab, show: true, groups: ['hand.position.raw'] })), null)).toBe(2);
     expect(liveHandCount(s, new Set(['hand.position.raw']), null)).toBe(2);
   });
 

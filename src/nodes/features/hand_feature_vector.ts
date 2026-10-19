@@ -30,9 +30,9 @@
  * default stays at {@link LAB_HANDEDNESS_DWELL_FRAMES} (the #144 behaviour, in
  * frames held) so the meters stay steady.
  *
- * Group + activity resolution mirrors `face-feature-vector`: live lab config
- * first, then the static `groups` param, then all hand groups; inactive (lab
- * hidden) emits an empty vector; headless is always active from params.
+ * Group + activity resolution mirrors `face-feature-vector` (`resolveFeatureGate`): with a host,
+ * the groups a feature demand claims (the open Lab's included, #600 S16a), nothing claimed emits an
+ * empty vector; headless is always active from the static `groups` param, then all hand groups.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -49,7 +49,7 @@ import {
 } from '@thoremin/sdk/features/catalog';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { createHandednessDwell, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
-import { resolveLabGate, type LabControlsSnapshot } from '@/features/labConfig';
+import { resolveFeatureGate } from '@/features/groups';
 
 /** The Lab's dwell, in frames HELD: a new label is held for two frames and takes over on
  *  the third — exactly the behaviour #144 shipped (then counted as "3 frames", the switch
@@ -75,15 +75,15 @@ const Params = z.object({
 });
 type Params = z.infer<typeof Params>;
 
-type ControlsGetter = () => LabControlsSnapshot | undefined;
+type ControlsGetter = () => unknown;
 /** The live feature demand (#163): groups some non-Lab consumer needs computed. */
 type DemandGetter = () => DemandedGroups;
 
 /** Resolve the active flag + enabled-group predicate. The rule itself lives in
- *  `@/features/labConfig` — it is shared with the hand/face twin, and keeping two copies
+ *  `@/features/groups` — it is shared with the hand/face twin, and keeping two copies
  *  of it is how #136 silently un-gated the whole catalog. */
 function resolveGroups(p: Params, ctx: NodeContext): { active: boolean; enabled: (group: string) => boolean } {
-  return resolveLabGate(
+  return resolveFeatureGate(
     p,
     (ctx.resources.controls as ControlsGetter | undefined)?.(),
     (ctx.resources.featureDemand as DemandGetter | undefined)?.() ?? null,

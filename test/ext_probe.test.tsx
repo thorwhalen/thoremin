@@ -25,6 +25,7 @@ import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
+import { labDemandGroups } from '@/app/labDemand';
 
 afterEach(cleanup);
 
@@ -133,8 +134,9 @@ describe('the probe reaches every pure contribution point', () => {
     expect(app.graph.branchIdsFor({} as never, { demanded: new Set([PROBE_SENSE_GROUP]) })).toContain(PROBE_SENSE_BRANCH_ID);
     expect(probeDeriveSaw.implied).toEqual([PROBE_SENSE_BRANCH_ID]);
     // The Lab showing the group does the same while it is open, and nothing once closed.
-    expect(app.graph.branchIdsFor({} as never, { featureLab: { show: true, groups: [PROBE_SENSE_GROUP] } as never })).toContain(PROBE_SENSE_BRANCH_ID);
-    expect(app.graph.branchIdsFor({} as never, { featureLab: { show: false, groups: [PROBE_SENSE_GROUP] } as never })).not.toContain(PROBE_SENSE_BRANCH_ID);
+    // (It claims its shown groups as a demand, #600 S16a.)
+    expect(app.graph.branchIdsFor({} as never, { demanded: new Set(labDemandGroups({ show: true, groups: [PROBE_SENSE_GROUP] })) })).toContain(PROBE_SENSE_BRANCH_ID);
+    expect(app.graph.branchIdsFor({} as never, { demanded: new Set(labDemandGroups({ show: false, groups: [PROBE_SENSE_GROUP] })) })).not.toContain(PROBE_SENSE_BRANCH_ID);
   });
 
   it('trunk (#600 S15): the probe\'s trunk branch is composed into every instrument, and never derived or listed', () => {

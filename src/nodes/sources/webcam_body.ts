@@ -36,7 +36,6 @@ import { z } from 'zod';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { FeatureLabConfig } from '@/features/labConfig';
 import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import {
   BODY_MODELS,
@@ -156,7 +155,6 @@ const defaultFactory: BodyLandmarkerFactory = async (opts, lctx) => {
 
 type BodyControlsGetter = () => {
   body?: { enabled?: boolean; model?: BodyModel };
-  featureLab?: FeatureLabConfig;
 };
 
 

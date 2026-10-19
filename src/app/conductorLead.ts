@@ -41,7 +41,7 @@ import { type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { BODY_GROUP_IDS } from '@/features/labConfig';
+import { BODY_GROUP_IDS } from '@/features/groups';
 import { bodyChannelFrame, conductorBodyJoints, type BodySide, type ConductorBodyPoint } from '@/nodes/features/conductor_body';
 import type { OutputReader } from './conductorStatus';
 

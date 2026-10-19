@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { cancelLeadTake, leadTakeBpm, leadTakeClicks, makeLeadCalibrationSink, startLeadTake, useLeadCalibration, LEAD_TAKE } from '@/app/conductorLead';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { demandWantsBody } from '@/features/labConfig';
+import { demandWantsBody } from '@/features/groups';
 import { conductorLeadHost } from '@/app/commands/conductorLeadHost';
 import '@/app/conductorLeadHost';
 import { useControls } from '@/app/store';

@@ -24,7 +24,6 @@
  */
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { ToolDeriveContext } from '@thoremin/sdk/instruments/extension';
-import type { FeatureLabConfig } from '../features/labConfig';
 /**
  * What the derivation needs to know about the build it runs in: which branch ids exist,
  * and each extension's own derivation. A PARAMETER, never an import: this package stays
@@ -44,11 +43,10 @@ export interface DerivationTable {
 /** The groups the body conductor needs (#375): the pose stream, from the body. */
 const BODY_CONDUCTOR_NEEDS = ['body.pos'] as const;
 
-/** The groups a live claim wants: the Lab's shown groups while it is open, and the demand. */
+/** The groups a live claim wants: the demand (the Lab claims its shown groups there while it is
+ *  open, #600 S16a, as the Trainer does for a running cue). */
 function claimedGroups(ctx: DerivationContext): Set<string> {
-  const groups = new Set<string>(ctx.demanded ?? []);
-  if (ctx.featureLab?.show) for (const g of ctx.featureLab.groups) groups.add(g);
-  return groups;
+  return new Set<string>(ctx.demanded ?? []);
 }
 
 /** The branches whose declared `demands` meet `groups`. */
@@ -93,8 +91,6 @@ export interface StrictDerivationSettings {
 export interface DerivationContext {
   /** The union of live feature-group claims (`appFeatureDemand.groups()`). */
   demanded?: DemandedGroups;
-  /** The Feature Lab's config: shown groups imply their source while the Lab is open. */
-  featureLab?: FeatureLabConfig;
   /**
    * The instrument spec's EXPLICIT branch set, when it declares one (PR 4). It replaces the
    * settings-derived set; what a live tool demands (the face or body source for a claim or

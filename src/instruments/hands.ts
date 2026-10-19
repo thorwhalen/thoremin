@@ -27,7 +27,7 @@
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
-import { demandWantsHands, labWantsHands, type FeatureLabConfig } from '../features/labConfig';
+import { demandWantsHands } from '../features/groups';
 
 /** How many hands the model can be told to look for. It always looks for at least one. */
 export type HandCount = 1 | 2;
@@ -70,9 +70,8 @@ export function branchHands(branch: GraphBranch): 0 | 1 | 2 {
 
 /** What the shell reads of the hands, beside the instrument's branches. */
 export interface HandCountContext {
-  /** The Feature Lab's config: an open Lab showing a hand group measures every hand. */
-  featureLab?: FeatureLabConfig;
-  /** The live feature demand: a hand-group claim (the Trainer, a bound hand categorizer). */
+  /** The live feature demand: a hand-group claim (the Trainer, a bound hand categorizer, the open
+   *  Lab showing a hand group: it claims its shown groups, #600 S16a). */
   demanded?: DemandedGroups;
   /** Hand gestures dispatch commands (the per-device gesture pref). */
   gesturesEnabled?: boolean;
@@ -89,7 +88,7 @@ export interface HandCountContext {
  * skeleton go through `policy`.
  */
 export function deriveHandCount(branches: readonly GraphBranch[], ctx: HandCountContext = {}, policy: HandCountPolicy = HAND_COUNT_POLICY): HandCount {
-  const tools = labWantsHands(ctx.featureLab) || demandWantsHands(ctx.demanded ?? new Set()) || ctx.gesturesEnabled === true;
+  const tools = demandWantsHands(ctx.demanded ?? new Set()) || ctx.gesturesEnabled === true;
   if (tools || ctx.twoHandsRead === true || (ctx.skeletonShown === true && policy.skeletonSeesAllHands)) return ALL_HANDS;
   let need: HandCount = 1;
   for (const b of branches) {
