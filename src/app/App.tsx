@@ -21,6 +21,7 @@ import { installTaggingKeymap } from './tagging/keymap';
 import { installRecording } from './recording/configStore';
 import { startBodyRouteDemand } from './bodyRouteDemand';
 import { UI_CONTRIBUTIONS } from './host/contributions';
+import { stillSoundingNote } from './stillSounding';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
 import { demandWantsFace, labWantsFace } from '@/features/labConfig';
@@ -91,14 +92,14 @@ function FaceChip() {
  * player how to unmute so a muted instrument is never mistaken for a broken one. */
 function MutedBadge() {
   const muted = useControls((s) => s.muted);
-  // #168 Q3: with `midi.muteFollowsMaster` off and MIDI on, M quiets only the local
-  // monitor; the notes still flow to the DAW, and the badge must not say otherwise.
-  const midiStillOn = useControls((s) => s.midi.enabled && !s.midi.muteFollowsMaster);
+  // What M leaves sounding (#168 Q3, contributed since #600 S13: MIDI with its mute dial off keeps
+  // the notes flowing to the DAW), named on the badge so it never says otherwise.
+  const still = useControls((s) => stillSoundingNote(s as unknown as Readonly<Record<string, unknown>>));
   if (!muted) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-red-500/90 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg backdrop-blur">
       <VolumeX className="h-3.5 w-3.5" />
-      Muted — press M to unmute{midiStillOn ? ' · MIDI still on' : ''}
+      Muted — press M to unmute{still}
     </div>
   );
 }

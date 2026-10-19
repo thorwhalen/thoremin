@@ -48,9 +48,10 @@ function importSpecifiers(src: string): string[] {
   return specs;
 }
 
-/** Everything that is not an extension is core: the whole of `src/`, minus `src/extensions`. */
+/** Everything that is not an extension is core: the whole of `src/`, minus `src/extensions` and the
+ *  built-in features' slices, `src/slices` (#600 Phase E). */
 const CORE_ROOT = 'src';
-const isExtensionFile = (file: string): boolean => file.startsWith('src/extensions/');
+const isExtensionFile = (file: string): boolean => file.startsWith('src/extensions/') || file.startsWith('src/slices/');
 
 /**
  * THE SDK, AS PACKAGES. Both halves are workspace packages since the follow-ups to PR 6:
@@ -90,7 +91,8 @@ describe('core reaches the extensions only through the lists, from the fold poin
         if (isExtensionFile(file) || LIST_TYPE_FILES.has(file)) continue;
         for (const spec of importSpecifiers(readFileSync(file, 'utf8'))) {
           // Alias or relative, a directory or the list module itself (`../extensions`).
-          const reachesExtensions = /^@\/extensions(\/|$)/.test(spec) || /^@\/app\/extensions(\/|$)/.test(spec) || /(^|\/)extensions(\/|$)/.test(spec);
+          // A slice (#600 Phase E) is an extension too: core never imports one.
+          const reachesExtensions = /^@\/extensions(\/|$)/.test(spec) || /^@\/app\/extensions(\/|$)/.test(spec) || /(^|\/)extensions(\/|$)/.test(spec) || /^@\/slices(\/|$)/.test(spec) || /(^|\/)slices\//.test(spec);
           if (!reachesExtensions) continue;
           const isList = LIST_MODULES.test(spec) || (file.startsWith('src/app/') && /^\.\/extensions$/.test(spec));
           if (FOLD_POINTS.has(file) && isList) continue;

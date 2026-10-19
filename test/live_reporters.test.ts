@@ -1,14 +1,13 @@
 /**
- * The face, MIDI and gesture reporters (#392: out of `useEngine`, the `makeGenerativeReporter`
+ * The face and gesture reporters (#392: out of `useEngine`, the `makeGenerativeReporter`
  * shape): per-frame sinks that read a node output and write a status store only when the panel
  * has something new to show, so a readout never re-renders at frame rate. Driven with a stub
  * engine and stub stores; times are in MILLISECONDS, as the host's converter hands them over.
+ * The MIDI reporter moved with its slice (#600 S13): `test/midi/midi_status.test.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { ABSENT_FACE_STATUS, type FaceStatus } from '@/nodes';
-import type { MidiStatus } from '@/nodes/browser';
 import { makeFaceReporter } from '@/app/faceStatus';
-import { ABSENT_MIDI_STATUS, makeMidiReporter, type MidiStatusState } from '@/app/midiStatus';
 import { makeGestureReporter, type HandPoses } from '@/app/gestureStatus';
 
 /** A stub engine whose outputs the test sets by `node.port`. */
@@ -55,26 +54,6 @@ describe('makeFaceReporter', () => {
     sink(20);
     sink(500);
     expect(toast).toHaveBeenCalledOnce();
-  });
-});
-
-describe('makeMidiReporter', () => {
-  it('reports a port or phase change at once, and paces the active-note counter to 250 ms', () => {
-    const engine = stubEngine();
-    const state: Pick<MidiStatusState, 'status' | 'report'> = { status: ABSENT_MIDI_STATUS, report: vi.fn((s: MidiStatus) => (state.status = s)) };
-    const sink = makeMidiReporter(engine, { getState: () => state });
-    const on: MidiStatus = { ...ABSENT_MIDI_STATUS, phase: 'ready', supported: true, ports: ['IAC'], portName: 'IAC' };
-    engine.outputs['midiOut.status'] = on;
-    sink(0);
-    expect(state.report).toHaveBeenCalledTimes(1);
-    engine.outputs['midiOut.status'] = { ...on, activeNotes: 2 };
-    sink(100);
-    expect(state.report).toHaveBeenCalledTimes(1);
-    sink(250);
-    expect(state.report).toHaveBeenCalledTimes(2);
-    engine.outputs['midiOut.status'] = { ...on, activeNotes: 2, ports: ['IAC', 'USB'] };
-    sink(260);
-    expect(state.report).toHaveBeenCalledTimes(3);
   });
 });
 

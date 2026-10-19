@@ -36,7 +36,6 @@ import { trainerHudResource } from './enroll/hud';
 import { useRecordingController } from './recording/useRecordingController';
 import { tagOverlayResource } from './tagging/runtime';
 import { useFaceStatus, makeFaceReporter } from './faceStatus';
-import { useMidiStatus, makeMidiReporter } from './midiStatus';
 import { useGenerativeStatus, makeGenerativeReporter, ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID } from './generativeStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
@@ -338,9 +337,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // back to React for the indicator/readout (#65), throttled; a transition into
         // 'error' surfaces a toast once.
         const reportFace = makeFaceReporter(engine);
-        // Bridge the midi-out node's status to React the same way (#137): the
-        // settings panel renders the live device list + connection phase from it.
-        const reportMidi = makeMidiReporter(engine);
         // Gesture dispatch (#129): the classifier's per-hand poses feed the dispatcher
         // (fresh timing state per engine run) every frame, which turns held-pose
         // TRANSITIONS into command dispatches; the status store is written only when a
@@ -419,7 +415,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportMidi), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportGenerative), toMs(reportConductor), toMs(reportLeadTake), toMs(reportOrchestra), toMs(reportSong), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -450,7 +446,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       registryRef.current = null;
       useFaceStatus.getState().reset();
       resetLiveVector();
-      useMidiStatus.getState().reset();
       useGestureStatus.getState().reset();
       useGenerativeStatus.getState().reset();
       useConductorStatus.getState().reset();

@@ -23,24 +23,45 @@ import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
 import { ConductorSettingsSchema, DEFAULT_CONDUCTOR } from './schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
+import { flatDialKey, flatFields } from '@/host/slices';
 
-/** One dials-form field per extension dial slice, with the slice's metadata. */
+/** One dials-form field per extension dial slice, with the slice's metadata; a FLAT slice (#600
+ *  S13) gives one field per member (`midi.enabled`, or its `flatKeys` name), each with its own
+ *  metadata and default. */
 function extensionDialFields(): Record<string, z.ZodTypeAny> {
   const out: Record<string, z.ZodTypeAny> = {};
-  for (const slice of CONTRIBUTIONS.dialSlices) out[slice.key] = (slice.schema as z.ZodTypeAny).meta(slice.meta);
+  for (const slice of CONTRIBUTIONS.dialSlices) {
+    if (slice.layout === 'flat') for (const [field, schema] of flatFields(slice)) out[flatDialKey(slice, field)] = schema as unknown as z.ZodTypeAny;
+    else out[slice.key] = (slice.schema as z.ZodTypeAny).meta(slice.meta);
+  }
   return out;
 }
 
-/** The extension slices of a settings-like object, verbatim (every slice is whole-object). */
-function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> {
+/** A settings object's extension slices as dials values: an object slice verbatim, a flat one
+ *  spread into its member keys (`midi` -> `midi.enabled`, ...). */
+function extensionDialsOf(settings: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const slice of CONTRIBUTIONS.dialSlices) out[slice.key] = o[slice.key];
+  for (const slice of CONTRIBUTIONS.dialSlices) {
+    const value = settings[slice.key];
+    if (slice.layout !== 'flat') out[slice.key] = value;
+    else for (const [field] of flatFields(slice)) out[flatDialKey(slice, field)] = (value as Record<string, unknown> | undefined)?.[field];
+  }
+  return out;
+}
+
+/** Dials values' extension slices as settings: an object slice verbatim, a flat one gathered
+ *  back from its member keys. */
+function extensionSettingsOf(dials: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const slice of CONTRIBUTIONS.dialSlices) {
+    out[slice.key] = slice.layout === 'flat' ? Object.fromEntries(flatFields(slice).map(([field]) => [field, dials[flatDialKey(slice, field)]])) : dials[slice.key];
+  }
   return out;
 }
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map.schema';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map.schema';
-import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, DEFAULT_MIDI, defaultSteerConfig, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, defaultSteerConfig, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
@@ -108,15 +129,6 @@ export const thoreminDials = defineDials(
     'faceChord.chordRoot': z.number().int().min(0).max(11).default(DEFAULT_FACE_CHORD.chordRoot).meta({ facets: ['Face'], title: 'Chord root' }),
     'faceChord.chordType': ScaleEnum.default(DEFAULT_FACE_CHORD.chordType).meta({ facets: ['Face'], title: 'Chord scale' }),
 
-    // MIDI output (#137). `midi.port` is a FREE string, not an enum: the real
-    // options are the live device list (MidiStatus.ports), which only exists at
-    // runtime — the panel renders them as a dynamic <select>, the palette/AI take
-    // the port name as text. '' targets the first available port.
-    'midi.enabled': z.boolean().default(false).meta({ facets: ['MIDI'], title: 'MIDI output', description: 'Send the played voices to a Web MIDI output (external synth or DAW)' }),
-    'midi.port': z.string().default('').meta({ facets: ['MIDI'], title: 'MIDI port', description: 'MIDI output port name (empty = first available)' }),
-    // #168 Q3: on (the default) the master mute silences MIDI too; off keeps the notes
-    // flowing to the DAW while only the local monitor goes quiet.
-    'midi.muteFollowsMaster': z.boolean().default(DEFAULT_MIDI.muteFollowsMaster).meta({ facets: ['MIDI'], title: 'Mute silences MIDI too', description: 'When on, the master mute (M) also stops the MIDI notes; when off, only the local sound is muted and notes keep flowing to your DAW' }),
 
     // The hands reading (#148): the handedness dwell the sound path's `hand-features`
     // applies, live through `store-controls`. 0 = the raw per-frame label (the instrument
@@ -252,10 +264,7 @@ export function settingsToLayer(s: Settings): Layer {
     'faceExpr.sensitivity': s.faceExpr.sensitivity,
     'faceExpr.degrees': s.faceExpr.degrees,
     'faceExpr.targets': s.faceExpr.targets,
-    'midi.enabled': s.midi.enabled,
-    'midi.port': s.midi.port,
     'hands.handednessDwell': s.hands.handednessDwell,
-    'midi.muteFollowsMaster': s.midi.muteFollowsMaster,
     'body.enabled': s.body.enabled,
     'body.model': s.body.model,
     'steer.enabled': s.steer.enabled,
@@ -266,7 +275,7 @@ export function settingsToLayer(s: Settings): Layer {
     bodyMap: s.bodyMap,
     faceControls: s.faceControls,
     conductor: s.conductor,
-    ...extensionSlicesOf(s),
+    ...extensionDialsOf(s),
   });
 }
 
@@ -296,7 +305,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
       chordType: v['faceChord.chordType'],
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'], targets: v['faceExpr.targets'] },
-    midi: { enabled: v['midi.enabled'], port: v['midi.port'], muteFollowsMaster: v['midi.muteFollowsMaster'] },
     hands: { handednessDwell: v['hands.handednessDwell'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
     steer: { enabled: v['steer.enabled'], volume: v['steer.volume'], config: v.steerConfig },
@@ -305,6 +313,6 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     bodyMap: v.bodyMap,
     faceControls: v.faceControls,
     conductor: v.conductor,
-    ...extensionSlicesOf(v),
+    ...extensionSettingsOf(v),
   });
 }

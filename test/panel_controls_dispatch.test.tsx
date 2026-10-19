@@ -2,8 +2,9 @@
 /**
  * The settings panels' newer controls write the store (#391 item 9): the handedness dwell
  * in the Hand section (including a saved value that is not one of the offered choices),
- * the "Mute silences MIDI too" toggle in the MIDI section, and the conductor's tempo-sense
- * (prior) chooser and orchestra controls. Each one dispatches through the command
+ * and the conductor's tempo-sense
+ * (prior) chooser and orchestra controls. (The MIDI section's toggle moved with its slice, #600
+ * S13: `test/midi/midi_panel_dispatch.test.tsx`.) Each one dispatches through the command
  * registry (`dispatchDialSet` / `dispatchDialSetIn`), so a write reaches both the dials
  * store and the hot store the graph reads. The reachability tests (`hand_panel`,
  * `midi_panel`, `conductor_panel`) cover the controls' presence; this covers their handlers.
@@ -11,12 +12,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { HandControls } from '@/app/dials/panels/hand';
-import { MidiControls } from '@/app/dials/panels/midi';
 import { ConductorControls } from '@/app/dials/panels/conductor';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSet, dispatchDialSetIn } from '@/app/dispatchDial';
 import { useControls } from '@/app/store';
-import { useMidiStatus } from '@/app/midiStatus';
 import type { ConductorSettings } from '@/settings/schema';
 
 const effective = (key: string) => dialsStore.getState().effective[key];
@@ -27,8 +26,6 @@ const drain = async () => {
 
 afterEach(() => {
   cleanup();
-  useMidiStatus.getState().reset();
-  Reflect.deleteProperty(navigator, 'requestMIDIAccess');
 });
 
 describe('Hand: the handedness dwell select', () => {
@@ -67,42 +64,6 @@ describe('Hand: the handedness dwell select', () => {
     fireEvent.change(select, { target: { value: before } });
     await drain();
     expect(useControls.getState().handMap.positionSource).toBe(before);
-  });
-});
-
-describe('MIDI: the "Mute silences MIDI too" toggle', () => {
-  /** Pretend this browser has Web MIDI (jsdom has none). */
-  const stubWebMidi = () => {
-    (navigator as Navigator & { requestMIDIAccess?: unknown }).requestMIDIAccess = () => Promise.reject(new Error('stub'));
-  };
-
-  it('is disabled while MIDI is off; once on, unticking and reticking writes the dial and the hot store', async () => {
-    stubWebMidi();
-    render(<MidiControls />);
-    const toggle = screen.getByLabelText('Mute silences MIDI too') as HTMLInputElement;
-    expect(toggle.checked).toBe(true);
-    expect(toggle.disabled).toBe(true);
-
-    fireEvent.click(screen.getByLabelText('Send to MIDI output'));
-    await drain();
-    expect(effective('midi.enabled')).toBe(true);
-    expect(toggle.disabled).toBe(false);
-
-    fireEvent.click(toggle);
-    await drain();
-    expect(effective('midi.muteFollowsMaster')).toBe(false);
-    expect(useControls.getState().midi.muteFollowsMaster).toBe(false);
-    expect(toggle.checked).toBe(false);
-
-    fireEvent.click(toggle);
-    await drain();
-    expect(effective('midi.muteFollowsMaster')).toBe(true);
-    expect(useControls.getState().midi.muteFollowsMaster).toBe(true);
-
-    // Restore for the other tests.
-    fireEvent.click(screen.getByLabelText('Send to MIDI output'));
-    await drain();
-    expect(effective('midi.enabled')).toBe(false);
   });
 });
 

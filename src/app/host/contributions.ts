@@ -11,7 +11,7 @@
  * label) declared twice is refused with both extensions named. Core's own tools are checked
  * against the extensions' where both are known (`src/app/shellTools.ts`).
  */
-import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, KeybindingDecl, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
+import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, KeybindingDecl, StillSounding, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
 import { defineCommand, err, type Registry } from 'acture';
 import {
   EXTENSION_COMMANDS,
@@ -19,6 +19,7 @@ import {
   EXTENSION_KEYBINDINGS,
   EXTENSION_MOUNT_EFFECTS,
   EXTENSION_PANELS,
+  EXTENSION_STILL_SOUNDING,
   EXTENSION_TOOL_DECLS,
   EXTENSION_TOOL_PANELS,
   EXTENSION_UI_DECLS,
@@ -43,6 +44,8 @@ export interface UiContributions {
   entryPoints: readonly ToolEntryPointDecl[];
   mountEffects: typeof EXTENSION_MOUNT_EFFECTS;
   keybindings: readonly KeybindingDecl[];
+  /** What keeps sounding while the player has muted (#600 S13), named on the muted banner. */
+  stillSounding: readonly StillSounding[];
 }
 
 checkUiDecls(EXTENSION_UI_DECLS);
@@ -55,6 +58,7 @@ export const UI_CONTRIBUTIONS: UiContributions = {
   entryPoints: EXTENSION_ENTRY_POINTS,
   mountEffects: EXTENSION_MOUNT_EFFECTS,
   keybindings: EXTENSION_KEYBINDINGS,
+  stillSounding: EXTENSION_STILL_SOUNDING,
 };
 
 /**

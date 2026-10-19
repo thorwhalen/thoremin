@@ -77,7 +77,7 @@ The suite grew from ~33 files to 108 across the 2026-06 → 2026-09 tracks. Roug
 | **Recording** (#88) | `recording`, `recording_plan`, `recording_naming`, `recording_manifest`, `recording_schema`, `recording_caps`, `recording_feature_tap` | The pure half of the recorder (see below). |
 | **Annotations** (#92) | `taglog_affordances`, `taglog_adapters`, `taglog_provider`, `taglog_presentation`, `tagging_store`, `tagging_export`, `tag_hud_overlay` | The extraction-ready `packages/taglog/src/` core + the thoremin glue + the exporters. |
 | **Assistant** (#87 P3) | `assistant_session`, `assistant_tools` | Tool exposure and the session/confirmation flow, against a mock model. |
-| **Output** | `midi_out`, `overlay_elements`, `render_audio` | The MIDI sink, the overlay elements, the offline synth DSP. |
+| **Output** | `midi/midi_out`, `overlay_elements`, `render_audio` | The MIDI sink, the overlay elements, the offline synth DSP. |
 | **Fixtures** | `fixture_replay`, `video_fixtures`, `video_body_fixtures`, `hand_pipeline` | The record/replay regression gates. |
 
 ### What is *not* covered headlessly

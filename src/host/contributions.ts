@@ -31,6 +31,7 @@ import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_
 import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
 import type { CategoryPoolSizes } from '@/nodes/output/canvas_overlay.schema';
 import { CORE_STORAGE_KEYS, type StorageKeyEntry } from './storageKeys';
+import { checkFlatSlice } from './slices';
 import {
   EXTENSIONS,
   EXTENSION_SETTINGS_SHAPE,
@@ -229,9 +230,13 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
   // transient a `store-controls` port too), so they share one namespace.
   const storeFields = new Map<string, string>();
   const dialSlices = keyed('dial key, pref or transient field', extensions, (e) => e.dials, (d) => d.key, storeFields);
+  for (const e of extensions) for (const slice of e.dials) checkFlatSlice(e.id, slice);
   const prefSlices = keyed('dial key, pref or transient field', extensions, (e) => e.prefs ?? [], (p) => p.key, storeFields);
   const branches = keyed('branch', extensions, (e) => e.branches, (b) => b.id);
   const transientFields = keyed('dial key, pref or transient field', extensions, (e) => e.transient ?? [], (t) => t.field, storeFields).map((t) => t.field);
+  // A dial's derived store-controls ports share the bridge's port namespace with the dial keys,
+  // the prefs and the transient fields (#600 S13).
+  keyed('store-controls port', extensions, (e) => e.dials.flatMap((d) => (d.ports ?? []).map((p) => p.name)), (n) => n, new Map(storeFields));
   return {
     extensions,
     dialSlices,

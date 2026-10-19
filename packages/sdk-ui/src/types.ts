@@ -88,6 +88,17 @@ export interface ExtensionCommand {
   readonly execute: (params: never, ctx: never) => unknown;
 }
 
+/**
+ * Something that keeps sounding while the player has muted (#600 S13): the shell's muted banner
+ * names it ("MIDI still on"), so a player who pressed M knows what still reaches the outside. A
+ * pure read of the hot store's state, called on every store change: the note, or null while the
+ * output is silent too.
+ */
+export interface StillSounding {
+  id: string;
+  whileMuted: (state: Readonly<Record<string, unknown>>) => string | null;
+}
+
 export interface ExtensionUi {
   id: string;
   panels: readonly ExtensionPanel[];
@@ -100,6 +111,10 @@ export interface ExtensionUi {
   commands?: readonly ExtensionCommand[];
   /** Keys it binds to its commands (#600 S11). */
   keybindings?: readonly KeybindingDecl[];
+  /** Its outputs that keep sounding while the player has muted (#600 S13). An EAGER extension's
+   *  only: a lazy extension's stub carries none (an output that keeps sounding is one the player
+   *  is playing through, which is eager by nature). */
+  stillSounding?: readonly StillSounding[];
 }
 
 /** An editor section a LAZY extension will contribute: where it goes and its label, with no

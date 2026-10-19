@@ -347,23 +347,6 @@ export const conductor = defineBranch({
   hands: 1,
 });
 
-export const midiOut = defineBranch({
-  id: 'midi-out',
-  description: 'The merged voices as MIDI, when enabled.',
-  nodes: [{ id: 'midiOut', type: 'midi-out', params: {} }],
-  edges: [
-    // The merge BEFORE the master mute, plus the player's mute and the dial that says
-    // whether it applies to MIDI (#168 Q3): `midi.muteFollowsMaster`, on by default. A
-    // tool's claim (the Trainer) is its own port and always silences.
-    to({ node: TRUNK.merge, port: 'unmuted' }, { node: 'midiOut', port: 'params' }),
-    to(ui('mute'), { node: 'midiOut', port: 'mute' }),
-    to(ui('claimed'), { node: 'midiOut', port: 'claimed' }),
-    to(ui('midiMuteFollowsMaster'), { node: 'midiOut', port: 'muteFollowsMaster' }),
-    to(ui('midiEnabled'), { node: 'midiOut', port: 'enabled' }),
-    to(ui('midiPort'), { node: 'midiOut', port: 'port' }),
-  ],
-});
-
 export const generative = defineBranch({
   id: 'generative',
   description: 'Gestures steer a generative model (indirect map into Lyria); the face input is a nicety.',
@@ -400,7 +383,6 @@ export const BRANCHES: readonly GraphBranch[] = [
   bodyRoute,
   songPace,
   conductor,
-  midiOut,
   generative,
 ];
 

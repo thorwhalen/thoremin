@@ -24,7 +24,7 @@ import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@thoremin/sdk/instruments/extension';
 import type { BreathStatus } from '@thoremin/ext-air/nodes/overlay/breath_cue';
 import { IDLE_AIR_FLUTE_STATUS } from '@thoremin/ext-air/nodes/air_flute';
-import { AIR, ASL, FACES } from '../helpers/extensions';
+import { AIR, ASL, FACES, MIDI } from '../helpers/extensions';
 
 // The breath cue (the air extension's overlay cue since #600 S10) reads the flute's status
 // through a structural slice; this pins, at typecheck time, that the status still has those fields.
@@ -33,9 +33,9 @@ void _breath;
 
 describe('the extension list', () => {
   it.runIf(AIR)('ships the air extension, whose instruments are its branches and dial slices', () => {
-    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(ASL ? ['asl'] : []), ...(FACES ? ['faces'] : [])]);
-    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', 'chord-map', 'chord-map-face', 'chord-wheel', 'chord-wheel-face', ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
-    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', 'chordMap', 'chordWheel', ...(ASL ? ['asl'] : []), ...(FACES ? ['faceCategorizer', 'poseCategorizer', 'categorizerChords'] : [])]);
+    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(ASL ? ['asl'] : []), ...(MIDI ? ['midi-output'] : []), ...(FACES ? ['faces'] : [])]);
+    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', 'chord-map', 'chord-map-face', 'chord-wheel', 'chord-wheel-face', ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(MIDI ? ['midi-out'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
+    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', 'chordMap', 'chordWheel', ...(ASL ? ['asl'] : []), ...(MIDI ? ['midi'] : []), ...(FACES ? ['faceCategorizer', 'poseCategorizer', 'categorizerChords'] : [])]);
     expect(ALL_BRANCH_IDS).toEqual(expect.arrayContaining(['trunk', 'field-voices', 'air-drum', 'air-flute']));
   });
 });
@@ -75,7 +75,7 @@ describe('the registry folds over the extensions', () => {
     // declaration carries each manifest's type, so these hold with no import of air in core.
     expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
     expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
-    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'chordMap' | 'chordWheel' | 'asl' | 'faceCategorizer' | 'poseCategorizer' | 'categorizerChords'>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'chordMap' | 'chordWheel' | 'asl' | 'midi' | 'faceCategorizer' | 'poseCategorizer' | 'categorizerChords'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
     // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold

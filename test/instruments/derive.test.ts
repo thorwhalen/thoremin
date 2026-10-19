@@ -21,7 +21,7 @@ const _controlStateDerives: StrictDerivationSettings = null as unknown as Contro
 void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR } from '../helpers/extensions';
+import { AIR, MIDI } from '../helpers/extensions';
 
 const seedSettings = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -87,7 +87,8 @@ describe('branchIdsFor: the dials imply the branches', () => {
       midi: { ...s.midi, enabled: true },
       steer: { ...s.steer, enabled: true },
     };
-    expect(branchIdsFor(all).sort()).toEqual(['conductor', 'field-voices', 'generative', 'midi-out']);
+    // `midi-out` is the MIDI slice's branch (#600 S13): implied while the slice is listed.
+    expect(branchIdsFor(all).sort()).toEqual(['conductor', 'field-voices', 'generative', ...(MIDI ? ['midi-out'] : [])]);
   });
 
   it('switching the orchestra on composes the conductor branch before conducting starts (#187 PR 5)', () => {

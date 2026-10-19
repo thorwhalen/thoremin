@@ -27,7 +27,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { SHIPPED_EXTENSION_DIRS, MIDI } from './helpers/extensions';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ctxWith = (resources: Record<string, unknown>) =>
@@ -135,7 +135,8 @@ describe('every node that makes real-time output honours the boundary', () => {
   it('finds the synth nodes (the guard is not vacuous)', () => {
     expect(synthNodes.length).toBeGreaterThanOrEqual(3);
     expect(synthNodes.map((d) => d.type).sort()).toEqual(
-      expect.arrayContaining(['lyria', 'midi-out', 'webaudio-synth']),
+      // `midi-out` is the MIDI slice's (#600 S13): there while it is listed.
+      expect.arrayContaining(['lyria', ...(MIDI ? ['midi-out'] : []), 'webaudio-synth']),
     );
   });
 
@@ -143,7 +144,8 @@ describe('every node that makes real-time output honours the boundary', () => {
     const airDir = SHIPPED_EXTENSION_DIRS.find((e) => e.id === 'air')!.dir;
     const files: Record<string, string> = {
       'webaudio-synth': 'src/nodes/output/webaudio_synth.ts',
-      'midi-out': 'src/nodes/output/midi_out.ts',
+      // Moved with its slice (#600 S13).
+      'midi-out': 'src/slices/midi/nodes/midi_out.ts',
       'drum-out': join(airDir, 'nodes/drum_out.ts'),
       'pluck-out': join(airDir, 'nodes/pluck_out.ts'),
       lyria: 'src/nodes/output/lyria.ts',

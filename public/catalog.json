@@ -3783,20 +3783,8 @@
         "kind": "expression-targets"
       },
       {
-        "name": "midiEnabled",
-        "kind": "boolean"
-      },
-      {
-        "name": "midiPort",
-        "kind": "string"
-      },
-      {
         "name": "handednessDwell",
         "kind": "number"
-      },
-      {
-        "name": "midiMuteFollowsMaster",
-        "kind": "boolean"
       },
       {
         "name": "steerEnabled",
@@ -3907,6 +3895,10 @@
         "kind": "asl-config"
       },
       {
+        "name": "midi",
+        "kind": "midi-config"
+      },
+      {
         "name": "faceCategorizer",
         "kind": "face-categorizer-config"
       },
@@ -3917,6 +3909,18 @@
       {
         "name": "categorizerChords",
         "kind": "categorizer-chords-config"
+      },
+      {
+        "name": "midiEnabled",
+        "kind": "boolean"
+      },
+      {
+        "name": "midiPort",
+        "kind": "string"
+      },
+      {
+        "name": "midiMuteFollowsMaster",
+        "kind": "boolean"
       },
       {
         "name": "airGuitarModel",

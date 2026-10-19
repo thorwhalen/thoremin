@@ -11,7 +11,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { Extension } from '@thoremin/sdk/instruments/extension';
+import type { DialSlice, Extension } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import type { SoundId } from '@thoremin/sdk/music/sounds';
@@ -80,9 +80,6 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
    *  wizard) that wins over the per-instrument `faceExpr.sensitivity`, so a user's
    *  calibration applies to EVERY instrument. Null/absent = use faceExpr.sensitivity. */
   faceCalibration?: Partial<Record<string, number>> | null;
-  /** MIDI output (#137): on/off + target port name ('' = first available). Fed to
-   *  the `midi-out` node's `enabled`/`port` inputs as live ports. */
-  midi?: { enabled: boolean; port: string; muteFollowsMaster?: boolean };
   /** The hands reading (#148): the handedness dwell, fed to `hand-features`'
    *  `handednessDwell` input as a live port (absent → the node's build-time param). */
   hands?: HandsSettings;
@@ -155,6 +152,13 @@ export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'mute
   return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
 
+/** A slice's default value, parsed once. */
+const defaults = new WeakMap<DialSlice, unknown>();
+function sliceDefault(slice: DialSlice): unknown {
+  if (!defaults.has(slice)) defaults.set(slice, slice.schema.parse(undefined));
+  return defaults.get(slice);
+}
+
 /**
  * Build the UI-bridge node for a set of extensions: the hand-written trunk ports plus one
  * whole-object port per extension dial slice and one per declared transient field (the
@@ -162,6 +166,18 @@ export function hushOf(c: Pick<ControlSnapshot, 'hushedBy' | 'conductor' | 'mute
  * are decided here, once, when the registry is built (`createAppRegistry`).
  */
 export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
+  const node = defineStoreControls(extensions);
+  // An extension's port (a dial, a derived port, a transient) must not shadow a core port: its value
+  // is written after core's and would silently replace it (#600 S13).
+  const core = new Set(defineStoreControls([]).outputs.map((p) => p.name));
+  const extensionPorts = extensions.flatMap((e) => [...e.dials.flatMap((d) => [d.key, ...(d.ports ?? []).map((p) => p.name)]), ...(e.transient ?? []).map((t) => t.field)]);
+  const clash = extensionPorts.find((n) => core.has(n));
+  if (clash) throw new Error(`an extension declares the store-controls port "${clash}", which core already writes`);
+  return node;
+}
+
+/** The bridge node itself (see {@link makeStoreControlsNode}, which checks it). */
+function defineStoreControls(extensions: readonly Extension[]) {
   return defineNode<Record<string, never>>({
   type: 'store-controls',
   roles: ['source', 'control'],
@@ -204,15 +220,9 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     { name: 'expressionDegrees', kind: 'expression-degrees' },
     // What each expression stands for beyond a degree (H6 of #613): moves, functions, the seventh.
     { name: 'expressionTargets', kind: 'expression-targets' },
-    // MIDI output (#137): the on/off switch + target port for the `midi-out` node,
-    // so the settings panel / palette / AI can turn MIDI on without a graph rebuild.
-    { name: 'midiEnabled', kind: 'boolean' },
-    { name: 'midiPort', kind: 'string' },
     // The handedness dwell (#148) → `hand-features`' `handednessDwell` input, so the
     // panel / palette / AI can steady (or un-steady) the hand routing without a rebuild.
     { name: 'handednessDwell', kind: 'number' },
-    // Whether the master mute silences MIDI too (#168 Q3) → `midi-out`'s `muteFollowsMaster`.
-    { name: 'midiMuteFollowsMaster', kind: 'boolean' },
     // The generative layer (#141 / #188): the switch, the transport and the level for
     // the `lyria` node, and what the gestures mean for `indirect-map` — all live, so the
     // settings panel / palette / AI can steer the layer without a graph rebuild.
@@ -247,6 +257,8 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
     // 4): data on a port, never an overlay param, so a switch keeps the overlay instance.
     { name: 'graphElements', kind: 'string[]' },
     ...extensions.flatMap((e) => e.dials.map((slice) => ({ name: slice.key, kind: slice.kind }))),
+    // The values a dial's slice derives for nodes that predate it (#600 S13: `midiEnabled`).
+    ...extensions.flatMap((e) => e.dials.flatMap((slice) => (slice.ports ?? []).map((p) => ({ name: p.name, kind: p.kind })))),
     ...extensions.flatMap((e) => (e.transient ?? []).map((t) => ({ name: t.field, kind: t.kind }))),
   ],
   params: Params,
@@ -289,9 +301,6 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
           muteAll: hush.muteAll,
           muteStrikes: hush.muteStrikes,
           claimed: hush.claimed,
-          midiEnabled: c.midi?.enabled ?? false,
-          midiPort: c.midi?.port ?? '',
-          midiMuteFollowsMaster: c.midi?.muteFollowsMaster ?? true,
           steerEnabled: c.steer?.enabled ?? false,
           steerPlaying: c.steerPlaying ?? false,
           // A tool claim (the Trainer) quiets the generative layer too; it is not a voice
@@ -317,6 +326,11 @@ export function makeStoreControlsNode(extensions: readonly Extension[] = []) {
         const snapshot = c as unknown as Record<string, unknown>;
         for (const slice of extensions.flatMap((e) => e.dials)) {
           if (snapshot[slice.key]) out[slice.key] = snapshot[slice.key];
+          // Its derived ports, always emitted, read from the dial or its default.
+          if (slice.ports?.length) {
+            const dial = snapshot[slice.key] ?? sliceDefault(slice);
+            for (const p of slice.ports) out[p.name] = p.read(dial as never);
+          }
         }
         for (const t of extensions.flatMap((e) => e.transient ?? [])) out[t.field] = snapshot[t.field] ?? null;
         if (c.scoreDoc) out.scoreDoc = c.scoreDoc;

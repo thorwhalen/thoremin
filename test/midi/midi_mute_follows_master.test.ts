@@ -26,11 +26,12 @@ import { join } from 'node:path';
 import { describe, it, expect, afterEach } from 'vitest';
 import { Engine, type GraphSpec } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import type { MidiSink, MidiSinkFactory } from '@/nodes/browser';
+import type { MidiSink, MidiSinkFactory } from '@/slices/midi/nodes/midi_out';
 import type { HandsFrame } from '@/nodes';
 import { useControls } from '@/app/store';
-import { DEFAULT_MIDI } from '@/settings/schema';
-import { FIXTURES, loadStream } from './helpers/fixtures';
+import { DEFAULT_MIDI } from '@/slices/midi/schema';
+import { MIDI } from '../helpers/extensions';
+import { FIXTURES, loadStream } from '../helpers/fixtures';
 
 const BASELINE = join(FIXTURES, 'midi_mute', 'legacy_main.ndjson');
 const TICKS = 90; // the sweep_right fixture's length
@@ -121,13 +122,13 @@ afterEach(() => {
   useControls.setState({ muted: false, hushedBy: [], midi: { ...DEFAULT_MIDI } } as never);
 });
 
-describe.runIf(process.env.THOREMIN_WRITE_MIDI_BASELINE)('baseline writer (legacy wiring)', () => {
+describe.runIf(MIDI && process.env.THOREMIN_WRITE_MIDI_BASELINE)('baseline writer (legacy wiring)', () => {
   it('dumps the legacy stream', async () => {
     writeFileSync(BASELINE, await run('legacy', { mute: true }));
   });
 });
 
-describe.skipIf(process.env.THOREMIN_WRITE_MIDI_BASELINE)('midi.muteFollowsMaster over the sweep_right fixture', () => {
+describe.runIf(MIDI && !process.env.THOREMIN_WRITE_MIDI_BASELINE)('midi.muteFollowsMaster over the sweep_right fixture', () => {
   it('the fixture sounds: notes play, and the mute window has something to silence', async () => {
     const log = parse(await run('dial', { mute: false }));
     const ons = log.flatMap((l) => l.events.filter((ev) => ev[0] === 'on'));

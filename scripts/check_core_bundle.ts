@@ -3,6 +3,7 @@
  * extensions) into a temporary directory and fail if
  *
  *  1. any module of an extension (under `src/extensions/` other than the list module, under
+ *     `src/slices/` (a built-in feature's slice, #600 Phase E), under
  *     `packages/ext-*`, or an installed `node_modules/@thoremin/ext-*`) is in the build's module graph (read from the bundle itself, so a core file importing an extension's library
  *     helper is caught even when nothing of it survives as a string), or
  *  2. any node type, branch id or dial kind of a shipped extension appears in the JS (a copy
@@ -24,12 +25,13 @@ import { build, type Plugin } from 'vite';
 import { AIR_EXTENSION } from '@thoremin/ext-air';
 import { ASL_EXTENSION } from '@thoremin/ext-asl';
 import { FACES_EXTENSION } from '@thoremin/ext-faces';
+import { MIDI_EXTENSION } from '../src/slices/midi';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);
@@ -56,6 +58,9 @@ async function buildWith(manifest: string, alias: Record<string, string> = {}): 
             const path = id.replace(/\\/g, '/');
             const inTree = path.split('/src/extensions/')[1];
             if (inTree !== undefined && inTree !== 'index.ts') extensionModules.add(`src/extensions/${inTree}`);
+            // A built-in feature's slice (#600 Phase E) is an extension too.
+            const slice = path.split('/src/slices/')[1];
+            if (slice !== undefined) extensionModules.add(`src/slices/${slice}`);
             const pkg = path.match(/\/packages\/(ext-[^/]+\/.*)$/);
             if (pkg) extensionModules.add(`packages/${pkg[1]}`);
             // An extension that is its own repository, installed as a dependency.

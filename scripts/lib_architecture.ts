@@ -13,7 +13,8 @@
  *    an implementation, and the app registry (`src/host/appRegistry.ts`), which imports nodes to
  *    register them, is not counted.
  *  - `extensionNamesInCore`: per shipped extension, the core files (`src/` minus the list
- *    modules, the frozen legacy app and tests) whose CODE names one of that extension's
+ *    modules, the in-tree extensions and slices, the flat-slice policy table, the frozen legacy
+ *    app and tests) whose CODE names one of that extension's
  *    identifiers: its id, a node type, a branch id, a dial key or kind, a transient field or
  *    kind (V1, V4). Comments do not count; identifiers and string literals do, and a name that
  *    starts with one (`airDrumConfig` names `airDrum`) counts too.
@@ -35,6 +36,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, normalize } from 'node:path';
 import ts from 'typescript';
+import type { DialSlice } from '@thoremin/sdk/instruments/extension';
+import { flatDialKeys } from '../src/host/slices';
 
 export interface ArchitectureNumbers {
   nodeImplementationImports: number;
@@ -274,11 +277,16 @@ export function measure({ root, extensions, foldPoints, largestFiles }: MeasureI
     }
   }
 
-  const core = files.filter((f) => f.startsWith('src/') && !f.startsWith('src/extensions/') && !LEGACY(f));
+  // In-tree extensions (`src/extensions/`, and the built-in features' slices in `src/slices/`,
+  // #600 Phase E) are extensions, not core.
+  const core = files.filter((f) => f.startsWith('src/') && !f.startsWith('src/extensions/') && !f.startsWith('src/slices/') && !LEGACY(f));
   const extensionFiles: Record<string, string[]> = {};
-  const tokensOf = new Map(core.map((f) => [f, codeTokens(parsed.get(f)!)]));
+  // The flat-slice policy table (`FLAT_SLICES`, #600 S13) names the built-in features' slices BY
+  // DESIGN: it is where core says which of them may keep flat keys, and who owns each.
+  const named = core.filter((f) => f !== 'src/host/slices.ts');
+  const tokensOf = new Map(named.map((f) => [f, codeTokens(parsed.get(f)!)]));
   for (const ext of extensions) {
-    extensionFiles[ext.id] = core.filter((f) =>
+    extensionFiles[ext.id] = named.filter((f) =>
       tokensOf.get(f)!.some((t) => t === ext.id || ext.names.some((n) => namedBy(t, n))),
     );
   }
@@ -333,14 +341,17 @@ export function extensionNames(ext: {
   nodes?: readonly { type: string }[];
   provides?: readonly string[];
   branches: readonly { id: string }[];
-  dials: readonly { key: string; kind: string }[];
+  dials: readonly { key: string; kind: string; layout?: 'object' | 'flat'; ports?: readonly { name: string }[] }[];
   transient?: readonly { field: string; kind: string }[];
 }): ExtensionNames {
   const names = new Set<string>([
     ...(ext.nodes ?? []).map((n) => n.type),
     ...(ext.provides ?? []),
     ...ext.branches.map((b) => b.id),
-    ...ext.dials.flatMap((d) => [d.key, d.kind]),
+    // A FLAT dial slice (#600 S13) is named by its member keys (`midi.enabled`), not its bare key:
+    // a built-in feature's key is often a common word (`midi` is also a note number), and its
+    // flat keys are what a saved instrument and a command name. Its derived ports count too.
+    ...ext.dials.flatMap((d) => [...(d.layout === 'flat' ? flatDialKeys(d as DialSlice) : [d.key]), d.kind, ...(d.ports ?? []).map((p) => p.name)]),
     ...(ext.transient ?? []).flatMap((t) => [t.field, t.kind]),
   ]);
   return { id: ext.id, names: [...names].sort() };
