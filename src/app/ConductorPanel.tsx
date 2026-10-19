@@ -49,6 +49,7 @@ import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';
 import { entryPointsFrom, openEntryPoint } from './entryPoints';
+import { raiseToolEvent, ToolSections } from './toolSections';
 import { useTools } from './toolsStore';
 import { SONG_START_BEAT_MAX, type ConductorSettings } from '@/settings/schema';
 
@@ -228,6 +229,8 @@ export default function ConductorPanel() {
   const recording = conductorDial.conducts === 'recording';
   const source = CONDUCTOR_SOURCES.find((s) => s === conductorDial.source) ?? 'hands';
   const entryPoints = entryPointsFrom(CONDUCTOR_TOOL_ID, { 'conductor.source': source });
+  // What the sections other extensions contribute here see (#600 S15), and their `when` may name.
+  const sectionContext = { 'conductor.source': source, 'conductor.conducts': conductorDial.conducts ?? 'score', 'conductor.enabled': enabled, live };
   // The faces extension's pose categorizer (#384), when the build ships it: its ready, fermata
   // and cut-off poses may replace the body conductor's rules (#387 B5).
   const poseDial = (state.effective as Record<string, unknown>).poseCategorizer as { id?: string; transport?: boolean } | undefined;
@@ -282,8 +285,11 @@ export default function ConductorPanel() {
           ))}
         </div>
         {recording && <RecordingChooser live={live} />}
+        <ToolSections from={CONDUCTOR_TOOL_ID} context={sectionContext} />
         <button
           onClick={() => {
+            // Inside the click (#600 S15): a contributed section may unlock its media here.
+            raiseToolEvent(CONDUCTOR_TOOL_ID, enabled ? 'stop' : 'start', sectionContext);
             // Inside the click, before the tick that plays it: the media-element fallback's
             // autoplay policy (the Signalsmith worklet needs none).
             if (!enabled && recording) unlockSongPlayback();

@@ -8,7 +8,7 @@
  * that load that half when first rendered ({@link lazyPanel}), its status hooks join
  * {@link extensionStatusHooks} once loaded, and its mount effects run when it loads.
  */
-import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, ExtensionCommand, KeybindingDecl, StillSounding, StatusHook, OutputReader } from '@thoremin/sdk-ui/types';
+import type { ExtensionPanel, ExtensionTool, ExtensionToolDecl, ToolEntryPointDecl, ExtensionUi, ExtensionUiStub, ExtensionCommand, KeybindingDecl, StillSounding, StatusHook, OutputReader, ToolDetached, ExtensionToolSection } from '@thoremin/sdk-ui/types';
 import listed from 'virtual:thoremin/extensions-ui';
 import { lazyPanel, lazyToolPanel } from './lazyPanel';
 
@@ -28,11 +28,12 @@ export const EXTENSION_UI_IDS: readonly string[] = LISTED.map((u) => u.id);
 
 /** What each listed extension declares to the shell, as data and with its id: the contribution
  *  registry (`src/app/host/contributions.ts`) checks the keyed points against it, naming owners. */
-export const EXTENSION_UI_DECLS: readonly { id: string; sections: readonly string[]; tools: readonly string[]; entryPoints: readonly string[] }[] = LISTED.map((u) => ({
+export const EXTENSION_UI_DECLS: readonly { id: string; sections: readonly string[]; tools: readonly string[]; entryPoints: readonly string[]; toolSections: readonly string[] }[] = LISTED.map((u) => ({
   id: u.id,
   sections: u.panels.map((p) => `${p.instrumentId} / ${p.section}`),
   tools: (u.tools ?? []).map((t) => t.id),
   entryPoints: (u.entryPoints ?? []).map((e) => e.id),
+  toolSections: isLazy(u) ? [] : (u.toolSections ?? []).map((t) => t.id),
 }));
 
 /** The EAGER extensions' React halves (a lazy one's arrives through {@link loadExtensionUi}). */
@@ -94,9 +95,21 @@ export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
 );
 
 /** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */
-export const EXTENSION_TOOL_DECLS: readonly ExtensionToolDecl[] = LISTED.flatMap((u) =>
-  (u.tools ?? []).map(({ id, label, description, group, defaultPinned }) => ({ id, label, description, group, defaultPinned })),
+export const EXTENSION_TOOL_DECLS: readonly (ExtensionToolDecl & { runsDetached?: true })[] = LISTED.flatMap((u) =>
+  (u.tools ?? []).map((t) => {
+    const { id, label, description, group, defaultPinned } = t;
+    // An eager tool that keeps working with its panel closed (#600 S15) runs detached.
+    return 'detached' in t && t.detached ? { id, label, description, group, defaultPinned, runsDetached: true as const } : { id, label, description, group, defaultPinned };
+  }),
 );
+
+/** Every eager extension tool that runs detached (#600 S15), with what the bar needs to show and stop it. */
+export const EXTENSION_TOOL_DETACHED: readonly { id: string; detached: ToolDetached }[] = EXTENSION_UIS.flatMap((u) =>
+  (u.tools ?? []).flatMap((t) => (t.detached ? [{ id: t.id, detached: t.detached }] : [])),
+);
+
+/** Every eager extension's sections in another tool's panel (#600 S15). */
+export const EXTENSION_TOOL_SECTIONS: readonly ExtensionToolSection[] = EXTENSION_UIS.flatMap((u) => u.toolSections ?? []);
 
 /** Every extension's entry points into a tool from another tool's panel (#465), as data. */
 export const EXTENSION_ENTRY_POINTS: readonly ToolEntryPointDecl[] = LISTED.flatMap((u) => u.entryPoints ?? []);

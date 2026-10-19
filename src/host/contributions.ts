@@ -239,7 +239,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
   const transientFields = transients.map((t) => t.field);
   // A dial's derived store-controls ports share the bridge's port namespace with the dial keys,
   // the prefs and the transient fields (#600 S13).
-  keyed('store-controls port', extensions, (e) => e.dials.flatMap((d) => (d.ports ?? []).map((p) => p.name)), (n) => n, new Map(storeFields));
+  keyed('store-controls port', extensions, (e) => [...e.dials.flatMap((d) => (d.ports ?? []).map((p) => p.name)), ...(e.prefs ?? []).flatMap((p) => (p.ports ?? []).map((q) => q.name))], (n) => n, new Map(storeFields));
   return {
     extensions,
     dialSlices,
@@ -285,15 +285,17 @@ export interface UiDecls {
   sections: readonly string[];
   tools: readonly string[];
   entryPoints: readonly string[];
+  /** Sections in another tool's panel (#600 S15). */
+  toolSections?: readonly string[];
 }
 
 /** Refuse a key declared twice at one of the shell's keyed points, naming both extensions. */
 export function checkUiDecls(decls: readonly UiDecls[]): void {
-  const labels = { sections: 'editor section', tools: 'tool', entryPoints: 'entry point' } as const;
-  for (const point of ['sections', 'tools', 'entryPoints'] as const) {
+  const labels = { sections: 'editor section', tools: 'tool', entryPoints: 'entry point', toolSections: 'tool section' } as const;
+  for (const point of ['sections', 'tools', 'entryPoints', 'toolSections'] as const) {
     const owners = new Map<string, string>();
     for (const d of decls) {
-      for (const k of d[point]) {
+      for (const k of d[point] ?? []) {
         const was = owners.get(k);
         if (was !== undefined) throw new Error(was === d.id ? `extension "${d.id}" declares the ${labels[point]} "${k}" twice` : `extensions "${was}" and "${d.id}" both declare the ${labels[point]} "${k}"`);
         owners.set(k, d.id);

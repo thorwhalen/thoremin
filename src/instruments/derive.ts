@@ -33,7 +33,7 @@ import { demandWantsBody, demandWantsFace, labWantsBody, labWantsFace, type Feat
  */
 export interface DerivationTable {
   knownBranchIds: ReadonlySet<string>;
-  extensions: readonly { id: string; derive: (settings: DerivationSettings) => readonly string[] }[];
+  extensions: readonly { id: string; derive: (settings: DerivationSettings) => readonly string[]; toolDerive?: (settings: DerivationSettings, composed: readonly string[]) => readonly string[] }[];
 }
 
 /**
@@ -140,6 +140,11 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   const add = (id: string, on: boolean): void => {
     if (on && !ids.includes(id)) ids.push(id);
   };
+  // What the extensions' TOOLS need (#600 S15), on either path: unioned into an explicit set
+  // too, after everything else, so each sees the ids implied so far.
+  const addToolNeeds = (): void => {
+    for (const ext of table.extensions) for (const id of ext.toolDerive?.(settings, [...ids]) ?? []) add(id, table.knownBranchIds.has(id));
+  };
 
   if (ctx.explicit) {
     // Unknown ids (a stale saved record, a branch an extension no longer ships) are dropped
@@ -158,6 +163,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     const bodyConducts = conductorReadsBody(settings) && ids.includes('conductor') && (on(settings.conductor) || on(settings.conductor?.orchestra));
     add('body-source', labWantsBody(ctx.featureLab) || demandWantsBody(demanded) || dancerLeads || bodyConducts);
     add('song-pace', dancerLeads || conducted);
+    addToolNeeds();
     return ids;
   }
 
@@ -196,6 +202,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // An id the table does not know (a typo in a manifest) is dropped, like an unknown
   // explicit id: the derivation must not take the app down.
   for (const ext of table.extensions) for (const id of ext.derive(settings)) add(id, table.knownBranchIds.has(id));
+  addToolNeeds();
   return ids;
 }
 

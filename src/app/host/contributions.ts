@@ -1,7 +1,8 @@
 /**
  * The contribution registry, React half (#600 S3; `docs/design/vertical-slices.md` §4.2): the ONE
  * place the shell folds what the listed extensions contribute to the UI: editor sections, shell
- * tools and their panels, entry points between tools, status hooks, mount effects, keybindings and
+ * tools and their panels (and a detached tool's stop control), entry points between tools and
+ * sections in another tool's panel (#600 S15), status hooks, mount effects, keybindings and
  * the extensions' commands (#600 S11, registered into the app's command registry). Every shell
  * module reads them from here, never from the list (`src/app/extensions`), which keeps the
  * loading machinery for lazy halves. Its pure twin is `src/host/contributions.ts`.
@@ -11,7 +12,7 @@
  * label) declared twice is refused with both extensions named. Core's own tools are checked
  * against the extensions' where both are known (`src/app/shellTools.ts`).
  */
-import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, KeybindingDecl, StillSounding, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
+import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, ExtensionToolSection, KeybindingDecl, StillSounding, ToolDetached, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
 import { defineCommand, err, type Registry } from 'acture';
 import {
   EXTENSION_COMMANDS,
@@ -21,7 +22,9 @@ import {
   EXTENSION_PANELS,
   EXTENSION_STILL_SOUNDING,
   EXTENSION_TOOL_DECLS,
+  EXTENSION_TOOL_DETACHED,
   EXTENSION_TOOL_PANELS,
+  EXTENSION_TOOL_SECTIONS,
   EXTENSION_UI_DECLS,
   EXTENSION_UI_IDS,
   extensionStatusHooks,
@@ -40,8 +43,12 @@ export interface UiContributions {
   /** Every extension's id, eager or lazy, in `extensions.json`'s order. */
   ids: readonly string[];
   panels: readonly ExtensionPanel[];
-  toolDecls: readonly ExtensionToolDecl[];
+  toolDecls: readonly (ExtensionToolDecl & { runsDetached?: true })[];
   toolPanels: typeof EXTENSION_TOOL_PANELS;
+  /** The tools that keep working with their panel closed (#600 S15): the bar's running mark and stop. */
+  toolDetached: readonly { id: string; detached: ToolDetached }[];
+  /** Sections contributed to another tool's panel (#600 S15). */
+  toolSections: readonly ExtensionToolSection[];
   entryPoints: readonly ToolEntryPointDecl[];
   mountEffects: typeof EXTENSION_MOUNT_EFFECTS;
   keybindings: readonly KeybindingDecl[];
@@ -56,6 +63,8 @@ export const UI_CONTRIBUTIONS: UiContributions = {
   panels: EXTENSION_PANELS,
   toolDecls: EXTENSION_TOOL_DECLS,
   toolPanels: EXTENSION_TOOL_PANELS,
+  toolDetached: EXTENSION_TOOL_DETACHED,
+  toolSections: EXTENSION_TOOL_SECTIONS,
   entryPoints: EXTENSION_ENTRY_POINTS,
   mountEffects: EXTENSION_MOUNT_EFFECTS,
   keybindings: EXTENSION_KEYBINDINGS,

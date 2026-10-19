@@ -32,6 +32,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { LayoutGrid, X } from 'lucide-react';
 import type { Tool } from './tools';
 import { SHELL_TOOLS } from './shellTools';
+import { UI_CONTRIBUTIONS } from './host/contributions';
 import { TOOL_ICONS } from './toolIcons';
 import { isPinned } from './toolsCollection';
 import { useToolPins } from './toolPins';
@@ -147,15 +148,19 @@ function ToolButton({
 /** Per {@link Tool.runsDetached} tool: whether it is running now, and how to stop it.
  *  Read here rather than inside ToolButton so the button stays presentational and
  *  `tools.ts` stays React-free: the registry declares THAT a tool can run detached, the
- *  shell knows what that means for each one. A detached tool with no entry here gets no
- *  stop control, which `tools_shell.test.tsx` refuses. */
+ *  shell knows what that means for each one (an extension's tool says it itself, #600 S15:
+ *  `ExtensionTool.detached`). A detached tool with no entry here gets no stop control, which `tools_shell.test.tsx` refuses. */
 function useDetached(): Record<string, { running: boolean; stop: () => void; hint: string }> {
   const metersOn = useControls((s) => s.featureLab.show);
   const setFeatureLab = useControls((s) => s.setFeatureLab);
   const { state } = useDialsSettings();
   const conducting = ((state.effective.conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
   const songPlaying = useControls((s) => s.songPlaying);
+  // An extension's detached tools (#600 S15): the list is fixed for the build, so the hooks run in
+  // a stable order on every render.
+  const contributed = Object.fromEntries(UI_CONTRIBUTIONS.toolDetached.map(({ id, detached }) => [id, { running: detached.useRunning(), stop: detached.stop, hint: detached.hint }]));
   return {
+    ...contributed,
     lab: { running: metersOn, stop: () => setFeatureLab({ show: false }), hint: 'turn the meters off' },
     // Through the single write path: `conductor.enabled` is a dial.
     conductor: {

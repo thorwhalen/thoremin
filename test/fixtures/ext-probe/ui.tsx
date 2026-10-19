@@ -1,10 +1,10 @@
 /**
  * The probe extension's React half (#600 S1; see `./index.ts`): an editor section with a
- * readout, a status hook, a mount effect, a shell tool, an entry point into it, a command and
- * a still-sounding note for the muted badge. What each
+ * readout, a status hook, a mount effect, a shell tool that runs detached, an entry point into
+ * it, a section in the Conductor panel, a command and a still-sounding note for the muted badge. What each
  * one saw is recorded in {@link probeSeen}, so a test can ask whether the host called it.
  */
-import type { ExtensionUi, ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
+import type { ExtensionUi, ExtensionToolPanelProps, ToolSectionContext } from '@thoremin/sdk-ui/types';
 import { defineCommand, ok } from 'acture';
 import { z } from 'zod';
 import { PROBE_COMMAND_ID, PROBE_NODE_ID, PROBE_TOOL_ID } from './index';
@@ -19,6 +19,11 @@ export const probeSeen = {
   unmounts: 0,
   /** The `times` of each run of the probe's command. */
   pings: [] as number[],
+  /** Whether the probe tool runs detached now (#600 S15), and how often the bar stopped it. */
+  running: false,
+  stops: 0,
+  /** The panel events its section in the Conductor heard, with the context's `conductor.conducts`. */
+  events: [] as string[],
 };
 
 const pingCmd = defineCommand({
@@ -39,6 +44,10 @@ function ProbeControls() {
 
 function ProbeReadout() {
   return <p>probe readout</p>;
+}
+
+function ProbeSection({ context }: { context: ToolSectionContext }) {
+  return <p>probe section {String(context['conductor.conducts'])}</p>;
 }
 
 function ProbeToolPanel({ close }: ExtensionToolPanelProps) {
@@ -85,7 +94,38 @@ export const PROBE_UI: ExtensionUi = {
       };
     },
   ],
-  tools: [{ id: PROBE_TOOL_ID, label: 'Probe tool', description: 'A test-only tool.', group: 'tool', defaultPinned: false, Panel: ProbeToolPanel }],
+  tools: [
+    {
+      id: PROBE_TOOL_ID,
+      label: 'Probe tool',
+      description: 'A test-only tool.',
+      group: 'tool',
+      defaultPinned: false,
+      Panel: ProbeToolPanel,
+      // It keeps working with its panel closed (#600 S15): the bar marks it and can stop it.
+      detached: {
+        useRunning: () => probeSeen.running,
+        stop: () => {
+          probeSeen.stops += 1;
+          probeSeen.running = false;
+        },
+        hint: 'stop the probe',
+      },
+    },
+  ],
+  // A section in the Conductor panel while it conducts a recording, hearing its Start and Stop (#600 S15).
+  toolSections: [
+    {
+      id: 'probe-section',
+      from: 'conductor',
+      when: { 'conductor.conducts': 'recording' },
+      Section: ProbeSection,
+      on: {
+        start: (c) => void probeSeen.events.push(`start:${String(c['conductor.conducts'])}`),
+        stop: (c) => void probeSeen.events.push(`stop:${String(c['conductor.conducts'])}`),
+      },
+    },
+  ],
   entryPoints: [{ id: 'probe-entry', from: PROBE_TOOL_ID, tool: 'probe-lazy-tool', label: 'Open the lazy probe...', when: { probe: true } }],
 };
 
