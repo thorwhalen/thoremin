@@ -1481,6 +1481,11 @@
         "default": 0.25
       },
       {
+        "name": "chordsFrom",
+        "type": "enum(key | scale)",
+        "default": "key"
+      },
+      {
         "name": "anchor",
         "type": "enum(home | letters)",
         "default": "home"

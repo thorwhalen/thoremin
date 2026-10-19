@@ -16,6 +16,7 @@ import {
   diatonicChords,
   keyedCells,
   letterChordNames,
+  scaleChords,
   ladderBand,
   layoutCells,
   melodyLadder,
@@ -138,6 +139,37 @@ describe('the letters map (H13 of #613)', () => {
     const fromLaidOut = grid(cells).captions.map((c) => c.text);
     expect(fromLaidOut).toEqual(neighbourCaptions('harmonic', cells[a]).map((c) => c.text)); // as in C: a move is a move
     expect(fromLaidOut).toContain('4th up');
+  });
+});
+
+describe('scale-generic maps (#671)', () => {
+  it('lays out a pentatonic\'s own five chords, stacks of its own thirds', () => {
+    const pent = key(0, 'pentatonic');
+    expect(scaleChords(pent, true).map((c) => c.name)).toEqual(['C6', 'Gsus4', 'Asus4', 'C', 'Dsus4']);
+    // Spelled in the key: Bb pentatonic is Bb's, not A#'s.
+    expect(scaleChords(key(10, 'pentatonic'), true).map((c) => c.name)).toEqual(['Bb6', 'Fsus4', 'Gsus4', 'Bb', 'Csus4']);
+    // A blues stacks into two chords repeated, the chromatic into clusters: they keep their key's seven.
+    expect(scaleChords(key(0, 'blues'), true)).toHaveLength(7);
+    expect(scaleChords(key(0, 'chromatic'), true)).toHaveLength(7);
+    expect(scaleChords(pent, false).map((c) => c.name)).toEqual(names(key(0, 'major'))); // the key's seven, as before
+  });
+
+  it('visits every chord along a step k exactly when gcd(k, n) = 1, and names moves in the scale\'s steps', () => {
+    const cells = layoutCells('harmonic', LEFT, { aspect: ASPECT, cellSize: 0.2, degrees: 5 });
+    expect(new Set(cells.map((c) => c.degree))).toEqual(new Set([0, 1, 2, 3, 4]));
+    const row = layoutCells('scale', LEFT, { aspect: ASPECT, cellSize: 0.2, degrees: 5 });
+    expect(row.map((c) => c.degree)).toEqual([0, 1, 2, 3, 4]);
+    expect(moveText(0, 2, 5)).toBe('2 steps up');
+    expect(moveText(0, 4, 5)).toBe('1 step down');
+    expect(moveText(1, 4)).toBe(moveText(1, 4, 7)); // a seven-note key keeps its interval names
+  });
+
+  it('a harmonic minor\'s own chords are its key\'s, on the same map', () => {
+    const hm = key(9, 'minorHarmonic');
+    expect(scaleChords(hm, true).map((c) => c.name)).toEqual(['Am', 'B°', 'C+', 'Dm', 'E', 'F', 'G#°']);
+    expect(scaleChords(hm, true).map((c) => c.numeral)).toEqual(['i', 'ii°', 'III+', 'iv', 'V', 'VI', 'vii°']);
+    const am = keyedCells(layoutCells('harmonic', LEFT, { aspect: ASPECT, cellSize: 0.2 }), 'letters', hm);
+    expect(am.filter((c) => c.degree === 0).length).toBeGreaterThan(0); // home on the A cells, as in natural minor
   });
 });
 

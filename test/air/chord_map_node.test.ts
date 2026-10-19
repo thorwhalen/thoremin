@@ -421,6 +421,34 @@ describe('the chord-map node, chords from the microphone (H8 of #613)', () => {
   });
 });
 
+describe('the chord-map node, a pentatonic\'s own chords (#671)', () => {
+  it('plays the five chords of the scale, the map laid out over five', () => {
+    const pent: ScaleSpec = { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3 };
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const frames = chordMapTake({ duration: 1, chordAt: () => cellOf(0) });
+    let out: Out | undefined;
+    for (const fr of frames) out = h.process({ hands: fr, config: { ...ON, chordsFrom: 'scale' }, spec: pent, octaveShift: 0 }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    expect(out!.status.chord).toBe('C6'); // C-E-A: the tonic's own chord, the first of the pentatonic's stacks
+    expect(soundingPcs(out!.params)).toEqual([0, 4, 9]);
+    const labels = new Set(out!.grid.cells.filter((c) => c.shape === 'hex').map((c) => c.label));
+    expect(labels).toEqual(new Set(['C6', 'Gsus4', 'Asus4', 'C', 'Dsus4']));
+  });
+
+  it('a MIDI keyboard and the microphone light its sus chords too', () => {
+    const pent: ScaleSpec = { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3 };
+    const take = chordMapTake({ duration: 1, chordAt: () => null });
+    const last = (extra: Record<string, unknown>, config: Record<string, unknown>) => {
+      const h = chordMapNode.make(chordMapNode.params.parse({}));
+      let out: Out | undefined;
+      for (const fr of take) out = h.process({ hands: fr, config: { ...ON, chordsFrom: 'scale', ...config }, spec: pent, octaveShift: 0, ...extra }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+      return out!.status.chord;
+    };
+    expect(last({ midi: { available: true, inputs: 1, held: [43, 48, 50] } }, { follow: 'midi' })).toBe('Gsus4'); // G C D
+    const sus = Array.from({ length: 12 }, (_, i) => ([7, 0, 2].includes(i) ? 1 : 0.03));
+    expect(last({ audio: { available: true, sounding: true, chroma: sus } }, { follow: 'audio' })).toBe('Gsus4');
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {

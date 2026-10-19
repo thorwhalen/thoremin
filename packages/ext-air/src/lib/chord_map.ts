@@ -23,6 +23,8 @@
  */
 import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, letterDegree, midiToName, NOTE_LETTERS, romanNumeral, SCALE_TYPES, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { chordName, chordSymbol, diatonicChords as harmonyChords, functionOf, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
+import { chordOfPitchClasses } from '@thoremin/sdk/harmony/chord_in';
+import { QUALITIES, qualityOfIntervals } from '@thoremin/sdk/harmony/qualities';
 import { parseChordName } from './guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
 import { createCellTracker as createNavTracker, type CellChoice, type CellTrackerOptions } from '@thoremin/sdk/harmony/navigate';
@@ -81,6 +83,8 @@ export interface DiatonicChord {
   triad: number[];
   /** The chord's tones on the spec's register: the triad, or the seventh chord (four notes). */
   tones: number[];
+  /** The chord in the harmony layer's model (what a heard chord is matched against), if named. */
+  chord?: Chord;
 }
 
 /**
@@ -97,6 +101,7 @@ export function diatonicChords(spec: ScaleSpec, size: 3 | 4 = 3): DiatonicChord[
   const k = keyOf(key);
   const triads = harmonyChords(k);
   return harmonyChords(k, size).map((chord, degree) => {
+    const named = triads[degree];
     const triad = diatonicTriad(key, degree);
     const quality = classifyChord(triad)?.quality ?? 'unknown';
     const tones = diatonicChord(key, degree, size);
@@ -111,6 +116,64 @@ export function diatonicChords(spec: ScaleSpec, size: 3 | 4 = 3): DiatonicChord[
       quality,
       triad,
       tones,
+      chord: named,
+    };
+  });
+}
+
+/** The chord a stack of a scale's own thirds spells: read on its bass first (a triad there, or a
+ *  sixth: C-E-A is C6, the tonic's own chord, not "Am"), else in any inversion, else as a suspended
+ *  chord (a pentatonic stacks D-G-C, which is Gsus4), else none. */
+function stackedChord(triad: readonly number[]): Chord | null {
+  const pcs = [...new Set(triad.map((n) => mod(n, 12)))];
+  const bass = mod(Math.min(...triad), 12);
+  const onBass = qualityOfIntervals(pcs.map((p) => p - bass));
+  if (onBass && onBass !== '5') return { root: bass, quality: onBass };
+  // A sixth without its fifth (C-E-A over C): the pentatonic tonic's own chord.
+  const fromBass = new Set(pcs.map((p) => mod(p - bass, 12)));
+  if (fromBass.size === 3 && [0, 4, 9].every((i) => fromBass.has(i))) return { root: bass, quality: 'maj6' };
+  const read = chordOfPitchClasses(triad);
+  if (read) return read;
+  for (const quality of ['sus4', 'sus2'] as const) {
+    for (const root of [bass, ...pcs.filter((p) => p !== bass)]) {
+      const want = QUALITIES[quality].intervals.map((i) => mod(root + i, 12));
+      if (want.length === pcs.length && want.every((p) => pcs.includes(p))) return { root, quality };
+    }
+  }
+  return null;
+}
+
+/** The scales whose own chords make a map: the two pentatonics. A six-note blues stacks into two
+ *  chords repeated and the chromatic into clusters, so those keep their key's seven. */
+export const OWN_CHORD_SCALES: readonly ScaleSpec['type'][] = ['pentatonic', 'minorPentatonic'];
+
+/** Whether a scale's own chords make its map (a pentatonic's five). */
+export const hasOwnChords = (spec: Pick<ScaleSpec, 'type'>): boolean => OWN_CHORD_SCALES.includes(spec.type);
+
+/**
+ * The chords the map lays out: the key's seven (`diatonicChords`: a pentatonic read through its
+ * parent major), or with `own` a pentatonic's own five, each a stack of the scale's thirds (#671:
+ * C6, Gsus4, Asus4, C, Dsus4 in C), spelled in the key. Numbered 1..5. A harmonic minor's own
+ * chords are its key's already (i, ii°, III+, iv, V, VI, vii°); any other scale keeps its key's seven.
+ */
+export function scaleChords(spec: ScaleSpec, own: boolean, size: 3 | 4 = 3): DiatonicChord[] {
+  const n = SCALE_TYPES[spec.type].intervals.length;
+  if (!own || !hasOwnChords(spec)) return diatonicChords(spec, size);
+  const k = keyOf(letterChordSpec(spec));
+  return Array.from({ length: n }, (_, degree) => {
+    const triad = diatonicTriad(spec, degree);
+    const chord = stackedChord(triad);
+    const name = chord ? chordName(chord, k) : triad.map((m) => midiToName(m).replace(/\d+$/, '')).join('-');
+    return {
+      degree,
+      root: chord?.root ?? mod(triad[0], 12),
+      name,
+      symbol: chord ? chordSymbol(chord, k) : name,
+      numeral: String(degree + 1),
+      quality: classifyChord(triad)?.quality ?? 'unknown',
+      triad,
+      tones: triad,
+      ...(chord ? { chord } : {}),
     };
   });
 }
@@ -137,6 +200,8 @@ export interface CellOptions {
   aspect: number;
   /** A hexagon's width across its flats, in frame heights. */
   cellSize: number;
+  /** How many chords the scale has (seven by default; a pentatonic's own five, #671). */
+  degrees?: number;
 }
 
 /** Degrees are the same in every key: they are read in C major. */
@@ -146,20 +211,32 @@ const degreeOf = (c: Chord | null): number => (c ? REFERENCE_CHORDS.findIndex((d
 
 /** The degree of a cell of a layout: the tonic at axial (0, 0) of a lattice, the layout's first
  *  degree at the start of a row; each move a relation walked (`latticeChord`). */
-export function degreeAt(layout: ChordMapLayout, q: number, r: number): number {
+export function degreeAt(layout: ChordMapLayout, q: number, r: number, degrees = DEGREES): number {
+  if (degrees !== DEGREES) {
+    // A scale of another size (a pentatonic's five chords, #671): the same moves as steps of
+    // that scale, by degree arithmetic. Step k visits every chord exactly when gcd(k, n) = 1.
+    const first = layout.shape === 'hex' ? 0 : layout.first;
+    return mod(first + q * stepOf(layout.east) + (layout.shape === 'hex' ? r * stepOf(layout.southEast) : 0), degrees);
+  }
   const seed = REFERENCE_CHORDS[layout.shape === 'hex' ? 0 : layout.first];
   return degreeOf(latticeChord(RELATIONS, { east: layout.east, southEast: layout.southEast }, seed, REFERENCE_KEY, q, layout.shape === 'hex' ? r : 0));
 }
+
+/** The scale steps a diatonic relation id moves ('dia+3': 3, 'dia-3': -3). */
+const stepOf = (relation: string): number => {
+  const m = /^dia([+-])(\d)$/.exec(relation);
+  return m ? (m[1] === '+' ? 1 : -1) * Number(m[2]) : 0;
+};
 
 /**
  * The cells of a layout filling a region (`@thoremin/sdk/harmony/layout`): a hex lattice of as
  * many whole hexagons of `cellSize` as fit, centred, with the tonic on the middle cell; a row is
  * seven full-height strips across the region.
  */
-export function layoutCells(layoutId: ChordMapLayoutId, region: Region, { aspect, cellSize }: CellOptions): MapCell[] {
+export function layoutCells(layoutId: ChordMapLayoutId, region: Region, { aspect, cellSize, degrees = DEGREES }: CellOptions): MapCell[] {
   const layout = LAYOUTS[layoutId];
-  const cells = layout.shape === 'hex' ? hexLattice(region, { aspect, cellSize }) : strip(region, DEGREES, aspect);
-  return cells.map((cell) => ({ ...cell, degree: degreeAt(layout, cell.q, cell.r) }));
+  const cells = layout.shape === 'hex' ? hexLattice(region, { aspect, cellSize }) : strip(region, degrees, aspect);
+  return cells.map((cell) => ({ ...cell, degree: degreeAt(layout, cell.q, cell.r, degrees) }));
 }
 
 /** The cells with their degree IN THE KEY: as laid out with `home` (the layout's degrees are
@@ -204,21 +281,28 @@ export function createCellTracker(opts: CellTrackerOptions): CellTracker {
 /** The diatonic step a move from degree `from` to degree `to` is (shortest way round). */
 const STEP_OF: readonly (string | null)[] = [null, 'dia+1', 'dia+2', 'dia+3', 'dia-3', 'dia-2', 'dia-1'];
 
-/** What moving from `from` to `to` is, in scale steps ("3rd up"): the relation's own label. */
-export function moveText(from: number, to: number): string {
+/** What moving from `from` to `to` is, in scale steps ("3rd up"): the relation's own label; in
+ *  a scale of another size, the steps of that scale ("2 steps up"), shortest way round. */
+export function moveText(from: number, to: number, degrees = DEGREES): string {
+  if (degrees !== DEGREES) {
+    const step = mod(to - from, degrees);
+    if (step === 0) return '';
+    const k = step <= degrees / 2 ? step : step - degrees;
+    return `${Math.abs(k)} step${Math.abs(k) > 1 ? 's' : ''} ${k > 0 ? 'up' : 'down'}`;
+  }
   const id = STEP_OF[mod(to - from, DEGREES)];
   return id ? (RELATIONS.get(id)?.label ?? '') : '';
 }
 
 /** The captions around a hex cell: on each of its six edges, what moving across it does. */
-export function neighbourCaptions(layoutId: ChordMapLayoutId, cell: MapCell): GridCaption[] {
+export function neighbourCaptions(layoutId: ChordMapLayoutId, cell: MapCell, degrees = DEGREES): GridCaption[] {
   const layout = LAYOUTS[layoutId];
   if (layout.shape !== 'hex') return [];
   const step = cell.h * HEX_ROW_STEP;
   return HEX_NEIGHBOURS.map((n) => ({
     x: cell.x + (n.dx * cell.w) / 2,
     y: cell.y + (n.dy * step) / 2,
-    text: moveText(cell.degree, degreeAt(layout, cell.q + n.dq, cell.r + n.dr)),
+    text: moveText(cell.degree, degreeAt(layout, cell.q + n.dq, cell.r + n.dr, degrees), degrees),
   }));
 }
 
@@ -380,7 +464,7 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
     });
   }
   const laidOutActive = view.choice.active !== null ? (view.laidOut ?? view.cells)[view.choice.active] : undefined;
-  const captions = view.captions && laidOutActive ? neighbourCaptions(view.layout, laidOutActive) : [];
+  const captions = view.captions && laidOutActive ? neighbourCaptions(view.layout, laidOutActive, view.chords.length) : [];
   if (view.ladder?.set) {
     const { region, set } = view.ladder;
     captions.push({ x: (region.x0 + region.x1) / 2, y: region.y0 - LADDER_CAPTION_GAP, text: SET_CAPTION[set] });

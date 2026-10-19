@@ -254,6 +254,7 @@
     "captions": true,
     "cellSize": 0.2,
     "chordHand": "left",
+    "chordsFrom": "key",
     "clock": "tempo",
     "commit": "now",
     "commitBeats": 1,

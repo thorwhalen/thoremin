@@ -59,6 +59,9 @@ import {
   CHORD_MAP_LAYOUTS,
   LAYOUTS,
   keyedCells,
+  scaleChords,
+  hasOwnChords,
+  DEGREES,
   letterChordNames,
   chordMapGrid,
   createCellTracker,
@@ -78,7 +81,7 @@ import {
 import { createStrumDetector, type StrumDetector } from '../lib/strum';
 import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
-import { matchChord } from '@thoremin/sdk/harmony/chroma';
+import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { parseChordName } from '../lib/guitar';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
@@ -192,6 +195,9 @@ const Params = z.object({
   /** With the microphone: seconds a new chord must be heard before it is the harmony (a strum's
    *  attack and a passing note pass). */
   audioDwellS: z.number().min(0).max(1).default(0.25),
+  /** The chords laid out: the key's seven (a pentatonic read through its parent major), or the
+   *  scale's own (a pentatonic's five, stacks of its own thirds; #671). */
+  chordsFrom: z.enum(['key', 'scale']).default('key'),
   /** Where the map keeps its place: the key's home in the middle, or the seven letters fixed
    *  (a key's home where its tonic sits, a modulation relighting the chords it changes). */
   anchor: z.enum(CHORD_MAP_ANCHORS).default('home'),
@@ -286,6 +292,13 @@ function strummable(chord: Chord, key: Key): string {
   if (parseChordName(own)) return own;
   const triad = TRIAD_OF[chord.quality];
   return triad ? chordSymbol({ root: chord.root, quality: triad }, key) : own;
+}
+
+/** Whether a chord's notes are the same pitch classes as a set (a heard chord against a scale's own). */
+function samePitchClasses(notes: readonly number[], pcs: readonly number[]): boolean {
+  const a = new Set(notes.map((n) => ((n % 12) + 12) % 12));
+  const b = new Set(pcs);
+  return a.size === b.size && [...a].every((p) => b.has(p));
 }
 
 /** The cell of a degree nearest the middle of its region (null: none of that degree). */
@@ -448,7 +461,10 @@ export const chordMapNode = defineNode<Params>({
         // A gate turned off forgets its level, so turning it back on starts from the key. Tensions
         // colour a held chord only: a strum plays the guitar's voicing of the chord's name.
         // Following a keyboard or the microphone, what it plays is the mode: the face's parallel stays off.
-        const modeOn = c.enabled && c.face && c.faceMode && c.follow === 'hands';
+        // A scale's own chords (a pentatonic's five, #671): no parallel key and no letters to keep.
+        const specIn = inputs.spec as ScaleSpec | undefined;
+        const ownScale = c.chordsFrom === 'scale' && !!specIn && hasOwnChords(specIn);
+        const modeOn = c.enabled && c.face && c.faceMode && c.follow === 'hands' && !ownScale;
         const tensionOn = c.enabled && c.face && c.faceTension && c.play === 'hold';
         if (!modeOn) valence.reset();
         if (!tensionOn) arousal.reset();
@@ -465,7 +481,7 @@ export const chordMapNode = defineNode<Params>({
           renderer.render({
             beat: outsideBeat ?? undefined,
             degree,
-            spec,
+            spec: ownScale ? rawSpec : spec,
             voicing: chordCfg.voicing ?? c.voicing,
             rendering: chordCfg.rendering ?? c.rendering,
             coloration: tensionOn ? 'byTension' : c.sevenths ? 'diatonicSeventh' : undefined,
@@ -482,12 +498,14 @@ export const chordMapNode = defineNode<Params>({
           const { voices } = render(-1);
           return { params: { voices: [...voices, silentMelody(p.melodySound)] } satisfies SynthParams, notes: [], grid: EMPTY_CELL_GRID, status, triad: [] };
         }
-        const chords: DiatonicChord[] = diatonicChords(spec, c.sevenths ? 4 : 3);
+        const chords: DiatonicChord[] = ownScale && rawSpec ? scaleChords(rawSpec, true, c.sevenths ? 4 : 3) : diatonicChords(spec, c.sevenths ? 4 : 3);
+        const degreeCount = chords.length;
+        const anchor = degreeCount === DEGREES ? c.anchor : 'home';
         // The letters map keeps its cells across keys; a change of what a letter shows (a key, the
         // face's parallel, sevenths) marks the letters whose chord changed. Read through the key's
         // own spelling, so the face's parallel never moves the letters (C#m and Db spell apart).
         const letterSpec = ownSpec ?? spec;
-        if (c.anchor === 'letters') {
+        if (anchor === 'letters') {
           const names = letterChordNames(chords, letterSpec);
           if (letterAnchor === 'letters' && names.some((n, i) => n !== letterNames[i])) {
             changedLetters = new Set(names.flatMap((n, i) => (n !== letterNames[i] ? [i] : [])));
@@ -498,16 +516,16 @@ export const chordMapNode = defineNode<Params>({
           changedLetters = new Set();
           changedUntil = -Infinity;
         }
-        letterAnchor = c.anchor;
+        letterAnchor = anchor;
         const regions = chordMapRegions(c.chordHand, c.split);
         const shape = LAYOUTS[c.layout].shape;
         const notes: NoteEvent[] = [];
         const frame = inputs.hands as HandsFrame | undefined;
         const aspect = frame && frame.height > 0 && frame.width > 0 ? frame.width / frame.height : 0;
 
-        const key = `${c.layout}|${c.chordHand}|${c.split}|${c.cellSize}|${aspect}`;
+        const key = `${c.layout}|${c.chordHand}|${c.split}|${c.cellSize}|${aspect}|${degreeCount}`;
         if (key !== cellsKey && aspect > 0) {
-          cells = layoutCells(c.layout, regions.chords, { aspect, cellSize: c.cellSize });
+          cells = layoutCells(c.layout, regions.chords, { aspect, cellSize: c.cellSize, degrees: degreeCount });
           cellsKey = key;
           lastCell = -1;
           quantizer.reset(-1);
@@ -532,7 +550,7 @@ export const chordMapNode = defineNode<Params>({
         }
 
         // Each cell's degree in the key (the letters map reads its letter in the key).
-        const placed = keyedCells(cells, c.anchor, letterSpec);
+        const placed = keyedCells(cells, anchor, letterSpec);
 
         // A keyboard or a microphone chooses (H8): the chord it holds lights its cell (the one
         // nearest the middle, or the one already lit); a chord outside the key lights none.
@@ -546,14 +564,24 @@ export const chordMapNode = defineNode<Params>({
             follower = createChordFollower({ dwellS: dwell });
             followerKey = fKey;
           }
-          if (c.follow === 'midi') heard = follower.push(midi?.held ?? [], now);
+          // The held notes are first matched against the map's own chords exactly (a pentatonic's
+          // sus chords are in no detection table), then read as any chord.
+          if (c.follow === 'midi') {
+            const held = midi?.held ?? [];
+            const exact = held.length ? chords.find((ch) => ch.chord && samePitchClasses(ch.triad, [...new Set(held.map((n) => ((n % 12) + 12) % 12))]))?.chord : undefined;
+            heard = exact ? follower.pushChord(exact, now) : follower.push(held, now);
+          }
           else {
             // Only a clear reading counts: loud enough, close to a chord, and clearly that one.
-            const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }) : null;
+            const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }, ownScale ? { qualities: [...CHROMA_QUALITIES, 'sus2', 'sus4', 'maj6'] } : {}) : null;
             heard = follower.pushChord(match && match.score >= AUDIO_MIN_SCORE && match.margin >= AUDIO_MIN_MARGIN ? match.chord : null, now);
           }
           const key = keyOf(spec);
-          const d = heard ? [keyChords(key), keyChords(key, 4)].reduce((found, set) => (found >= 0 ? found : set.findIndex((x) => x.root === heard!.root && x.quality === heard!.quality)), -1) : -1;
+          const d = !heard
+            ? -1
+            : ownScale
+              ? chords.findIndex((ch) => samePitchClasses(ch.triad, pitchClasses(heard!)))
+              : [keyChords(key), keyChords(key, 4)].reduce((found, set) => (found >= 0 ? found : set.findIndex((x) => x.root === heard!.root && x.quality === heard!.quality)), -1);
           const lit = choice.active !== null && placed[choice.active]?.degree === d ? choice.active : nearestOfDegree(placed, d, regions.chords);
           choice = { active: lit, candidate: null };
         } else if (follower) {
@@ -659,10 +687,11 @@ export const chordMapNode = defineNode<Params>({
           audio: audioStatus,
           inputChord: heardName && !active && heard ? `${heardName} (outside the key)` : heardName,
           mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',
-          tension: tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
+          // A pentatonic's own chords take no seventh (its scale has none to add): no tension shown.
+          tension: !ownScale && tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
         const marks =
-          c.anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;
+          anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;
         const grid: CellGrid = chordMapGrid({
           layout: c.layout,
           cells: placed,
