@@ -2,10 +2,45 @@
 
 A dated log of what shipped, keyed to **pull requests** — not to versions.
 
-thoremin has no release cadence: it is a continuously-deployed app (merge to `main`
-auto-deploys), `package.json` stays at `0.0.0`, and nothing is published to a
+thoremin has no release cadence: it is a continuously-deployed app (what lands on `main`
+is deployed by the maintainer), `package.json` stays at `0.0.0`, and nothing is published to a
 registry. A semver changelog would be a fiction, so this file tracks PRs instead.
 Newest first.
+
+---
+
+## 2026-10 (and 2026-08 to 09, summarised)
+
+Everything player-facing since July, newest first. Issues are the source of truth; PR numbers are given where this log was written from them. Merging to `main` is not a deploy: whether something is live is thoremin-iq's call.
+
+### Late October
+- **React layer fully typed** — #312 (PR #623). `@types/react` is installed, so the type-error ratchet now sees through hooks; its baseline is empty.
+- **Quiz prompts can be spoken** — #445 (PR #616). *Say the prompts out loud* in the quiz, behind the same per-device voice switch as the trainer.
+- **Carve quality: "often none of these"** — #564 (PR #620). A group whose own frames are often outside what any group accepts says so on its chip (a provisional line).
+- **Pausing a song keeps the dancer lock** — #346 (PR #621).
+- **Lean in and out** — #349 (PR #611). A take step that teaches the Distance dial.
+- **Too-dark warning in the take** — #348 (PR #607).
+- **Big carves** — #499 (PR #603). The re-cut forest of a large categorizer is built in a worker.
+- **One frame source** for the hand, face and body models — #570 (PR #601).
+- **Contract step of the categorizer migration** — #598 (PR #599): the `?faces.source` alias is gone (use `?carve.source=synthetic`); the one-shot legacy readers stay.
+
+### Your faces, hand shapes and poses — #330, #385, #382–#384, #387
+Record yourself, carve the holds into groups, sort them by hand (pins, Neutral and Set-aside bins, merge, split, undo), get quality chips, hints, a margin meter, a quiz and an everyday check, then play chords with the model or bind its groups to commands. One mechanism for faces, one hand's shape and the whole body (stick figures, a mirror setting, "Cannot see you", pose names by context). Models live in the browser's database in one collection and export as versioned files.
+
+### Conducting, dancing and the song — #187, #186, #374–#380, #364, #366, #427
+Conduct a sampled orchestra with a hand or the body (start, hold, fermata, cut-off from the body; loudness and staccato from the body or a second hand; a learned timing offset), dance the orchestra, have a song follow your pulse, or have a recording follow your conducting (choose the landing beat; fade and slow on a hold). A pose model can start and stop the conductor.
+
+### Air instruments and ASL — #233, #245, #249, #261, #263, #269, #301
+Air drum (stroke prediction, editable stacked pads, a floor per pad, saved layouts, pattern training), air bass, air guitar with chords you teach, air flute with fingering charts and breath, sequence training. ASL Viewer and ASL Chords in their own repository, loaded on demand.
+
+### Hands, cameras and timing — #178, #226, #232, #239, #325, #326, #337, #527, #545
+Frames are stamped at capture time and de-jittered, the rhythm prior removes the drift ahead of the beat, the hand model can run in a worker, only as many hands are searched as the instrument reads, and a body-guided crop finds small hands.
+
+### Recorder, library and platform — #257, #308, #281, #285–#291, #297, #301, #329
+Takes save straight into a chosen folder (zip as the fallback); the instruments library has list and gallery views with filter chips; air, ASL and faces are lazy extensions and the core builds and tests without them.
+
+### Quality — #153, #201, #389, #476, #521, #588
+Record-and-replay tests in tiers, the React type ratchet, a core-alone build, a headless-browser smoke on every code PR, an architecture ratchet that stops the largest files growing.
 
 ---
 
