@@ -423,6 +423,16 @@
         "sad": 0.5,
         "surprised": 0.5
       },
+      "faceExpr.targets": {
+        "angry": "",
+        "disgusted": "",
+        "fearful": "",
+        "happy": "",
+        "kiss": "",
+        "neutral": "",
+        "sad": "",
+        "surprised": ""
+      },
       "handMap": {
         "fingers": {
           "index": {
@@ -1005,6 +1015,16 @@
         "kiss": 0.5,
         "sad": 0.5,
         "surprised": 0.5
+      },
+      "faceExpr.targets": {
+        "angry": "",
+        "disgusted": "",
+        "fearful": "",
+        "happy": "",
+        "kiss": "",
+        "neutral": "",
+        "sad": "",
+        "surprised": ""
       },
       "handMap": {
         "fingers": {

@@ -12,6 +12,20 @@ import { CalibrationWizard } from '../../CalibrationWizard';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';
+import { RELATIONS } from '@thoremin/sdk/harmony/space';
+import { formatTarget, parseTarget } from '@thoremin/sdk/harmony/target';
+
+/** What an expression can stand for (H6 of #613, `@thoremin/sdk/harmony/target`): its degree,
+ *  a move from the chord in force (the key's six diatonic moves), a function, or the seventh. */
+const TARGET_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: '', label: 'plays its chord' },
+  ...['dia+3', 'dia-3', 'dia+2', 'dia-2', 'dia+1', 'dia-1'].map((m) => ({ value: `move:${m}`, label: `moves a ${RELATIONS.get(m)?.label ?? m}` })),
+  { value: 'fn:T', label: 'goes to a tonic chord' },
+  { value: 'fn:S', label: 'goes to a subdominant chord' },
+  { value: 'fn:D', label: 'goes to a dominant chord' },
+  { value: 'ctl:seventh', label: 'adds the seventh' },
+];
+const describeTarget = (t: string) => TARGET_OPTIONS.find((o) => o.value === t)?.label ?? '';
 
 /**
  * Per-expression mapping editor (advanced). The per-emotion SENSITIVITY sliders
@@ -21,8 +35,8 @@ import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';
  * in chord mode (where `neutral` also gets a row — its rest chord). The (global)
  * rendering lives in ChordControls.
  *
- * The two maps are whole-object (record) dials (`faceExpr.sensitivity` /
- * `faceExpr.degrees`), so they get no per-dial `set` command. The DISCRETE degree
+ * The maps are whole-object (record) dials (`faceExpr.sensitivity` / `faceExpr.degrees` /
+ * `faceExpr.targets`), so they get no per-dial `set` command. The DISCRETE degree
  * `<select>` addresses one record member by path (`faceExpr.degrees.happy`) and
  * dispatches `dial.setIn`; the CONTINUOUS sensitivity slider keeps a direct merged write
  * (Decision B).
@@ -36,6 +50,8 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
   const setCalibration = useControls((s) => s.setFaceCalibration);
   const [wizardOpen, setWizardOpen] = useState(false);
   const setDegree = (label: string, degree: number) => dispatchDialSetIn(`faceExpr.degrees.${label}`, degree);
+  const targets = v['faceExpr.targets'] as Record<string, string> | undefined;
+  const setTarget = (label: string, target: string) => dispatchDialSetIn(`faceExpr.targets.${label}`, target);
   /** The sensitivity slider is a live drag — a direct merged write. Decision B, and the
    *  ONLY sanctioned direct writer in this panel. */
   const setSensLive = (label: string, value: number) =>
@@ -124,6 +140,7 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
         {rows.map((label) => {
           const isEmotion = label !== 'neutral';
           const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
+          const target = formatTarget(parseTarget(targets?.[label]));
           const midi = chordMode ? chordMidi(degree) : [];
           return (
             <div key={label} className="space-y-1">
@@ -144,7 +161,8 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
                   <select
                     className={selectCls}
                     value={degree}
-                    title="Which chord this expression plays (or silence)"
+                    disabled={target !== ''}
+                    title={target !== '' ? 'This expression makes a move, a function or the seventh (beside), not a fixed chord' : 'Which chord this expression plays (or silence)'}
                     onChange={(e) => setDegree(label, Number(e.target.value))}
                   >
                     <option value={SILENCE_DEGREE}>Silence</option>
@@ -153,10 +171,25 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
                     ))}
                   </select>
                 )}
+                {chordMode && isEmotion && (
+                  <select
+                    className={selectCls}
+                    value={target}
+                    data-expression-target={label}
+                    title="What this expression does: play its degree, or move from the chord in force, choose a function, or add the seventh while held"
+                    onChange={(e) => setTarget(label, e.target.value)}
+                  >
+                    {TARGET_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               {chordMode && (
                 <div className="pl-16 font-mono text-[10px] text-white/40">
-                  {degree < 0 ? 'silence (no chord)' : midi.length ? midi.join(' ') : '—'}
+                  {target !== '' ? describeTarget(target) : degree < 0 ? 'silence (no chord)' : midi.length ? midi.join(' ') : '—'}
                 </div>
               )}
             </div>

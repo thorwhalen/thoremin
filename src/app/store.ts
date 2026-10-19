@@ -465,7 +465,7 @@ export const HEAL_RULES: CoreHealRules = {
   // undefined/corrupt field (parity with overlay).
   faceChord: { schema: FaceChordSchema, complete: overDefaults(DEFAULT_FACE_CHORD) },
   // The sensitivity/degrees maps are filled from the defaults key by key, so a returning
-  // user's older blob can't leave an emotion's slider unbound.
+  // user's older blob can't leave an emotion's slider unbound; the targets map is empty unless set.
   faceExpr: {
     schema: FaceExprSchema,
     complete: (stored) => {
@@ -473,6 +473,8 @@ export const HEAL_RULES: CoreHealRules = {
       return {
         sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
         degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
+        // H6 of #613: absent on every blob saved before targets existed = no targets (degrees).
+        targets: { ...DEFAULT_FACE_EXPR.targets, ...(pe.targets ?? {}) },
       };
     },
   },
@@ -649,6 +651,7 @@ export const useControls = create<ControlState>()(
       faceExpr: {
         sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity },
         degrees: { ...DEFAULT_FACE_EXPR.degrees },
+        targets: { ...DEFAULT_FACE_EXPR.targets },
       },
       overlay: defaultOverlay(),
       featureLab: defaultFeatureLab(),

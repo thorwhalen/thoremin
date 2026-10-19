@@ -38,7 +38,11 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { ScaleSpec } from '@thoremin/sdk/music/theory';
+import { isSevenNoteScale, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { diatonicChords, keyOf } from '@thoremin/sdk/harmony/chord';
+import { voiceLeadingCost } from '@thoremin/sdk/harmony/distance';
+import { RELATIONS } from '@thoremin/sdk/harmony/space';
+import { parseTarget } from '@thoremin/sdk/harmony/target';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
@@ -81,6 +85,28 @@ interface ChordConfig {
   bpm?: number;
 }
 
+/** The degree a move from `from` reaches on the key's seven chords (the degree itself when the
+ *  move does not apply or leaves the key: the face chord stays in its key). */
+export function movedDegree(spec: ScaleSpec, from: number, relation: string): number {
+  const key = keyOf(spec);
+  const chords = diatonicChords(key);
+  const to = RELATIONS.get(relation)?.apply(chords[from], key)[0];
+  const d = to ? chords.findIndex((c) => c.root === to.root && c.quality === to.quality) : -1;
+  return d >= 0 ? d : from;
+}
+
+/** The chords each Riemann function names on a major or minor key (iii names none: §2.1). */
+const FUNCTION_DEGREES: Readonly<Record<'T' | 'S' | 'D', readonly number[]>> = { T: [0, 5], S: [3, 1], D: [4, 6] };
+
+/** The chord with that function nearest the chord in force (least voice-leading motion; on a
+ *  tie the function's main chord: I, IV, V). */
+export function functionDegree(spec: ScaleSpec, from: number, fn: 'T' | 'S' | 'D'): number {
+  const key = keyOf(spec);
+  const chords = diatonicChords(key);
+  const options = FUNCTION_DEGREES[fn];
+  return options.reduce((best, d) => (voiceLeadingCost(chords[from], chords[d]) < voiceLeadingCost(chords[from], chords[best]) ? d : best), options[0]);
+}
+
 export const expressionChordNode = defineNode<Params>({
   type: 'expression-chord',
   roles: ['music'],
@@ -100,6 +126,10 @@ export const expressionChordNode = defineNode<Params>({
     // A personal categorizer's per-category degrees, by category id (#330 P4); optional.
     // A category it does not name plays the degree of the expression it stands in for.
     { name: 'categoryDegrees', kind: 'category-degrees' },
+    // What each expression stands for beyond a degree (H6 of #613): a move from the chord in
+    // force, a function, or the seventh while held, as `@thoremin/sdk/harmony/target` strings;
+    // optional, and an expression with no target plays its degree, as before.
+    { name: 'targets', kind: 'expression-targets' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -112,6 +142,11 @@ export const expressionChordNode = defineNode<Params>({
   params: Params,
   make(p) {
     const renderer = createChordRenderer({ idBase: CHORD_VOICE_ID_BASE, maxVoices: MAX_CHORD_VOICES });
+    // The harmony a move or a function starts from: the degree last played (-1: none yet, the
+    // tonic), and the category read last, so a move is made once when its expression begins.
+    let current = SILENCE_DEGREE;
+    let lastCategory: string | null = null;
+    let lastSpecKey = '';
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -129,9 +164,36 @@ export const expressionChordNode = defineNode<Params>({
           degrees?.[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
         const categoryDegrees = inputs.categoryDegrees as Record<string, number> | undefined;
         const reading = active ? categorizerReading(expr!) : null;
-        const degree = !reading
-          ? SILENCE_DEGREE
-          : personalDegree(reading, reading.id === null ? null : reading.ids.indexOf(reading.id), categoryDegrees, degreeFor);
+        const index = reading && reading.id !== null ? reading.ids.indexOf(reading.id) : null;
+        let degree = !reading ? SILENCE_DEGREE : personalDegree(reading, index, categoryDegrees, degreeFor);
+        let coloration: string | undefined;
+
+        // A target beyond the degree (H6 of #613): only for a category with no degree of its own,
+        // on a seven-note chord source (moves and functions walk the key's seven chords).
+        const specKey = spec ? `${spec.root}|${spec.type}` : '';
+        if (specKey !== lastSpecKey) {
+          lastSpecKey = specKey;
+          current = SILENCE_DEGREE;
+        }
+        const targets = inputs.targets as Partial<Record<ExpressionLabel, string>> | undefined;
+        const category = reading?.id ?? null;
+        const entered = category !== lastCategory;
+        lastCategory = category;
+        if (reading && index !== null && index >= 0 && spec && isSevenNoteScale(spec.type) && !(reading.ids[index] in (categoryDegrees ?? {}))) {
+          const target = parseTarget(targets?.[reading.standsFor[index] ?? 'neutral']);
+          if (target.kind !== 'degree') {
+            const from = current >= 0 ? current : 0;
+            if (target.kind === 'control') {
+              degree = from;
+              coloration = 'diatonicSeventh';
+            } else if (entered) {
+              degree = target.kind === 'move' ? movedDegree(spec, from, target.relation) : functionDegree(spec, from, target.riemann);
+            } else {
+              degree = current >= 0 ? current : from;
+            }
+          }
+        }
+        if (degree >= 0) current = degree;
         // Voiced, rendered and articulated by the shared chord renderer (the SDK's), so every
         // categorizer's chords sound alike; the triad is [] when idle or silent.
         const { voices, triad } = renderer.render({
@@ -139,6 +201,7 @@ export const expressionChordNode = defineNode<Params>({
           spec,
           voicing: cfg.voicing ?? p.voicing,
           rendering: cfg.rendering ?? p.rendering,
+          coloration,
           bpm: cfg.bpm ?? p.bpm,
           octaveShift: shift,
           gain: cfg.gain ?? p.gain,

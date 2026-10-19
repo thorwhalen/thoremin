@@ -12,6 +12,7 @@ import {
   DEFAULT_SPEC,
   createRealizationRegistry,
   createRealizer,
+  fitVoices,
   tonesInRegister,
   type RealizeInput,
   type VoicingMemory,
@@ -123,5 +124,11 @@ describe('the realization pipeline', () => {
       [8, false, 'triangle'],
       [9, false, 'triangle'],
     ]);
+  });
+
+  it('fits a voicing to its voice block by shedding doublings first, from the top, never the bass', () => {
+    expect(fitVoices([36, 43, 48, 52, 59], 4)).toEqual([36, 43, 52, 59]); // open C plus B: the doubled C goes
+    expect(fitVoices([36, 43, 48, 52], 4)).toEqual([36, 43, 48, 52]); // fits: as it is
+    expect(fitVoices([36, 40, 43, 47, 50], 4)).toEqual([36, 40, 43, 47]); // no doubling: cut from the top
   });
 });

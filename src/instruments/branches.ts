@@ -175,6 +175,7 @@ export const faceChordVoice = defineBranch({
   edges: [
     to(ui('chordSpec'), { node: 'exprChord', port: 'spec' }),
     to(ui('expressionDegrees'), { node: 'exprChord', port: 'degrees' }),
+    to(ui('expressionTargets'), { node: 'exprChord', port: 'targets' }),
     to(ui('faceMapping'), { node: 'exprChord', port: 'faceMapping' }),
     to(ui('chordConfig'), { node: 'exprChord', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'exprChord', port: 'octaveShift' }),

@@ -61,7 +61,7 @@ export const ConductorSettingsSchema = ConductorDialSchema.extend({
 });
 export type ConductorSettings = z.infer<typeof ConductorSettingsSchema>;
 export const DEFAULT_CONDUCTOR: ConductorSettings = ConductorSettingsSchema.parse({});
-import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE } from '@/music/expression';
+import { DEFAULT_EXPRESSION_SENSITIVITY, DEFAULT_EXPRESSION_TO_DEGREE, EXPRESSIONS } from '@/music/expression';
 import {
   EFFECTS,
   POSITION_SOURCES,
@@ -149,6 +149,10 @@ export const DEFAULT_FACE_CHORD: FaceChord = {
   chordType: 'major',
 };
 
+/** No expression has a target beyond its degree until a player sets one (every key listed, so the
+ *  command layer can address each by path: `faceExpr.targets.happy`). */
+export const DEFAULT_EXPRESSION_TARGETS: Readonly<Record<string, string>> = Object.fromEntries(EXPRESSIONS.map((e) => [e, '']));
+
 /**
  * The face-expression mapping config: per-emotion firing `sensitivity` [0,1] (more
  * sensitive = more hits — see the classifier in music/expression.ts) and a
@@ -165,10 +169,15 @@ export const FaceExprSchema = z
     degrees: z
       .record(z.string(), z.number().int().min(-1).max(6))
       .default({ ...DEFAULT_EXPRESSION_TO_DEGREE }),
+    // What an expression stands for beyond its degree (H6 of #613, `@thoremin/sdk/harmony/target`
+    // strings): '' or absent = its degree (every instrument saved before this plays as it did),
+    // 'move:<relation>' a move from the chord in force, 'fn:T|S|D' a function, 'ctl:seventh'.
+    targets: z.record(z.string(), z.string()).default({ ...DEFAULT_EXPRESSION_TARGETS }),
   })
   .default({
     sensitivity: { ...DEFAULT_EXPRESSION_SENSITIVITY },
     degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },
+    targets: { ...DEFAULT_EXPRESSION_TARGETS },
   });
 export type FaceExpr = z.infer<typeof FaceExprSchema>;
 
@@ -177,6 +186,7 @@ export type FaceExpr = z.infer<typeof FaceExprSchema>;
 export const DEFAULT_FACE_EXPR: FaceExpr = {
   sensitivity: { ...DEFAULT_EXPRESSION_SENSITIVITY },
   degrees: { ...DEFAULT_EXPRESSION_TO_DEGREE },
+  targets: { ...DEFAULT_EXPRESSION_TARGETS },
 };
 
 /**

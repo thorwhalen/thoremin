@@ -40,7 +40,7 @@ function extensionSlicesOf(o: Record<string, unknown>): Record<string, unknown> 
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map.schema';
 import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
 import { SteerConfigSchema } from '@/nodes/mapping/indirect_map.schema';
-import { SettingsSchema, HandMapSchema, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, DEFAULT_MIDI, defaultSteerConfig, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, DEFAULT_MIDI, defaultSteerConfig, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
@@ -157,6 +157,10 @@ export const thoreminDials = defineDials(
       .record(z.string(), z.number().int().min(-1).max(6))
       .default({ ...DEFAULT_EXPRESSION_TO_DEGREE })
       .meta({ facets: ['Face', 'advanced'], title: 'Expression chord map' }),
+    'faceExpr.targets': z
+      .record(z.string(), z.string())
+      .default({ ...DEFAULT_EXPRESSION_TARGETS })
+      .meta({ facets: ['Face', 'advanced'], title: 'Expression moves and functions' }),
     overlay: OverlayDialSchema.default(OverlayDialSchema.parse({})).meta({ facets: ['Overlay'], title: 'Overlay' }),
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
@@ -243,6 +247,7 @@ export function settingsToLayer(s: Settings): Layer {
     'faceChord.chordType': s.faceChord.chordType,
     'faceExpr.sensitivity': s.faceExpr.sensitivity,
     'faceExpr.degrees': s.faceExpr.degrees,
+    'faceExpr.targets': s.faceExpr.targets,
     'midi.enabled': s.midi.enabled,
     'midi.port': s.midi.port,
     'hands.handednessDwell': s.hands.handednessDwell,
@@ -286,7 +291,7 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
       chordRoot: v['faceChord.chordRoot'],
       chordType: v['faceChord.chordType'],
     },
-    faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'] },
+    faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'], targets: v['faceExpr.targets'] },
     midi: { enabled: v['midi.enabled'], port: v['midi.port'], muteFollowsMaster: v['midi.muteFollowsMaster'] },
     hands: { handednessDwell: v['hands.handednessDwell'] },
     body: { enabled: v['body.enabled'], model: v['body.model'] },
