@@ -125,8 +125,9 @@ interface TasksVisionModule {
   };
 }
 
-/** The main thread's loader: today's, with its GPU-to-CPU fallback. */
-const loadOnMain: LoadLandmarker = async (o) => {
+/** The main thread's loader: today's, with its GPU-to-CPU fallback (unless the runner asks
+ *  for the GPU alone, to put the CPU delegate in its worker, #326). */
+const loadOnMain: LoadLandmarker = async (o, { cpuFallback = true } = {}) => {
   const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
   const fileset = await vision.FilesetResolver.forVisionTasks(o.wasmBase);
   const optionsFor = (delegate: 'GPU' | 'CPU') => ({
@@ -140,7 +141,7 @@ const loadOnMain: LoadLandmarker = async (o) => {
   } catch (gpuErr) {
     // GPU/WebGL unavailable on this client → fall back to the CPU delegate. If CPU
     // was already chosen, the failure stands.
-    if (o.delegate !== 'GPU') throw gpuErr;
+    if (o.delegate !== 'GPU' || !cpuFallback) throw gpuErr;
     console.warn('[thoremin] hand model GPU delegate failed; falling back to CPU', gpuErr);
     return copyFramesOnCpu(await vision.HandLandmarker.createFromOptions(fileset, optionsFor('CPU')), 'CPU');
   }

@@ -207,6 +207,76 @@ describe('createHandRunner', () => {
     warn.mockRestore();
   });
 
+  describe('a GPU that fails in the worker (#326): the main thread\'s GPU, then the CPU in the worker, then on the main thread', () => {
+    const GPU: LandmarkerOptions = { ...OPTIONS, delegate: 'GPU' };
+    /** A worker per start: each answers its init by the delegate it was asked for. */
+    const workers = (answer: (delegate: string) => 'ready' | 'error') => {
+      const made: FakeWorker[] = [];
+      const base = deps(new FakeWorker());
+      return {
+        made,
+        deps: {
+          ...base,
+          createWorker: () => {
+            const w = new FakeWorker('silent');
+            const post = w.postMessage.bind(w);
+            w.postMessage = (m: ToWorker) => {
+              post(m);
+              if (m.type === 'init') queueMicrotask(() => w.reply(answer(m.options.delegate) === 'ready' ? { type: 'ready', delegate: m.options.delegate } : { type: 'init-error', message: `${m.options.delegate} failed` }));
+            };
+            made.push(w);
+            return w;
+          },
+        },
+      };
+    };
+
+    it('the main thread\'s GPU, alone (no CPU fallback there), when it loads', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const loadMain = vi.fn(async () => mainLandmarker());
+      const runner = await createHandRunner('worker', GPU, () => {}, { loadMain, worker: workers(() => 'error').deps });
+      expect(runner.where).toBe('main');
+      expect(loadMain).toHaveBeenCalledTimes(1);
+      expect(loadMain.mock.calls[0]).toEqual([GPU, { cpuFallback: false }]);
+      warn.mockRestore();
+    });
+
+    it('the main thread\'s GPU failing too: the CPU delegate in the worker, so the tick stays unblocked', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const loadMain = vi.fn(async (): Promise<HandLandmarkerLike> => {
+        throw new Error('no GPU here either');
+      });
+      const w = workers((d) => (d === 'CPU' ? 'ready' : 'error'));
+      const runner = await createHandRunner('auto', GPU, () => {}, { loadMain, worker: w.deps });
+      expect(runner.where).toBe('worker');
+      expect(w.made.map((x) => (x.sent[0] as Extract<ToWorker, { type: 'init' }>).options.delegate)).toEqual(['GPU', 'CPU']);
+      expect(loadMain).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
+
+    it('everything else failing: the CPU delegate on the main thread', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const lm = mainLandmarker();
+      const loadMain = vi.fn(async (o: LandmarkerOptions): Promise<HandLandmarkerLike> => {
+        if (o.delegate === 'GPU') throw new Error('no GPU');
+        return lm;
+      });
+      const runner = await createHandRunner('auto', GPU, () => {}, { loadMain, worker: workers(() => 'error').deps });
+      expect(runner.where).toBe('main');
+      expect(loadMain.mock.calls.map((c) => (c[0] as LandmarkerOptions).delegate)).toEqual(['GPU', 'CPU']);
+      warn.mockRestore();
+    });
+
+    it('a CPU request that fails in the worker goes straight to the main thread, as before', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const loadMain = vi.fn(async () => mainLandmarker());
+      const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: workers(() => 'error').deps });
+      expect(runner.where).toBe('main');
+      expect(loadMain.mock.calls[0]).toEqual([OPTIONS]);
+      warn.mockRestore();
+    });
+  });
+
   it('moves to the main thread when the worker dies, looking for the same number of hands', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const lm = mainLandmarker();
@@ -232,6 +302,16 @@ describe('createHandRunner', () => {
 });
 
 describe('the worker runner gives up on a broken worker', () => {
+  it('treats a worker never ready past the load timeout as dead: rejected and terminated (#326)', async () => {
+    const timers: (() => void)[] = [];
+    const w = new FakeWorker('silent');
+    const starting = workerHandRunner(OPTIONS, () => {}, { ...deps(w), setTimeout: (cb) => timers.push(cb), clearTimeout: () => {} });
+    expect(timers).toHaveLength(1);
+    timers[0]!();
+    await expect(starting).rejects.toThrow(/not ready in/);
+    expect(w.terminated).toBe(true);
+  });
+
   it('treats a frame unanswered past the timeout as a hung worker', async () => {
     const timers: (() => void)[] = [];
     const w = new FakeWorker();
@@ -239,7 +319,7 @@ describe('the worker runner gives up on a broken worker', () => {
     const runner = await workerHandRunner(OPTIONS, () => {}, { ...deps(w), setTimeout: (cb) => timers.push(cb), clearTimeout: () => {} }, onDead);
     runner.offer(video, stamp(100));
     await flush();
-    timers[0]!(); // the watchdog fires with the frame still in the worker
+    timers.at(-1)!(); // the watchdog fires with the frame still in the worker (the load's timer came first)
     expect(onDead).toHaveBeenCalledTimes(1);
     expect(w.terminated).toBe(true);
   });
@@ -252,7 +332,7 @@ describe('the worker runner gives up on a broken worker', () => {
     runner.offer(video, stamp(100));
     await flush();
     w.reply({ type: 'result', id: w.frames()[0]!.id, result: HAND });
-    timers[0]!();
+    timers.at(-1)!();
     expect(onDead).not.toHaveBeenCalled();
   });
 
