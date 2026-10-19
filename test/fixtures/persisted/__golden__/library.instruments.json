@@ -322,6 +322,7 @@
         "rendering": "sustained",
         "sound": "warmPad",
         "steer": "hand",
+        "tension": "off",
         "voicing": "voiceLed",
         "walk": false,
         "walkBeats": 1
@@ -961,6 +962,7 @@
         "rendering": "sustained",
         "sound": "warmPad",
         "steer": "hand",
+        "tension": "off",
         "voicing": "voiceLed",
         "walk": false,
         "walkBeats": 1

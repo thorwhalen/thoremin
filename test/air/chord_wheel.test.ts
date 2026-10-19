@@ -167,6 +167,17 @@ describe('the chord-wheel node', () => {
     expect(g.cells.slice(1).map((c) => c.sub)).toEqual(['4th up', '3rd up', '2nd up', '4th down', '3rd down', '2nd down']);
   });
 
+  it('shows each chord\'s tension with the model named over the wheel (H10 of #613), and nothing with it off', () => {
+    const shown = play([at(null)], { tension: 'tps' });
+    const grid = shown[shown.length - 1].grid;
+    expect(grid.cells[0].sub).toBe('I · 0');
+    expect(grid.cells.slice(1).some((cell) => /· \d+$/.test(cell.sub))).toBe(true);
+    expect(grid.captions.map((c) => c.text)).toEqual(["Tension: Lerdahl's tonal pitch space (distance from the tonic chord)"]);
+    const plain = play([at(null)]);
+    expect(plain[plain.length - 1].grid.cells[0].sub).toBe('I');
+    expect(plain[plain.length - 1].grid.captions).toEqual([]);
+  });
+
   it('is silent and draws nothing with the dial off', () => {
     const h = chordWheelNode.make(chordWheelNode.params.parse({}));
     const out = h.process({ hands: { t: 0, width: W, height: H, hands: [palmAt(at(null), 'Left')] }, config: { enabled: false }, spec: C }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;

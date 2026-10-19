@@ -1567,6 +1567,11 @@
         "name": "walkBeats",
         "type": "number",
         "default": 1
+      },
+      {
+        "name": "tension",
+        "type": "enum(off | function | tps | profile)",
+        "default": "off"
       }
     ]
   },
