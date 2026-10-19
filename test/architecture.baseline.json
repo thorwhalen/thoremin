@@ -12,7 +12,7 @@
   "importCycles": 7,
   "runtimeImportCycles": 0,
   "largestFiles": {
-    "src/nodes/output/canvas_overlay.ts": 2301,
+    "src/nodes/output/canvas_overlay.ts": 2322,
     "packages/ext-faces/src/app/sessionStore.ts": 1777,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
     "src/nodes/features/conductor.ts": 923,

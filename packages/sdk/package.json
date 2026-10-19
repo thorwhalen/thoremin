@@ -62,6 +62,7 @@
     "./music/theory": "./src/music/theory.ts",
     "./music/voicing": "./src/music/voicing.ts",
     "./music/chord_render": "./src/music/chord_render.ts",
+    "./nodes/cell_grid": "./src/nodes/cell_grid.ts",
     "./nodes/domain": "./src/nodes/domain.ts",
     "./nodes/music/drum_anchor": "./src/nodes/music/drum_anchor.ts",
     "./nodes/music/drum_pads": "./src/nodes/music/drum_pads.ts",

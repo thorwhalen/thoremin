@@ -126,10 +126,14 @@ const REMOVED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'conductor', port: 'enabled' }, to: { node: 'score', port: 'enabled' } },
 ];
 
-/** Nodes of extensions added after the snapshot (the ASL reader and its chords): the golden
+/** Nodes added after the snapshot (the ASL reader and its chords, the chord map): the golden
  *  is the core + air graph, so these and every edge touching them are set aside before the
  *  comparison; their own branches are tested in `test/asl/`. */
-const LATER_EXTENSION_NODES = new Set([...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord'] : [])]);
+const LATER_EXTENSION_NODES = new Set([
+  // The chord map (air), added after the snapshot; its own wiring is `test/air/chord_map_graph.test.ts`.
+  'chordMap',
+  'chordStrumOut',
+  ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
  *  aside above, so they are restored here to compare with the core + air snapshot. */

@@ -1,5 +1,5 @@
 /**
- * The air instruments' branches (the drum, the bass, the guitar, the flute): one branch each,
+ * The air instruments' branches (the drum, the bass, the guitar, the flute, the chord map): one branch each,
  * attached to the trunk by the hand source and the UI bridge. Moved out of the core branch
  * table in PR 5a of the instruments-as-graphs ADR; the node files they name live under `./nodes/` (5b).
  */
@@ -84,4 +84,26 @@ export const airFlute = defineBranch({
   overlay: ['mouthCue'],
 });
 
-export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute] as const;
+export const chordMap = defineBranch({
+  id: 'chord-map',
+  description: "The chord map: a key's chords on the screen, the chord hand pointing at one; held with a melody from the other hand, or strummed by it.",
+  nodes: [
+    { id: 'chordMap', type: 'chord-map', params: {} },
+    { id: 'chordStrumOut', type: 'pluck-out', params: { timbre: 'guitar', mono: false } },
+  ],
+  edges: [
+    to({ node: TRUNK.cam, port: 'hands' }, { node: 'chordMap', port: 'hands' }),
+    to(ui('chordMap'), { node: 'chordMap', port: 'config' }),
+    // The chord-source scale is the key; the Chord sound section is how a held chord sounds.
+    to(ui('chordSpec'), { node: 'chordMap', port: 'spec' }),
+    to(ui('chordConfig'), { node: 'chordMap', port: 'chordConfig' }),
+    to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
+    to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
+    to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
+    to({ node: 'chordMap', port: 'grid' }, overlay('cellGrid')),
+  ],
+  voices: [{ from: { node: 'chordMap', port: 'params' }, role: 'instrument' }],
+  overlay: ['cellGrid'],
+});
+
+export const AIR_BRANCHES = [airDrum, airBass, airGuitar, airFlute, chordMap] as const;

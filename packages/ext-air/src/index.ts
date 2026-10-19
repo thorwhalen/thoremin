@@ -29,6 +29,7 @@ import { airGuitarNode } from './nodes/air_guitar';
 import { airFluteNode } from './nodes/air_flute';
 import { drumOutNode } from './nodes/drum_out';
 import { pluckOutNode } from './nodes/pluck_out';
+import { chordMapNode } from './nodes/chord_map';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
@@ -44,7 +45,7 @@ const on = (x: unknown): boolean => !!x && typeof x === 'object' && (x as { enab
 
 export const AIR_EXTENSION = defineExtension({
   id: 'air',
-  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode] as unknown as NodeDef<unknown>[],
+  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
   dials: AIR_DIAL_SLICES,
   // The enrolled classifiers: transient hot-store fields the nodes read as ports. Always
@@ -81,6 +82,13 @@ export const AIR_EXTENSION = defineExtension({
     // Play a flute in the air: enrolled finger lifts of both hands choose the note, the
     // enrolled blowing mouth sounds it (the enrolment steps are in its settings).
     { name: 'Air Flute', patch: { ...SILENT_THEREMIN, airFlute: { enabled: true } } },
+    // Point at a key's chords (Pur Pasteur's harmonic map): the left hand over a chord holds
+    // it, the right hand's height plays a melody on its tones. C major, as in the video; the
+    // key is the chord-source scale (the Sound section's root and scale).
+    { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true } } },
+    // The same map, strummed: the right hand strums the chord under the left, predicted
+    // before the frame that shows the strum (the air guitar's timing).
+    { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
   derive: (s) => {
@@ -90,6 +98,7 @@ export const AIR_EXTENSION = defineExtension({
     if (on(settings.airBass)) ids.push('air-bass');
     if (on(settings.airGuitar)) ids.push('air-guitar');
     if (on(settings.airFlute)) ids.push('air-flute');
+    if (on(settings.chordMap)) ids.push('chord-map');
     return ids;
   },
 });

@@ -281,6 +281,35 @@ describe('canvas-overlay composable elements', () => {
     expect(drawWith(onlyElement('drumPads'), { airDrumConfig: { enabled: false, point: 'stickTip', stickLength: 3, pads: DEFAULT_PADS_SET } }).count('lineTo')).toBe(0);
   });
 
+  it('cellGrid (Guide): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
+    const grid = {
+      cells: [
+        { x: 0.25, y: 0.5, w: 0.2, h: 0.3, shape: 'hex', label: 'C', sub: 'I', color: '#f87171', state: 'active' },
+        { x: 0.45, y: 0.5, w: 0.2, h: 0.3, shape: 'hex', label: 'F', sub: 'IV', color: '#4ade80', state: 'idle' },
+        { x: 0.8, y: 0.5, w: 0.3, h: 0.1, shape: 'rect', label: 'E4', sub: '', color: '#cbd5e1', state: 'idle' },
+      ],
+      captions: [{ x: 0.35, y: 0.5, text: '4th up' }],
+      pointers: [{ x: 0.25, y: 0.5 }],
+    };
+    const rc = drawWith(onlyElement('cellGrid'), { cellGrid: grid });
+    expect(rc.texts()).toEqual(expect.arrayContaining(['C', 'I', 'F', 'IV', 'E4', '4th up']));
+    // A hexagon is six points from its top one; placed in the displayed frame's fractions.
+    const moves = rc.calls.filter((c) => c.m === 'moveTo');
+    expect(moves[0].args[0]).toBeCloseTo(0.25 * 1280, 6);
+    expect(moves[0].args[1]).toBeCloseTo((0.5 - 0.15) * 720, 6);
+    expect(rc.count('moveTo')).toBe(2);
+    expect(rc.count('lineTo')).toBe(12);
+    expect(rc.count('rect')).toBe(1);
+    expect(rc.count('arc')).toBe(1); // the pointer
+    const fillAlpha = (color: string) => rc.calls.find((c) => c.m === 'fill' && c.fill === color)!.alpha;
+    expect(fillAlpha('#f87171')).toBeGreaterThan(fillAlpha('#4ade80'));
+    // Nothing: no grid, an empty or malformed one, or the element toggled off.
+    expect(drawWith(onlyElement('cellGrid')).count('fillText')).toBe(0);
+    expect(drawWith(onlyElement('cellGrid'), { cellGrid: { cells: [] } }).count('fillText')).toBe(0);
+    expect(drawWith(onlyElement('cellGrid'), { cellGrid: { cells: [{ x: 'no' }] } }).count('fillText')).toBe(0);
+    expect(drawWith({ ...onlyElement('cellGrid'), cellGrid: { show: false } }, { cellGrid: grid }).count('fillText')).toBe(0);
+  });
+
   it('bodySkeleton (Input, #186): bones + a dot per visible landmark, mirrored; nothing when absent', () => {
     const { landmarks, world } = makeBodyKeypoints({ width: 640, height: 480, cx: 0.5, cy: 0.6, torso: 100, leftArm: 0.5, rightArm: 0.2, kneeBend: 0, lean: 0 });
     const bodyFrame: BodyFrame = { width: 640, height: 480, present: true, landmarks, world, visibility: new Array(33).fill(1) };

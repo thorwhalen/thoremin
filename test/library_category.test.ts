@@ -29,7 +29,8 @@ const settingsOf = (name: string) => {
 describe('instrument categories', () => {
   it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
     const air = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'air').map((s) => s.name);
-    expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute']);
+    expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map Strum']);
+    expect(airInstrumentsOf(settingsOf('Chord Map'))).toEqual(['chords']);
     expect(airInstrumentsOf(settingsOf('Air Drum'))).toEqual(['drum']);
     expect(airInstrumentsOf(settingsOf('Air Bass'))).toEqual(['bass']);
   });

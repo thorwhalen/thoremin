@@ -53,6 +53,8 @@ import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import { PAD_IDS, anyPadOn, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { gripFulcrum, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
+import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
+import { cellGridOf, drawCellGrid } from './cell_grid_draw';
 import {
   BODY_BONES,
   BODY_LANDMARK_COUNT,
@@ -119,6 +121,10 @@ const Params = z.object({
    *  colour, flashing when it is hit; and, when it tracks the stick tip, the virtual
    *  sticks themselves, so a player sees what strikes the pads. Only while the drum is on. */
   drumPads: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /** A node's on-screen targets (the chord map's chords and melody ladder): labelled cells a
+   *  hand points at, the one in force lit. Generic: any node emitting a `CellGrid` on the
+   *  `cellGrid` input is drawn. Only while such a node is in the graph. */
+  cellGrid: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
   /** The air flute's breath cue (#249 / the instruments-as-graphs ADR): drawn only when the
@@ -322,6 +328,8 @@ export interface OverlayView {
      *  stick tip; null otherwise. */
     drumStickLength?: number | null;
     padFlash?: Partial<Record<PadId, number>>;
+    /** Labelled on-screen targets a hand points at (the chord map's), or null. */
+    cellGrid?: CellGrid | null;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
@@ -1505,6 +1513,15 @@ const drumPads: OverlayElement = {
   },
 };
 
+/** A node's on-screen targets (the chord map's): drawn by `./cell_grid_draw.ts`. */
+const cellGridElement: OverlayElement = {
+  name: 'cellGrid',
+  category: 'guide',
+  draw(g, { W, H, inputs, params }) {
+    if (params.cellGrid.show && inputs.cellGrid) drawCellGrid(g, W, H, inputs.cellGrid);
+  },
+};
+
 // ---- Feature Instrumentation Lab (#119) ------------------------------------
 
 const LAB_COL_W = 168; // px per newspaper column
@@ -2012,6 +2029,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // The conductor's beat HUD (#187): an in-scene output element above the markers.
   conductorHud,
   drumPads,
+  cellGridElement,
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
@@ -2125,6 +2143,8 @@ export const canvasOverlayNode = defineNode<Params>({
     // The air drum (#245): its config (for the pads) and its hits (for the flash).
     { name: 'airDrumConfig', kind: 'air-drum-config' },
     { name: 'drumHits', kind: 'drum-hits' },
+    // A node's on-screen targets (the chord map's), for the cell grid.
+    { name: 'cellGrid', kind: 'cell-grid' },
     { name: 'expression', kind: 'face-expression' },
     // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
     { name: 'categoryDegrees', kind: 'category-degrees' },
@@ -2236,6 +2256,7 @@ export const canvasOverlayNode = defineNode<Params>({
             drumPads: drumPadsOf(inputs.airDrumConfig),
             drumStickLength: drumStickLengthOf(inputs.airDrumConfig),
             padFlash: padFlash(inputs.drumHits, ctx.time),
+            cellGrid: cellGridOf(inputs.cellGrid),
             expression: inputs.expression as ExpressionScores | undefined,
             handMap: controls?.handMap,
             faceDegrees: controls?.faceExpr?.degrees,
