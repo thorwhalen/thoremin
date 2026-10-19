@@ -112,7 +112,7 @@ export function ChordMapControls() {
           ))}
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="With a pentatonic (or any scale that is not seven notes), the map can lay out the scale's own chords, stacks of its own thirds (five for a pentatonic: C, Am, Gsus4, Asus4, Dsus4 in C), instead of its key's seven. A harmonic minor's own chords are its key's (i, ii°, III+, iv, V, VI, vii°).">
+      <label className="flex items-center justify-between gap-2 text-xs" title="With a pentatonic the map can lay out the scale's own five chords, stacks of its own thirds (C6, Gsus4, Asus4, C, Dsus4 in C), instead of its key's seven; the letters map and seventh chords apply to seven-chord maps only. A harmonic minor's own chords are its key's (i, ii°, III+, iv, V, VI, vii°); any other scale keeps its key's seven.">
         Chords
         <select className={selectCls} value={chordsFrom} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.chordsFrom', e.target.value)}>
           <option value="key">the key's seven</option>
@@ -127,7 +127,7 @@ export function ChordMapControls() {
           <option value="audio">the microphone (a guitar, a piano, a band)</option>
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="Letters: the map stays put across keys. A minor is home on the A chords (vi's place in C), and a change of key lights up the chords it changes (C to G: ii, IV and vii°).">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Letters: the map stays put across keys. A minor is home on the A chords (vi's place in C), and a change of key lights up the chords it changes (C to G: ii, IV and vii°). For a seven-chord map (not a pentatonic's own chords).">
         Map
         <select className={selectCls} value={anchor} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.anchor', e.target.value)}>
           <option value="home">the key's home in the middle</option>

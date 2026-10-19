@@ -24,7 +24,7 @@
 import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, letterDegree, midiToName, NOTE_LETTERS, romanNumeral, SCALE_TYPES, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { chordName, chordSymbol, diatonicChords as harmonyChords, functionOf, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { chordOfPitchClasses } from '@thoremin/sdk/harmony/chord_in';
-import { QUALITIES } from '@thoremin/sdk/harmony/qualities';
+import { QUALITIES, qualityOfIntervals } from '@thoremin/sdk/harmony/qualities';
 import { parseChordName } from './guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
 import { createCellTracker as createNavTracker, type CellChoice, type CellTrackerOptions } from '@thoremin/sdk/harmony/navigate';
@@ -83,6 +83,8 @@ export interface DiatonicChord {
   triad: number[];
   /** The chord's tones on the spec's register: the triad, or the seventh chord (four notes). */
   tones: number[];
+  /** The chord in the harmony layer's model (what a heard chord is matched against), if named. */
+  chord?: Chord;
 }
 
 /**
@@ -99,6 +101,7 @@ export function diatonicChords(spec: ScaleSpec, size: 3 | 4 = 3): DiatonicChord[
   const k = keyOf(key);
   const triads = harmonyChords(k);
   return harmonyChords(k, size).map((chord, degree) => {
+    const named = triads[degree];
     const triad = diatonicTriad(key, degree);
     const quality = classifyChord(triad)?.quality ?? 'unknown';
     const tones = diatonicChord(key, degree, size);
@@ -113,17 +116,24 @@ export function diatonicChords(spec: ScaleSpec, size: 3 | 4 = 3): DiatonicChord[
       quality,
       triad,
       tones,
+      chord: named,
     };
   });
 }
 
-/** The chord a stack of a scale's own thirds spells, any inversion: the quality table's reading,
- *  else a suspended chord (a pentatonic stacks D-G-C, which is Gsus4), else none. */
+/** The chord a stack of a scale's own thirds spells: read on its bass first (a triad there, or a
+ *  sixth: C-E-A is C6, the tonic's own chord, not "Am"), else in any inversion, else as a suspended
+ *  chord (a pentatonic stacks D-G-C, which is Gsus4), else none. */
 function stackedChord(triad: readonly number[]): Chord | null {
-  const read = chordOfPitchClasses(triad);
-  if (read) return read;
   const pcs = [...new Set(triad.map((n) => mod(n, 12)))];
   const bass = mod(Math.min(...triad), 12);
+  const onBass = qualityOfIntervals(pcs.map((p) => p - bass));
+  if (onBass && onBass !== '5') return { root: bass, quality: onBass };
+  // A sixth without its fifth (C-E-A over C): the pentatonic tonic's own chord.
+  const fromBass = new Set(pcs.map((p) => mod(p - bass, 12)));
+  if (fromBass.size === 3 && [0, 4, 9].every((i) => fromBass.has(i))) return { root: bass, quality: 'maj6' };
+  const read = chordOfPitchClasses(triad);
+  if (read) return read;
   for (const quality of ['sus4', 'sus2'] as const) {
     for (const root of [bass, ...pcs.filter((p) => p !== bass)]) {
       const want = QUALITIES[quality].intervals.map((i) => mod(root + i, 12));
@@ -133,28 +143,37 @@ function stackedChord(triad: readonly number[]): Chord | null {
   return null;
 }
 
+/** The scales whose own chords make a map: the two pentatonics. A six-note blues stacks into two
+ *  chords repeated and the chromatic into clusters, so those keep their key's seven. */
+export const OWN_CHORD_SCALES: readonly ScaleSpec['type'][] = ['pentatonic', 'minorPentatonic'];
+
+/** Whether a scale's own chords make its map (a pentatonic's five). */
+export const hasOwnChords = (spec: Pick<ScaleSpec, 'type'>): boolean => OWN_CHORD_SCALES.includes(spec.type);
+
 /**
  * The chords the map lays out: the key's seven (`diatonicChords`: a pentatonic read through its
- * parent major), or with `own` the scale's own chords, each a stack of the SCALE's thirds (#671):
- * a pentatonic's five (C, Am/C, Gsus4, Asus4, Dsus4 in C), a harmonic minor's seven (which are its
- * key's own already). Numbered 1..n where the scale is not a seven-note key.
+ * parent major), or with `own` a pentatonic's own five, each a stack of the scale's thirds (#671:
+ * C6, Gsus4, Asus4, C, Dsus4 in C), spelled in the key. Numbered 1..5. A harmonic minor's own
+ * chords are its key's already (i, ii°, III+, iv, V, VI, vii°); any other scale keeps its key's seven.
  */
 export function scaleChords(spec: ScaleSpec, own: boolean, size: 3 | 4 = 3): DiatonicChord[] {
   const n = SCALE_TYPES[spec.type].intervals.length;
-  if (!own || n === DEGREES) return diatonicChords(spec, size);
+  if (!own || !hasOwnChords(spec)) return diatonicChords(spec, size);
+  const k = keyOf(letterChordSpec(spec));
   return Array.from({ length: n }, (_, degree) => {
     const triad = diatonicTriad(spec, degree);
     const chord = stackedChord(triad);
-    const name = chord ? chordName(chord) : triad.map((m) => midiToName(m).replace(/\d+$/, '')).join('-');
+    const name = chord ? chordName(chord, k) : triad.map((m) => midiToName(m).replace(/\d+$/, '')).join('-');
     return {
       degree,
       root: chord?.root ?? mod(triad[0], 12),
       name,
-      symbol: chord ? chordSymbol(chord) : name,
+      symbol: chord ? chordSymbol(chord, k) : name,
       numeral: String(degree + 1),
       quality: classifyChord(triad)?.quality ?? 'unknown',
       triad,
       tones: triad,
+      ...(chord ? { chord } : {}),
     };
   });
 }

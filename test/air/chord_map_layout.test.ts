@@ -145,7 +145,12 @@ describe('the letters map (H13 of #613)', () => {
 describe('scale-generic maps (#671)', () => {
   it('lays out a pentatonic\'s own five chords, stacks of its own thirds', () => {
     const pent = key(0, 'pentatonic');
-    expect(scaleChords(pent, true).map((c) => c.name)).toEqual(['Am', 'Gsus4', 'Asus4', 'C', 'Dsus4']);
+    expect(scaleChords(pent, true).map((c) => c.name)).toEqual(['C6', 'Gsus4', 'Asus4', 'C', 'Dsus4']);
+    // Spelled in the key: Bb pentatonic is Bb's, not A#'s.
+    expect(scaleChords(key(10, 'pentatonic'), true).map((c) => c.name)).toEqual(['Bb6', 'Fsus4', 'Gsus4', 'Bb', 'Csus4']);
+    // A blues stacks into two chords repeated, the chromatic into clusters: they keep their key's seven.
+    expect(scaleChords(key(0, 'blues'), true)).toHaveLength(7);
+    expect(scaleChords(key(0, 'chromatic'), true)).toHaveLength(7);
     expect(scaleChords(pent, false).map((c) => c.name)).toEqual(names(key(0, 'major'))); // the key's seven, as before
   });
 

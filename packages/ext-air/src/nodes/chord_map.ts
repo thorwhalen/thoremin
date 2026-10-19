@@ -48,7 +48,7 @@ import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/c
 import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
-import { letterChordSpec, midiToFreq, midiToName, keyName, SCALE_TYPES, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
 import { LM, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
@@ -60,6 +60,7 @@ import {
   LAYOUTS,
   keyedCells,
   scaleChords,
+  hasOwnChords,
   DEGREES,
   letterChordNames,
   chordMapGrid,
@@ -80,7 +81,7 @@ import {
 import { createStrumDetector, type StrumDetector } from '../lib/strum';
 import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
-import { matchChord } from '@thoremin/sdk/harmony/chroma';
+import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { parseChordName } from '../lib/guitar';
 import { NoteEventsSchema, type NoteEvent } from './note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
@@ -462,7 +463,7 @@ export const chordMapNode = defineNode<Params>({
         // Following a keyboard or the microphone, what it plays is the mode: the face's parallel stays off.
         // A scale's own chords (a pentatonic's five, #671): no parallel key and no letters to keep.
         const specIn = inputs.spec as ScaleSpec | undefined;
-        const ownScale = c.chordsFrom === 'scale' && !!specIn && SCALE_TYPES[specIn.type].intervals.length !== DEGREES;
+        const ownScale = c.chordsFrom === 'scale' && !!specIn && hasOwnChords(specIn);
         const modeOn = c.enabled && c.face && c.faceMode && c.follow === 'hands' && !ownScale;
         const tensionOn = c.enabled && c.face && c.faceTension && c.play === 'hold';
         if (!modeOn) valence.reset();
@@ -563,10 +564,16 @@ export const chordMapNode = defineNode<Params>({
             follower = createChordFollower({ dwellS: dwell });
             followerKey = fKey;
           }
-          if (c.follow === 'midi') heard = follower.push(midi?.held ?? [], now);
+          // The held notes are first matched against the map's own chords exactly (a pentatonic's
+          // sus chords are in no detection table), then read as any chord.
+          if (c.follow === 'midi') {
+            const held = midi?.held ?? [];
+            const exact = held.length ? chords.find((ch) => ch.chord && samePitchClasses(ch.triad, [...new Set(held.map((n) => ((n % 12) + 12) % 12))]))?.chord : undefined;
+            heard = exact ? follower.pushChord(exact, now) : follower.push(held, now);
+          }
           else {
             // Only a clear reading counts: loud enough, close to a chord, and clearly that one.
-            const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }) : null;
+            const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }, ownScale ? { qualities: [...CHROMA_QUALITIES, 'sus2', 'sus4', 'maj6'] } : {}) : null;
             heard = follower.pushChord(match && match.score >= AUDIO_MIN_SCORE && match.margin >= AUDIO_MIN_MARGIN ? match.chord : null, now);
           }
           const key = keyOf(spec);
@@ -680,7 +687,8 @@ export const chordMapNode = defineNode<Params>({
           audio: audioStatus,
           inputChord: heardName && !active && heard ? `${heardName} (outside the key)` : heardName,
           mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',
-          tension: tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
+          // A pentatonic's own chords take no seventh (its scale has none to add): no tension shown.
+          tension: !ownScale && tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
         const marks =
           anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;

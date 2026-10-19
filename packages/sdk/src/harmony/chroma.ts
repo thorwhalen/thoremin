@@ -104,7 +104,10 @@ export function matchChord(chroma: Chroma, { minEnergy = 0, qualities = CHROMA_Q
   if (scored.length === 0) return null;
   scored.sort((a, b) => b.score - a.score);
   const best = scored[0];
-  const same = (c: Chord) => c.root === best.chord.root && TRIAD[c.quality] === TRIAD[best.chord.quality];
+  // A rival is a different chord: not the best's own seventh or triad, and not the same notes
+  // under another name (Csus2 is Gsus4's notes).
+  const notes = (c: Chord) => QUALITIES[c.quality].intervals.map((i) => (c.root + i) % 12).sort((a, b) => a - b).join(',');
+  const same = (c: Chord) => (c.root === best.chord.root && TRIAD[c.quality] === TRIAD[best.chord.quality]) || notes(c) === notes(best.chord);
   const rival = scored.find((s) => !same(s.chord));
   return { chord: best.chord, score: best.score, margin: best.score - (rival?.score ?? 0) };
 }
