@@ -10,9 +10,14 @@
  * still sees, so a vanishing voice would leave a chord stuck. Each renderer owns a block of ids,
  * so two of them can sound together. Stateful (the beat clock and the time since the chord last
  * changed) but deterministic given the tick timing, so it replays exactly.
+ *
+ * Since H2 of #613 it is a facade over the realization pipeline (`../harmony/realize`): the
+ * voicing and the rendering are two of its five seams (with no coloration, no reduction and the
+ * root in the bass), and `test/harmony/renderer_golden.test.ts` holds the output sample for sample.
  */
-import { diatonicTriad, midiToFreq, type ScaleSpec } from './theory';
-import { renderGains, voiceTriad, type RenderingId, type VoicingId } from './voicing';
+import { diatonicTriad, type ScaleSpec } from './theory';
+import type { RenderingId, VoicingId } from './voicing';
+import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '../harmony/realize';
 import type { VoiceParams } from '../nodes/domain';
 
 export interface ChordRenderInput {
@@ -44,38 +49,21 @@ export interface ChordRenderer {
 }
 
 export function createChordRenderer({ idBase, maxVoices }: { idBase: number; maxVoices: number }): ChordRenderer {
-  let beat = 0;
-  let timeSinceChange = 0;
-  let lastKey = '';
-
-  const silent = (sound: VoiceParams['sound']): VoiceParams[] =>
-    Array.from({ length: maxVoices }, (_, i) => ({ id: idBase + i, present: false, freq: midiToFreq(60), gain: 0, sound }));
-
+  const realizer = createRealizer({ idBase, maxVoices });
   return {
     render({ degree, spec, voicing, rendering, bpm, octaveShift, gain, sound, silentSound, dt }) {
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
-      const voiced = (triad.length ? voiceTriad(triad, voicing, octaveShift) : []).sort((a, b) => a - b);
-      const step = Number.isFinite(dt) ? dt : 0;
-      beat += (bpm / 60) * step;
-      // The key is the sounding pitches, so any genuine chord change restarts the strum (a
-      // control tweak such as the rendering does not).
-      const key = voiced.length ? voiced.join(',') : '';
-      if (key !== lastKey) {
-        timeSinceChange = 0;
-        lastKey = key;
-      } else {
-        timeSinceChange += step;
-      }
-      if (voiced.length === 0) return { voices: silent(silentSound), triad: [] };
-      const gains = renderGains(voiced.length, rendering, beat, timeSinceChange);
-      const voices: VoiceParams[] = [];
-      for (let i = 0; i < maxVoices; i++) {
-        const midi = voiced[i];
-        const raw = gains[i];
-        const g = midi !== undefined && Number.isFinite(raw) ? gain * raw : 0;
-        voices.push({ id: idBase + i, present: g > 0, freq: midiToFreq(midi ?? 60), gain: g, sound });
-      }
-      return { voices, triad };
+      const { voices, voiced } = realizer.render({
+        tones: tonesInRegister(triad),
+        spec: { ...DEFAULT_SPEC, voicing, figuration: rendering },
+        controls: { ...DEFAULT_CONTROLS, register: octaveShift },
+        bpm,
+        gain,
+        sound,
+        silentSound,
+        dt,
+      });
+      return { voices, triad: voiced.length ? triad : [] };
     },
   };
 }
