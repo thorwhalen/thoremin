@@ -12,6 +12,7 @@
     "./enroll/ProgressRing": "./src/enroll/ProgressRing.tsx",
     "./enroll/binder": "./src/enroll/binder.ts",
     "./enroll/capture": "./src/enroll/capture.ts",
+    "./enroll/speech": "./src/enroll/speech.ts",
     "./enroll/categorizers": "./src/enroll/categorizers.ts",
     "./enroll/carveRequest": "./src/enroll/carveRequest.ts",
     "./enroll/vocabularyImport": "./src/enroll/vocabularyImport.ts",
