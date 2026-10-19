@@ -248,6 +248,16 @@
     "dead": 0.07,
     "enabled": false,
     "enterFrames": 3,
+    "faceFrames": 6,
+    "faceMoves": {
+      "angry": "",
+      "disgusted": "",
+      "fearful": "",
+      "happy": "",
+      "kiss": "",
+      "sad": "",
+      "surprised": ""
+    },
     "gain": 0.22,
     "hand": "left",
     "mirrorHandedness": true,
@@ -258,6 +268,7 @@
     "releaseS": 0.4,
     "rendering": "sustained",
     "sound": "warmPad",
+    "steer": "hand",
     "voicing": "voiceLed"
   },
   "conductor": {
