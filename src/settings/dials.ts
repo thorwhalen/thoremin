@@ -160,7 +160,11 @@ export const thoreminDials = defineDials(
     'faceExpr.targets': z
       .record(z.string(), z.string())
       .default({ ...DEFAULT_EXPRESSION_TARGETS })
-      .meta({ facets: ['Face', 'advanced'], title: 'Expression moves and functions' }),
+      .meta({
+        facets: ['Face', 'advanced'],
+        title: 'Expression moves and functions',
+        description: "Per expression: '' plays its degree; 'move:dia+3' (or dia-3, dia+2, dia-2, dia+1, dia-1) moves from the chord in force by a fourth, third or second; 'fn:T', 'fn:S', 'fn:D' go to the nearest tonic, subdominant or dominant chord; 'ctl:seventh' adds the seventh while held",
+      }),
     overlay: OverlayDialSchema.default(OverlayDialSchema.parse({})).meta({ facets: ['Overlay'], title: 'Overlay' }),
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.

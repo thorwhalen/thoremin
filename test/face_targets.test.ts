@@ -73,6 +73,22 @@ describe('the face chord with targets', () => {
     expect(play(['neutral', 'happy'], { happy: 'move:dia+3' }, { personal, categoryDegrees: { a: 1 } })[1]).toEqual(D_MIN);
   });
 
+  it('keeps a held move\'s place over a change of key (IV stays IV)', () => {
+    const h = expressionChordNode.make(expressionChordNode.params.parse({}));
+    const G: ScaleSpec = { root: 7, type: 'major', octaves: 2, baseOctave: 3 };
+    let out: { params: SynthParams } | undefined;
+    for (let i = 0; i < 20; i++) {
+      const spec = i < 10 ? C : G;
+      out = h.process({ expression: expr(i < 2 ? 'neutral' : 'happy'), spec, faceMapping: 'chord', octaveShift: 0, targets: { happy: 'move:dia+3' } }, { time: i / 30, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as { params: SynthParams };
+    }
+    const pcs = [...new Set(out!.params.voices.filter((v) => v.present && v.gain > 0).map((v) => Math.round(freqToMidi(v.freq)) % 12))].sort((a, b) => a - b);
+    expect(pcs).toEqual([0, 4, 7]); // IV of G is C
+  });
+
+  it('reads a move the face chord cannot make (it would leave the key) as the degree', () => {
+    expect(play(['neutral', 'happy'], { happy: 'move:P' })).toEqual(play(['neutral', 'happy'], {}));
+  });
+
   it('plays degrees only on a five-note chord source', () => {
     const pent: ScaleSpec = { root: 0, type: 'pentatonic', octaves: 2, baseOctave: 3 };
     const withTargets = play(['neutral', 'happy'], { happy: 'move:dia+3' }, { spec: pent });

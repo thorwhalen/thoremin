@@ -42,7 +42,7 @@ import { isSevenNoteScale, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { diatonicChords, keyOf } from '@thoremin/sdk/harmony/chord';
 import { voiceLeadingCost } from '@thoremin/sdk/harmony/distance';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { parseTarget } from '@thoremin/sdk/harmony/target';
+import { isDiatonicMove, parseTarget } from '@thoremin/sdk/harmony/target';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import {
@@ -146,7 +146,6 @@ export const expressionChordNode = defineNode<Params>({
     // tonic), and the category read last, so a move is made once when its expression begins.
     let current = SILENCE_DEGREE;
     let lastCategory: string | null = null;
-    let lastSpecKey = '';
 
     return {
       process(inputs, ctx: NodeContext) {
@@ -170,17 +169,13 @@ export const expressionChordNode = defineNode<Params>({
 
         // A target beyond the degree (H6 of #613): only for a category with no degree of its own,
         // on a seven-note chord source (moves and functions walk the key's seven chords).
-        const specKey = spec ? `${spec.root}|${spec.type}` : '';
-        if (specKey !== lastSpecKey) {
-          lastSpecKey = specKey;
-          current = SILENCE_DEGREE;
-        }
+        // The degree in force carries over a change of key (a held move keeps its place: IV stays IV).
         const targets = inputs.targets as Partial<Record<ExpressionLabel, string>> | undefined;
         const category = reading?.id ?? null;
         const entered = category !== lastCategory;
         lastCategory = category;
         if (reading && index !== null && index >= 0 && spec && isSevenNoteScale(spec.type) && !(reading.ids[index] in (categoryDegrees ?? {}))) {
-          const target = parseTarget(targets?.[reading.standsFor[index] ?? 'neutral']);
+          const target = parseTarget(targets?.[reading.standsFor[index] ?? 'neutral'], { moves: isDiatonicMove });
           if (target.kind !== 'degree') {
             const from = current >= 0 ? current : 0;
             if (target.kind === 'control') {

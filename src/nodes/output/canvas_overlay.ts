@@ -59,6 +59,7 @@ import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
 import { PAD_IDS, anyPadOn, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { gripFulcrum, stickTip } from '@thoremin/sdk/nodes/music/drum_anchor';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';
+import { isDiatonicMove, parseTarget, targetText } from '@thoremin/sdk/harmony/target';
 import { cellGridOf, drawCellGrid } from '@thoremin/sdk/nodes/cell_grid_draw';
 import {
   BODY_BONES,
@@ -143,6 +144,8 @@ export interface OverlayView {
     handMap?: HandMap;
     /** Live expression→scale-degree map, to name each expression's chord. */
     faceDegrees?: Record<string, number>;
+    /** Live expression targets (H6 of #613): a bar names its move or function instead. */
+    faceTargets?: Record<string, string>;
     /** A personal categorizer's per-category degrees (#330 P4), to name each category's chord. */
     categoryDegrees?: Record<string, number>;
     /** Live face mapping mode ('chord'/'timbre'/…); chord labels show only in 'chord'. */
@@ -818,7 +821,9 @@ const faceExpressionCue: OverlayElement = {
       const labels: string[] = [];
       if (p.exprLabels) labels.push(name);
       if (p.chordLabels && chordMode) {
-        labels.push(chordLabel(personalDegree(reading, i, view.inputs.categoryDegrees, degreeFor)));
+        // A target beyond the degree (H6 of #613) prints what it does, since the chord depends on the one in force.
+        const target = reading.ids[i] in (view.inputs.categoryDegrees ?? {}) ? '' : targetText(parseTarget(view.inputs.faceTargets?.[reading.standsFor[i] ?? ''], { moves: isDiatonicMove }));
+        labels.push(target || chordLabel(personalDegree(reading, i, view.inputs.categoryDegrees, degreeFor)));
       }
       return {
         value: clamp01(score),
@@ -1990,7 +1995,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
             ctx.resources.controls as
               | (() => {
                   handMap?: HandMap;
-                  faceExpr?: { degrees?: Record<string, number> };
+                  faceExpr?: { degrees?: Record<string, number>; targets?: Record<string, string> };
                   faceMapping?: string;
                 })
               | undefined
@@ -2034,6 +2039,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               expression: inputs.expression as ExpressionScores | undefined,
               handMap: controls?.handMap,
               faceDegrees: controls?.faceExpr?.degrees,
+            faceTargets: controls?.faceExpr?.targets,
               categoryDegrees: inputs.categoryDegrees as Record<string, number> | undefined,
               faceMapping: controls?.faceMapping,
               tagOverlay,

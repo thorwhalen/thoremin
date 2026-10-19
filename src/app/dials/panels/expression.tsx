@@ -13,7 +13,7 @@ import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { formatTarget, parseTarget } from '@thoremin/sdk/harmony/target';
+import { formatTarget, isDiatonicMove, parseTarget } from '@thoremin/sdk/harmony/target';
 
 /** What an expression can stand for (H6 of #613, `@thoremin/sdk/harmony/target`): its degree,
  *  a move from the chord in force (the key's six diatonic moves), a function, or the seventh. */
@@ -140,7 +140,7 @@ export function ExpressionMapping({ chordMode }: { chordMode: boolean }) {
         {rows.map((label) => {
           const isEmotion = label !== 'neutral';
           const degree = degrees[label] ?? DEFAULT_EXPRESSION_TO_DEGREE[label];
-          const target = formatTarget(parseTarget(targets?.[label]));
+          const target = formatTarget(parseTarget(targets?.[label], { moves: isDiatonicMove }));
           const midi = chordMode ? chordMidi(degree) : [];
           return (
             <div key={label} className="space-y-1">

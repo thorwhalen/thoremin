@@ -474,7 +474,8 @@ export const HEAL_RULES: CoreHealRules = {
         sensitivity: { ...DEFAULT_FACE_EXPR.sensitivity, ...(pe.sensitivity ?? {}) },
         degrees: { ...DEFAULT_FACE_EXPR.degrees, ...(pe.degrees ?? {}) },
         // H6 of #613: absent on every blob saved before targets existed = no targets (degrees).
-        targets: { ...DEFAULT_FACE_EXPR.targets, ...(pe.targets ?? {}) },
+        // Only string values survive (a malformed one is dropped, not the whole face map).
+        targets: { ...DEFAULT_FACE_EXPR.targets, ...Object.fromEntries(Object.entries((pe.targets ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v === 'string')) },
       };
     },
   },
