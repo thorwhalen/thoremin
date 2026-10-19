@@ -7,6 +7,7 @@
   "exports": {
     "./enroll": "./src/enroll/index.ts",
     "./enroll/bars": "./src/enroll/bars.ts",
+    "./enroll/light": "./src/enroll/light.ts",
     "./enroll/bind": "./src/enroll/bind.ts",
     "./enroll/carve": "./src/enroll/carve.ts",
     "./enroll/categorizer": "./src/enroll/categorizer.ts",

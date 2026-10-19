@@ -22,6 +22,7 @@
  * B (or the button) is held, optionally under a name typed first (a labelled hold, pinned to the
  * category of that name). Paused, bursts are the only capture: burst mode.
  */
+import { DARK_ROOM_MESSAGE } from '@thoremin/sdk/enroll/light';
 import { useCallback, useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { StoreApi } from 'zustand/vanilla';
@@ -550,6 +551,11 @@ function LiveTake({ s, store }: { s: FaceSessionState; store: StoreApi<FaceSessi
           Cancel
         </button>
       </div>
+      {s.tooDark && (
+        <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+          {DARK_ROOM_MESSAGE}
+        </p>
+      )}
       {(phase === 'faces' || phase === 'paused') && <BurstControls s={s} />}
       {phase !== 'rest' && <HoldRing state={s.hold} taken={s.points} words={ringWords(phase, modality.words)} />}
       {phase === 'rest' && s.setupStep === 0 && s.restProgress !== null && (
