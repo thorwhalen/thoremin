@@ -42,8 +42,11 @@ import { LM, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, ty
 import { EMPTY_CELL_GRID, type CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import {
+  CHORD_MAP_ANCHORS,
   CHORD_MAP_LAYOUTS,
   LAYOUTS,
+  keyedCells,
+  letterChordNames,
   chordMapGrid,
   createCellTracker,
   diatonicChords,
@@ -92,6 +95,8 @@ const VALENCE_MARGIN = 0.08;
 const AROUSAL_EDGES = [0.35, 0.55] as const;
 const AROUSAL_MARGIN = 0.05;
 const AROUSAL_DWELL_S = 0.25;
+/** Seconds the cells a modulation changed stay marked (the letters map). */
+const RELIGHT_S = 2;
 /** The tension steps of `byTension` (seventh, ninth, eleventh or thirteenth). */
 const TENSION_STEPS = 3;
 
@@ -152,6 +157,9 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.7),
   /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
   mirrorHandedness: z.boolean().default(true),
+  /** Where the map keeps its place: the key's home in the middle, or the seven letters fixed
+   *  (a key's home where its tonic sits, a modulation relighting the chords it changes). */
+  anchor: z.enum(CHORD_MAP_ANCHORS).default('home'),
   /** The face colours the chords (composes the face model): its valence and its arousal. */
   face: z.boolean().default(false),
   /** With the face: a smile turns the key to its parallel major, a frown to its parallel minor. */
@@ -292,6 +300,11 @@ export const chordMapNode = defineNode<Params>({
     let otherTilt: number | null = null;
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
     let valence: LevelTracker | null = null;
+    /** The letters map: the key last laid out, each letter's chord in it, and what changed. */
+    let letterKey = '';
+    let letterNames: string[] = [];
+    let changedLetters = new Set<number>();
+    let changedUntil = -Infinity;
     const arousal = createLevelTracker({ edges: AROUSAL_EDGES, hysteresis: AROUSAL_MARGIN, dwellS: AROUSAL_DWELL_S, rest: 0 });
 
     const resolveConfig = (raw: unknown): Params => {
@@ -372,6 +385,19 @@ export const chordMapNode = defineNode<Params>({
           return { params: { voices: [...voices, silentMelody(p.melodySound)] } satisfies SynthParams, notes: [], grid: EMPTY_CELL_GRID, status, triad: [] };
         }
         const chords: DiatonicChord[] = diatonicChords(spec, c.sevenths ? 4 : 3);
+        // The letters map keeps its cells across keys; a key change marks the letters whose chord changed.
+        if (c.anchor === 'letters') {
+          const sig = `${spec.root}|${spec.type}`;
+          if (sig !== letterKey) {
+            const names = letterChordNames(spec);
+            if (letterKey) {
+              changedLetters = new Set(names.flatMap((n, i) => (n !== letterNames[i] ? [i] : [])));
+              changedUntil = now + RELIGHT_S;
+            }
+            letterKey = sig;
+            letterNames = names;
+          }
+        } else letterKey = '';
         const regions = chordMapRegions(c.chordHand, c.split);
         const shape = LAYOUTS[c.layout].shape;
         const notes: NoteEvent[] = [];
@@ -402,6 +428,9 @@ export const chordMapNode = defineNode<Params>({
           strummerKey = '';
         }
 
+        // Each cell's degree in the key (the letters map reads its letter in the key).
+        const placed = keyedCells(cells, c.anchor, spec);
+
         // One camera frame: choose the chord, then hear the other hand.
         const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
         const fresh = frame !== lastFrame && !sameStamp;
@@ -422,7 +451,7 @@ export const chordMapNode = defineNode<Params>({
               // The chord is the one in force at the decision, about the lead plus the frame's age
               // before the strum sounds (the air guitar's rule): a chord reached later is heard on
               // the next strum. No chord, a strum of nothing.
-              const chord = choice.active !== null ? chords[cells[choice.active].degree] : undefined;
+              const chord = choice.active !== null ? chords[placed[choice.active].degree] : undefined;
               if (!chord) continue;
               const velocity = s.late ? s.strength * c.volume * LATE_VELOCITY : s.strength * c.volume;
               const strummed = strumNotes(chord.symbol, s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
@@ -435,7 +464,7 @@ export const chordMapNode = defineNode<Params>({
           }
         }
 
-        const degree = choice.active !== null && cells[choice.active] ? cells[choice.active].degree : -1;
+        const degree = choice.active !== null && placed[choice.active] ? placed[choice.active].degree : -1;
         if (degree >= 0) lastDegree = degree;
         const held = c.play === 'hold' ? degree : -1;
         const { voices } = render(held);
@@ -474,9 +503,12 @@ export const chordMapNode = defineNode<Params>({
           mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',
           tension: tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
+        const marks =
+          c.anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;
         const grid: CellGrid = chordMapGrid({
           layout: c.layout,
-          cells,
+          cells: placed,
+          marks,
           chords,
           choice,
           captions: c.captions,

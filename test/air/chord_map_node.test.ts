@@ -215,6 +215,29 @@ describe('the chord-map node, coloured by the face (H7 of #613)', () => {
   });
 });
 
+describe('the chord-map node, the letters map (H13 of #613)', () => {
+  it('keeps the chord under the hand on its letter across a key change, relights the changed cells, moves the home', () => {
+    const f = cellOf(3); // F in C major
+    const frames = chordMapTake({ duration: 4, chordAt: () => f });
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const outs = frames.map((fr) => ({ t: fr.t!, out: h.process({ hands: fr, config: { ...ON, anchor: 'letters' }, spec: fr.t! < 1.5 ? C_MAJOR : { ...C_MAJOR, root: 7 }, octaveShift: 0 }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out }));
+    const at = (t: number) => outs.find((o) => o.t >= t)!.out;
+    expect(at(1).status.chord).toBe('F');
+    expect(at(2).status.chord).toBe('F#°'); // the same cell, its chord in G
+    const marked = (o: Out, mark: string) => new Set(o.grid.cells.filter((c) => c.mark === mark).map((c) => c.label));
+    expect(marked(at(1), 'home')).toEqual(new Set(['C']));
+    expect(marked(at(1), 'changed').size).toBe(0);
+    expect(marked(at(2), 'changed')).toEqual(new Set(['D', 'F#°', 'Bm']));
+    expect(marked(at(2), 'home')).toEqual(new Set(['G']));
+    expect(marked(at(3.8), 'changed').size).toBe(0); // the relight fades after two seconds
+  });
+
+  it('marks nothing on the home map', () => {
+    const outs = play(chordMapTake({ duration: 1, chordAt: () => cellOf(0) }), ON);
+    expect(outs[outs.length - 1].out.grid.cells.some((c) => c.mark)).toBe(false);
+  });
+});
+
 describe('the chord-map node, off', () => {
   it('sounds and draws nothing with the dial off or no key', () => {
     for (const [config, spec] of [[{ ...ON, enabled: false }, C_MAJOR], [ON, undefined]] as const) {

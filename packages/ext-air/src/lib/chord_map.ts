@@ -21,7 +21,7 @@
  * across and down (a hexagon) are computed in frame HEIGHTS and converted with the frame's
  * aspect ratio.
  */
-import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, midiToName, romanNumeral, SCALE_TYPES, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, letterDegree, midiToName, NOTE_LETTERS, romanNumeral, SCALE_TYPES, type ChordQuality, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { chordName, chordSymbol, diatonicChords as harmonyChords, functionOf, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { parseChordName } from './guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
@@ -34,6 +34,12 @@ export const DEGREES = 7;
 
 export const CHORD_MAP_LAYOUTS = ['harmonic', 'fifths', 'scale'] as const;
 export type ChordMapLayoutId = (typeof CHORD_MAP_LAYOUTS)[number];
+/** Where the map keeps its place (H13 of #613): `home`, the key's tonic in the middle, the map
+ *  laid out again for each key; `letters`, the seven letters stay where they are (C in the
+ *  middle), so a key's home is where its tonic's letter sits (A minor's on the A cells, vi's
+ *  place in C) and a modulation relights only the chords it changes (C to G: ii, IV and vii°). */
+export const CHORD_MAP_ANCHORS = ['home', 'letters'] as const;
+export type ChordMapAnchor = (typeof CHORD_MAP_ANCHORS)[number];
 
 export interface ChordMapLayout {
   shape: 'hex' | 'rect';
@@ -154,6 +160,20 @@ export function layoutCells(layoutId: ChordMapLayoutId, region: Region, { aspect
   const layout = LAYOUTS[layoutId];
   const cells = layout.shape === 'hex' ? hexLattice(region, { aspect, cellSize }) : strip(region, DEGREES, aspect);
   return cells.map((cell) => ({ ...cell, degree: degreeAt(layout, cell.q, cell.r) }));
+}
+
+/** The cells with their degree IN THE KEY: as laid out with `home` (the layout's degrees are
+ *  the key's), else each cell's letter (its degree read in C, the layout's reference) as the
+ *  degree that letter is in this key (`letterDegree`: F in G major is F#, vii°). */
+export function keyedCells(cells: readonly MapCell[], anchor: ChordMapAnchor, spec: ScaleSpec): MapCell[] {
+  if (anchor === 'home') return [...cells];
+  return cells.map((c) => ({ ...c, degree: letterDegree(spec, NOTE_LETTERS[c.degree]) }));
+}
+
+/** The chord each letter names in a key (by letter, C first): what a modulation compares. */
+export function letterChordNames(spec: ScaleSpec): string[] {
+  const chords = diatonicChords(spec);
+  return NOTE_LETTERS.map((l) => chords[letterDegree(spec, l)].name);
 }
 
 /** A point's distance from a cell's centre in that cell's widths (the layout's `cellDistance`). */
@@ -323,6 +343,8 @@ export interface ChordMapView {
   ladder: { region: Region; notes: readonly number[]; band: number | null; set?: MelodySet } | null;
   /** The points that choose (display fractions). */
   pointers: readonly { x: number; y: number }[];
+  /** A mark per cell (aligned with `cells`): its home, or relit by a modulation. */
+  marks?: readonly (GridCell['mark'] | undefined)[];
 }
 
 /** The chord map as the overlay's cell grid. */
@@ -332,7 +354,8 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
   const cells: GridCell[] = view.cells.map((cell, i) => {
     const chord = view.chords[cell.degree];
     const state = i === view.choice.active ? 'active' : i === view.choice.candidate ? 'candidate' : 'idle';
-    return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape, label: chord?.name ?? '', sub: chord?.numeral ?? '', color: DEGREE_COLORS[cell.degree], state };
+    const mark = view.marks?.[i];
+    return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape, label: chord?.name ?? '', sub: chord?.numeral ?? '', color: DEGREE_COLORS[cell.degree], state, ...(mark ? { mark } : {}) };
   });
   if (view.ladder) {
     const { region, notes, band } = view.ladder;
