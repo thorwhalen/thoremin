@@ -52,6 +52,7 @@ import {
 import { neutralIndices } from '@thoremin/sdk/enroll/carve';
 import { TRAIN_DEFAULTS } from '@thoremin/sdk/enroll/classify';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
+import type { ForestPrefetcher } from '../lib/forest_prefetch';
 import {
   deleteHolds as deleteHoldsFrom,
   mergeCategories,
@@ -139,6 +140,8 @@ export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || ph
 export const isLive = (phase: FacePhase): boolean => phase === 'explore' || isRecording(phase);
 
 export interface FaceSessionDeps {
+  /** Warms the re-cut forest off the main thread for a big categorizer (#499); none: it is built on the page. */
+  forests?: ForestPrefetcher;
   source: () => FaceSource;
   thumbs: ThumbStore;
   /** Opens the source's stream for stills, taken at capture (#385 E3). */
@@ -933,6 +936,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const maxK = Math.min(bounds.maxK, FACE_SESSION_DEFAULTS.maxCategories);
       const suggested = recutable && bounds.pool <= FACE_SESSION_DEFAULTS.suggestUpTo ? recutRange(working, recutOptions()).suggestedK : working.categories.length;
       const range = recutable ? { minK: bounds.minK, maxK, suggestedK: Math.min(suggested, maxK), recutable } : { minK: working.categories.length, maxK: working.categories.length, suggestedK: working.categories.length, recutable };
+      // Past the pool whose suggestion is built here, the forest would be built by the first
+      // re-cut: have a worker build it now (the cache is keyed on content, so a stale answer is harmless).
+      if (recutable && bounds.pool > FACE_SESSION_DEFAULTS.suggestUpTo) void deps.forests?.prefetch(working, recutOptions());
       const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true, modality });
       shownIds = working.samples.map((x) => x.id);
       figureUrls.clear();
