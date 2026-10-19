@@ -85,12 +85,13 @@ export const NO_REJECT_RADIUS = Number.MAX_VALUE;
  * The most samples an IMPORTED file may carry, and the most a correction may grow a
  * categorizer to. An import is untrusted and its stages run on the main thread, so a size
  * bound is a responsiveness bound. Exemplar selection is no longer the limit (the medoid is
- * estimated past 300 members, #398); `scripts/bench_categorizer_size.ts` times what remains,
- * at 52 features (ms at 2000 / 3000 samples on one server core; 5000 was timed at 40 features
- * and is only a scale): model 113 / 129 / 163, quality chips 118 / 152 / 212, merging a take of
- * 40 holds 241 / 317 / 363, and the re-cut's forest (quadratic; offered only to `recutUpTo`
- * holds out of the bins) 315 / 867 / 1664. The merge is already past the ~200 ms a click may take at 2000, so the
- * bound stays; raising it waits for the merge and the forest to move off the main thread (#587).
+ * estimated past 300 members, #398); the re-cut's forest (quadratic) and merging a take (validating
+ * and re-deriving every sample) run in a worker since #587, so they no longer count.
+ * `scripts/bench_categorizer_size.ts` times what is left on the page, at 52 features (ms at 2000 /
+ * 3000 / 5000 samples on one server core): model 126 / 147 / 208, quality chips 109 / 158 / 283, a re-cut
+ * once its forest is cached 79 / 123 / 200, the strangers switch 41 / 66 / 117, and in the worker the
+ * forest 322 / 897 / 2676 and a merge of 40 holds 221 / 280 / 489. The slowest page stage stays under the
+ * ~200 ms a click may take through 3000 (quality chips, 158), and passes it by 4000, so the bound is 3000.
  * Generous for any real take, which holds tens to a few hundred still-points.
  *
  * The bound is enforced at the untrusted door ({@link importCategorizer}) and by the edits
@@ -98,7 +99,7 @@ export const NO_REJECT_RADIUS = Number.MAX_VALUE;
  * validates the player's saved records, and a record saved before the bound existed must
  * still load rather than silently vanish.
  */
-export const MAX_CATEGORIZER_SAMPLES = 2000;
+export const MAX_CATEGORIZER_SAMPLES = 3000;
 /** The most feature ids a file may name: well above the whole feature catalog (a few
  *  hundred ids), of which a session model keeps only its most distinctive few. */
 export const MAX_CATEGORIZER_FEATURES = 1024;

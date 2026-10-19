@@ -1,8 +1,8 @@
 /**
  * Time the stages of a large categorizer (#587), to say where MAX_CATEGORIZER_SAMPLES may sit.
  * Timings vary with the machine and its load: compare stages, and run twice.
- * Each stage runs on the main thread in the tool, so the bound is the slowest stage's time.
- * Usage: `npx tsx scripts/bench_categorizer_size.ts [n ...]` (default 2000 5000).
+ * The forest build and the merge run in a worker in the tool (#587), so the bound is the slowest of the other stages.
+ * Usage: `npx tsx scripts/bench_categorizer_size.ts [n ...]` (default 2000 3000 5000).
  * The categorizer is synthetic: `FEATURES` features, `CATS` clusters, a third of the holds
  * set aside or Neutral (the worst case for the saved view), a few pins.
  */
@@ -57,7 +57,7 @@ function time<T>(label: string, fn: () => T): T {
   return out;
 }
 
-for (const n of sizes.length ? sizes : [2000, 5000]) {
+for (const n of sizes.length ? sizes : [2000, 3000, 5000]) {
   console.log(`n = ${n}`);
   const c = make(n);
   const text = exportCategorizer(c);
