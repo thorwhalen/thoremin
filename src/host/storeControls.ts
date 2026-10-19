@@ -15,8 +15,7 @@ import type { DialSlice, Extension } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import type { SoundId } from '@thoremin/sdk/music/sounds';
-import { legacyFaceToMapping, type BodyModel, type FaceMapping } from '@thoremin/sdk/nodes/domain';
-import type { BodyMap } from '@/nodes/mapping/body_map.schema';
+import { legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ConductorSettings, ExtensionDials, ExtensionTransients } from '@/settings/schema';
@@ -82,12 +81,6 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   /** The hands reading (#148): the handedness dwell, fed to `hand-features`'
    *  `handednessDwell` input as a live port (absent → the node's build-time param). */
   hands?: HandsSettings;
-  /** The body source (#186): on/off + PoseLandmarker model. Read by `webcam-body` off
-   *  the raw store (its gate, like `faceMapping` for the face) — not emitted as a port,
-   *  because a slot candidate declares no inputs. */
-  body?: { enabled: boolean; model: BodyModel };
-  /** The body→sound routing (#186 PR E), fed to `body-route` as the `bodyMap` port. */
-  bodyMap?: BodyMap;
   /** The head/face CONTROL axis tuning (#76): per-axis gain / deadzone / neutral zero
    *  / smoothing. Fed to the `face-controls` node's `config` input as a live override
    *  of its build-time params, so re-tuning an axis needs no graph rebuild. */
@@ -209,8 +202,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
     // the panel / palette / AI can re-tune an axis (including flipping a sign) live.
     { name: 'faceControls', kind: 'face-controls-config' },
     { name: 'conductor', kind: 'conductor-config' },
-    // The body→sound routing (#186) → `body-route`'s `bodyMap` input, live.
-    { name: 'bodyMap', kind: 'body-map' },
     { name: 'scoreDoc', kind: 'score-doc' },
     // The body conductor's lead offsets per joint (#427, a per-device pref) → `conductor`.
     { name: 'conductorLeadOffsets', kind: 'lead-offsets' },
@@ -274,7 +265,6 @@ function defineStoreControls(extensions: readonly Extension[]) {
         // be indistinguishable from that anyway — so skip the key entirely.
         if (c.faceControls) out.faceControls = c.faceControls;
         if (c.hands) out.handednessDwell = c.hands.handednessDwell;
-        if (c.bodyMap) out.bodyMap = c.bodyMap;
         if (c.conductor) out.conductor = c.conductor;
         // The extensions' whole-object dials (absent → the node keeps its build-time params)
         // and their transient fields (always emitted, null included: clearing an enrolment

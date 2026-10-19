@@ -22,14 +22,15 @@ import {
   NO_CAMERA_REASON,
   type BodyLandmarkerFactory,
   type PoseLandmarkerLike,
-} from '@/nodes/sources/webcam_body';
+} from '@/slices/body/nodes/webcam_body';
+import { BODY } from '../helpers/extensions';
 
 const flush = async () => {
   await new Promise((r) => setTimeout(r, 0));
   await new Promise((r) => setTimeout(r, 0));
 };
 
-describe('resultToBodyFrame', () => {
+describe.runIf(BODY)('resultToBodyFrame', () => {
   it('scales normalized landmarks to pixels, keeps z, visibility and world landmarks', () => {
     const pts = Array.from({ length: BODY_LANDMARK_COUNT }, (_, i) => ({ x: i / 33, y: 0.5, z: -0.1, visibility: 0.9 }));
     const world = pts.map((p) => ({ x: p.x - 0.5, y: 0, z: 0 }));
@@ -54,7 +55,7 @@ describe('resultToBodyFrame', () => {
   });
 });
 
-describe('the body source is composed only when wanted (the gate moved to the branch derivation)', () => {
+describe.runIf(BODY)('the body source is composed only when wanted (the gate moved to the branch derivation)', () => {
   const base = { ...settingsFromLayer(SEED_INSTRUMENTS[0].layer) };
   const has = (s: typeof base, ctx?: DerivationContext) => branchIdsFor(s, ctx).includes('body-source');
   it('is off by default', () => {
@@ -72,7 +73,7 @@ describe('the body source is composed only when wanted (the gate moved to the br
   });
 });
 
-describe('webcam-body lifecycle (injected loader)', () => {
+describe.runIf(BODY)('webcam-body lifecycle (injected loader)', () => {
   const created: string[] = [];
   const closed: string[] = [];
   let failModel: string | null = null;

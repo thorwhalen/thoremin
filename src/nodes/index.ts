@@ -12,8 +12,6 @@ import { syntheticHandsNode } from './sources/synthetic_hands';
 import { replaySourceNode } from './sources/replay';
 import { replaySourceTimedNode } from './sources/replay_timed';
 import { replayHandsNode } from './sources/replay_hands';
-import { syntheticBodyNode } from './sources/synthetic_body';
-import { replayBodyNode } from './sources/replay_body';
 import { handFeaturesNode } from './features/hand_features';
 import { handsDwellNode } from './features/hands_dwell';
 import { faceFeaturesNode } from './features/face_features';
@@ -23,10 +21,7 @@ import { faceExpressionNode } from './features/face_expression';
 import { gestureClassifierNode } from './features/gesture_classifier';
 import { faceFeatureVectorNode } from './features/face_feature_vector';
 import { handFeatureVectorNode } from './features/hand_feature_vector';
-import { bodyFeatureVectorNode } from './features/body_feature_vector';
-import { bodyPulseNode } from './features/body_pulse';
 import { voiceMappingNode } from './mapping/voice_mapping';
-import { bodyRouteNode } from './mapping/body_route';
 import { keyboardControlNode } from './mapping/keyboard_control';
 import { synthMergeNode } from './mapping/synth_merge';
 import { chordSelectNode } from './mapping/chord_select';
@@ -53,8 +48,6 @@ export {
 } from './sources/state_generator';
 export type { StateGeneratorSpec, StateGeneratorInput, StateGeneratorParams } from './sources/state_generator';
 export { replayHandsNode } from './sources/replay_hands';
-export { syntheticBodyNode } from './sources/synthetic_body';
-export { replayBodyNode } from './sources/replay_body';
 export { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from './sources/body_contract';
 export {
   SOURCE_SLOT_CONTRACT,
@@ -82,14 +75,11 @@ export { gestureClassifierNode } from './features/gesture_classifier';
 export type { Pose, GestureEvent } from './features/gesture_classifier';
 export { faceFeatureVectorNode } from './features/face_feature_vector';
 export { handFeatureVectorNode } from './features/hand_feature_vector';
-export { bodyFeatureVectorNode } from './features/body_feature_vector';
-export { bodyPulseNode, pulseChannelValue, createYawUnwrapper, PULSE_CHANNELS, AUTO_PULSE_CHANNELS } from './features/body_pulse';
-export type { PulseChannel } from './features/body_pulse';
 export type { FeatureVector } from '@thoremin/sdk/features/catalog';
 export { voiceMappingNode } from './mapping/voice_mapping';
-export { bodyRouteNode } from './mapping/body_route';
-export { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, BodyMapSchema, DEFAULT_BODY_MAP, NEUTRAL_MODS, bodyRouteMods } from './mapping/body_map';
-export type { BodyMap, BodyRoute, BodyRouteTarget, BodyRouteSlot, VoiceMods } from './mapping/body_map';
+// The voice mapping's `mods` contract (the body slice's router emits it; #600 S17b).
+export { NEUTRAL_MODS } from '@thoremin/sdk/music/effects';
+export type { VoiceMods } from '@thoremin/sdk/music/effects';
 export { keyboardControlNode } from './mapping/keyboard_control';
 export { synthMergeNode } from './mapping/synth_merge';
 export { chordSelectNode } from './mapping/chord_select';
@@ -113,8 +103,6 @@ export const CORE_NODES = [
   replaySourceNode,
   replaySourceTimedNode,
   replayHandsNode,
-  syntheticBodyNode,
-  replayBodyNode,
   handFeaturesNode,
   handsDwellNode,
   faceFeaturesNode,
@@ -124,10 +112,7 @@ export const CORE_NODES = [
   gestureClassifierNode,
   faceFeatureVectorNode,
   handFeatureVectorNode,
-  bodyFeatureVectorNode,
-  bodyPulseNode,
   voiceMappingNode,
-  bodyRouteNode,
   keyboardControlNode,
   synthMergeNode,
   chordSelectNode,

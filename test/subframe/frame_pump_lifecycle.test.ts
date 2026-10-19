@@ -25,7 +25,13 @@ vi.mock('@thoremin/sdk/timing/stamp_dejitter', async (importOriginal) => {
   };
 });
 
-import { createFramePump, type FrameStamp, type VideoFrameMetadataLike } from '@/nodes/sources/frame_pump';
+import type { FrameStamp, VideoFrameMetadataLike } from '@/nodes/sources/frame_pump';
+
+// The setup file (`test/setup/lazy_extensions.ts`) loads every extension's nodes, the body slice's
+// camera source among them, so the frame pump and its de-jitter are already cached with the real
+// factory when this file's mock is declared: the pump is imported afresh, after the mock.
+vi.resetModules();
+const { createFramePump } = await import('@/nodes/sources/frame_pump');
 
 type VfcCallback = (now: number, meta: VideoFrameMetadataLike) => void;
 

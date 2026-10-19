@@ -32,6 +32,7 @@ import { useControls } from '@/app/store';
 import { loadStream } from './helpers/fixtures';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BODY as BODY_SLICE } from './helpers/extensions';
 
 const FPS = 30;
 const CLIP = 'video_body_conducting_44';
@@ -218,7 +219,7 @@ function bodyConductorGraph(frames: BodyFrame[]): GraphSpec {
 }
 
 describe('the body conductor in the composed instrument graph (?slot.body=replay-body)', () => {
-  it('the beat is monotone and the score sounds a note on most beats, reaching the merge', async () => {
+  it.runIf(BODY_SLICE)('the beat is monotone and the score sounds a note on most beats, reaching the merge', async () => {
     const ticks = body.length;
     const controls = { ...useControls.getState(), conductor: { ...useControls.getState().conductor, ...DEFAULT_CONDUCTOR_DIAL, ...BODY } };
     const { recorder } = await runHeadless(bodyConductorGraph(body), createAppRegistry(), {
@@ -254,7 +255,7 @@ describe('structural guard: conductor.body is connected whenever the source is b
     'an explicit branch set': [{ conductor: { enabled: true, source: 'body' } }, { explicit: ['conductor'] }],
   };
   for (const [name, args] of Object.entries(cases)) {
-    it(name, () => {
+    it.runIf(BODY_SLICE)(name, () => {
       const ids = branchIdsFor(...args);
       expect(ids).toContain('conductor');
       const { spec } = composeInstrumentGraph(ids, {}, registry);

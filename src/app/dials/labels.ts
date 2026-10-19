@@ -49,13 +49,5 @@ export const RENDERING_LABELS: Record<RenderingId, string> = {
   alberti: 'Alberti',
 };
 
-/** What a finger's thumb-distance can be routed to. */
-export const EFFECT_LABELS: Record<FingerTarget, string> = {
-  none: 'Off',
-  brightness: 'Brightness',
-  vibrato: 'Vibrato',
-  pan: 'Pan',
-  pitchBend: 'Pitch bend',
-  octave: 'Octave',
-  gate: 'Gate',
-};
+/** What a finger's thumb-distance can be routed to (the SDK's effect labels, #600 S17b). */
+export { EFFECT_LABELS } from '@thoremin/sdk/music/effects';

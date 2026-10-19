@@ -3977,10 +3977,6 @@
         "kind": "conductor-config"
       },
       {
-        "name": "bodyMap",
-        "kind": "body-map"
-      },
-      {
         "name": "scoreDoc",
         "kind": "score-doc"
       },
@@ -4031,6 +4027,14 @@
       {
         "name": "steer",
         "kind": "steer-settings"
+      },
+      {
+        "name": "body",
+        "kind": "body-config"
+      },
+      {
+        "name": "bodyMap",
+        "kind": "body-map"
       },
       {
         "name": "faceCategorizer",

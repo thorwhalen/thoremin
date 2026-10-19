@@ -29,6 +29,7 @@ import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { DEFAULT_CONDUCTOR_DIAL, type BodyFrame } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
+import { BODY } from './helpers/extensions';
 
 const HZ = 30;
 const REGISTRY = createAppRegistry();
@@ -77,7 +78,7 @@ async function switchBack(clip: BodyFrame[], other: 'hands' | 'body', away: numb
 describe('the leader switched back to the dancer (#506)', () => {
   const clip = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
 
-  it('measures the wait: cold (via the hands, the pulse starts over) and warm (via the body)', async () => {
+  it.runIf(BODY)('measures the wait: cold (via the hands, the pulse starts over) and warm (via the body)', async () => {
     // The clip is 20 s (its end is a seam in the dance): the switches sit after the first
     // lead (9.4 s) and leave the cold case room to re-lock.
     const away = 9.6;
@@ -116,7 +117,7 @@ describe('ictus DanceLead.reset(beat, { ratio }): the relation resumed (#506)', 
     expect(resumed).toBeLessThan(2.1);
   });
 
-  it('a candidate never followed is not resumed: a flick away while locking persists again', async () => {
+  it.runIf(BODY)('a candidate never followed is not resumed: a flick away while locking persists again', async () => {
     // Away at 6.4 s (the relation of a bar per cycle is then persisting, not yet followed),
     // back at 6.5 s: the conductor has nothing to resume, so the score waits for the
     // persistence as a first start does (it led at 7.63 s when the candidate was resumed).

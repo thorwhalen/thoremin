@@ -10,20 +10,21 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { dialsStore } from '@/app/dials/settingsStore';
-import type { BodyMap } from '@/nodes/mapping/body_map';
+import type { BodyMap } from '@/slices/body/nodes/body_map';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
-import { BodyControls } from '@/app/dials/panels/body';
+import { BodyControls } from '@/slices/body/panels/body';
+import { BODY } from '../helpers/extensions';
 
 afterEach(() => cleanup());
 
-describe('the settings panel mounts the Body section (#186 reachability)', () => {
+describe.runIf(BODY)('the settings panel mounts the Body section (#186 reachability)', () => {
   it('renders a Body section', () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('Body')).toBeTruthy();
   });
 });
 
-describe('BodyControls', () => {
+describe.runIf(BODY)('BodyControls', () => {
   it('renders the tracking toggle, off by default, with the model selector disabled and sized', () => {
     render(<BodyControls />);
     const toggle = screen.getByLabelText('Track the body') as HTMLInputElement;

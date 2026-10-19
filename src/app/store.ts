@@ -28,9 +28,6 @@ import {
   DEFAULT_HANDS,
   HandsSettingsSchema,
   type HandsSettings,
-  DEFAULT_BODY,
-  BodySettingsSchema,
-  type BodySettings,
   FaceChordSchema,
   FaceExprSchema,
   HandMapSchema,
@@ -42,7 +39,6 @@ import {
   DEFAULT_CONDUCTOR_PREFS,
   type ConductorPrefs,
 } from '@/settings/schema';
-import { BodyMapSchema, DEFAULT_BODY_MAP, type BodyMap } from '@/nodes/mapping/body_map.schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map.schema';
 import {
   FaceControlsDialSchema,
@@ -172,12 +168,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    *  label). A preset field (in {@link SETTINGS_KEYS}); read live by `hand-features` via
    *  `store-controls` → its `handednessDwell` input. */
   hands: HandsSettings;
-  /** The body source (#186): on/off + model. A preset field; read live by `webcam-body`
-   *  through `ctx.resources.controls` (its gate, like the face's `faceMapping`). */
-  body: BodySettings;
-  /** The body→sound routing (#186 PR E). A preset field; flows to `body-route` through
-   *  `store-controls` as the `bodyMap` port, so a route edit is live without a rebuild. */
-  bodyMap: BodyMap;
   /** The body conductor's per-DEVICE prefs (#427): the player's lead offset per joint,
    *  learned in the Conductor tool. Persisted via `partialize` like {@link audioPrefs}, NOT
    *  a preset field. Flows to the `conductor` node's `leadOffsets` input through
@@ -404,12 +394,8 @@ export const HEAL_RULES: CoreHealRules = {
   handMap: { schema: HandMapSchema },
   // The hands reading (#148): a pre-#148 blob has none → dwell 0 (the raw label).
   hands: { schema: HandsSettingsSchema, complete: overDefaults(DEFAULT_HANDS) },
-  // The body settings (#186): a pre-body blob has none → off, lite.
-  body: { schema: BodySettingsSchema, complete: overDefaults(DEFAULT_BODY) },
   // The body conductor's lead offsets (#427): a pre-#427 blob has none → no offset.
   conductorPrefs: { schema: ConductorPrefsSchema, complete: overDefaults(DEFAULT_CONDUCTOR_PREFS) },
-  // The body map (#186): a pre-routing blob has none → no routes.
-  bodyMap: { schema: BodyMapSchema },
   // The face-control axes (#76): a pre-#76-dials blob has none → the shipped tuning; a
   // partial one is completed; a corrupt one falls back whole rather than leaving the panel to
   // dereference an undefined into a NaN slider.
@@ -570,9 +556,7 @@ export const useControls = create<ControlState>()(
       featureLab: defaultFeatureLab(),
       handMap: defaultHandMap(),
       hands: { ...DEFAULT_HANDS },
-      body: { ...DEFAULT_BODY },
       conductorPrefs: { leadOffsets: {} },
-      bodyMap: structuredClone(DEFAULT_BODY_MAP),
       scoreDoc: null,
       graphElements: null,
       faceControls: defaultFaceControls(),

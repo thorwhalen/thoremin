@@ -7,9 +7,10 @@
     "midi-output": 0,
     "generative-layer": 0,
     "song-tool": 0,
+    "body-tracking": 0,
     "faces": 4
   },
-  "storeControlsPorts": 27,
+  "storeControlsPorts": 26,
   "useEngineReporters": 5,
   "foldPoints": 2,
   "importCycles": 0,

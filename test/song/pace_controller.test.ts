@@ -26,7 +26,7 @@ import { loadStream, FIXTURES } from '../helpers/fixtures';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderClickTrack, SR } from '../helpers/clicks';
-import { SONG } from '../helpers/extensions';
+import { BODY, SONG } from '../helpers/extensions';
 
 const HZ = 30;
 const REGISTRY = createAppRegistry();
@@ -141,7 +141,7 @@ describe.runIf(SONG)('the real dancer leads the song (video_body_que_calor)', ()
     { bpm: 129.2, rMin: 0.6, rOffMax: 0.2, mean: [0.92, 0.97] },
     { bpm: 129.2 * 1.06, rMin: 0.6, rOffMax: 0.3, mean: [0.9, 0.94] },
   ]) {
-    it(`a song at ${bpm.toFixed(1)} bpm: locks on the bar, stays in the clamp, and the anchors land in step`, async () => {
+    it.runIf(BODY)(`a song at ${bpm.toFixed(1)} bpm: locks on the bar, stays in the clamp, and the anchors land in step`, async () => {
       const song = songAt(bpm);
       const on = await runLoop(frames, song);
       const off = await runLoop(frames, song, {}, false);
@@ -188,7 +188,7 @@ describe.runIf(SONG)("a real song's beat jitter (#346 item 4: song_grid_budots, 
   const seconds = frames.length / HZ;
 
   for (const bpm of [129.2 / 1.06, 129.2, 129.2 * 1.06]) {
-    it(`at ${bpm.toFixed(1)} bpm the real grid is followed as steadily as a click track's`, async () => {
+    it.runIf(BODY)(`at ${bpm.toFixed(1)} bpm the real grid is followed as steadily as a click track's`, async () => {
       const click = trackSongGrid(renderClickTrack({ bpm, seconds: seconds + 2 }).samples, { sampleRate: SR });
       const stats = async (name: string, grid: SongGrid) => {
         const song: SongHandle = { id: `${name}${bpm}`, name, url: `blob:${name}`, durationS: seconds + 2, grid };
@@ -210,7 +210,7 @@ describe.runIf(SONG)("a real song's beat jitter (#346 item 4: song_grid_budots, 
 });
 
 describe.runIf(SONG)('the synthetic dancer (synthetic-body), a known answer', () => {
-  it('steps every 1.2 s against a song whose beat is 0.6 s at 1.05x: locks on two beats and plays at 1.05', async () => {
+  it.runIf(BODY)('steps every 1.2 s against a song whose beat is 0.6 s at 1.05x: locks on two beats and plays at 1.05', async () => {
     const st = clockStretcher();
     // The song's own beat is 0.63 s; two of them at 1.05x are the dancer's 1.2 s step.
     const bpm = 100 / 1.05;
@@ -237,7 +237,7 @@ describe.runIf(SONG)('the synthetic dancer (synthetic-body), a known answer', ()
 });
 
 describe.runIf(SONG)('when the song follows (the derivation)', () => {
-  it('following composes the pace branch and the body it needs, only while a song is loaded', () => {
+  it.runIf(BODY)('following composes the pace branch and the body it needs, only while a song is loaded', () => {
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: {} })).toEqual(expect.arrayContaining(['song-pace', 'body-source']));
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: null })).not.toContain('song-pace');
     expect(branchIdsFor({ songPrefs: { follow: true }, songHandle: null })).not.toContain('body-source');

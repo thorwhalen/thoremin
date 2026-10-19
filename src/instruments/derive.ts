@@ -66,8 +66,6 @@ function impliedBy(groups: ReadonlySet<string>, table: DerivationTable): Set<str
 export interface DerivationSettings {
   handMap?: { maxGain?: number };
   faceMapping?: string;
-  body?: { enabled?: boolean };
-  bodyMap?: { routes?: Record<string, { target?: string; feature?: string } | undefined> };
   conductor?: { enabled?: boolean; conducts?: string; source?: string; expression?: string; orchestra?: { enabled?: boolean } };
   /** Extension dial slices (`airDrum`, …), prefs and transients (the song's, #600 S15): read by
    *  each extension's own `derive` / `toolDerive`. */
@@ -83,8 +81,6 @@ export interface DerivationSettings {
 export interface StrictDerivationSettings {
   handMap: { maxGain: number };
   faceMapping: string;
-  body: { enabled: boolean };
-  bodyMap: { routes: Record<string, { target: string; feature: string }> };
   conductor: { enabled: boolean; conducts: string; source: string; expression: string; orchestra: { enabled: boolean } };
 }
 
@@ -97,11 +93,6 @@ export interface DerivationContext {
    * a Lab meter) is still unioned in, because a tool's need is not the instrument's to veto.
    */
   explicit?: readonly string[] | null;
-}
-
-/** Whether any body route is live (a target other than `none`, with a feature). */
-export function bodyMapRoutesAnything(bodyMap: DerivationSettings['bodyMap']): boolean {
-  return Object.values(bodyMap?.routes ?? {}).some((r) => !!r && r.target !== undefined && r.target !== 'none' && !!r.feature);
 }
 
 const on = (x: { enabled?: boolean } | undefined): boolean => x?.enabled === true;
@@ -165,20 +156,13 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   add('face-chord', faceMapping === 'chord');
   add('face-controls', faceMapping === 'controls');
 
-  const bodyWanted = on(settings.body) || claimed.has('body-source');
-  // Following the dancer (#186 PR H) needs the body's rhythm too: the song slice's tool need
-  // (#600 S15, `toolDerive`); it does not make the body ROUTE anything onto the voices, so
-  // `bodyWanted` (which gates the router) leaves it out.
-  add('body-source', on(settings.body));
-  // The router modulates the hand voices: it needs the body AND the voices.
-  add('body-route', bodyWanted && fieldVoices && bodyMapRoutesAnything(settings.bodyMap));
 
   // The orchestra (#187 PR 5) lives in the conductor branch: switching it on composes the
   // branch (the conductor idles until Start), so the soundfont loads before the first beat.
   const conducting = on(settings.conductor) || on(settings.conductor?.orchestra);
   add('conductor', conducting);
   // The body conductor (#375) reads the pose stream: the body source comes with him. It
-  // routes nothing onto the voices (`bodyWanted` gates the router and leaves this out).
+  // routes nothing onto the voices.
   needs(BODY_CONDUCTOR_NEEDS, conducting && conductorReadsBody(settings));
   // The extensions' branches: each manifest says which of its branches its dials imply.
   // An id the table does not know (a typo in a manifest) is dropped, like an unknown

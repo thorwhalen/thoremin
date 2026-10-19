@@ -24,7 +24,7 @@ import { SoundSchema, SOUND_IDS } from '@thoremin/sdk/music/sounds';
 import { ABSENT_HAND, type FaceFeatures, type HandFeatures, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { MAPPING_SLOT_INPUTS, MAPPING_SLOT_OUTPUT } from './mapping_contract';
 import { BEND_SEMITONES, DEFAULT_HAND_MAP, fingerEffects, type HandMap } from './hand_map';
-import { NEUTRAL_MODS, type VoiceMods } from './body_map';
+import { NEUTRAL_MODS, type VoiceMods } from '@thoremin/sdk/music/effects';
 
 /** How much a full smile / open mouth add to brightness / vibrato (0..1). */
 const FACE_SMILE_BRIGHTNESS = 0.5;

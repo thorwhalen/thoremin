@@ -18,6 +18,7 @@ import { branchIdsFor } from '@/app/graph';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import type { DerivationSettings } from '@/instruments/derive';
 import type { ConductorSettings } from '@/settings/schema';
+import { BODY } from './helpers/extensions';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -38,7 +39,7 @@ afterEach(async () => {
 });
 
 describe('Conduct with body', () => {
-  it('three clicks from a cold load: Conductor, Conduct with body, Start conducting', async () => {
+  it.runIf(BODY)('three clicks from a cold load: Conductor, Conduct with body, Start conducting', async () => {
     render(
       <>
         <ToolsBar />

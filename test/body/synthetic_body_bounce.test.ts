@@ -8,7 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { BLM } from '@thoremin/sdk/nodes/domain';
-import { syntheticBodyNode } from '@/nodes/sources/synthetic_body';
+import { syntheticBodyNode } from '@/slices/body/nodes/synthetic_body';
+import { BODY } from '../helpers/extensions';
 
 const P = 0.5;
 const node = syntheticBodyNode.make(syntheticBodyNode.params.parse({ bouncePeriod: P, swayPeriod: 1e6, armPeriod: 1e6 }));
@@ -20,7 +21,7 @@ const hipY = (t: number): number => {
   return out.body.landmarks[BLM.left_hip].y;
 };
 
-describe('synthetic-body bounce (#417)', () => {
+describe.runIf(BODY)('synthetic-body bounce (#417)', () => {
   it('is lowest at the cusp (whole periods) and highest half a period later', () => {
     const ys = Array.from({ length: 200 }, (_, i) => hipY(1 + (i / 200) * P));
     const bottom = ys.indexOf(Math.max(...ys));

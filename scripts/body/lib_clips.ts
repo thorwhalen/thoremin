@@ -7,7 +7,7 @@
  * here cannot be trusted on a real clip; it is a check of the method, not evidence
  * about bodies, and the write-up says so.
  */
-import { syntheticBodyNode } from '../../src/nodes/sources/synthetic_body';
+import { syntheticBodyNode } from '../../src/slices/body/nodes/synthetic_body';
 import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';

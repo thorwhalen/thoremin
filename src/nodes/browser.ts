@@ -8,7 +8,6 @@
 
 export { webcamHandsNode } from './sources/webcam_hands';
 export { webcamFaceNode } from './sources/webcam_face';
-export { webcamBodyNode, resultToBodyFrame } from './sources/webcam_body';
 export { keyboardSourceNode } from './sources/keyboard';
 export { storeControlsNode, makeStoreControlsNode } from '@/host/storeControls';
 export { webAudioSynthNode } from './output/webaudio_synth';

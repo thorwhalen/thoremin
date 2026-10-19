@@ -175,7 +175,7 @@ describe('every main-thread camera model loader copies frames on the CPU delegat
   const loaders = files.filter((f) => CREATE.test(readFileSync(join(root, f), 'utf8')));
 
   it('finds the loaders', () => {
-    expect(loaders.sort()).toEqual(['src/nodes/sources/webcam_body.ts', 'src/nodes/sources/webcam_face.ts', 'src/nodes/sources/webcam_hands.ts']);
+    expect(loaders.sort()).toEqual(['src/nodes/sources/webcam_face.ts', 'src/nodes/sources/webcam_hands.ts', 'src/slices/body/app/body_landmarker.ts']);
   });
 
   it.each(loaders)('%s wraps every landmarker it creates, with the delegate it was created with', (f) => {

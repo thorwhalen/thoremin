@@ -16,7 +16,7 @@ import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import type { DerivationSettings } from '@/instruments/derive';
 import { songConducted } from '@/slices/song/derive';
 import { renderClickTrack, SR } from '../helpers/clicks';
-import { SONG } from '../helpers/extensions';
+import { BODY, SONG } from '../helpers/extensions';
 
 const handle = (): SongHandle => ({
   id: 'take',
@@ -46,7 +46,7 @@ describe.runIf(SONG)('which branches compose', () => {
     expect(spec.edges.some((e) => e.to.node === 'pace' && e.to.port === 'pulse')).toBe(false);
   });
 
-  it('replaces the dancer while it leads: following on does not start the body camera', () => {
+  it.runIf(BODY)('replaces the dancer while it leads: following on does not start the body camera', () => {
     const ids = branchIdsFor(settings({ songPrefs: { follow: true } }));
     expect(ids).toContain('song-pace');
     expect(ids).not.toContain('body-source');

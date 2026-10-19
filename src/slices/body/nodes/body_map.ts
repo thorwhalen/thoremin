@@ -18,29 +18,13 @@
  * and the AI assistant. All slots default to `none`, so an instrument that never
  * configures a body route sounds byte-identical.
  */
-import { z } from 'zod';
 import { clamp01 } from '@thoremin/sdk/features/math';
-import { EFFECTS, type EffectId } from './hand_map';
+import { EFFECTS, NEUTRAL_MODS, VoiceModsSchema, type VoiceMods } from '@thoremin/sdk/music/effects';
+
+export { NEUTRAL_MODS, VoiceModsSchema, type VoiceMods };
 import { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, type BodyRouteTarget, type BodyRouteSlot, type BodyMap } from './body_map.schema';
 export { BODY_ROUTE_TARGETS, BODY_ROUTE_SLOTS, BodyRouteSchema, BodyMapSchema, DEFAULT_BODY_MAP } from './body_map.schema';
 export type { BodyRouteTarget, BodyRouteSlot, BodyRoute, BodyMap } from './body_map.schema';
-
-/**
- * The modulations `voice-mapping` applies on top of the finger effects: additive
- * for the finger effects (0 = no change), multiplicative for `gate` and `gain`
- * (1 = no change). The same shape `fingerEffects` produces, plus `gain`.
- */
-export type VoiceMods = Record<EffectId, number> & { gain: number };
-
-export const NEUTRAL_MODS: VoiceMods = {
-  brightness: 0,
-  vibrato: 0,
-  pan: 0,
-  pitchBend: 0,
-  octave: 0,
-  gate: 1,
-  gain: 1,
-};
 
 /** The per-slot smoothed level, carried between ticks by the node, keyed by what the
  *  slot was routing so a re-targeted slot starts fresh instead of smoothing from the
@@ -114,14 +98,3 @@ export function bodyRouteMods(
   }
   return { mods, state };
 }
-
-/** Zod shape of a `mods` port value, so `runHeadless` refuses a partial record. */
-export const VoiceModsSchema = z.object({
-  brightness: z.number(),
-  vibrato: z.number(),
-  pan: z.number(),
-  pitchBend: z.number(),
-  octave: z.number(),
-  gate: z.number(),
-  gain: z.number(),
-});

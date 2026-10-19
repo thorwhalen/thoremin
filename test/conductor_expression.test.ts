@@ -21,6 +21,7 @@ import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { loadScore } from '@/score/load';
 import { conduct, type Gesture } from './helpers/body_conduct';
+import { BODY as BODY_SLICE } from './helpers/extensions';
 
 const FPS = 30;
 const BPM = 90;
@@ -281,7 +282,7 @@ describe('the split role: conductor.expression', () => {
 describe('the body is composed when only the expression reads it', () => {
   const registry = createAppRegistry();
   const bodyEdge = (spec: GraphSpec) => spec.edges.some((e) => e.from.node === 'camBody' && e.from.port === 'body' && e.to.node === 'conductor' && e.to.port === 'body');
-  it('a hand beats, the body shapes: the pose camera runs and reaches the conductor', () => {
+  it.runIf(BODY_SLICE)('a hand beats, the body shapes: the pose camera runs and reaches the conductor', () => {
     const ids = branchIdsFor({ conductor: { enabled: true, source: 'hands', expression: 'body' } });
     expect(ids).toContain('body-source');
     expect(bodyEdge(composeInstrumentGraph(ids, {}, registry).spec)).toBe(true);
@@ -292,7 +293,7 @@ describe('the body is composed when only the expression reads it', () => {
 });
 
 describe("the orchestra's CC11 follows the body (headless, the composed graph)", () => {
-  it('bigger strokes raise the expression controller, smaller lower it', async () => {
+  it.runIf(BODY_SLICE)('bigger strokes raise the expression controller, smaller lower it', async () => {
     const sc = script([...START, strokes(0.5), strokes(1.5), strokes(0.5)]);
     const calls: { cc: number; value: number; time: number }[] = [];
     const synth: OrchestraSynth = {

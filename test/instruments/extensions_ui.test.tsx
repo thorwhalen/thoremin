@@ -20,8 +20,9 @@ describe('the React halves of the extensions', () => {
   it.runIf(AIR)('the editor sections cover exactly the air instruments the library lists, plus the add-on sections', () => {
     // An add-on section belongs to no instrument of its own: the faces extension's "Face
     // categorizer" is a section of the face chords (#330 P4); the MIDI slice's section (#600 S13) is
-    // an output, not an instrument, and so is the generative layer's (#600 S14).
-    const ADD_ON_SECTIONS = new Set(['faces', 'midi', 'generative']);
+    // an output, not an instrument, and so is the generative layer's (#600 S14); the body slice's
+    // (#600 S17b) is a source the instruments share.
+    const ADD_ON_SECTIONS = new Set(['faces', 'midi', 'generative', 'body']);
     expect(EXTENSION_PANELS.map((p) => p.instrumentId).filter((id) => !ADD_ON_SECTIONS.has(id)).sort()).toEqual(INSTRUMENT_CATALOG.map((a) => a.id).sort());
     for (const p of EXTENSION_PANELS) {
       expect(p.section.length).toBeGreaterThan(0);

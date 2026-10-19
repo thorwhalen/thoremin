@@ -9,12 +9,15 @@
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { runHeadless } from '@thoremin/dag';
-import { createCoreRegistry, bodyFeatureVectorNode } from '@/nodes';
+import { createCoreRegistry } from '@/nodes';
+import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { BLM, makeBodyKeypoints, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import { labWantsBody } from '@/features/labConfig';
 import { BODY_GROUP_IDS } from '@/features/groups';
 import { labDemandGroups } from '@/app/labDemand';
+import { BODY } from '../helpers/extensions';
+import { BODY_EXTENSION } from '@/slices/body';
 
 const W = 640;
 const H = 480;
@@ -31,7 +34,7 @@ const compute = (id: string, frame: BodyFrame) => {
   return f.compute(buildBodyCtx(frame, { mirrorX: true, dtS: NaN, history: [] }));
 };
 
-describe('body catalog — registry', () => {
+describe.runIf(BODY)('body catalog — registry', () => {
   it('registers eight body groups and every body feature under one of them, ids unique', () => {
     expect(BODY_GROUP_IDS).toEqual(['body.angle', 'body.dir', 'body.pos', 'body.kin', 'body.shape', 'body.effort', 'body.rel', 'body.rhythm']);
     expect(FEATURE_GROUPS.filter((g) => g.source === 'body').map((g) => g.id)).toEqual(BODY_GROUP_IDS);
@@ -54,7 +57,7 @@ describe('body catalog — registry', () => {
   });
 });
 
-describe('body catalog — geometry on the synthetic skeleton', () => {
+describe.runIf(BODY)('body catalog — geometry on the synthetic skeleton', () => {
   it('arms hanging → straight elbows; knees straight; upright; head level', () => {
     const f = frameOf();
     expect(compute('body.angle.elbow.left', f)).toBeCloseTo(180, 5);
@@ -122,7 +125,7 @@ describe('body catalog — geometry on the synthetic skeleton', () => {
   });
 });
 
-describe('body-feature-vector (unit)', () => {
+describe.runIf(BODY)('body-feature-vector (unit)', () => {
   const run = (frames: BodyFrame[], params: unknown = {}, resources: Record<string, unknown> = {}) => {
     const h = bodyFeatureVectorNode.make(bodyFeatureVectorNode.params.parse(params));
     return frames.map((frame, i) => (h.process({ body: frame }, bareCtx(i / 30, resources)) as { vector: FeatureVector }).vector);
@@ -180,7 +183,7 @@ describe('body-feature-vector (unit)', () => {
   });
 });
 
-describe('body-feature-vector — the live-camera guards the review asked for', () => {
+describe.runIf(BODY)('body-feature-vector — the live-camera guards the review asked for', () => {
   const walkFrame = (shift: number, over: Partial<Parameters<typeof makeBodyKeypoints>[0]> = {}) =>
     frameOf({ cx: 0.5 + shift, ...over });
 
@@ -252,7 +255,7 @@ describe('body-feature-vector — the live-camera guards the review asked for', 
   });
 });
 
-describe('the body path, headless: synthetic-body → body-feature-vector', () => {
+describe.runIf(BODY)('the body path, headless: synthetic-body → body-feature-vector', () => {
   it('every emitted value is finite over 90 ticks, and the hip bounces at the declared period', async () => {
     const period = 0.4; // 12 ticks at 30 fps, so half a period is a whole tick
     const spec = {
@@ -262,7 +265,7 @@ describe('the body path, headless: synthetic-body → body-feature-vector', () =
       ],
       edges: [{ from: { node: 'b', port: 'body' }, to: { node: 'v', port: 'body' } }],
     };
-    const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 90, nominalDt: 1 / 30, recordOnly: ['v.vector'] });
+    const { recorder } = await runHeadless(spec, createCoreRegistry().register(...(BODY_EXTENSION.nodes ?? [])), { ticks: 90, nominalDt: 1 / 30, recordOnly: ['v.vector'] });
     const vectors = recorder.values('v.vector') as FeatureVector[];
     expect(vectors).toHaveLength(90);
     for (const v of vectors) expect(allFinite(v)).toBe(true);

@@ -59,8 +59,7 @@ function extensionSettingsOf(dials: Record<string, unknown>): Record<string, unk
   return out;
 }
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map.schema';
-import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
-import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, BODY_MODELS, DEFAULT_BODY, DEFAULT_HANDS, type Settings } from './schema';
+import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, DEFAULT_HANDS, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
@@ -148,12 +147,6 @@ export const thoreminDials = defineDials(
         description: 'Field instruments and the drum, bass, guitar and flute (not the chord map or ASL yet): frames a new Left/Right label is held before a hand\'s voice moves to the other side (0 = follow the label at once; 3 absorbs a flicker of up to 3 frames and delays a real hand swap by ~100 ms)',
       }),
 
-    // The body source (#186): the most expensive model in the graph, so it is a dial
-    // the player turns on, never a default. `body.model` swaps the PoseLandmarker
-    // variant live (the node reloads when it changes).
-    'body.enabled': z.boolean().default(DEFAULT_BODY.enabled).meta({ facets: ['Body'], title: 'Body tracking', description: 'Track the full body (33 pose landmarks) from the webcam — the source for body features and the dance pulse' }),
-    'body.model': z.enum(BODY_MODELS).default(DEFAULT_BODY.model).meta({ facets: ['Body', 'advanced'], title: 'Body model', description: 'lite (fast, 6 MB) or full (steadier on fast motion, 9 MB)' }),
-
     // Complex/structured settings — rendered by bespoke widgets (the expression
     // table, the overlay accordion); carried as whole-object dial values.
     'faceExpr.sensitivity': z
@@ -176,9 +169,6 @@ export const thoreminDials = defineDials(
     // The hand→sound mapping (note source + finger routing + knobs) — a whole-object
     // dial rendered by the bespoke Hand widget, like `overlay` / the expression maps.
     handMap: HandMapSchema.default(DEFAULT_HAND_MAP).meta({ facets: ['Hand'], title: 'Hand mapping' }),
-    // The body→sound routing (#186): a whole-object dial like `handMap`, reachable
-    // leaf-by-leaf through `dial.setIn` (`bodyMap.routes.a.target`, …).
-    bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)).meta({ facets: ['Body'], title: 'Body mapping', description: 'Which body features drive which sound aspects' }),
     // The head/face CONTROL axes (#76) — a whole-object dial like `overlay` / `handMap`,
     // rendered by a bespoke widget in the Face panel and reachable leaf-by-leaf through
     // `dial.setIn` (paths.ts derives `faceControls.yawGain`, `faceControls.headRangeDeg`,
@@ -250,11 +240,8 @@ export function settingsToLayer(s: Settings): Layer {
     'faceExpr.degrees': s.faceExpr.degrees,
     'faceExpr.targets': s.faceExpr.targets,
     'hands.handednessDwell': s.hands.handednessDwell,
-    'body.enabled': s.body.enabled,
-    'body.model': s.body.model,
     overlay: s.overlay,
     handMap: s.handMap,
-    bodyMap: s.bodyMap,
     faceControls: s.faceControls,
     conductor: s.conductor,
     ...extensionDialsOf(s),
@@ -288,10 +275,8 @@ export function layerToSettings(v: Record<string, unknown>): Settings {
     },
     faceExpr: { sensitivity: v['faceExpr.sensitivity'], degrees: v['faceExpr.degrees'], targets: v['faceExpr.targets'] },
     hands: { handednessDwell: v['hands.handednessDwell'] },
-    body: { enabled: v['body.enabled'], model: v['body.model'] },
     overlay: v.overlay,
     handMap: v.handMap,
-    bodyMap: v.bodyMap,
     faceControls: v.faceControls,
     conductor: v.conductor,
     ...extensionSettingsOf(v),
