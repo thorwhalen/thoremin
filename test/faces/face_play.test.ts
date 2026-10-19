@@ -32,6 +32,7 @@ const cMajor: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
 const dial = (id: string, degrees: Partial<Record<string, number>> = {}): FaceCategorizerDial => ({
   id,
   degrees: { ...DEFAULT_FACE_CATEGORIZER.degrees, ...degrees } as FaceCategorizerDial['degrees'],
+  targets: { ...DEFAULT_FACE_CATEGORIZER.targets },
 });
 
 /** The categorizer node then the chord renderer, frame by frame. */

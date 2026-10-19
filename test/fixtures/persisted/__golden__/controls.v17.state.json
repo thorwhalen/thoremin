@@ -221,7 +221,21 @@
       "cat-8": -2,
       "cat-9": -2
     },
-    "id": ""
+    "id": "",
+    "targets": {
+      "cat-1": "",
+      "cat-10": "",
+      "cat-11": "",
+      "cat-12": "",
+      "cat-2": "",
+      "cat-3": "",
+      "cat-4": "",
+      "cat-5": "",
+      "cat-6": "",
+      "cat-7": "",
+      "cat-8": "",
+      "cat-9": ""
+    }
   },
   "categorizerChordsModel": null,
   "chordMap": {
@@ -369,7 +383,21 @@
       "cat-8": -2,
       "cat-9": -2
     },
-    "id": "general"
+    "id": "general",
+    "targets": {
+      "cat-1": "",
+      "cat-10": "",
+      "cat-11": "",
+      "cat-12": "",
+      "cat-2": "",
+      "cat-3": "",
+      "cat-4": "",
+      "cat-5": "",
+      "cat-6": "",
+      "cat-7": "",
+      "cat-8": "",
+      "cat-9": ""
+    }
   },
   "faceCategorizerModel": null,
   "faceChord": {

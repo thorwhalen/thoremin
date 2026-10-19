@@ -42,6 +42,17 @@ export function parseTarget(raw: string | undefined | null, { moves }: { moves?:
   return { kind: 'degree' };
 }
 
+/** A personal category's target: its own when it has one, else none when it has a degree of its
+ *  own (that degree is the category's choice), else the target of the expression it stands in
+ *  for. One rule, so what plays and what the overlay names agree. */
+export function categoryTarget(
+  id: string,
+  standsFor: string | undefined,
+  { own, degrees, expressions }: { own?: Record<string, string>; degrees?: Record<string, number>; expressions?: Partial<Record<string, string>> },
+): string | undefined {
+  return own?.[id] || (id in (degrees ?? {}) ? '' : expressions?.[standsFor ?? 'neutral']);
+}
+
 /** The diatonic moves (`dia+-k`): what a target in a one-key instrument may name. */
 export const isDiatonicMove = (relation: string): boolean => /^dia[+-][1-3]$/.test(relation);
 
@@ -59,6 +70,21 @@ export function targetText(t: Target): string {
       return '+7';
   }
 }
+
+/** What a one-key category instrument offers as targets, with the words its editors show: its
+ *  degree, the key's six diatonic moves, the three functions, the seventh. One list, so the face
+ *  chord's editor and the personal categorizers' say the same thing. */
+export const TARGET_CHOICES: readonly { value: string; label: string }[] = [
+  { value: '', label: 'plays its chord' },
+  ...['dia+3', 'dia-3', 'dia+2', 'dia-2', 'dia+1', 'dia-1'].map((m) => ({ value: `move:${m}`, label: `moves a ${RELATIONS.get(m)?.label ?? m}` })),
+  { value: 'fn:T', label: 'goes to a tonic chord' },
+  { value: 'fn:S', label: 'goes to a subdominant chord' },
+  { value: 'fn:D', label: 'goes to a dominant chord' },
+  { value: 'ctl:seventh', label: 'adds the seventh' },
+];
+
+/** The stored string's choice, as the editors show it (a move outside the key reads as the degree). */
+export const targetChoice = (raw: string | undefined | null): string => formatTarget(parseTarget(raw, { moves: isDiatonicMove }));
 
 /** The string a target is stored as. */
 export function formatTarget(t: Target): string {

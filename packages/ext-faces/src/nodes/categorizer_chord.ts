@@ -28,7 +28,8 @@ import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremi
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createLiveReader, type LiveReader } from '@thoremin/sdk/enroll/live';
 import { absentChordScores, categoryIndex, toChordScores, type CategorizerChordPlay } from '../lib/categorizerChord';
-import { chordDegreeOf, type CategorizerChordsDial } from '../schema';
+import { chordDegreeOf, ownTargets, type CategorizerChordsDial } from '../schema';
+import { createTargetPlayer } from '@thoremin/sdk/harmony/target_play';
 
 /** The first voice id of the categorizer chord: a block of its own, far from the hand voices, the
  *  face and pose chords, the score (which counts up from 11), the air flute (1_000_000) and ASL's
@@ -85,6 +86,7 @@ export const categorizerChordNode = defineNode<Params>({
   params: Params,
   make(p) {
     const renderer = createChordRenderer({ idBase: CATEGORIZER_CHORD_VOICE_ID_BASE, maxVoices: MAX_CATEGORIZER_CHORD_VOICES });
+    const targetPlayer = createTargetPlayer();
     let current: CategorizerChordPlay | null = null;
     let reader: LiveReader | null = null;
     /** The last camera frame read (or vector, with no frame wired). */
@@ -98,6 +100,7 @@ export const categorizerChordNode = defineNode<Params>({
       reader = play ? createLiveReader(play.live) : null;
       lastClock = undefined;
       lastId = null;
+      targetPlayer.reset();
       lastCategory = play ? absentChordScores(play) : NOTHING;
     };
 
@@ -128,9 +131,14 @@ export const categorizerChordNode = defineNode<Params>({
           read(vector);
         }
         const cfg = (inputs.chordConfig as ChordConfig | undefined) ?? {};
-        const degree = current ? chordDegreeOf(config, lastId, categoryIndex(current, lastId)) : -1;
+        const degree0 = current ? chordDegreeOf(config, lastId, categoryIndex(current, lastId)) : -1;
+        // A category's target beyond its degree (H6 of #613): a move, a function or the seventh,
+        // played by the same target player as the face chord's.
+        const spec = inputs.spec as ScaleSpec | undefined;
+        const { degree, coloration } = targetPlayer.step({ category: current ? lastId : null, target: lastId ? ownTargets(config)[lastId] : undefined, degree: degree0, spec, now: ctx?.time });
         const { voices, triad } = renderer.render({
           degree,
+          coloration,
           spec: inputs.spec as ScaleSpec | undefined,
           voicing: cfg.voicing ?? p.voicing,
           rendering: cfg.rendering ?? p.rendering,

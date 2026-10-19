@@ -216,7 +216,7 @@ Your own face categorizer (#330), read live: the face to one of your categories,
 
 - **roles:** feature
 - **in:** face:face-frame, general:face-expression, model:face-categorizer-model, config:face-categorizer-config
-- **out:** expression:face-expression, degrees:category-degrees
+- **out:** expression:face-expression, degrees:category-degrees, targets:category-targets
 - **params:** holdOnReject (boolean=false), enterFrames (number=3), exitFrames (number=8), minPresent (number=0.9)
 
 #### `pose-categorizer` — Pose Categorizer
@@ -365,7 +365,7 @@ Roman-numeral progression in a key + position (0..1) → current chord symbol.
 Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).
 
 - **roles:** music
-- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets
+- **in:** expression:face-expression, spec:scale-spec, faceMapping:face-mapping, octaveShift:number, chordConfig:chord-config, degrees:expression-degrees, categoryDegrees:category-degrees, targets:expression-targets, categoryTargets:category-targets
 - **out:** params:synth-params, triad:number[], played:face-expression
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
@@ -567,7 +567,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, cellGrid:cell-grid, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], learnedCategories:category-scores, chordCategories:category-scores, categorizerChord:number[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), cellGrid (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
 
