@@ -16,6 +16,7 @@
  *   and two records sharing a hold share its still. A v1 record's samples are given its old
  *   keys as ids on migration (`models.ts`), so its stills are found where they are.
  */
+import { meanLuma } from '@thoremin/sdk/enroll/light';
 import type { PixelBox, PixelPoint } from '@thoremin/sdk-ui/enroll/modality';
 
 export interface ThumbStore {
@@ -98,12 +99,18 @@ export interface GrabOptions {
 
 export const GRAB_DEFAULTS = { width: 120, quality: 0.8, mirror: true, overlayColor: 'rgba(120, 220, 255, 0.9)', overlayWidth: 1.5 } as const;
 
+/** Width of the copy a luma reading is taken from: enough pixels for a mean, cheap to draw. */
+const LUMA_SIDE = 24;
+
 /** A live stream's frames, drawn on demand. */
 export interface LiveFrames {
   /** The current frame as a still, cropped to `crop(size)` (null: the whole frame), with
    *  `overlay(size)`'s polylines (video pixels) drawn over it (#385 E8: a hand skeleton), or
    *  null when no frame is showing yet. */
   grab(crop?: ((size: { width: number; height: number }) => PixelBox | null) | null, overlay?: ((size: { width: number; height: number }) => readonly (readonly PixelPoint[])[] | null) | null): Promise<Blob | null>;
+  /** The mean luma (0..255) of the current frame cropped to `crop(size)`, read from a tiny copy
+   *  (#348); null when no frame is showing yet. Absent in a fake that cannot read pixels. */
+  luma?(crop?: ((size: { width: number; height: number }) => PixelBox | null) | null): number | null;
   /** Stop drawing and let the stream go (never stops its tracks: the instrument owns the camera). */
   close(): void;
 }
@@ -154,6 +161,26 @@ export const openLiveFrames: FrameOpener = (stream, options = {}) => {
       if (lines && lines.length > 0) drawPolylines(ctx, lines, box, w / box.w, o);
       ctx.restore();
       return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', o.quality));
+    },
+    luma(crop) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (video.readyState < 2 || !vw || !vh) return null;
+      const asked = crop?.({ width: vw, height: vh }) ?? null;
+      const box = (asked && clampBox(asked, vw, vh)) ?? { x: 0, y: 0, w: vw, h: vh };
+      const w = LUMA_SIDE;
+      const h = Math.max(1, Math.round((w * box.h) / box.w));
+      const probe = document.createElement('canvas');
+      probe.width = w;
+      probe.height = h;
+      const ctx = probe.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      try {
+        ctx.drawImage(video, box.x, box.y, box.w, box.h, 0, 0, w, h);
+        return meanLuma(ctx.getImageData(0, 0, w, h).data);
+      } catch {
+        return null;
+      }
     },
     close() {
       video.pause();
