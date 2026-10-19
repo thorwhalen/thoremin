@@ -21,7 +21,7 @@
  * settings schema (`src/settings`) read it, and those are Node-safe core that never imports the
  * app shell (`test/layering.test.ts`).
  */
-import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type DialSlice, type ExtensionDerivationSettings, type InstrumentClass, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
+import { overlayElementId, overlayImplProblems, overlayPortName, type CatalogEntry, type DialSlice, type InstrumentClass, type Extension, type ExtensionInstrument, type OverlayElementDecl, type OverlayElementImpl, type TrainingRoute } from '@thoremin/sdk/instruments/extension';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { CORE_CLASSES, registerInstrumentClasses } from '@/instruments/classes';
@@ -84,29 +84,6 @@ export interface Contributions {
   /** Every catalog row (#600 S8), in list order; ids unique, each of a known class. */
   catalog: readonly CatalogEntry[];
 }
-
-/** Whether an extension dial is on. Read structurally: a build without the extension reads off. */
-const dialOn = (key: string) => (s: ExtensionDerivationSettings): boolean => (s[key] as { enabled?: unknown } | undefined)?.enabled === true;
-
-/**
- * What an extension pinned before classes and catalog rows were contribution points still gets
- * from core (#600 S8, the EXPAND step): used only while that extension is listed and declares
- * neither. The ASL plugin is its own repository, pinned by commit; once its manifest declares the
- * `sign` class and its row (a `thoremin-asl` PR and a sha bump), this entry is removed.
- */
-const LEGACY_LIBRARY_ROWS: Readonly<Record<string, { classes: readonly InstrumentClass[]; catalog: readonly CatalogEntry[] }>> = {
-  asl: {
-    // Instruments played by signing: the hand's sign (ASL) is the control, not its place.
-    classes: [{ id: 'sign', label: 'Sign instruments', emoji: '🤟', colour: 'hsl(280 45% 58%)' }],
-    catalog: [{ id: 'asl', label: 'Sign language', emoji: '🤟', class: 'sign', usesScale: false, on: dialOn('asl') }],
-  },
-};
-
-/** An extension's classes and catalog rows: its own, else the legacy ones core keeps for it. */
-const libraryOf = (e: Extension) => {
-  const legacy = e.classes === undefined && e.catalog === undefined ? LEGACY_LIBRARY_ROWS[e.id] : undefined;
-  return { classes: e.classes ?? legacy?.classes ?? [], catalog: e.catalog ?? legacy?.catalog ?? [] };
-};
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
 const BUILDING_NAME = /^[^./]+$/;
@@ -239,8 +216,8 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
  *  once, each row's class a known one. */
 function libraryFold(extensions: readonly Extension[]): { classes: InstrumentClass[]; catalog: CatalogEntry[] } {
   const owners = new Map(CORE_CLASSES.map((c) => [c.id, 'core']));
-  const classes = keyed('instrument class', extensions, (e) => libraryOf(e).classes, (c) => c.id, owners);
-  const catalog = keyed('catalog row', extensions, (e) => libraryOf(e).catalog, (r) => r.id);
+  const classes = keyed('instrument class', extensions, (e) => e.classes ?? [], (c) => c.id, owners);
+  const catalog = keyed('catalog row', extensions, (e) => e.catalog ?? [], (r) => r.id);
   const known = new Set([...CORE_CLASSES, ...classes].map((c) => c.id));
   for (const r of catalog) if (!known.has(r.class)) throw new Error(`the catalog row "${r.id}" is listed under the class "${r.class}", which no extension and not core declares`);
   return { classes, catalog };

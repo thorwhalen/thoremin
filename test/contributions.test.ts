@@ -108,15 +108,14 @@ describe('foldContributions', () => {
     expect(() => foldContributions([twin({ catalog: [{ ...probe.catalog![0], id: 'x', class: 'brass' }] })])).toThrow(/the class "brass", which no extension and not core declares/);
   });
 
-  it('an extension pinned before the library rows were contributions gets core\'s fallback, only until it declares its own', () => {
+  it('core names no extension\'s library rows: an extension that declares none contributes none (#600 S8, the contract step)', () => {
     const asl = (over: Partial<Extension> = {}): Extension => ({ ...empty('asl'), ...over });
-    expect(foldContributions([asl()]).classes.map((k) => k.id)).toEqual(['sign']);
-    expect(foldContributions([asl()]).catalog.map((r) => r.id)).toEqual(['asl']);
+    expect(foldContributions([asl()]).classes).toEqual([]);
+    expect(foldContributions([asl()]).catalog).toEqual([]);
     const own = foldContributions([asl({ classes: [{ id: 'sign', label: 'Signs', emoji: 's', colour: 'x' }], catalog: [] })]);
     expect(own.classes.map((k) => k.label)).toEqual(['Signs']);
-    expect(own.catalog).toEqual([]);
-    expect(foldContributions([]).classes).toEqual([]);
   });
+
 
   it('refuses a key one extension declares twice', () => {
     expect(() => foldContributions([twin({ nodes: [node('a'), node('a')] })])).toThrow(/extension "probe-twin" declares the node type "a" twice/);
