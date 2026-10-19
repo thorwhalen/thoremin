@@ -14,7 +14,8 @@
  *   row, and a moment of doubt HOLDS the last chord rather than dropping it.
  * - **The strumming hand says WHEN, and it is the drum problem** (§7.3): a strum's moment
  *   is predicted before the frame that shows it by the air drum's impact predictor
- *   (`packages/ictus/src/impact.ts`). The chord is latched at the prediction.
+ *   (`packages/ictus/src/impact.ts`), through the strum detector the chord map shares
+ *   (`../lib/strum.ts`). The chord is latched at the prediction.
  *
  * A strum sounds the chord's name as a guitarist would voice it (`src/music/guitar.ts`:
  * the open-chord rule on six strings), low string first, each string a few milliseconds
@@ -28,8 +29,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
-import { clamp01 } from '@thoremin/stats';
+import { createStrumDetector, type StrumDetector } from '../lib/strum';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
 import { guitarVoicing, parseChordName } from '../lib/guitar';
@@ -102,9 +102,7 @@ export const IDLE_AIR_GUITAR_STATUS: AirGuitarStatus = {
 };
 
 /** Velocity of a strum sounded on confirmation instead of prediction. */
-const LATE_VELOCITY = 0.6;
-/** Two samples closer than this are not two camera frames (the air drum's rule). */
-const MIN_SAMPLE_SPACING = 0.004;
+export const LATE_VELOCITY = 0.6;
 
 /**
  * The notes of one strum of `chordName` at time `t`: the chord's guitar voicing, low
@@ -153,12 +151,11 @@ export const airGuitarNode = defineNode<Params>({
   make(p) {
     let cfg: Params = p;
     let lastConfigRef: unknown = undefined;
-    let predictor: ImpactPredictor | null = null;
+    let predictor: StrumDetector | null = null;
     let predictorKey = '';
     let tracker: CategoryTracker | null = null;
     let trackerModel: TrainedModel | null = null;
     let trackerFrames = 0;
-    let lastT = -Infinity;
     let lastFrame: HandsFrame | undefined;
     let shape: FeatureVector | null = null;
     let status: AirGuitarStatus = { ...IDLE_AIR_GUITAR_STATUS };
@@ -186,7 +183,6 @@ export const airGuitarNode = defineNode<Params>({
       predictorKey = '';
       tracker = null;
       trackerModel = null;
-      lastT = -Infinity;
       lastFrame = undefined;
       shape = null;
       status = { ...IDLE_AIR_GUITAR_STATUS };
@@ -200,9 +196,8 @@ export const airGuitarNode = defineNode<Params>({
           return { notes: [], shape: null, status, enabled: false };
         }
         if (!predictor || predictorKey !== strokeKey(c)) {
-          predictor = createImpactPredictor({ minLead: c.minLead, minAmplitude: c.minStroke, minApproachSpeed: c.minSpeed });
+          predictor = createStrumDetector({ minLead: c.minLead, minStroke: c.minStroke, minSpeed: c.minSpeed });
           predictorKey = strokeKey(c);
-          lastT = -Infinity;
           status = { ...IDLE_AIR_GUITAR_STATUS, enabled: true, known: status.known };
         }
         const model = (inputs.model as TrainedModel | null | undefined) ?? null;
@@ -228,19 +223,12 @@ export const airGuitarNode = defineNode<Params>({
           let chord = status.chord;
           if (shape && tracker) chord = labelOf(model, tracker.push(shape).categoryId);
           status = { ...status, fretting: !!fret, chord, playable: chord === null || parseChordName(chord) !== null };
-          if (strum && t >= lastT + MIN_SAMPLE_SPACING) {
-            lastT = t;
-            predictor.setMinLead(c.minLead + Math.max(0, ctx.time - t));
+          if (strum) {
             const kp = strum.keypoints[c.strumPoint === 'wrist' ? LM.wrist : LM.index_tip];
-            for (const e of predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height })) {
+            for (const s of predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height }, ctx.time, c.minLead)) {
               if (chord === null) continue; // no chord held: a strum of nothing
-              let strummed: NoteEvent[] = [];
-              if (e.kind === 'predict') {
-                const lead = e.t - ctx.time;
-                strummed = strumNotes(chord, Math.max(e.t, ctx.time), clamp01(e.strength) * c.volume, c.strumSpread, { predicted: lead >= 0, lead }, shift);
-              } else if (e.predicted === null) {
-                strummed = strumNotes(chord, ctx.time, clamp01(e.strength) * c.volume * LATE_VELOCITY, c.strumSpread, { predicted: false, lead: e.t - ctx.time }, shift);
-              }
+              const velocity = s.late ? s.strength * c.volume * LATE_VELOCITY : s.strength * c.volume;
+              const strummed = strumNotes(chord, s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
               if (strummed.length) {
                 notes.push(...strummed);
                 status = {
@@ -252,7 +240,7 @@ export const airGuitarNode = defineNode<Params>({
                 };
               }
             }
-            if (!status.ready && Number.isFinite(predictor.level())) status = { ...status, ready: true };
+            if (!status.ready && predictor.ready()) status = { ...status, ready: true };
           }
         }
         return { notes, shape, status, enabled: true };

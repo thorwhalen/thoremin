@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
+import { CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_map';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
@@ -75,14 +76,14 @@ describe('production app graph', () => {
     // taps + the #13 midi-out sink + the #129 gesture-classifier tap + the #186 body
     // source, its vector tap and the body-route (#186 PR E) + the #141/#188 generative
     // pair (indirect-map + lyria) + the #187 conductor, score and orchestra + the #249 air bass and
-    // its pluck scheduler + the air guitar and its pluck scheduler + the air flute.
+    // its pluck scheduler + the air guitar and its pluck scheduler + the air flute + the chord map and its strum scheduler.
     expect(order.indexOf('bodyVec')).toBeLessThan(order.indexOf('bodyRoute'));
     expect(order.indexOf('bodyRoute')).toBeLessThan(order.indexOf('map'));
-    // Without the air extension: the 29 core nodes (the 7 air nodes come with it); the
+    // Without the air extension: the 29 core nodes (the 9 air nodes come with it); the
     // dance pulse (#186 PR F) is the 27th, the song player (#186 PR G) the 28th, the pace
     // controller (#186 PR H) the 29th. The ASL extension adds its reader and its chord node,
     // the faces extension its personal categorizer (#330 P4).
-    expect(order).toHaveLength((AIR ? 36 : 29) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
+    expect(order).toHaveLength((AIR ? 38 : 29) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -340,7 +341,9 @@ describe('production app graph', () => {
     // The ASL chords (ids from 2e6) and the categorizer chords (#450, from 3e6) always carry
     // their four voices, silent here.
     const catChord = FACES ? [3_000_000, 3_000_001, 3_000_002, 3_000_003] : [];
-    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
+    // The chord map (air) carries its four chord voices and its melody voice, silent here.
+    const chordMap = [0, 1, 2, 3].map((i) => CHORD_MAP_VOICE_ID_BASE + i).concat(CHORD_MAP_MELODY_VOICE_ID);
+    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
     expect([...ids].sort((a, b) => a - b)).toEqual(merged0.sort((a, b) => a - b));
     expect(ids.slice(0, 2)).toEqual([0, 1]); // the hand voices lead (the overlay reads them by position)
     expect(new Set(ids).size).toBe(ids.length); // no id collision across hands + both chords + flute

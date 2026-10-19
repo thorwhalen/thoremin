@@ -1,6 +1,6 @@
 /**
- * The air instruments' dial slices: the four whole-object settings keys the air extension
- * owns (`airDrum`, `airBass`, `airGuitar`, `airFlute`), each a node's own dial schema lifted
+ * The air instruments' dial slices: the whole-object settings keys the air extension
+ * owns (`airDrum`, `airBass`, `airGuitar`, `airFlute`, `chordMap`), each a node's own dial schema lifted
  * into the settings (the flute's also carries the fingering prior, #263). The core settings
  * schema and the dials form spread these in (PR 5a of the instruments-as-graphs ADR), so core
  * `schema.ts` no longer NAMES an air node; it still loads them, through this module.
@@ -18,6 +18,7 @@ import { AirDrumDialSchema } from './nodes/air_drum';
 import { AirBassDialSchema } from './nodes/air_bass';
 import { AirGuitarDialSchema } from './nodes/air_guitar';
 import { AirFluteDialSchema } from './nodes/air_flute';
+import { ChordMapDialSchema } from './nodes/chord_map';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from './lib/fingering_prior';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 
@@ -44,12 +45,18 @@ export const AirFluteSettingsSchema = AirFluteDialSchema.extend({
 export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
 export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 
+/** The chord map: the node's params ARE the dial. */
+export const ChordMapSettingsSchema = ChordMapDialSchema;
+export type ChordMapSettings = z.infer<typeof ChordMapSettingsSchema>;
+export const DEFAULT_CHORD_MAP: ChordMapSettings = ChordMapSettingsSchema.parse({});
+
 /** The settings-schema shape the air extension contributes (spread into `SettingsSchema`). */
 export const AIR_SETTINGS_SHAPE = {
   airDrum: AirDrumSettingsSchema.default(DEFAULT_AIR_DRUM),
   airBass: AirBassSettingsSchema.default(DEFAULT_AIR_BASS),
   airGuitar: AirGuitarSettingsSchema.default(DEFAULT_AIR_GUITAR),
   airFlute: AirFluteSettingsSchema.default(DEFAULT_AIR_FLUTE),
+  chordMap: ChordMapSettingsSchema.default(DEFAULT_CHORD_MAP),
 };
 
 /** The same four keys as dial slices: what `store-controls` and the dials form fold over. */
@@ -92,6 +99,16 @@ export const AIR_DIAL_SLICES = [
       facets: ['Air flute'],
       title: 'Air flute',
       description: 'Play enrolled fingerings in the air: on/off, what sounds the note (the enrolled blowing mouth, or a held fingering alone), volume',
+    },
+  }),
+  dialSlice({
+    key: 'chordMap',
+    schema: AIR_SETTINGS_SHAPE.chordMap,
+    kind: 'chord-map-config',
+    meta: {
+      facets: ['Chord map'],
+      title: 'Chord map',
+      description: "Point at a key's chords on the screen: on/off, the layout (the harmonic map, a row by fifths, a row in scale order), hold or strum, which hand points, the melody on the chord's tones",
     },
   }),
 ] as const;

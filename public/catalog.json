@@ -809,6 +809,10 @@
         "kind": "drum-hits"
       },
       {
+        "name": "cellGrid",
+        "kind": "cell-grid"
+      },
+      {
         "name": "expression",
         "kind": "face-expression"
       },
@@ -920,6 +924,11 @@
       },
       {
         "name": "drumPads",
+        "type": "object",
+        "default": {}
+      },
+      {
+        "name": "cellGrid",
         "type": "object",
         "default": {}
       },
@@ -1101,6 +1110,198 @@
         "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "sine"
+      }
+    ]
+  },
+  {
+    "type": "chord-map",
+    "title": "Chord map",
+    "description": "Play a key's chords by pointing at them: the seven diatonic chords laid out on the screen (by default a hexagonal map whose axes are moves by a fourth, a third and a second), the chord hand choosing one; it sounds while held, with a melody on its tones from the other hand, or is strummed by the other hand, predicted before the frame that shows the strum. Off by default.",
+    "roles": [
+      "feature",
+      "mapping",
+      "music"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "chord-map-config"
+      },
+      {
+        "name": "spec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordConfig",
+        "kind": "chord-config"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number",
+        "default": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "status",
+        "kind": "chord-map-status"
+      },
+      {
+        "name": "triad",
+        "kind": "number[]"
+      }
+    ],
+    "params": [
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "layout",
+        "type": "enum(harmonic | fifths | scale)",
+        "default": "harmonic"
+      },
+      {
+        "name": "play",
+        "type": "enum(hold | strum)",
+        "default": "hold"
+      },
+      {
+        "name": "chordHand",
+        "type": "enum(right | left)",
+        "default": "left"
+      },
+      {
+        "name": "point",
+        "type": "enum(palm | indexTip)",
+        "default": "palm"
+      },
+      {
+        "name": "split",
+        "type": "number",
+        "default": 0.65
+      },
+      {
+        "name": "cellSize",
+        "type": "number",
+        "default": 0.2
+      },
+      {
+        "name": "enterFrames",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "hysteresis",
+        "type": "number",
+        "default": 0.12
+      },
+      {
+        "name": "releaseS",
+        "type": "number",
+        "default": 0.3
+      },
+      {
+        "name": "captions",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "melody",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "melodyVolume",
+        "type": "number",
+        "default": 0.45
+      },
+      {
+        "name": "melodyOctaves",
+        "type": "number",
+        "default": 2
+      },
+      {
+        "name": "melodySound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "triangle"
+      },
+      {
+        "name": "gain",
+        "type": "number",
+        "default": 0.22
+      },
+      {
+        "name": "sound",
+        "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
+        "default": "warmPad"
+      },
+      {
+        "name": "voicing",
+        "type": "enum(spread | bassTriad | close | shell | power)",
+        "default": "spread"
+      },
+      {
+        "name": "rendering",
+        "type": "enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)",
+        "default": "sustained"
+      },
+      {
+        "name": "bpm",
+        "type": "number",
+        "default": 100
+      },
+      {
+        "name": "strumPoint",
+        "type": "enum(wrist | indexTip)",
+        "default": "wrist"
+      },
+      {
+        "name": "strumSpread",
+        "type": "number",
+        "default": 0.012
+      },
+      {
+        "name": "minLead",
+        "type": "number",
+        "default": 0.05
+      },
+      {
+        "name": "minStroke",
+        "type": "number",
+        "default": 0.03
+      },
+      {
+        "name": "minSpeed",
+        "type": "number",
+        "default": 0.5
+      },
+      {
+        "name": "volume",
+        "type": "number",
+        "default": 0.7
+      },
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
       }
     ]
   },
@@ -3322,6 +3523,10 @@
       {
         "name": "airFlute",
         "kind": "air-flute-config"
+      },
+      {
+        "name": "chordMap",
+        "kind": "chord-map-config"
       },
       {
         "name": "asl",

@@ -42,4 +42,19 @@ describe.runIf(AIR)('upgrading a browser seeded before the air instruments', () 
     const airFlute = await instruments.load('Air Flute');
     expect((airFlute?.airFlute as { enabled?: boolean } | undefined)?.enabled).toBe(true);
   });
+
+  it('a browser at version 7 (before the chord map) gains the two Chord Map instruments', async () => {
+    localStorage.clear();
+    await ensureSeeded();
+    await instruments.remove('Chord Map');
+    await instruments.remove('Chord Map Strum');
+    localStorage.setItem('thoremin.instruments.seedVersion', '7');
+
+    await ensureSeeded();
+
+    const map = await instruments.load('Chord Map');
+    expect((map?.chordMap as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+    const strum = await instruments.load('Chord Map Strum');
+    expect((strum?.chordMap as { play?: string } | undefined)?.play).toBe('strum');
+  });
 });
