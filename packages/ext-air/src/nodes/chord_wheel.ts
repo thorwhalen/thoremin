@@ -14,6 +14,11 @@
  * pipeline (`harmony/realize`: the instrument's Chord sound settings, voice-led by default in the
  * shipped instruments). The wheel is drawn by the air extension's own overlay element (#600 S5).
  *
+ * With `walk` on (H11 of #613), a push held out in its wedge keeps making that move, one per beat
+ * of the instrument's tempo counted from the push (`harmony/navigate`'s beat walk): a held fourth
+ * walks the cycle of fourths through all seven chords, a held third the cycle of thirds, a held
+ * second the scale. Leaving the wedge stops the walk.
+ *
  * The chord sounds while the chord hand is seen, and a moment after it is lost. Off by default;
  * pure and Node-safe.
  */
@@ -23,7 +28,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { createRealizer, DEFAULT_CONTROLS, DEFAULT_SPEC, tonesInRegister } from '@thoremin/sdk/harmony/realize';
 import { chordName, functionOf, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { radial, type Region } from '@thoremin/sdk/harmony/layout';
-import { createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
+import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
@@ -109,6 +114,10 @@ const Params = z.object({
     .prefault({}),
   /** Readings in a row an expression must hold before its move is made. */
   faceFrames: z.number().int().min(1).max(30).default(6),
+  /** Hold a push out and the wheel keeps making that move, one per beat (the tempo's). */
+  walk: z.boolean().default(false),
+  /** Beats per step while walking. */
+  walkBeats: z.number().int().min(1).max(4).default(1),
 });
 type Params = z.infer<typeof Params>;
 export const ChordWheelDialSchema = Params;
@@ -141,9 +150,11 @@ export interface ChordWheelStatus {
   /** The face's expression now, when the face steers (null: none read, or the hand alone). */
   face: string | null;
   steer: (typeof WHEEL_STEER)[number];
+  /** A held push is walking its move on the beat. */
+  walking: boolean;
 }
 
-export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand' };
+export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand', walking: false };
 
 /** The wheel's region: the steering hand's side of the (mirrored) screen, full height. */
 export function wheelRegion(hand: (typeof PLAYER_HANDS)[number]): Region {
@@ -203,6 +214,7 @@ export const chordWheelNode = defineNode<Params>({
     let pointer: { x: number; y: number } | null = null;
     let pointing: number | null = null;
     let status: ChordWheelStatus = { ...IDLE_CHORD_WHEEL_STATUS };
+    const walker = createBeatWalk();
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -222,6 +234,7 @@ export const chordWheelNode = defineNode<Params>({
       lastSeen = -Infinity;
       pointer = null;
       pointing = null;
+      walker.reset();
       status = { ...IDLE_CHORD_WHEEL_STATUS };
     };
 
@@ -276,13 +289,17 @@ export const chordWheelNode = defineNode<Params>({
           const centre = cells[0];
           const choice = stepper.push(pointer ? { dx: (pointer.x - centre.x) * aspect, dy: pointer.y - centre.y } : null);
           pointing = choice.pointing;
-          if (choice.committed !== null) {
-            const move = moves[choice.committed];
+          // A walk repeats the held push's move on the beat; off, it never fires.
+          const bpm = chordCfg.bpm ?? c.bpm;
+          const repeat = walker.push({ committed: choice.committed, pointing: choice.pointing, now: t, periodS: c.walk ? (60 / bpm) * c.walkBeats : 0 });
+          const made = choice.committed ?? repeat;
+          if (made !== null) {
+            const move = moves[made];
             const before = state.chord;
             state = applyIntents(state, [{ kind: 'step', relation: move, at: t }]);
             if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
           }
-          status = { ...status, armed: choice.armed, steering: !!hand };
+          status = { ...status, armed: choice.armed, steering: !!hand, walking: walker.walking() };
         }
 
         // The face: each expression held a moment makes its move once; a neutral face re-arms.

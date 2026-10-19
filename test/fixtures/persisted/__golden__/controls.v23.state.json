@@ -299,7 +299,9 @@
     "rendering": "sustained",
     "sound": "warmPad",
     "steer": "hand",
-    "voicing": "voiceLed"
+    "voicing": "voiceLed",
+    "walk": false,
+    "walkBeats": 1
   },
   "conductor": {
     "articulationFrom": "sharpness",

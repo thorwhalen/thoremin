@@ -20,13 +20,14 @@ import { radial } from '@thoremin/sdk/harmony/layout';
 import { AIR } from '../helpers/extensions';
 
 describe.runIf(AIR)('the chord wheel in the composed graph', () => {
-  it('the shipped Chord Wheel and Tonnetz Wheel compose its branch', () => {
-    for (const name of ['Chord Wheel', 'Tonnetz Wheel']) {
+  it('the shipped Chord Wheel, Tonnetz Wheel and Wheel Walk compose its branch', () => {
+    for (const name of ['Chord Wheel', 'Tonnetz Wheel', 'Wheel Walk']) {
       const settings = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === name)!.layer);
       expect(settings.chordWheel.enabled, name).toBe(true);
       expect(branchIdsFor(settings), name).toContain('chord-wheel');
     }
     expect(settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Tonnetz Wheel')!.layer).chordWheel.moves).toBe('tonnetz');
+    expect(settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Wheel Walk')!.layer).chordWheel.walk).toBe(true);
   });
 
   it('wires its grid to its own overlay element, and draws the wheel', () => {

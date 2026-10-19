@@ -8,7 +8,8 @@
  * - COMMIT POLICIES, deciding when a selection takes effect: `createCellTracker` is the dwell
  *   policy (a few camera frames in a row, hysteresis at an edge, a release when the hand is lost).
  *   The strum's predicted commit is `ext-air`'s strum detector until the figuration seam can carry
- *   it (H2's review); a beat-quantized commit arrives with musical time (H9).
+ *   it (H2's review); `createBeatWalk` repeats a held move once per beat (H11), on the
+ *   instrument's own tempo until musical time reaches the commits (H9).
  *
  * Pure: the layout geometry only.
  */
@@ -229,6 +230,63 @@ export function createCategoryStepper(opts: CategoryStepperOptions): CategorySte
       armed = true;
       candidate = null;
       count = 0;
+    },
+  };
+}
+
+export interface BeatWalkStep {
+  /** The wedge whose move the stepper committed on this frame, or null. */
+  committed: number | null;
+  /** The wedge pointed at now (outside the dead zone), or null. */
+  pointing: number | null;
+  /** The frame's time, seconds. */
+  now: number;
+  /** The walk's period, seconds (a beat, or several); not positive: no walk. */
+  periodS: number;
+}
+
+export interface BeatWalk {
+  /** One frame: the wedge whose move repeats now, or null. */
+  push(s: BeatWalkStep): number | null;
+  /** Whether a held push is walking (its move will repeat on the next beat). */
+  walking(): boolean;
+  reset(): void;
+}
+
+/**
+ * Walk a cycle on the beat (H11 of #613): after a push commits a move, holding the hand out in
+ * the same wedge repeats that move once per period, so a held fourth walks the cycle of fourths
+ * (all seven chords of the key), a held third the cycle of thirds, a held second the scale. The
+ * beats are counted from the first move, so the walk keeps the time the player set by pushing;
+ * a frame late past a beat (the camera's period) makes the move on that frame and the grid
+ * holds, while a gap longer than a period re-anchors it rather than catching up in a burst.
+ * Leaving the wedge ends the walk; the stepper's own rule (back to the centre) starts the next.
+ */
+/** A frame this close before a beat is on it (a frame's time is a float sum of periods). */
+const BEAT_EPS_S = 1e-3;
+
+export function createBeatWalk(): BeatWalk {
+  let walking: number | null = null;
+  let next = Infinity;
+  return {
+    push({ committed, pointing, now, periodS }) {
+      if (committed !== null) {
+        walking = committed;
+        next = now + periodS;
+        return null;
+      }
+      if (walking === null || pointing !== walking || !(periodS > 0)) {
+        walking = null;
+        return null;
+      }
+      if (now < next - BEAT_EPS_S) return null;
+      next = now - next >= periodS ? now + periodS : next + periodS;
+      return walking;
+    },
+    walking: () => walking !== null,
+    reset() {
+      walking = null;
+      next = Infinity;
     },
   };
 }
