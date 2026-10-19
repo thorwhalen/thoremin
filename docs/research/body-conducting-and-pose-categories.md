@@ -457,6 +457,16 @@ On the real streams (the five body fixtures, replayed at 1x and 1.4x so more lev
 
 **Red noise (item 2): no detector found.** A slowly wandering channel (low-passed noise, a = 0.8 and 0.95) is trusted in 1.4 % and 7.8 % of ticks (16 runs of 40 s), at levels of 1.5 to 3 s, with ACF strengths of 0.5 to 0.86, the range of a real bar (Que Calor stride: 0.76). Two discriminators were measured and both fail: (a) a phase-coherence check, the sinusoid fitted to the older and to the newer half of the window must agree in phase: real periodic streams show a difference of 0.1 to 0.3 rad (p99 0.32), red noise a = 0.95 shows a median 0.25 and p90 0.70, so a threshold that keeps the dancer passes most of the noise, and the halves are under two cycles exactly for the 2 to 3 s levels noise produces; (b) the harmonic test, ACF at twice the level over ACF at the level: Que Calor 0.87 (median), red noise 0.84 (a = 0.95). A raised floor for long levels cannot work for the same reason as (a). The defence stays what #186 PR H built: the pace controller follows a new level only after it persists 3 s, and holds below `PULSE_TRUSTED_CONFIDENCE`.
 
+**A third discriminator, the surrogate test (2026-10-19): it does not separate them either.** Each estimate's strongest ACF peak was compared with the same measurement on 40 first-order autoregressive surrogates carrying the channel's own lag-1 correlation (detrended like the window, deterministic seeds); an estimate counted only if fewer than a share `alpha` of the surrogates reached it. Run through the whole follower, 16 runs of 40 s of red noise (a = 0.95) against the five body fixtures with four channels each (stride, sway, trunk, yaw), counting trusted ticks (confidence at or above `PULSE_TRUSTED_CONFIDENCE`, after the first 6 s):
+
+| alpha | red noise a = 0.95, trusted | red noise a = 0.8, trusted | real fixtures, trusted ticks (of 9456) |
+|---|---|---|---|
+| off | 7.16 % | 0.77 % | 1750 |
+| 0.05 | 2.53 % | 0.62 % | 1041 (-40 %: Que Calor sway 282 to 137, conducting_44 yaw 351 to 142, conducting_24 trunk 61 to 0) |
+| 0.25 | 7.16 % | 0.77 % | 1723 |
+
+A threshold strict enough to cut the noise by two thirds cuts the real dancers' trusted ticks by two fifths, and a loose one does neither: the real streams are, to an AR(1) null of their own smoothness, about as surprising as the noise is. No pulse-side gate is shipped; the pace controller's 3 s persistence stays the defence. What might still work, untried: a longer window for the long levels only (the false 2 to 3 s levels are three cycles of an 8 s window; a 12 s window sees four), at the price of the slower step response the fast detector was built to remove.
+
 ## 6. Reproducing
 
 ```
