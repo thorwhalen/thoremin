@@ -240,6 +240,7 @@
   "categorizerChordsModel": null,
   "chordMap": {
     "anchor": "home",
+    "audioDwellS": 0.25,
     "bpm": 100,
     "captions": true,
     "cellSize": 0.2,
@@ -282,6 +283,7 @@
     "voicing": "spread",
     "volume": 0.7
   },
+  "chordMapAudio": null,
   "chordMapMidi": null,
   "chordWheel": {
     "bpm": 100,

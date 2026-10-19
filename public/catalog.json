@@ -1177,6 +1177,10 @@
         "kind": "held-notes"
       },
       {
+        "name": "audio",
+        "kind": "audio-chroma"
+      },
+      {
         "name": "face",
         "kind": "face-features"
       }
@@ -1366,13 +1370,18 @@
       },
       {
         "name": "follow",
-        "type": "enum(hands | midi)",
+        "type": "enum(hands | midi | audio)",
         "default": "hands"
       },
       {
         "name": "midiDwellS",
         "type": "number",
         "default": 0.08
+      },
+      {
+        "name": "audioDwellS",
+        "type": "number",
+        "default": 0.25
       },
       {
         "name": "anchor",
@@ -3945,6 +3954,10 @@
       {
         "name": "chordMapMidi",
         "kind": "held-notes"
+      },
+      {
+        "name": "chordMapAudio",
+        "kind": "audio-chroma"
       },
       {
         "name": "faceCategorizerModel",

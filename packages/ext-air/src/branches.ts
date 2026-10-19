@@ -111,6 +111,7 @@ export const chordMap = defineBranch({
     to(ui('chordConfig'), { node: 'chordMap', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
     to(ui('chordMapMidi'), { node: 'chordMap', port: 'midi' }),
+    to(ui('chordMapAudio'), { node: 'chordMap', port: 'audio' }),
     // The song's beat (H9 of #613), read while the map keeps time with the song.
     to({ node: TRUNK.song, port: 'songTime' }, { node: 'chordMap', port: 'time' }),
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
