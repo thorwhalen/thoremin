@@ -327,6 +327,7 @@
         "mirrorX": true,
         "orchestra": {
           "enabled": false,
+          "pizzicato": false,
           "sections": {
             "brass": 1,
             "other": 1,
@@ -342,8 +343,11 @@
         "piece": "beethoven-symphony-5-1",
         "point": "wrist",
         "prior": "oscillator",
+        "ritardBeats": 8,
+        "ritardRatio": 0.35,
         "servoBeats": 1,
         "source": "hands",
+        "tempoPrior": "none",
         "transport": {
           "droppedBelow": 0.2,
           "holdAfterPeriods": 1.5,
@@ -906,6 +910,7 @@
         "mirrorX": true,
         "orchestra": {
           "enabled": false,
+          "pizzicato": false,
           "sections": {
             "brass": 1,
             "other": 1,
@@ -921,8 +926,11 @@
         "piece": "beethoven-symphony-5-1",
         "point": "wrist",
         "prior": "blend",
+        "ritardBeats": 8,
+        "ritardRatio": 0.35,
         "servoBeats": 1,
         "source": "hands",
+        "tempoPrior": "none",
         "transport": {
           "droppedBelow": 0.2,
           "holdAfterPeriods": 1.5,

@@ -442,6 +442,21 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
               ))}
             </select>
           </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            <span>
+              Ending <span className="text-white/40">(when your beat is unclear)</span>
+            </span>
+            <select
+              className={selectCls}
+              value={c.tempoPrior ?? 'none'}
+              disabled={!enabled}
+              data-testid="conductor-tempo-prior"
+              onChange={(e) => dispatchDialSetIn('conductor.tempoPrior', e.target.value)}
+            >
+              <option value="none">Hold the last tempo</option>
+              <option value="kth-final-ritard">Slow into the last bars</option>
+            </select>
+          </label>
         </>
       )}
       <p className="text-[10px] leading-relaxed text-white/40">

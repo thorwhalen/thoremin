@@ -1723,6 +1723,21 @@
         "default": 0.3
       },
       {
+        "name": "tempoPrior",
+        "type": "enum(none | kth-final-ritard)",
+        "default": "none"
+      },
+      {
+        "name": "ritardBeats",
+        "type": "number",
+        "default": 8
+      },
+      {
+        "name": "ritardRatio",
+        "type": "number",
+        "default": 0.35
+      },
+      {
         "name": "fallbackBpmMin",
         "type": "number",
         "default": 50

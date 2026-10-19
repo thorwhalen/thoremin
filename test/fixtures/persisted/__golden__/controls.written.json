@@ -318,8 +318,11 @@
     "piece": "beethoven-symphony-5-1",
     "point": "wrist",
     "prior": "blend",
+    "ritardBeats": 8,
+    "ritardRatio": 0.35,
     "servoBeats": 1,
     "source": "hands",
+    "tempoPrior": "none",
     "transport": {
       "droppedBelow": 0.2,
       "holdAfterPeriods": 1.5,

@@ -10,7 +10,7 @@
  * Moved verbatim: the conducting golden (`test/conductor_golden.test.ts`) is byte-identical.
  */
 import type { NodeContext } from '@thoremin/dag';
-import { beatAt, conductorRatios, createIctus, createImpactDetector, createLeadCorrector, createLevelHold, wrapPhase, UNKNOWN_PULSE, type Ictus, type IctusState, type LevelHold, type MusicalTime, type PulseState } from '@thoremin/ictus';
+import { beatAt, conductorRatios, createIctus, createImpactDetector, createLeadCorrector, createFinalRitard, createLevelHold, wrapPhase, UNKNOWN_PULSE, type Ictus, type IctusState, type LevelHold, type MusicalTime, type PulseState } from '@thoremin/ictus';
 import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clamp01 } from '@thoremin/sdk/features/math';
@@ -102,6 +102,8 @@ export function createConductorFollower(p: ConductorDialParams) {
   };
   const resetFollower = (): void => {
     ictus = null;
+    confidentBpm = null;
+    ritardStartBpm = null;
     // The expression's own frame clocks restart with the follower's (a replay from the top).
     expr.restartClocks();
     lastPt = null;
@@ -112,8 +114,26 @@ export function createConductorFollower(p: ConductorDialParams) {
     speedEnv = 0;
   };
 
+  /** The final-ritard curve for the current dial values (rebuilt only when they change). */
+  let ritardKey = '';
+  let ritard = createFinalRitard();
+  const finalRitard = (c: ConductorDialParams) => {
+    const key = `${c.ritardBeats}|${c.ritardRatio}`;
+    if (key !== ritardKey) {
+      ritardKey = key;
+      ritard = createFinalRitard({ beats: c.ritardBeats, finalRatio: c.ritardRatio });
+    }
+    return ritard;
+  };
+  /** The last tempo (bpm) the gesture was confident of; null before one. */
+  let confidentBpm: number | null = null;
+  /** The tempo the final ritard started from, fixed when the beat entered it; null outside it. */
+  let ritardStartBpm: number | null = null;
+
   const resolveDoc = (raw: unknown): void => {
     if (!doc.resolve(raw)) return;
+    confidentBpm = null;
+    ritardStartBpm = null;
     fermata.at = null;
     fermata.released = null;
   };
@@ -383,6 +403,9 @@ export function createConductorFollower(p: ConductorDialParams) {
     // stroke period, and the dynamics their envelope (a fresh detector mistakes the
     // still arm's jitter for strokes while it relearns them).
     ic.prior.reset();
+    // ... and the tempo it was sure of: a second pass starts from its own.
+    confidentBpm = null;
+    ritardStartBpm = null;
     // A leading joint's anchor held past the cut-off is not a stroke after it.
     lead.reset();
     const s = ic.state();
@@ -434,8 +457,23 @@ export function createConductorFollower(p: ConductorDialParams) {
   /** Running: the inferred tempo blended with the speed fallback by confidence (`w`),
    *  integrated, phase-servoed onto the inferred beat and stopped on any fermata it would
    *  cross. Returns the tempo it advanced at. */
-  const runBeat = (c: ConductorDialParams, ctx: NodeContext, s: IctusState, k: number, grid: Grid, fallbackBpm: number): number => {
+  const runBeat = (c: ConductorDialParams, ctx: NodeContext, s: IctusState, k: number, grid: Grid, speedBpm: number): number => {
     const w = s.state === 'running' && c.fallbackBelowConfidence > 0 ? clamp01(s.confidence / c.fallbackBelowConfidence) : s.state === 'running' ? 1 : 0;
+    // The tempo the gesture was last sure of (#333).
+    if (w >= 1 && s.tempo * k > 0) confidentBpm = s.tempo * k;
+    // What the tempo does where the gesture says nothing: the speed fallback, or, in the last
+    // beats of a piece with the KTH prior chosen, a performer's final ritard (a confident
+    // gesture, w = 1, overrides it either way). The curve starts from the tempo in force when
+    // the beat ENTERS the ritard, fixed there: a conductor who then slows confidently must
+    // not have the curve applied again to the slowed tempo.
+    let ritardBpm: number | null = null;
+    if (c.tempoPrior === 'kth-final-ritard' && doc.lastOnset !== null) {
+      const fr = finalRitard(c);
+      if (fr.progress(beatOut, doc.lastOnset) === null) ritardStartBpm = null;
+      else ritardStartBpm ??= confidentBpm ?? doc.tempo?.(beatOut) ?? speedBpm;
+      if (ritardStartBpm !== null) ritardBpm = fr.tempoAt(beatOut, doc.lastOnset, ritardStartBpm);
+    } else ritardStartBpm = null;
+    const fallbackBpm = ritardBpm ?? speedBpm;
     let bpm = tp.startBeat !== null ? (tp.startBpm ?? doc.tempo?.(beatOut) ?? START_BPM) : w * s.tempo * k + (1 - w) * fallbackBpm;
     const advanced = beatOut + (bpm / 60) * ctx.dt;
     // 3. Phase servo: converge onto the inferred beat over `servoBeats`, never
