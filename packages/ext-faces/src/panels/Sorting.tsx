@@ -16,7 +16,7 @@
  * Rendering only: every edit is the session store's, and every move is a pin there.
  */
 import { useWords } from './words';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ASIDE_BIN, NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { NEW_CATEGORY } from '@thoremin/sdk/enroll/sorting';
 import { NEUTRAL_TARGET, QUALITY_DEFAULTS, type CategoryQuality } from '@thoremin/sdk/enroll/quality';
@@ -188,8 +188,8 @@ function Strip({ holds, label, place, grid }: StripProps) {
  *  (or into Neutral). */
 function dropTarget(grid: GridApi, to: string) {
   return {
-    onDragOver: (e: DragEvent) => e.preventDefault(),
-    onDrop: (e: DragEvent) => {
+    onDragOver: (e: ReactDragEvent) => e.preventDefault(),
+    onDrop: (e: ReactDragEvent) => {
       e.preventDefault();
       const holds = e.dataTransfer?.getData(DRAG_HOLDS);
       const category = e.dataTransfer?.getData(DRAG_CATEGORY);
@@ -462,7 +462,7 @@ export function Sorting({ s }: { s: FaceSessionState }) {
     dragIds: (id) => (selected.has(id) ? [...selected] : [id]),
     send,
   };
-  const onKeyDown = (e: KeyboardEvent) => {
+  const onKeyDown = (e: ReactKeyboardEvent) => {
     const t = e.target as HTMLInputElement | null;
     // Typing in a name or a menu is not sorting; the k slider is (Cmd-Z after a drag undoes it).
     const typing = t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type !== 'range'));

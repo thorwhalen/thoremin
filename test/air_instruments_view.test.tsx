@@ -188,12 +188,12 @@ describe('the air drum readout (moved from the retired tool panel)', () => {
     act(() => useAirDrumStatus.getState().report({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, ready: { right: false, left: false } }));
     expect(screen.getByText(/Strike once to teach/)).toBeTruthy();
     act(() =>
-      useAirDrumStatus.getState().report({ enabled: true, hits: 4, predicted: 3, lastHand: 'right', lastLead: 0.048, lastPull: 0, ready: { right: true, left: false } }),
+      useAirDrumStatus.getState().report({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, hits: 4, predicted: 3, lastHand: 'right', lastLead: 0.048, lastPull: 0, ready: { right: true, left: false } }),
     );
     expect(screen.getByText('Right: predicted 48 ms before the strike.')).toBeTruthy();
     expect(screen.getByText('4 · 75%')).toBeTruthy();
     expect(screen.getByTestId('air-drum-live').getAttribute('data-state')).toBe('playing');
-    act(() => useAirDrumStatus.getState().report({ enabled: true, hits: 5, predicted: 3, lastHand: 'left', lastLead: -0.033, lastPull: 0, ready: { right: true, left: true } }));
+    act(() => useAirDrumStatus.getState().report({ ...ABSENT_AIR_DRUM_LIVE, enabled: true, hits: 5, predicted: 3, lastHand: 'left', lastLead: -0.033, lastPull: 0, ready: { right: true, left: true } }));
     expect(screen.getByText(/Left: sounded 33 ms after/)).toBeTruthy();
   });
 
