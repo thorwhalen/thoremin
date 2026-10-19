@@ -2293,6 +2293,43 @@
     ]
   },
   {
+    "type": "hands-dwell",
+    "title": "Hands (dwelled labels)",
+    "description": "The hand stream with Left/Right held by the handedness dwell, for instruments that choose a hand by label.",
+    "roles": [
+      "feature"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "handednessDwell",
+        "kind": "number",
+        "description": "Live override of handednessDwellFrames (frames; 0 = raw label)"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      }
+    ],
+    "params": [
+      {
+        "name": "mirrorHandedness",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "name": "handednessDwellFrames",
+        "type": "number",
+        "default": 0
+      }
+    ]
+  },
+  {
     "type": "indirect-map",
     "title": "Indirect Map",
     "description": "Gesture features → weighted prompts + config dials (steers a generative engine).",

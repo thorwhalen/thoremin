@@ -23,7 +23,7 @@ describe.runIf(AIR)('air bass in the default graph', () => {
     expect(g.nodes.some((n) => n.id === 'airBass' && n.type === 'air-bass')).toBe(true);
     expect(g.nodes.some((n) => n.id === 'bassOut' && n.type === 'pluck-out')).toBe(true);
     expect(has('ui', 'airBass', 'airBass', 'config')).toBe(true);
-    expect(has('cam', 'hands', 'airBass', 'hands')).toBe(true);
+    expect(has('dwelled', 'hands', 'airBass', 'hands')).toBe(true);
     expect(has('ui', 'scaleRight', 'airBass', 'scale')).toBe(true);
     expect(has('ui', 'octaveShift', 'airBass', 'octaveShift')).toBe(true);
     expect(has('airBass', 'notes', 'bassOut', 'notes')).toBe(true);

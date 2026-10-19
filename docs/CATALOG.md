@@ -179,6 +179,14 @@ Landmarks → normalized per-hand position, openness, pinch.
 - **out:** features:hand-features
 - **params:** mirrorX (boolean=true), mirrorHandedness (boolean=true), opennessMin (number=1.3), opennessMax (number=2.3), pinchTouch (number=0.25), pinchApart (number=1.2), fingerTouch (number=0.3), fingerApart (number=1.8), handednessDwellFrames (number=0)
 
+#### `hands-dwell` — Hands (dwelled labels)
+The hand stream with Left/Right held by the handedness dwell, for instruments that choose a hand by label.
+
+- **roles:** feature
+- **in:** hands:hands-frame, handednessDwell:number
+- **out:** hands:hands-frame
+- **params:** mirrorHandedness (boolean=true), handednessDwellFrames (number=0)
+
 #### `face-features` — Face Features
 Face blendshapes → normalized expression controls (smile, mouthOpen, brow, blink).
 

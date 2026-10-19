@@ -24,7 +24,7 @@ describe.runIf(AIR)('air flute in the default graph', () => {
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       g.edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
     expect(g.nodes.some((n) => n.id === 'airFlute' && n.type === 'air-flute')).toBe(true);
-    expect(has('cam', 'hands', 'airFlute', 'hands')).toBe(true);
+    expect(has('dwelled', 'hands', 'airFlute', 'hands')).toBe(true);
     expect(has('faceVec', 'vector', 'airFlute', 'face')).toBe(true);
     expect(has('camFace', 'face', 'airFlute', 'faceFrame')).toBe(true);
     expect(has('ui', 'airFlute', 'airFlute', 'config')).toBe(true);

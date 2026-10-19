@@ -15,6 +15,7 @@ import { replayHandsNode } from './sources/replay_hands';
 import { syntheticBodyNode } from './sources/synthetic_body';
 import { replayBodyNode } from './sources/replay_body';
 import { handFeaturesNode } from './features/hand_features';
+import { handsDwellNode } from './features/hands_dwell';
 import { faceFeaturesNode } from './features/face_features';
 import { faceControlsNode } from './features/face_controls';
 import { conductorNode } from './features/conductor';
@@ -66,6 +67,7 @@ export {
 } from './sources/source_contract';
 export type { SlotContract } from './slot_contract';
 export { handFeaturesNode } from './features/hand_features';
+export { handsDwellNode } from './features/hands_dwell';
 export { faceFeaturesNode } from './features/face_features';
 export { faceControlsNode } from './features/face_controls';
 export {
@@ -125,6 +127,7 @@ export const CORE_NODES = [
   syntheticBodyNode,
   replayBodyNode,
   handFeaturesNode,
+  handsDwellNode,
   faceFeaturesNode,
   faceControlsNode,
   conductorNode,
