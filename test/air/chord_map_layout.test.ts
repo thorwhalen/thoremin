@@ -122,11 +122,22 @@ describe('the letters map (H13 of #613)', () => {
   });
 
   it('relights only the chords a modulation changes: C to G changes ii, IV and vii°', () => {
-    const before = letterChordNames(key(0, 'major'));
-    const after = letterChordNames(key(7, 'major'));
+    const shown = (spec: ScaleSpec) => letterChordNames(diatonicChords(spec), spec);
+    const before = shown(key(0, 'major'));
+    const after = shown(key(7, 'major'));
     expect(before).toEqual(['C', 'Dm', 'Em', 'F', 'G', 'Am', 'B°']);
     expect(after).toEqual(['C', 'D', 'Em', 'F#°', 'G', 'Am', 'Bm']);
     expect(before.flatMap((n, i) => (n !== after[i] ? [i] : []))).toEqual([1, 3, 6]); // D, F, B
+  });
+
+  it('reads the move captions where the cells are laid out, whatever the key', () => {
+    const am = keyedCells(cells, 'letters', key(9, 'minor'));
+    const a = cells.findIndex((c) => c.degree === 5 && Math.abs(c.q) + Math.abs(c.r) <= 2);
+    const grid = (laidOut?: MapCell[]) =>
+      chordMapGrid({ layout: 'harmonic', cells: am, laidOut, chords: diatonicChords(key(9, 'minor')), choice: { active: a, candidate: null }, captions: true, ladder: null, pointers: [] });
+    const fromLaidOut = grid(cells).captions.map((c) => c.text);
+    expect(fromLaidOut).toEqual(neighbourCaptions('harmonic', cells[a]).map((c) => c.text)); // as in C: a move is a move
+    expect(fromLaidOut).toContain('4th up');
   });
 });
 

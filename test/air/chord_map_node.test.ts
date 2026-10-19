@@ -232,6 +232,30 @@ describe('the chord-map node, the letters map (H13 of #613)', () => {
     expect(marked(at(3.8), 'changed').size).toBe(0); // the relight fades after two seconds
   });
 
+  it('keeps the letters through the face\'s parallel in a key the two modes spell apart (C# minor and Db major)', () => {
+    const csm: ScaleSpec = { root: 1, type: 'minor', octaves: 2, baseOctave: 3 };
+    const c = cellOf(0); // a C cell: in C# minor the letter C is the tonic's
+    const smile = (t: number): FaceFeatures => ({ ...ABSENT_FACE, present: true, smile: t >= 0.3 ? 0.9 : 0 });
+    const outs = play(chordMapTake({ duration: 2.5, chordAt: () => c }), { ...ON, anchor: 'letters', face: true }, csm, smile);
+    const home = (o: Out) => new Set(o.grid.cells.filter((x) => x.mark === 'home').map((x) => x.label));
+    const before = outs.find((o) => o.t >= 0.2)!.out;
+    const after = outs.find((o) => o.t >= 2.2)!.out;
+    expect(home(before)).toEqual(new Set(['C#m']));
+    // The same cells, now the parallel major's tonic (spelled as the theory spells that key): home did not move.
+    expect(home(after)).toEqual(new Set([diatonicChords({ ...csm, type: 'major' })[0].name]));
+    expect(after.grid.cells.filter((x) => x.mark === 'home').length).toBe(before.grid.cells.filter((x) => x.mark === 'home').length);
+    expect(after.grid.cells.filter((x) => x.mark === 'changed').length).toBeGreaterThan(0);
+  });
+
+  it('plays the melody over the held cell\'s chord in the new key', () => {
+    const f = cellOf(3);
+    const frames = chordMapTake({ duration: 3, chordAt: (t) => (t < 1 ? f : null) });
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const outs = frames.map((fr) => h.process({ hands: fr, config: { ...ON, anchor: 'letters' }, spec: fr.t! < 1.5 ? C_MAJOR : { ...C_MAJOR, root: 7 }, octaveShift: 0 }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out);
+    const ladder = outs[outs.length - 1].grid.cells.filter((x) => x.shape === 'rect').map((x) => x.label.replace(/\d+$/, ''));
+    expect(ladder.slice(0, 3)).toEqual(['F#', 'A', 'C']); // over F#°, the F cell in G, not over C
+  });
+
   it('marks nothing on the home map', () => {
     const outs = play(chordMapTake({ duration: 1, chordAt: () => cellOf(0) }), ON);
     expect(outs[outs.length - 1].out.grid.cells.some((c) => c.mark)).toBe(false);

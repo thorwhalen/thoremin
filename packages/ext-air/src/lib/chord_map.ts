@@ -170,10 +170,11 @@ export function keyedCells(cells: readonly MapCell[], anchor: ChordMapAnchor, sp
   return cells.map((c) => ({ ...c, degree: letterDegree(spec, NOTE_LETTERS[c.degree]) }));
 }
 
-/** The chord each letter names in a key (by letter, C first): what a modulation compares. */
-export function letterChordNames(spec: ScaleSpec): string[] {
-  const chords = diatonicChords(spec);
-  return NOTE_LETTERS.map((l) => chords[letterDegree(spec, l)].name);
+/** The chord each letter shows (by letter, C first): the key's chords as shown (triads or
+ *  sevenths, the face's parallel), each on the letter the key's own spelling gives its degree.
+ *  What a modulation compares. */
+export function letterChordNames(chords: readonly DiatonicChord[], letterSpec: ScaleSpec): string[] {
+  return NOTE_LETTERS.map((l) => chords[letterDegree(letterSpec, l)]?.name ?? '');
 }
 
 /** A point's distance from a cell's centre in that cell's widths (the layout's `cellDistance`). */
@@ -343,6 +344,9 @@ export interface ChordMapView {
   ladder: { region: Region; notes: readonly number[]; band: number | null; set?: MelodySet } | null;
   /** The points that choose (display fractions). */
   pointers: readonly { x: number; y: number }[];
+  /** The cells as laid out, when `cells` carries degrees in the key (the letters map): the move
+   *  captions are read from these, where a cell's neighbours are (both degrees in one frame). */
+  laidOut?: readonly MapCell[];
   /** A mark per cell (aligned with `cells`): its home, or relit by a modulation. */
   marks?: readonly (GridCell['mark'] | undefined)[];
 }
@@ -375,7 +379,8 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
       });
     });
   }
-  const captions = view.captions && active ? neighbourCaptions(view.layout, active) : [];
+  const laidOutActive = view.choice.active !== null ? (view.laidOut ?? view.cells)[view.choice.active] : undefined;
+  const captions = view.captions && laidOutActive ? neighbourCaptions(view.layout, laidOutActive) : [];
   if (view.ladder?.set) {
     const { region, set } = view.ladder;
     captions.push({ x: (region.x0 + region.x1) / 2, y: region.y0 - LADDER_CAPTION_GAP, text: SET_CAPTION[set] });
