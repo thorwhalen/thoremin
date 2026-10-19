@@ -217,6 +217,35 @@
     "id": ""
   },
   "categorizerChordsModel": null,
+  "chordMap": {
+    "bpm": 100,
+    "captions": true,
+    "cellSize": 0.2,
+    "chordHand": "left",
+    "enabled": false,
+    "enterFrames": 2,
+    "gain": 0.22,
+    "hysteresis": 0.12,
+    "layout": "harmonic",
+    "melody": true,
+    "melodyOctaves": 2,
+    "melodySound": "triangle",
+    "melodyVolume": 0.45,
+    "minLead": 0.05,
+    "minSpeed": 0.5,
+    "minStroke": 0.03,
+    "mirrorHandedness": true,
+    "play": "hold",
+    "point": "palm",
+    "releaseS": 0.3,
+    "rendering": "sustained",
+    "sound": "warmPad",
+    "split": 0.65,
+    "strumPoint": "wrist",
+    "strumSpread": 0.012,
+    "voicing": "spread",
+    "volume": 0.7
+  },
   "conductor": {
     "articulationFrom": "sharpness",
     "beatsPerBar": 4,
@@ -461,6 +490,9 @@
       "position": "top",
       "show": true,
       "size": 0.45
+    },
+    "cellGrid": {
+      "show": true
     },
     "chordGuide": {
       "show": true
