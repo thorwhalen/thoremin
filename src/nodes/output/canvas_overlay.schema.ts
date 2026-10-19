@@ -26,7 +26,6 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   // The conductor (#187): its musical time + enable flag, for the beat HUD.
   { name: 'conductorTime', kind: 'musical-time' },
   { name: 'conductorEnabled', kind: 'boolean', default: false },
-  // A node's on-screen targets (the chord map's), for the cell grid.
   { name: 'expression', kind: 'face-expression' },
   // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
   { name: 'categoryDegrees', kind: 'category-degrees' },

@@ -1,6 +1,6 @@
 /**
- * Drawing a cell grid (`CellGrid`, `./cell_grid`): core's overlay `cellGrid` element (the chord
- * map's targets) and any extension's own overlay element (#600 S5) draw through it, so one
+ * Drawing a cell grid (`CellGrid`, `./cell_grid`): an extension's own overlay element (#600 S5;
+ * the chord map's and the chord wheel's) draws through it, so one
  * picture of a grid serves every layout. In the SDK because an extension may not import core. Pure canvas calls, the ones the recording
  * canvas of the overlay tests records (no `measureText`, no `closePath`).
  */

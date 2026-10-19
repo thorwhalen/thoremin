@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   resetDial('airDrum');
   resetDial('airFlute');
+  resetDial('chordMap');
 });
 
 async function editRow(name: string) {
@@ -54,7 +55,7 @@ describe.runIf(AIR)('the air overlay toggles, in the air sections (#600 S10)', (
   it('the old overlay keys are not settable paths (the palette and the assistant cannot write a dead key)', () => {
     const paths = structuredDialLeaves().map((l) => l.path);
     expect(paths.filter((p) => p.startsWith('overlay.drumPads') || p.startsWith('overlay.mouthCue') || p.startsWith('overlay.cellGrid'))).toEqual([]);
-    expect(paths).toEqual(expect.arrayContaining(['airDrum.padsOnVideo.show', 'airFlute.breathCue.show', 'airFlute.breathCue.position']));
+    expect(paths).toEqual(expect.arrayContaining(['airDrum.padsOnVideo.show', 'airFlute.breathCue.show', 'airFlute.breathCue.position', 'chordMap.gridOnVideo.show']));
   });
 
   it('they draw where core drew them: the pads just beneath the chord map\'s grid, the cue just before the face expression', () => {
@@ -74,7 +75,6 @@ describe.runIf(AIR)('the air overlay toggles, in the air sections (#600 S10)', (
     expect(toggle.checked).toBe(true);
     fireEvent.click(toggle);
     await waitFor(() => expect((dialsStore.getState().effective as { chordMap: { gridOnVideo: { show: boolean } } }).chordMap.gridOnVideo.show).toBe(false));
-    resetDial('chordMap');
   });
 
   it('the Overlay section no longer lists them', () => {

@@ -153,6 +153,7 @@ describe('canvas-overlay composable elements', () => {
     expect(drawGrid({ cells: [] }).count('fillText')).toBe(0);
     expect(drawGrid({ cells: [{ x: 'no' }] }).count('fillText')).toBe(0);
     expect(drawGrid(grid, { gridOnVideo: { show: false } }).count('fillText')).toBe(0);
+    expect(drawGrid(grid, { enabled: false }).count('fillText')).toBe(0); // the chord map off
   });
 
   it('every element has a params key and a known category; z-order is sane', () => {

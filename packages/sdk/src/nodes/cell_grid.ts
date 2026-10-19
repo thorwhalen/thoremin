@@ -2,8 +2,9 @@
  * A cell grid: labelled on-screen targets a hand points at (the chord map's hexagons, its
  * melody ladder), as data a node emits and the overlay draws. Generic on purpose, like the
  * overlay's category cues: the overlay names no instrument, and any node that turns a hand's
- * position on the screen into a choice can show its targets by emitting one of these on the
- * overlay's `cellGrid` input.
+ * position on the screen into a choice can show its targets by emitting one of these to its own
+ * overlay element (#600 S5; the chord map's and the chord wheel's draw them through
+ * `./cell_grid_draw`).
  *
  * Coordinates are fractions of the DISPLAYED, mirrored frame (the overlay canvas), the air
  * drum pads' convention: the emitting node mirrors a hand's x itself.
