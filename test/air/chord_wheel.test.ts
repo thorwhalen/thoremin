@@ -212,7 +212,7 @@ describe('the chord-wheel node', () => {
     const first = play([at(null)], { order: 'likely' });
     const grid = first[first.length - 1].grid;
     expect(grid.cells.slice(1).map((c) => c.label)).toEqual(['F', 'G', 'Am', 'Em', 'Dm', 'B°']);
-    expect(grid.captions.map((c) => c.text)).toEqual(["Most likely on top: Piston's usual root progressions"]);
+    expect(grid.captions.map((c) => c.text)).toEqual(["Likeliest on top (Piston's usual root progressions)"]);
     // A held walk keeps the order it started from: the top wedge from C walks the cycle of fourths.
     const hold = [at(null), ...Array.from({ length: 22 }, () => at(0))];
     const walked = play(hold, { order: 'likely', walk: true, bpm: 120 });
@@ -227,7 +227,7 @@ describe('the chord-wheel node', () => {
     const caption = (o: Out) => o.grid.captions.map((c) => c.text).find((t) => t.includes('on top')) ?? '';
     const rare = play([at(null), at(null), at(null)], { order: 'likely', surprise: 1 }); // past the quarter-second dwell
     expect(top(rare[rare.length - 1])).toBe('B°'); // I to vii°: not in Piston's table
-    expect(caption(rare[rare.length - 1])).toMatch(/^Least likely on top/);
+    expect(caption(rare[rare.length - 1])).toMatch(/^Rarest on top/);
     // The other hand: low, then raised to the top of the frame.
     const h = chordWheelNode.make(chordWheelNode.params.parse({}));
     const outs: Out[] = [];
@@ -239,6 +239,30 @@ describe('the chord-wheel node', () => {
     }
     expect(top(outs[25])).toBe('F'); // hand low: the usual, IV on top
     expect(top(outs[59])).toBe('B°'); // raised: the rare on top
+    // The hand dropped out of view: it reads as at rest, and the usual come back.
+    for (let i = 60; i < 90; i++) {
+      const t = i / 30;
+      const frame: HandsFrame = { t, width: W, height: H, hands: [palmAt(at(null), 'Left')] };
+      outs.push(h.process({ hands: frame, config: { enabled: true, mirrorHandedness: false, order: 'likely', surpriseFrom: 'hand' }, spec: C, octaveShift: 0 }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out);
+    }
+    expect(top(outs[89])).toBe('F');
+  });
+
+  it('a set surprise loads the same whatever came before, and the order holds while a push is under way', () => {
+    const top = (o: Out) => o.grid.cells[1]?.label;
+    expect(top(play([at(null)], { order: 'likely', surprise: 0.5 }).at(-1)!)).toBe(top(play([at(null)], { order: 'likely', surprise: 0.55 }).at(-1)!));
+    // Pushing up (wedge 0) while the other hand rises: the push makes the move the wheel showed (F, the usual).
+    const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+    let last: Out | undefined;
+    const chords: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const t = i / 30;
+      const right = palmAt({ x: 0.85, y: i < 5 ? 0.85 : 0.1 }, 'Right');
+      const left = palmAt(i < 5 ? at(null) : at(0), 'Left');
+      last = h.process({ hands: { t, width: W, height: H, hands: [left, right] }, config: { enabled: true, mirrorHandedness: false, order: 'likely', surpriseFrom: 'hand' }, spec: C, octaveShift: 0 }, { time: t, dt: 1 / 30, tick: i, resources: {} } as never) as unknown as Out;
+      chords.push(last.status.chord ?? '');
+    }
+    expect([...new Set(chords)]).toEqual(['C', 'F']);
   });
 
   it('is silent and draws nothing with the dial off', () => {

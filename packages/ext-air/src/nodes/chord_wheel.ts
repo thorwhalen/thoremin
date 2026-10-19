@@ -190,7 +190,7 @@ function diatonicTarget(d: number, relation: string): number | null {
 const SURPRISE_EDGES = [1 / 6, 1 / 2, 5 / 6] as const;
 const SURPRISE_MARGIN = 0.05;
 const SURPRISE_DWELL_S = 0.25;
-const SURPRISE_WORDS = ['Most likely', 'Often', 'Now and then', 'Least likely'] as const;
+const SURPRISE_WORDS = ['Likeliest', 'Likely', 'Sometimes', 'Rarest'] as const;
 /** The other hand's height that reads as no surprise and as full surprise (display fractions). */
 const HAND_LOW = 0.85;
 const HAND_HIGH = 0.15;
@@ -265,7 +265,10 @@ export const chordWheelNode = defineNode<Params>({
     let status: ChordWheelStatus = { ...IDLE_CHORD_WHEEL_STATUS };
     const walker = createBeatWalk();
     /** The surprise in force (0..3) and what steps it, with a margin and a dwell. */
+    /** The surprise the wheel is ordered by (0..3): what the reading says, taken over only while
+     *  no push is under way, so the move under a wedge never changes beneath the hand. */
     let surpriseLevel = 0;
+    let surpriseRead = 0;
     const surpriseTracker = createLevelTracker({ edges: SURPRISE_EDGES, hysteresis: SURPRISE_MARGIN, dwellS: SURPRISE_DWELL_S, rest: 0 });
     /** The wedges' moves when the walk started (the ranked wheel keeps them while walking). */
     let walkMoves: readonly string[] | null = null;
@@ -289,6 +292,8 @@ export const chordWheelNode = defineNode<Params>({
       pointer = null;
       pointing = null;
       walker.reset();
+      surpriseTracker.reset();
+      surpriseLevel = surpriseRead = 0;
       status = { ...IDLE_CHORD_WHEEL_STATUS };
     };
 
@@ -358,7 +363,8 @@ export const chordWheelNode = defineNode<Params>({
           // The other hand's height, while it sets the surprise (a hand not seen keeps the last).
           if (c.surpriseFrom === 'hand') {
             const other = frame.hands.find((h) => h.handedness === labelFor(c.hand === 'left' ? 'right' : 'left', c.mirrorHandedness));
-            if (other) surpriseLevel = surpriseTracker.push(Math.max(0, Math.min(1, (HAND_LOW - displayPoint(other, frame, 'palm').y) / (HAND_LOW - HAND_HIGH))), ctx.time);
+            // A hand out of view reads as at rest: a lowered arm usually leaves the frame.
+            surpriseRead = surpriseTracker.push(other ? Math.max(0, Math.min(1, (HAND_LOW - displayPoint(other, frame, 'palm').y) / (HAND_LOW - HAND_HIGH))) : null, ctx.time);
           }
           status = { ...status, armed: choice.armed, steering: !!hand };
         }
@@ -408,11 +414,11 @@ export const chordWheelNode = defineNode<Params>({
           const t = model && target ? tensionText(model, target, k) : '';
           return t ? `${sub} · ${t}` : sub;
         };
-        if (c.surpriseFrom === 'dial') surpriseLevel = surpriseTracker.push(c.surprise, ctx.time);
-        else if (c.surpriseFrom === 'face') {
-          const read = arousalOf(inputs.face as FaceFeatures | undefined);
-          if (read !== null) surpriseLevel = surpriseTracker.push(read, ctx.time);
-        }
+        // The setting is a level as it stands (no hysteresis: a saved value always loads the same);
+        // the face moves through the tracker, a lost face reading as at rest.
+        if (c.surpriseFrom === 'dial') surpriseRead = Math.round(Math.max(0, Math.min(1, c.surprise)) * (SURPRISE_WORDS.length - 1));
+        else if (c.surpriseFrom === 'face') surpriseRead = surpriseTracker.push(arousalOf(inputs.face as FaceFeatures | undefined), ctx.time);
+        if (pointing === null) surpriseLevel = surpriseRead;
         const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
         const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;
         const gridCells: GridCell[] = chord
@@ -435,7 +441,7 @@ export const chordWheelNode = defineNode<Params>({
           : [];
         // The model's name over the wheel, whenever a number is shown.
         const captions = model && gridCells.length ? [{ x: cells[0].x, y: Math.max(0.03, cells[0].y - c.radius - TENSION_CAPTION_GAP), text: `Tension: ${model.name}` }] : [];
-        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `${SURPRISE_WORDS[surpriseLevel]} on top: ${prior!.name}` });
+        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `${SURPRISE_WORDS[surpriseLevel]} on top (${prior!.name})` });
         const grid: CellGrid = { cells: gridCells, captions, pointers: pointer ? [pointer] : [] };
         status = {
           ...status,

@@ -32,6 +32,7 @@ describe.runIf(AIR)('the chord wheel in the composed graph', () => {
     expect(next.chordWheel.surpriseFrom).toBe('hand'); // #672: raise the right hand for rarer moves
     expect(branchIdsFor({ ...next, chordWheel: { ...next.chordWheel, surpriseFrom: 'face' } })).toContain('chord-wheel-affect');
     expect(branchIdsFor(next)).not.toContain('chord-wheel-affect');
+    expect(branchIdsFor({ ...next, chordWheel: { ...next.chordWheel, surpriseFrom: 'face', order: 'fixed' } })).not.toContain('chord-wheel-affect'); // no ranking, no face
   });
 
   it('wires its grid to its own overlay element, and draws the wheel', () => {

@@ -213,7 +213,9 @@ export const AIR_EXTENSION = defineExtension({
       const steer = (settings.chordWheel as { steer?: string }).steer;
       if (steer === 'face' || steer === 'both') ids.push('chord-wheel-face');
       // The face model, too, while the face sets the surprise.
-      if ((settings.chordWheel as { surpriseFrom?: string }).surpriseFrom === 'face') ids.push('chord-wheel-affect');
+      // (only while the wheel is ranked: the key's moves, likeliest on top).
+      const wheel = settings.chordWheel as { surpriseFrom?: string; order?: string; moves?: string };
+      if (wheel.surpriseFrom === 'face' && wheel.order === 'likely' && (wheel.moves ?? 'diatonic') === 'diatonic') ids.push('chord-wheel-affect');
     }
     return ids;
   },

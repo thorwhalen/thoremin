@@ -81,5 +81,7 @@ export function rankBySurprise(prior: TransitionPrior, from: number, targets: re
   const s = Math.max(0, Math.min(1, Number.isFinite(surprise) ? surprise : 0));
   const want = MAX_WEIGHT - s * (MAX_WEIGHT - MIN_WEIGHT);
   const distance = (t: number | null) => (t === null ? Infinity : Math.abs(prior.weight(from, t) - want));
-  return targets.map((_, i) => i).sort((a, b) => distance(targets[a]) - distance(targets[b]) || a - b);
+  // Equally near the target: the likelier first (a "sometimes" before a rare one), then as given.
+  const weight = (t: number | null) => (t === null ? -1 : prior.weight(from, t));
+  return targets.map((_, i) => i).sort((a, b) => distance(targets[a]) - distance(targets[b]) || weight(targets[b]) - weight(targets[a]) || a - b);
 }
