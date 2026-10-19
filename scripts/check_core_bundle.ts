@@ -8,6 +8,10 @@
  *  2. any node type, branch id or dial kind of a shipped extension appears in the JS (a copy
  *     of an extension's identifiers living in core).
  *
+ * Then it builds the PROBE extensions alone (`test/fixtures/ext-probe/extensions.probe.json`,
+ * #600 S1) and fails unless both probes, eager and lazy, are in that bundle and nothing of the
+ * shipped extensions is: an extension from outside the shipped list builds through the same seams.
+ *
  * The type-level half of the guard is `npm run typecheck:core`; the runtime half is the test
  * suite run with the same manifest. Together they are `npm run test:core`. Core still names a
  * few extension concepts as strings (the overlay's `airDrumConfig` port kind), which carry no
@@ -15,12 +19,14 @@
  */
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { AIR_EXTENSION } from '@thoremin/ext-air';
 import { ASL_EXTENSION } from '@thoremin/ext-asl';
 import { FACES_EXTENSION } from '@thoremin/ext-faces';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
+import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
+import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
 const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION];
@@ -30,52 +36,83 @@ const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);
 const unchecked = shippedIds.filter((id) => !SHIPPED.some((e) => e.id === id));
 if (unchecked.length) throw new Error(`check_core_bundle: add ${unchecked.join(', ')} to SHIPPED so its identifiers are checked`);
 
-process.env.THOREMIN_EXTENSIONS = CORE_MANIFEST;
-const out = mkdtempSync(join(tmpdir(), 'thoremin-core-'));
-try {
-  const extensionModules = new Set<string>();
-  const moduleGraph: Plugin = {
-    name: 'check-core-bundle',
-    generateBundle(_options, bundle) {
-      for (const chunk of Object.values(bundle)) {
-        if (chunk.type !== 'chunk') continue;
-        for (const id of Object.keys(chunk.modules)) {
-          const path = id.replace(/\\/g, '/');
-          const inTree = path.split('/src/extensions/')[1];
-          if (inTree !== undefined && inTree !== 'index.ts') extensionModules.add(`src/extensions/${inTree}`);
-          const pkg = path.match(/\/packages\/(ext-[^/]+\/.*)$/);
-          if (pkg) extensionModules.add(`packages/${pkg[1]}`);
-          // An extension that is its own repository, installed as a dependency.
-          const installed = path.match(/\/node_modules\/(@thoremin\/ext-[^/]+\/.*)$/);
-          if (installed) extensionModules.add(`node_modules/${installed[1]}`);
+/** The probe extensions' manifest (#600 S1): an extension from OUTSIDE the shipped list. */
+const PROBE_MANIFEST = 'test/fixtures/ext-probe/extensions.probe.json';
+const PROBE_ALIAS = { '@thoremin-probe': resolve('test/fixtures/ext-probe') };
+
+/** Build the app from `manifest`; return the extension modules in its module graph and its JS. */
+async function buildWith(manifest: string, alias: Record<string, string> = {}): Promise<{ extensionModules: Set<string>; probeModules: Set<string>; js: string }> {
+  process.env.THOREMIN_EXTENSIONS = manifest;
+  const out = mkdtempSync(join(tmpdir(), 'thoremin-core-'));
+  try {
+    const extensionModules = new Set<string>();
+    const probeModules = new Set<string>();
+    const moduleGraph: Plugin = {
+      name: 'check-core-bundle',
+      generateBundle(_options, bundle) {
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk') continue;
+          for (const id of Object.keys(chunk.modules)) {
+            const path = id.replace(/\\/g, '/');
+            const inTree = path.split('/src/extensions/')[1];
+            if (inTree !== undefined && inTree !== 'index.ts') extensionModules.add(`src/extensions/${inTree}`);
+            const pkg = path.match(/\/packages\/(ext-[^/]+\/.*)$/);
+            if (pkg) extensionModules.add(`packages/${pkg[1]}`);
+            // An extension that is its own repository, installed as a dependency.
+            const installed = path.match(/\/node_modules\/(@thoremin\/ext-[^/]+\/.*)$/);
+            if (installed) extensionModules.add(`node_modules/${installed[1]}`);
+            const probe = path.match(/\/test\/fixtures\/ext-probe\/(.*)$/);
+            if (probe) probeModules.add(probe[1]);
+          }
         }
-      }
-    },
-  };
-  await build({ build: { outDir: out, emptyOutDir: true }, logLevel: 'warn', plugins: [moduleGraph] });
-  if (extensionModules.size) {
-    console.error(`core-alone bundle contains extension modules: ${[...extensionModules].sort().join(', ')}`);
-    process.exit(1);
+      },
+    };
+    await build({ build: { outDir: out, emptyOutDir: true }, logLevel: 'warn', plugins: [moduleGraph], resolve: { alias } });
+    const js = readdirSync(join(out, 'assets'))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => readFileSync(join(out, 'assets', f), 'utf8'))
+      .join('\n');
+    return { extensionModules, probeModules, js };
+  } finally {
+    rmSync(out, { recursive: true, force: true });
   }
-  const js = readdirSync(join(out, 'assets'))
-    .filter((f) => f.endsWith('.js'))
-    .map((f) => readFileSync(join(out, 'assets', f), 'utf8'))
-    .join('\n');
-  const needles = SHIPPED.flatMap((e) => [
-    // An eager extension's node types are its nodes'; a lazy one's are the types it `provides`.
-    ...[...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])].map((t) => `"${t}"`),
-    ...e.branches.map((b) => `"${b.id}"`),
-    ...e.dials.map((d) => `"${d.kind}"`),
-  ]);
-  const found = needles.filter((n) => js.includes(n));
-  // A port KIND core still names as a string (the overlay reads the drum's config) is not code.
-  const allowed = new Set(['"air-drum-config"']);
-  const leaked = found.filter((n) => !allowed.has(n));
-  if (leaked.length) {
-    console.error(`core-alone bundle carries extension identifiers: ${leaked.join(', ')}`);
-    process.exit(1);
-  }
-  console.log(`core-alone bundle: no extension module, none of ${needles.length} extension identifiers (${(js.length / 1024).toFixed(0)} kB of JS)`);
-} finally {
-  rmSync(out, { recursive: true, force: true });
 }
+
+const needles = SHIPPED.flatMap((e) => [
+  // An eager extension's node types are its nodes'; a lazy one's are the types it `provides`.
+  ...[...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])].map((t) => `"${t}"`),
+  ...e.branches.map((b) => `"${b.id}"`),
+  ...e.dials.map((d) => `"${d.kind}"`),
+]);
+// A port KIND core still names as a string (the overlay reads the drum's config) is not code.
+const allowed = new Set(['"air-drum-config"']);
+
+/** Fail when a build carries a shipped extension's module or identifier. */
+function assertNoShipped(label: string, extensionModules: Set<string>, js: string): void {
+  if (extensionModules.size) {
+    console.error(`${label} bundle contains extension modules: ${[...extensionModules].sort().join(', ')}`);
+    process.exit(1);
+  }
+  const leaked = needles.filter((n) => js.includes(n) && !allowed.has(n));
+  if (leaked.length) {
+    console.error(`${label} bundle carries extension identifiers: ${leaked.join(', ')}`);
+    process.exit(1);
+  }
+}
+
+const core = await buildWith(CORE_MANIFEST);
+assertNoShipped('core-alone', core.extensionModules, core.js);
+console.log(`core-alone bundle: no extension module, none of ${needles.length} extension identifiers (${(core.js.length / 1024).toFixed(0)} kB of JS)`);
+
+// The probes alone (#600 S1): an extension from outside the shipped list builds through the same
+// seams, its eager and lazy halves are in the bundle, and nothing of the shipped ones is.
+const probe = await buildWith(PROBE_MANIFEST, PROBE_ALIAS);
+assertNoShipped('probe-only', probe.extensionModules, probe.js);
+const probeNeedles = [...PROBE_EXTENSION.nodes!.map((n) => n.type), ...PROBE_LAZY_EXTENSION.provides!, PROBE_EXTENSION.dials[0].kind, PROBE_LAZY_EXTENSION.dials[0].kind].map((n) => `"${n}"`);
+const missing = probeNeedles.filter((n) => !probe.js.includes(n));
+const missingModules = ['index.ts', 'ui.tsx', 'lazy_stub.ts', 'lazy.ts', 'lazy_ui_stub.tsx', 'lazy_ui.tsx'].filter((m) => !probe.probeModules.has(m));
+if (missing.length || missingModules.length) {
+  console.error(`probe-only bundle lacks the probe: identifiers ${missing.join(', ') || '(none)'}; modules ${missingModules.join(', ') || '(none)'}`);
+  process.exit(1);
+}
+console.log(`probe-only bundle: both probes (eager and lazy, ${probe.probeModules.size} modules), no shipped extension`);

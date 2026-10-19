@@ -22,6 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { ALL_EXTENSION_DIRS, SHIPPED_EXTENSION_DIRS } from './helpers/extensions';
+import { FOLD_POINTS } from './helpers/fold_points';
 import { dirname, join, normalize, relative } from 'node:path';
 
 function tsFiles(dir: string): string[] {
@@ -51,24 +52,6 @@ function importSpecifiers(src: string): string[] {
 const CORE_ROOT = 'src';
 const isExtensionFile = (file: string): boolean => file.startsWith('src/extensions/');
 
-/** The fold points: the only core files that may name the extension LISTS. */
-const FOLD_POINTS = new Set([
-  'src/nodes/browser.ts', // createAppRegistry
-  'src/settings/schema.ts', // SettingsSchema = core + the extensions' dial slices
-  'src/settings/dials.ts', // the dials form fields + the layer bijection
-  'src/app/dials/instruments.ts', // the seeds: core's, then the extensions' instruments
-  'src/app/training/routes.ts', // the extensions' training routes, then core's Trainer
-  'src/app/graph.ts', // the full branch table, and the derivation and spec bound to it
-  'src/app/dials/DialsControlsPanel.tsx', // the editor sections
-  'src/app/dials/InstrumentsPanel.tsx', // the live readouts under the chosen row
-  'src/app/useEngine.ts', // the status hooks
-  'src/app/extensionLoad.ts', // loads a lazy extension's halves when a graph names its nodes
-  'src/app/App.tsx', // the mount effects
-  'src/app/extensions/index.ts', // the React-side list itself
-  'src/app/shellTools.ts', // the shell's tools: core's, then the extensions' (#330)
-  'src/app/ExtensionToolPanels.tsx', // the extensions' tool panels, in the shell's frame (#330)
-  'src/app/entryPoints.ts', // the extensions' entry points into a tool from another's panel (#465)
-]);
 /**
  * THE SDK, AS PACKAGES. Both halves are workspace packages since the follow-ups to PR 6:
  * `@thoremin/sdk` (pure) and `@thoremin/sdk-ui` (the app half: the host's hot store and dial

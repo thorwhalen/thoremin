@@ -1,0 +1,7 @@
+{
+  "//": "TEST-ONLY: a build that lists only the probe extensions (#600 S1). `scripts/check_core_bundle.ts` builds it (the `@thoremin-probe` alias points at this directory) and checks that the probes are in the bundle and nothing of the shipped extensions is: an extension from outside the shipped list builds through the same seams.",
+  "extensions": [
+    { "id": "probe", "module": "@thoremin-probe/index", "ui": "@thoremin-probe/ui" },
+    { "id": "probe-lazy", "module": "@thoremin-probe/lazy_stub", "ui": "@thoremin-probe/lazy_ui_stub", "lazy": { "module": "@thoremin-probe/lazy", "ui": "@thoremin-probe/lazy_ui" } }
+  ]
+}

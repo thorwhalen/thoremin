@@ -119,6 +119,7 @@ via the provider. Never `await` a provider in the tick/audio loop.
   `public/catalog.json` from the node registry. **Run it after adding/renaming a node
   or changing a port/param, and commit the result** — those three files are generated
   and must never be hand-edited.
+- `test/architecture_ratchet.test.ts` (part of `npm test`; #600) — the architecture numbers of [`docs/design/vertical-slices.md`](docs/design/vertical-slices.md) (node implementations imported for their schemas, extension names in core, hand-written `store-controls` ports, hand-wired reporters, fold points, import cycles, the largest files) may only go down. The PR that lowers one runs `npm run ratchet:arch -- --update` and commits `test/architecture.baseline.json`. A new contribution point is added to the probe extension (`test/fixtures/ext-probe/`, `test/ext_probe.test.tsx`) first; `scripts/check_core_bundle.ts` also builds the probes alone.
 - Do **adversarial reviews at junctures** (multi-agent workflow) — they have
   repeatedly caught real bugs here.
 
