@@ -131,14 +131,14 @@ export function ChordWheelControls() {
         <input type="checkbox" checked={walk} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.walk', e.target.checked)} />
         Hold a push to walk it on the beat
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="Likeliest on top: the key's moves ranked from the chord in force by Piston's table of usual root progressions, so the wheel turns as the chord changes (pushing up from C plays I, IV, V, I).">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Likeliest on top: the key's moves ranked from the chord in force by Piston's table of usual root progressions, so the wheel turns as the chord changes (pushing up from C plays I, IV, V, I). A held walk keeps the order it started with.">
         Where each move sits
         <select className={selectCls} value={order} disabled={!enabled || moves !== 'diatonic'} onChange={(e) => dispatchDialSetIn('chordWheel.order', e.target.value)}>
           <option value="fixed">always the same place</option>
           <option value="likely">likeliest next chord on top</option>
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the key profile hears V's leading tone, Lerdahl's distance puts ii further than V), so a number always comes with its model.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the functional ladder makes V tenser than ii; Lerdahl's distance and the key profile put ii further from home), so a number always comes with its model.">
         Tension shown
         <select className={selectCls} value={tension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.tension', e.target.value)}>
           <option value="off">none</option>

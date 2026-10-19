@@ -5,6 +5,9 @@
  * no corpus and raises no licence question. Each degree is followed USUALLY by some degrees,
  * SOMETIMES by others, LESS OFTEN by the rest it names; a degree it does not name is rare.
  *
+ * The table is Piston's for major; a minor key reads it by degree as a choice (VII to III reads
+ * as vii° to iii), which keeps one table until a minor-mode prior earns its place.
+ *
  * Like tension, a prior is a model and is named wherever it orders anything: a corpus prior
  * (an open one whose licence is confirmed) is the other implementation this seam waits for.
  * Pure.

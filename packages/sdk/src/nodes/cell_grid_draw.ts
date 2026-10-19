@@ -93,12 +93,15 @@ export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, 
   for (const c of grid.captions) {
     if (!c.text) continue;
     const w = c.text.length * CELL_CAPTION_CHAR_W + 8;
+    // Kept on the canvas: a long caption near an edge slides in rather than being cut.
+    const cx = Math.min(Math.max(c.x * W, w / 2), W - w / 2);
+    const cy = Math.min(Math.max(c.y * H, 8), H - 8);
     g.globalAlpha = 0.75;
     g.fillStyle = '#0f172a';
-    g.fillRect(c.x * W - w / 2, c.y * H - 8, w, 16);
+    g.fillRect(cx - w / 2, cy - 8, w, 16);
     g.globalAlpha = 1;
     g.fillStyle = '#ffffff';
-    g.fillText(c.text, c.x * W, c.y * H);
+    g.fillText(c.text, cx, cy);
   }
   g.globalAlpha = 0.9;
   g.strokeStyle = '#ffffff';

@@ -233,6 +233,8 @@ export const chordWheelNode = defineNode<Params>({
     let pointing: number | null = null;
     let status: ChordWheelStatus = { ...IDLE_CHORD_WHEEL_STATUS };
     const walker = createBeatWalk();
+    /** The wedges' moves when the walk started (the ranked wheel keeps them while walking). */
+    let walkMoves: readonly string[] | null = null;
 
     const resolveConfig = (raw: unknown): Params => {
       if (raw === lastConfigRef) return cfg;
@@ -289,8 +291,9 @@ export const chordWheelNode = defineNode<Params>({
         const moves = WHEEL_MOVES[c.moves];
         // The moves by wedge: fixed, or ranked by the prior from the chord in force (the key's moves).
         const prior = c.order === 'likely' && c.moves === 'diatonic' ? TRANSITION_PRIORS.piston : null;
+        const degreeIn = (from: Chord) => (prior ? diatonicChords(state!.key).findIndex((x) => x.root === from.root && x.quality === from.quality) : -1);
         const movesFrom = (from: Chord): readonly string[] => {
-          const d = prior ? diatonicChords(state!.key).findIndex((x) => x.root === from.root && x.quality === from.quality) : -1;
+          const d = degreeIn(from);
           return d < 0 ? moves : rankByPrior(prior!, d, moves.map((m) => diatonicTarget(d, m))).map((i) => moves[i]);
         };
         const sKey = `${c.moves}|${c.dead}|${c.reach}|${c.enterFrames}`;
@@ -323,8 +326,11 @@ export const chordWheelNode = defineNode<Params>({
         const beatNext = realizer.beat() + ((chordCfg.bpm ?? c.bpm) / 60) * dt;
         const repeat = walker.step({ committed, pointing, seen: pointer !== null, now: ctx.time, beat: beatNext, beats: c.walk ? c.walkBeats : 0 });
         const made = committed ?? repeat;
+        // A walk keeps the order it started from, so a held push walks one move's cycle (the
+        // cycle of fourths) rather than the ranked wheel's loop.
+        if (committed !== null) walkMoves = state.chord ? movesFrom(state.chord) : moves;
         if (made !== null) {
-          const move = (state.chord ? movesFrom(state.chord) : moves)[made];
+          const move = (repeat !== null && walkMoves ? walkMoves : state.chord ? movesFrom(state.chord) : moves)[made];
           const before = state.chord;
           state = applyIntents(state, [{ kind: 'step', relation: move, at: ctx.time }]);
           if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: RELATIONS.get(move)?.label ?? move };
@@ -361,7 +367,8 @@ export const chordWheelNode = defineNode<Params>({
           const t = model && target ? tensionText(model, target, k) : '';
           return t ? `${sub} · ${t}` : sub;
         };
-        const wedgeMoves = chord ? movesFrom(chord) : moves;
+        const ranked = !!chord && prior !== null && degreeIn(chord) >= 0;
+        const wedgeMoves = walker.walking() && walkMoves ? walkMoves : chord ? movesFrom(chord) : moves;
         const gridCells: GridCell[] = chord
           ? cells.map((cell, i) => {
               if (i === 0) return { x: cell.x, y: cell.y, w: cell.w, h: cell.h, shape: 'hex', label: chordName(chord, k), sub: withTension(state!.fn?.numeral ?? '', chord), color: colorOf(chord, k), state: sounding ? 'active' : 'idle' };
@@ -382,7 +389,7 @@ export const chordWheelNode = defineNode<Params>({
           : [];
         // The model's name over the wheel, whenever a number is shown.
         const captions = model && gridCells.length ? [{ x: cells[0].x, y: Math.max(0.03, cells[0].y - c.radius - TENSION_CAPTION_GAP), text: `Tension: ${model.name}` }] : [];
-        if (prior && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `Most likely on top: ${prior.name}` });
+        if (ranked && !walker.walking() && gridCells.length) captions.push({ x: cells[0].x, y: Math.min(0.97, cells[0].y + c.radius + TENSION_CAPTION_GAP), text: `Most likely on top: ${prior.name}` });
         const grid: CellGrid = { cells: gridCells, captions, pointers: pointer ? [pointer] : [] };
         status = {
           ...status,

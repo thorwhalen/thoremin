@@ -185,6 +185,10 @@ describe('the chord-wheel node', () => {
     const grid = first[first.length - 1].grid;
     expect(grid.cells.slice(1).map((c) => c.label)).toEqual(['F', 'G', 'Am', 'Em', 'Dm', 'B°']);
     expect(grid.captions.map((c) => c.text)).toEqual(["Most likely on top: Piston's usual root progressions"]);
+    // A held walk keeps the order it started from: the top wedge from C walks the cycle of fourths.
+    const hold = [at(null), ...Array.from({ length: 22 }, () => at(0))];
+    const walked = play(hold, { order: 'likely', walk: true, bpm: 120 });
+    expect(walked.map((o) => o.status.chord).filter((c, i, a) => c !== a[i - 1])).toEqual(['C', 'F', 'B°', 'Em', 'Am', 'Dm', 'G', 'C']);
     // The Tonnetz's moves leave the key: always in their places.
     const tonnetz = play([at(null)], { order: 'likely', moves: 'tonnetz' });
     expect(tonnetz[tonnetz.length - 1].grid.captions).toEqual([]);

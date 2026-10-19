@@ -13,11 +13,12 @@
  * - `profile`: the Krumhansl-Kessler key profile (probe-tone ratings, 1982): one minus the
  *   chord's mean rating over the tonic's, so a chord of well-fitting tones is calm.
  *
- * The three disagree on purpose: the profile hears V's leading tone and ranks ii calmer than V,
- * the functional ladder puts ii with IV, and Lerdahl puts ii further than V. Pure.
+ * The three disagree, which is the point of naming them: the functional ladder makes V tenser
+ * than ii (a dominant pulls), while Lerdahl's distance and the key profile both put ii further
+ * from home than V. Pure.
  */
 import { diatonicChords, functionOf, parentKey, pitchClasses, type Chord, type Key } from './chord';
-import { SCALE_TYPES } from '../music/theory';
+import { SCALE_TYPES, scalePitchClasses } from '../music/theory';
 
 export const TENSION_MODEL_IDS = ['function', 'tps', 'profile'] as const;
 export type TensionModelId = (typeof TENSION_MODEL_IDS)[number];
@@ -47,6 +48,8 @@ const functionModel: TensionModel = {
     if (!fn || fn.alter !== undefined || fn.of !== undefined) return null;
     const own = diatonicChords(key)[fn.degree];
     if (own.root !== chord.root || own.quality !== chord.quality) return null;
+    // A leading-tone chord pulls like a dominant in any mode (vii° in harmonic minor too).
+    if (fn.degree === 6 && own.quality === 'dim') return FUNCTION_LADDER[6];
     return (isMinorKey(key) ? FUNCTION_LADDER_MINOR : FUNCTION_LADDER)[fn.degree];
   },
 };
@@ -64,11 +67,14 @@ const regionPcs = (tonic: number): Set<number> => new Set(SCALE_TYPES.major.inte
 
 /** The basic space of a chord in a region, level by level: root, root and fifth, the triad, the
  *  region's diatonic set (the chromatic level never differs). */
-function basicSpace(chord: Chord, region: number): Set<number>[] {
+function basicSpace(chord: Chord, region: Set<number>): Set<number>[] {
   const tones = pitchClasses(chord);
   const fifth = tones.find((t) => pc(t - chord.root) === 7 || pc(t - chord.root) === 6) ?? tones[2] ?? chord.root;
-  return [new Set([chord.root]), new Set([chord.root, fifth]), new Set(tones.slice(0, 3)), regionPcs(region)];
+  return [new Set([chord.root]), new Set([chord.root, fifth]), new Set(tones.slice(0, 3)), region];
 }
+
+/** The pitch classes of the basic space of `to` not in that of `from`, over the levels. */
+const newTones = (a: Set<number>[], b: Set<number>[]): number => b.reduce((n, level, li) => n + [...level].filter((x) => !a[li].has(x)).length, 0);
 
 /** Steps between two roots on a region's diatonic circle of fifths (B to F counts as one). */
 function diatonicFifths(a: number, b: number, region: number): number {
@@ -89,9 +95,7 @@ export function tpsDistance(from: Chord, fromRegion: number, to: Chord): number 
     if (!tones.slice(0, 3).every((t) => set.has(t))) continue;
     const i = fifths(fromRegion, r);
     const j = i === 0 ? diatonicFifths(from.root, to.root, r) : fifths(from.root, to.root);
-    const a = basicSpace(from, fromRegion);
-    const b = basicSpace(to, r);
-    const k = b.reduce((n, level, li) => n + [...level].filter((x) => !a[li].has(x)).length, 0);
+    const k = newTones(basicSpace(from, regionPcs(fromRegion)), basicSpace(to, set));
     best = Math.min(best, i + j + k);
   }
   return best;
@@ -101,12 +105,22 @@ const tpsModel: TensionModel = {
   id: 'tps',
   name: "Lerdahl's tonal pitch space (distance from the tonic chord)",
   tension(chord, key) {
-    // A minor key's region is its relative major's collection (Lerdahl's diatonic level).
     const parent = parentKey(key);
+    const chords = diatonicChords(key);
+    const tonic = chords[0];
+    // A chord of the key: its own collection is the region (harmonic minor's raised seventh
+    // included), i = 0, and j counts fifths on the key's diatonic circle (degree steps of four).
+    const d = chords.findIndex((c) => c.root === chord.root && c.quality === chord.quality);
+    if (d >= 0) {
+      const own = new Set(scalePitchClasses(parent.tonic, parent.scale));
+      const s = (d * 2) % 7;
+      return Math.min(s, 7 - s) + newTones(basicSpace(tonic, own), basicSpace(chord, own));
+    }
+    // Outside the key: the nearest major region, from the key's natural collection (a minor
+    // key's is its relative major's).
     const region = isMinorKey(key) ? pc(parent.tonic + 3) : parent.tonic;
-    const tonic = diatonicChords(key)[0];
-    const d = tpsDistance(tonic, region, chord);
-    return Number.isFinite(d) ? d : null;
+    const dist = tpsDistance(tonic, region, chord);
+    return Number.isFinite(dist) ? dist : null;
   },
 };
 

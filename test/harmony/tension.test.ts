@@ -30,6 +30,13 @@ describe('tension models', () => {
     expect(tensionText(TENSION_MODELS.function, { root: 8, quality: 'maj' }, C)).toBe('');
   });
 
+  it('harmonic minor: its own collection is the region (V is 5 from i), its leading-tone chord pulls like a dominant', () => {
+    const am: Key = { tonic: 9, scale: 'minorHarmonic' };
+    expect(by('tps', am)).toEqual({ Am: 0, 'B°': 8, 'C+': 7, Dm: 5, E: 5, F: 7, 'G#°': 8 });
+    expect(by('function', am)['G#°']).toBe(4);
+    expect(by('function', am).E).toBe(3);
+  });
+
   it('the models disagree, which is why every display names one', () => {
     const rank = (id: keyof typeof TENSION_MODELS) => (by(id, C).G! > by(id, C).Dm! ? 'V' : by(id, C).G! < by(id, C).Dm! ? 'ii' : 'tie');
     expect([rank('function'), rank('tps'), rank('profile')]).toEqual(['V', 'ii', 'ii']);
