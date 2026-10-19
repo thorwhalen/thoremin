@@ -36,6 +36,8 @@ import { CHORD_WHEEL_ELEMENT } from './branches';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
+import { DRUM_PADS_ELEMENT, drumPadsElement } from './nodes/overlay/drum_pads';
+import { BREATH_CUE_ELEMENT, breathCueElement } from './nodes/overlay/breath_cue';
 
 /** What every air instrument changes besides its own dial: the theremin voices silent, no
  *  note grid, no note names on the hands. */
@@ -68,9 +70,18 @@ export const AIR_EXTENSION = defineExtension({
     // The chord wheel steps through a space of chords from the chord-source key.
     { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
   ],
-  // The chord wheel's drawing (#600 S5): its own overlay element, fed its grid, configured by its dial.
-  overlay: [{ name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } }],
+  // Its overlay elements: the chord wheel's grid (#600 S5), fed its grid, configured by its dial;
+  // and (#600 S10; they were core's) the drum's pads and sticks on the video, just beneath the chord
+  // map's grid where core drew them, and the flute's breath cue, stacked on its edge where core put
+  // it. Every element's options are this extension's dials, delivered by the host.
+  overlay: [
+    { name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } },
+    { name: DRUM_PADS_ELEMENT, category: 'guide', drawBefore: 'cellGrid', inputs: [{ name: 'hits', kind: 'drum-hits' }, { name: 'hands', kind: 'hands-frame' }], config: { dialKey: 'airDrum' } },
+    { name: BREATH_CUE_ELEMENT, category: 'output', cue: true, drawBefore: 'faceExpression', inputs: [{ name: 'status', kind: 'air-flute-status' }], config: { dialKey: 'airFlute' } },
+  ],
   overlayElements: [
+    drumPadsElement,
+    breathCueElement,
     {
       name: CHORD_WHEEL_ELEMENT,
       draw(g, frame, inputs) {

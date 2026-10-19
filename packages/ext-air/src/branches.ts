@@ -6,6 +6,8 @@
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
+import { DRUM_PADS_ELEMENT } from './nodes/overlay/drum_pads';
+import { BREATH_CUE_ELEMENT } from './nodes/overlay/breath_cue';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });
@@ -25,12 +27,14 @@ export const airDrum = defineBranch({
     to({ node: 'conductor', port: 'time' }, { node: 'airDrum', port: 'time' }, true),
     // #269: the trained pattern in play (pattern + model), or null: the pattern mode.
     to(ui('airDrumPattern'), { node: 'airDrum', port: 'pattern' }),
-    to(ui('airDrum'), overlay('airDrumConfig')),
-    to({ node: 'airDrum', port: 'hits' }, overlay('drumHits')),
+    // The pads on the video (#600 S10: this extension's own overlay element). Its config, the
+    // `airDrum` dial, is delivered by the host.
+    to({ node: 'airDrum', port: 'hits' }, overlay(overlayPortName('air', DRUM_PADS_ELEMENT, 'hits'))),
+    to({ node: TRUNK.cam, port: 'hands' }, overlay(overlayPortName('air', DRUM_PADS_ELEMENT, 'hands'))),
     to({ node: 'airDrum', port: 'hits' }, { node: 'drumOut', port: 'hits' }),
     to(ui('muteStrikes'), { node: 'drumOut', port: 'mute' }),
   ],
-  overlay: ['drumPads'],
+  overlay: [overlayElementId('air', DRUM_PADS_ELEMENT)],
 });
 
 export const airBass = defineBranch({
@@ -72,7 +76,9 @@ export const airFlute = defineBranch({
   description: 'The air flute: enrolled fingerings choose the note, an enrolled breath gates it (face inputs optional).',
   nodes: [{ id: 'airFlute', type: 'air-flute', params: {} }],
   edges: [
-    to({ node: 'airFlute', port: 'status' }, overlay('airFluteStatus')),
+    // The breath cue (#600 S10: this extension's own overlay cue); its config, the `airFlute` dial,
+    // is delivered by the host.
+    to({ node: 'airFlute', port: 'status' }, overlay(overlayPortName('air', BREATH_CUE_ELEMENT, 'status'))),
     to({ node: TRUNK.hands, port: 'hands' }, { node: 'airFlute', port: 'hands' }),
     to({ node: 'faceVec', port: 'vector' }, { node: 'airFlute', port: 'face' }, true),
     to({ node: 'camFace', port: 'face' }, { node: 'airFlute', port: 'faceFrame' }, true),
@@ -82,7 +88,7 @@ export const airFlute = defineBranch({
     to(ui('octaveShift'), { node: 'airFlute', port: 'octaveShift' }),
   ],
   voices: [{ from: { node: 'airFlute', port: 'params' }, role: 'instrument' }],
-  overlay: ['mouthCue'],
+  overlay: [overlayElementId('air', BREATH_CUE_ELEMENT)],
 });
 
 export const chordMap = defineBranch({

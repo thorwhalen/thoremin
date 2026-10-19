@@ -71,7 +71,6 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
   { name: 'bodySkeleton', label: 'Body skeleton' },
   { name: 'conductorHud', label: 'Conductor beat' },
-  { name: 'drumPads', label: 'Drum pads and sticks' },
   { name: 'cellGrid', label: 'Chord map and other targets' },
   {
     // Feature Instrumentation Lab (#119) — owned by the LAB panel, not the instrument's
@@ -105,12 +104,6 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   {
     name: 'fingerBars',
     label: 'Finger bar graph',
-    position: true,
-  },
-  {
-    name: 'mouthCue',
-    label: 'Breath (air flute)',
-    toggles: [],
     position: true,
   },
   {

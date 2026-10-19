@@ -30,6 +30,7 @@ import { ConductorSettingsSchema, defaultSteerConfig, EXTENSION_DIAL_SCHEMAS, LE
 import { thoreminDials, settingsToLayer, layerToSettings } from '@/settings/dials';
 import { SettingsSchema, type Settings } from '@/settings/schema';
 import { CONTRIBUTIONS } from '@/host/contributions';
+import { migrateLayerSlices } from '@/host/slices';
 import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerRoute, type FingerTarget } from '@/nodes/mapping/hand_map.schema';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
@@ -381,7 +382,10 @@ function isFreshBrowser(): boolean {
  *   absence is meaningful (the legacy `octaves` span path).
  */
 export function normalizeLayer(layer: Layer): Layer {
-  let out = layer;
+  // The extensions' dial chains first (#600 S10): an instrument saved before a dial took over a
+  // value from another (the air drum's pads from `overlay.drumPads`) gets the same move the hot
+  // store gets, so its visible state is the same; the heal below then fills what is still missing.
+  let out = migrateLayerSlices(layer, CONTRIBUTIONS.dialSlices);
   for (const key of thoreminDials.keys) {
     const dflt = thoreminDials.defaults[key];
     if (dflt === undefined || out[key] !== undefined) continue;

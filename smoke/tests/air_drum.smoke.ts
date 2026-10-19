@@ -51,6 +51,6 @@ test('the Air drum joins the graph and hits when the synthetic hand strikes', as
     .toBeGreaterThan(0);
   expect(await page.evaluate(() => window.thoremin!.audio().state)).toBe('running');
   const elements = await page.evaluate(() => window.thoremin!.getOutput('ui', 'graphElements') as string[] | undefined);
-  expect(elements).toContain('drumPads');
+  expect(elements).toContain('air/drumPads'); // the air extension's element since #600 S10
   expect(errors).toEqual([]);
 });

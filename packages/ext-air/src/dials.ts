@@ -26,8 +26,13 @@ import { dialSlice } from '@thoremin/sdk/instruments/extension';
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id
  *  of a trained pattern, '' for none), which the node never sees as a param (the app resolves
  *  it to the pattern and its model and hands those to the node's `pattern` port). */
+/** The pads and sticks drawn on the video (#600 S10: the drum's own overlay element; this was
+ *  `overlay.drumPads` in core's overlay dial). */
+const PadsOnVideoSchema = z.object({ show: z.boolean().default(true) }).prefault({});
+
 export const AirDrumSettingsSchema = AirDrumDialSchema.extend({
   pattern: z.string().default(''),
+  padsOnVideo: PadsOnVideoSchema,
 });
 export type AirDrumSettings = z.infer<typeof AirDrumSettingsSchema>;
 export const DEFAULT_AIR_DRUM: AirDrumSettings = AirDrumSettingsSchema.parse({});
@@ -40,9 +45,31 @@ export const AirGuitarSettingsSchema = AirGuitarDialSchema;
 export type AirGuitarSettings = z.infer<typeof AirGuitarSettingsSchema>;
 export const DEFAULT_AIR_GUITAR: AirGuitarSettings = AirGuitarSettingsSchema.parse({});
 
+/** Which screen edge a HUD cue sits on (the overlay's cue layout). */
+const CueEdge = z.enum(['left', 'right', 'top', 'bottom']);
+
+/** The breath cue on the video (#600 S10: the flute's own overlay cue; this was
+ *  `overlay.mouthCue` in core's overlay dial). */
+const BreathCueSchema = z.object({ show: z.boolean().default(true), position: CueEdge.default('left') }).prefault({});
+
 export const AirFluteSettingsSchema = AirFluteDialSchema.extend({
   prior: FingeringPriorSettingsSchema.default(DEFAULT_FINGERING_PRIOR),
+  breathCue: BreathCueSchema,
 });
+
+/**
+ * v1 -> v2 of a dial whose element moved out of core's overlay (#600 S10): the element's options,
+ * stored until now at `overlay.<element>` in the same blob (or saved instrument), move to
+ * `<dial>.<field>`. Idempotent: a value already there is kept; nothing to move leaves the field
+ * for the schema's default. Returns a new value.
+ */
+const movedFromOverlay = (element: string, field: string, schema: z.ZodTypeAny) => (old: unknown, stored: Readonly<Record<string, unknown>>): unknown => {
+  if (!old || typeof old !== 'object' || field in old) return old;
+  // Only a valid value moves: a corrupt one (`{ show: null }`) would fail the whole dial's heal
+  // and reset everything else in it; it is left behind, and the field takes its default.
+  const legacy = schema.safeParse((stored.overlay as Record<string, unknown> | undefined)?.[element]);
+  return legacy.success && (stored.overlay as Record<string, unknown> | undefined)?.[element] !== undefined ? { ...(old as object), [field]: legacy.data } : old;
+};
 export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
 export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 
@@ -69,7 +96,9 @@ export const AIR_SETTINGS_SHAPE = {
 export const AIR_DIAL_SLICES = [
   dialSlice({
     // This slice's own schema version (#600 S9): a stored-shape change bumps it with a migration.
-    version: 1,
+    version: 2,
+    // v2 (#600 S10): the pads' show flag moved in from `overlay.drumPads`.
+    migrations: { 1: movedFromOverlay('drumPads', 'padsOnVideo', PadsOnVideoSchema) },
     key: 'airDrum',
     schema: AIR_SETTINGS_SHAPE.airDrum,
     kind: 'air-drum-config',
@@ -102,7 +131,9 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
-    version: 1,
+    // v2 (#600 S10): the breath cue's options moved in from `overlay.mouthCue`.
+    version: 2,
+    migrations: { 1: movedFromOverlay('mouthCue', 'breathCue', BreathCueSchema) },
     key: 'airFlute',
     schema: AIR_SETTINGS_SHAPE.airFlute,
     kind: 'air-flute-config',

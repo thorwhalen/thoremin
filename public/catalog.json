@@ -858,24 +858,32 @@
         "kind": "feature-vector"
       },
       {
-        "name": "airDrumConfig",
-        "kind": "air-drum-config"
-      },
-      {
-        "name": "drumHits",
-        "kind": "drum-hits"
-      },
-      {
-        "name": "airFluteStatus",
-        "kind": "air-flute-status"
-      },
-      {
         "name": "air.chordWheel.grid",
         "kind": "cell-grid"
       },
       {
         "name": "air.chordWheel.config",
         "kind": "chord-wheel-config"
+      },
+      {
+        "name": "air.drumPads.hits",
+        "kind": "drum-hits"
+      },
+      {
+        "name": "air.drumPads.hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "air.drumPads.config",
+        "kind": "air-drum-config"
+      },
+      {
+        "name": "air.mouthCue.status",
+        "kind": "air-flute-status"
+      },
+      {
+        "name": "air.mouthCue.config",
+        "kind": "air-flute-config"
       }
     ],
     "outputs": [],

@@ -184,11 +184,13 @@ export function FluteChartControls({ prior, enabled }: { prior: Partial<Fingerin
 
 export function AirFluteControls() {
   const { state } = useDialsSettings();
-  const c = (state.effective.airFlute ?? {}) as Partial<AirFluteDialParams> & { prior?: Partial<FingeringPriorSettings> };
+  const c = (state.effective.airFlute ?? {}) as Partial<AirFluteDialParams> & { prior?: Partial<FingeringPriorSettings>; breathCue?: { show?: boolean; position?: string } };
   const enabled = c.enabled === true;
   const breath = c.breath ?? 'mouth';
   const volume = c.volume ?? 0.5;
   const prior = c.prior;
+  const cueShown = c.breathCue?.show !== false;
+  const cueEdge = c.breathCue?.position ?? 'left';
   return (
     <div className="space-y-2">
       <AirFluteReadout />
@@ -228,6 +230,23 @@ export function AirFluteControls() {
           ))}
         </select>
       </label>
+      {/* The breath cue on the video (#600 S10: the flute's own overlay cue; its toggle and edge
+          moved here from the Overlay section with it). */}
+      {breath === 'mouth' && (
+        <label className="flex items-center justify-between gap-2 text-xs">
+          <span className="flex items-center gap-2">
+            <input type="checkbox" checked={cueShown} disabled={!enabled} onChange={(e) => dispatchDialSetIn('airFlute.breathCue.show', e.target.checked)} />
+            Breath cue on the video
+          </span>
+          <select className={selectCls} value={cueEdge} disabled={!enabled || !cueShown} aria-label="Breath cue edge" onChange={(e) => dispatchDialSetIn('airFlute.breathCue.position', e.target.value)}>
+            {(['left', 'right', 'top', 'bottom'] as const).map((edge) => (
+              <option key={edge} value={edge}>
+                {edge}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {breath === 'mouth' && (
         <VocabularyEnrolment
           enabled={enabled}

@@ -33,9 +33,14 @@ export interface ContributedElement {
 export interface ContributedView {
   W: number;
   H: number;
+  /** The engine time of this frame. */
+  t: number;
   layout: Record<string, { x: number; y: number }>;
   /** True on the overlay-only (alpha) pass: the transparent take, with no backdrop. */
   overlayOnly?: boolean;
+  /** Each contributed element's state in THIS overlay instance, by element id (made in the node's
+   *  `make`, so a new overlay, or one built from a reused registry, starts fresh). */
+  elementState?: Record<string, { memo: Record<string, unknown>; broken: boolean }>;
   contributed?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
@@ -58,17 +63,22 @@ const reportBroken = (id: string, err: unknown): void => console.error(`[thoremi
  * other elements or the nodes after the overlay down with it.
  */
 export function adaptContributed<V extends ContributedView>(c: ContributedElement): DrawnElement<V> {
-  let broken = false;
-  const frameOf = (view: V): OverlayFrame => ({ W: view.W, H: view.H, origin: view.layout[c.id], overlayOnly: view.overlayOnly === true });
+  /** This element's state in the overlay instance drawing it (kept on the view by that instance). */
+  const stateOf = (view: V): { memo: Record<string, unknown>; broken: boolean } => {
+    const all = (view.elementState ??= {});
+    return (all[c.id] ??= { memo: {}, broken: false });
+  };
+  const frameOf = (view: V): OverlayFrame => ({ W: view.W, H: view.H, t: view.t, origin: view.layout[c.id], overlayOnly: view.overlayOnly === true });
   const inputsOf = (view: V): Readonly<Record<string, unknown>> => view.contributed?.[c.id] ?? {};
-  /** Run `f` against the impl, unless it is absent or broke before; a throw breaks it. */
-  const guarded = <T>(fallback: T, f: (impl: OverlayElementImpl) => T): T => {
-    const impl = broken ? undefined : c.impl();
+  /** Run `f` against the impl, unless it is absent or broke before in this overlay; a throw breaks it. */
+  const guarded = <T>(view: V, fallback: T, f: (impl: OverlayElementImpl) => T): T => {
+    const state = stateOf(view);
+    const impl = state.broken ? undefined : c.impl();
     if (!impl) return fallback;
     try {
       return f(impl);
     } catch (err) {
-      broken = true;
+      state.broken = true;
       reportBroken(c.id, err);
       return fallback;
     }
@@ -77,10 +87,10 @@ export function adaptContributed<V extends ContributedView>(c: ContributedElemen
     name: c.id,
     category: c.decl.category,
     draw(g, view) {
-      guarded(undefined, (impl) => {
+      guarded(view, undefined, (impl) => {
         g.save();
         try {
-          impl.draw(g, frameOf(view), inputsOf(view));
+          impl.draw(g, frameOf(view), inputsOf(view), stateOf(view).memo);
         } finally {
           g.restore();
         }
@@ -89,23 +99,26 @@ export function adaptContributed<V extends ContributedView>(c: ContributedElemen
   };
   if (c.decl.cue) {
     el.cue = true;
-    el.measure = (view) => guarded(null, (impl) => impl.measure?.(frameOf(view), inputsOf(view)) ?? null);
-    el.positionOf = (view) => guarded('right' as const, (impl) => impl.positionOf?.(frameOf(view), inputsOf(view)) ?? 'right');
+    el.measure = (view) => guarded(view, null, (impl) => impl.measure?.(frameOf(view), inputsOf(view)) ?? null);
+    el.positionOf = (view) => guarded(view, 'right' as const, (impl) => impl.positionOf?.(frameOf(view), inputsOf(view)) ?? 'right');
   }
   return el;
 }
 
-/** The draw list with the contributed elements in place (z order): in-scene ones above every core
- *  in-scene element and below the HUD cues; cues among the core cues, below the tag HUD (and so
- *  below the trainer HUD and the finger bars, which stay on top). */
-export function withContributed<E extends { name: string; cue?: boolean }>(core: readonly E[], contributed: readonly E[]): readonly E[] {
+/** The draw list with the contributed elements in place (z order): one that names a core element
+ *  (`drawBefore`) just beneath it; otherwise in-scene ones above every core in-scene element and
+ *  below the HUD cues, and cues among the core cues, below the tag HUD (and so below the trainer
+ *  HUD and the finger bars, which stay on top). */
+export function withContributed<E extends { name: string; cue?: boolean }>(core: readonly E[], contributed: readonly E[], before: Readonly<Record<string, string | undefined>> = {}): readonly E[] {
   if (contributed.length === 0) return core;
-  const scene = contributed.filter((e) => !e.cue);
-  const cues = contributed.filter((e) => e.cue);
-  const at = (i: number) => (i < 0 ? core.length : i);
   const out = [...core];
-  out.splice(at(core.findIndex((e) => e.name === 'tagHud')), 0, ...cues);
-  out.splice(at(core.findIndex((e) => e.cue)), 0, ...scene);
+  // An element that names the core element it draws beneath goes just before it.
+  const placed = contributed.filter((e) => before[e.name] && out.some((c) => c.name === before[e.name]));
+  const rest = contributed.filter((e) => !placed.includes(e));
+  const at = (i: number) => (i < 0 ? out.length : i);
+  out.splice(at(out.findIndex((e) => e.name === 'tagHud')), 0, ...rest.filter((e) => e.cue));
+  out.splice(at(out.findIndex((e) => e.cue)), 0, ...rest.filter((e) => !e.cue));
+  for (const e of placed) out.splice(out.findIndex((c) => c.name === before[e.name]), 0, e);
   return out;
 }
 

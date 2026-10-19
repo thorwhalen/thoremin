@@ -5,7 +5,7 @@
  * no chain claims is foreign and carried with its version; the caller's blob is never edited.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { migrateSlices, sliceChains, sliceVersionsToWrite, storedSliceVersions, type SliceChain } from '@/host/slices';
+import { migrateLayerSlices, migrateSlices, sliceChains, sliceVersionsToWrite, storedSliceVersions, type SliceChain } from '@/host/slices';
 
 const rename: SliceChain = { key: 'x', version: 3, migrations: { 1: (o) => ({ ...(o as object), b: (o as { a: number }).a }), 2: (o) => ({ ...(o as object), c: true }) }, legacyKeys: [] };
 
@@ -66,5 +66,30 @@ describe('migrateSlices', () => {
     const src = { m: { a: 1 } };
     expect(migrateSlices(src, [mutating]).blob.m).toEqual({ a: 9 });
     expect(src.m.a).toBe(1);
+  });
+});
+
+describe('migrateLayerSlices (a saved instrument, #600 S10)', () => {
+  const move = (old: unknown, stored: Readonly<Record<string, unknown>>) =>
+    old && typeof old === 'object' && !('shown' in old) ? { ...(old as object), shown: (stored.overlay as { flag?: unknown } | undefined)?.flag ?? true } : old;
+  const slice = { key: 'dial', version: 2, migrations: { 1: move }, schema: { parse: () => ({ on: false, shown: true }) } };
+
+  it('runs the chain on a dial saved before its current field, reading the layer', () => {
+    const layer = { dial: { on: true }, overlay: { flag: false } };
+    expect(migrateLayerSlices(layer, [slice])).toEqual({ dial: { on: true, shown: false }, overlay: { flag: false } });
+    expect(layer.dial).toEqual({ on: true });
+  });
+
+  it('leaves a current dial, a version-1 slice and an absent dial as they are (the same object)', () => {
+    const current = { dial: { on: true, shown: false } };
+    expect(migrateLayerSlices(current, [slice])).toBe(current);
+    expect(migrateLayerSlices(current, [{ ...slice, version: 1 }])).toBe(current);
+    const absent = { other: 1 };
+    expect(migrateLayerSlices(absent, [slice])).toBe(absent);
+  });
+
+  it('a step that throws leaves that dial as saved', () => {
+    const layer = { dial: { on: true } };
+    expect(migrateLayerSlices(layer, [{ ...slice, migrations: { 1: () => { throw new Error('x'); } } }])).toBe(layer);
   });
 });

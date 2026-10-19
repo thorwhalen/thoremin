@@ -1,153 +1,4 @@
 {
-  "airBass": {
-    "enabled": false,
-    "hysteresis": 0.3,
-    "minLead": 0.05,
-    "minSpeed": 0.4,
-    "minStroke": 0.02,
-    "mirrorHandedness": true,
-    "neckFar": 7,
-    "neckNear": 2,
-    "pluckHand": "right",
-    "pluckPoint": "indexTip",
-    "smoothing": 0.1,
-    "volume": 0.8
-  },
-  "airDrum": {
-    "enabled": true,
-    "hand": "both",
-    "hardHit": 4,
-    "leftSound": "snare",
-    "magnetism": 0,
-    "minLead": 0.05,
-    "minSpeed": 0.5,
-    "minStroke": 0.03,
-    "mirrorHandedness": true,
-    "offPad": "hand",
-    "pads": {
-      "p1": {
-        "color": "#e11d48",
-        "h": 0.24,
-        "on": false,
-        "shape": "circle",
-        "sound": "snare",
-        "w": 0.18,
-        "x": 0.5,
-        "y": 0.72
-      },
-      "p2": {
-        "color": "#eab308",
-        "h": 0.2,
-        "on": false,
-        "shape": "circle",
-        "sound": "hihat",
-        "w": 0.16,
-        "x": 0.26,
-        "y": 0.6
-      },
-      "p3": {
-        "color": "#3b82f6",
-        "h": 0.22,
-        "on": false,
-        "shape": "circle",
-        "sound": "tom",
-        "w": 0.16,
-        "x": 0.74,
-        "y": 0.6
-      },
-      "p4": {
-        "color": "#14b8a6",
-        "h": 0.22,
-        "on": false,
-        "shape": "circle",
-        "sound": "crash",
-        "w": 0.18,
-        "x": 0.14,
-        "y": 0.3
-      },
-      "p5": {
-        "color": "#a855f7",
-        "h": 0.22,
-        "on": false,
-        "shape": "circle",
-        "sound": "ride",
-        "w": 0.18,
-        "x": 0.86,
-        "y": 0.3
-      },
-      "p6": {
-        "color": "#f97316",
-        "h": 0.12,
-        "on": false,
-        "shape": "rect",
-        "sound": "kick",
-        "w": 0.3,
-        "x": 0.5,
-        "y": 0.8
-      },
-      "p7": {
-        "color": "#22c55e",
-        "h": 0.2,
-        "on": false,
-        "shape": "circle",
-        "sound": "tom",
-        "w": 0.16,
-        "x": 0.8,
-        "y": 0.76
-      },
-      "p8": {
-        "color": "#64748b",
-        "h": 0.14,
-        "on": false,
-        "shape": "rect",
-        "sound": "snare",
-        "w": 0.16,
-        "x": 0.2,
-        "y": 0.78
-      }
-    },
-    "pattern": "",
-    "point": "stickTip",
-    "rightSound": "kick",
-    "stickLength": 3,
-    "volume": 0.8
-  },
-  "airFlute": {
-    "breath": "mouth",
-    "breathFrames": 2,
-    "enabled": false,
-    "enterFrames": 3,
-    "faceHold": 0.3,
-    "mirrorHandedness": true,
-    "prior": {
-      "chart": "flute",
-      "enabled": true,
-      "high": "C#6",
-      "low": "C4",
-      "strength": 10
-    },
-    "volume": 0.5
-  },
-  "airGuitar": {
-    "enabled": false,
-    "enterFrames": 3,
-    "minLead": 0.05,
-    "minSpeed": 0.5,
-    "minStroke": 0.03,
-    "mirrorHandedness": true,
-    "strumHand": "right",
-    "strumPoint": "wrist",
-    "strumSpread": 0.012,
-    "volume": 0.7
-  },
-  "asl": {
-    "chords": false,
-    "enabled": false,
-    "holdChord": true,
-    "minConfidence": 0.45,
-    "motion": true,
-    "smoothing": 0.12
-  },
   "audioPrefs": {
     "lowLatency": false
   },
@@ -194,82 +45,6 @@
         "target": "none"
       }
     }
-  },
-  "categorizerChords": {
-    "degrees": {
-      "cat-1": -2,
-      "cat-10": -2,
-      "cat-11": -2,
-      "cat-12": -2,
-      "cat-2": -2,
-      "cat-3": -2,
-      "cat-4": -2,
-      "cat-5": -2,
-      "cat-6": -2,
-      "cat-7": -2,
-      "cat-8": -2,
-      "cat-9": -2
-    },
-    "id": ""
-  },
-  "chordMap": {
-    "bpm": 100,
-    "captions": true,
-    "cellSize": 0.2,
-    "chordHand": "left",
-    "enabled": false,
-    "enterFrames": 2,
-    "gain": 0.22,
-    "hysteresis": 0.12,
-    "layout": "harmonic",
-    "melody": true,
-    "melodyNotes": "chord",
-    "melodyOctaves": 2,
-    "melodySound": "triangle",
-    "melodyVolume": 0.45,
-    "minLead": 0.05,
-    "minSpeed": 0.5,
-    "minStroke": 0.03,
-    "mirrorHandedness": true,
-    "play": "hold",
-    "point": "palm",
-    "releaseS": 0.3,
-    "rendering": "sustained",
-    "sevenths": false,
-    "sound": "warmPad",
-    "split": 0.65,
-    "strumPoint": "wrist",
-    "strumSpread": 0.012,
-    "voicing": "spread",
-    "volume": 0.7
-  },
-  "chordWheel": {
-    "bpm": 100,
-    "dead": 0.07,
-    "enabled": false,
-    "enterFrames": 3,
-    "faceFrames": 6,
-    "faceMoves": {
-      "angry": "",
-      "disgusted": "",
-      "fearful": "",
-      "happy": "",
-      "kiss": "",
-      "sad": "",
-      "surprised": ""
-    },
-    "gain": 0.22,
-    "hand": "left",
-    "mirrorHandedness": true,
-    "moves": "diatonic",
-    "point": "palm",
-    "radius": 0.3,
-    "reach": 0.14,
-    "releaseS": 0.4,
-    "rendering": "sustained",
-    "sound": "warmPad",
-    "steer": "hand",
-    "voicing": "voiceLed"
   },
   "conductor": {
     "articulationFrom": "sharpness",
@@ -338,23 +113,6 @@
     "leadOffsets": {}
   },
   "faceCalibration": null,
-  "faceCategorizer": {
-    "degrees": {
-      "cat-1": -2,
-      "cat-10": -2,
-      "cat-11": -2,
-      "cat-12": -2,
-      "cat-2": -2,
-      "cat-3": -2,
-      "cat-4": -2,
-      "cat-5": -2,
-      "cat-6": -2,
-      "cat-7": -2,
-      "cat-8": -2,
-      "cat-9": -2
-    },
-    "id": "general"
-  },
   "faceChord": {
     "bpm": 100,
     "chordRoot": 0,
@@ -603,10 +361,6 @@
       "show": true
     }
   },
-  "poseCategorizer": {
-    "id": "",
-    "transport": false
-  },
   "right": {
     "baseOctave": 3,
     "octaves": 2,
@@ -615,18 +369,6 @@
     "root": 1,
     "sound": "bell",
     "type": "pentatonic"
-  },
-  "sliceVersions": {
-    "airBass": 1,
-    "airDrum": 1,
-    "airFlute": 1,
-    "airGuitar": 1,
-    "asl": 1,
-    "categorizerChords": 1,
-    "chordMap": 1,
-    "chordWheel": 1,
-    "faceCategorizer": 1,
-    "poseCategorizer": 1
   },
   "songPrefs": {
     "follow": false,

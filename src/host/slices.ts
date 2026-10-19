@@ -21,13 +21,13 @@
  * Pure: a blob in, a new blob out (the caller's is never edited), like `migrateControls`. A step
  * that throws drops its slice's value (the heal then fills the default) instead of failing.
  */
-import type { DialSlice, PrefSlice } from '@thoremin/sdk/instruments/extension';
+import type { DialSlice, PrefSlice, SliceMigration } from '@thoremin/sdk/instruments/extension';
 
 /** One slice's chain, as the host runs it. */
 export interface SliceChain {
   key: string;
   version: number;
-  migrations: Readonly<Record<number, (old: unknown) => unknown>>;
+  migrations: Readonly<Record<number, SliceMigration>>;
   legacyKeys: readonly string[];
 }
 
@@ -79,7 +79,7 @@ export function migrateSlices(persisted: unknown, chains: readonly SliceChain[])
     try {
       for (let v = from; v < c.version; v++) {
         const step = c.migrations[v];
-        if (step) value = step(value);
+        if (step) value = step(value, src);
       }
     } catch (err) {
       // A step that throws (a corrupt stored value its author did not expect) costs THIS slice
@@ -101,4 +101,36 @@ export function migrateSlices(persisted: unknown, chains: readonly SliceChain[])
  *  slices' stored ones, untouched. */
 export function sliceVersionsToWrite(chains: readonly SliceChain[], foreign: Readonly<Record<string, number>>): Record<string, number> {
   return { ...foreign, ...Object.fromEntries(chains.map((c) => [c.key, c.version])) };
+}
+
+/**
+ * A saved instrument's layer through the slices' chains (#600 S10): a layer records no slice
+ * version, so a dial slice's chain runs from version 1 on a layer whose dial lacks a field its
+ * current default has (it was saved before that field); steps are idempotent by contract, so a
+ * dial saved at a later version but missing some other field is unharmed. `stored` for the steps is
+ * the layer itself (a whole-object dial keeps the same key there as in the hot store). A step that
+ * throws leaves that dial as saved. Returns the same layer when nothing ran, else a new one.
+ */
+export function migrateLayerSlices<L extends Record<string, unknown>>(layer: L, slices: readonly { key: string; version?: number; migrations?: Readonly<Record<number, SliceMigration>>; schema: { parse(v: unknown): unknown } }[]): L {
+  let out = layer;
+  for (const slice of slices) {
+    const version = slice.version ?? 1;
+    const value = layer[slice.key];
+    if (version <= 1 || !slice.migrations || !value || typeof value !== 'object') continue;
+    const current = slice.schema.parse(undefined);
+    const missing = current && typeof current === 'object' && Object.keys(current).some((k) => !(k in (value as object)));
+    if (!missing) continue;
+    let next: unknown = structuredClone(value);
+    try {
+      for (let v = 1; v < version; v++) {
+        const step = slice.migrations[v];
+        if (step) next = step(next, layer);
+      }
+    } catch {
+      continue;
+    }
+    if (out === layer) out = { ...layer };
+    (out as Record<string, unknown>)[slice.key] = next;
+  }
+  return out;
 }

@@ -102,20 +102,22 @@ const Params = z.object({
    *  beat and flashes on it, the beat-in-bar count, the tempo, and the follower's state
    *  (waiting / holding). Draws only while conducting is on. */
   conductorHud: z.object({ show: z.boolean().default(true) }).prefault({}),
-  /** The air drum over the video (#245): its pads, each shape where it is struck, in its
-   *  colour, flashing when it is hit; and, when it tracks the stick tip, the virtual
-   *  sticks themselves, so a player sees what strikes the pads. Only while the drum is on. */
-  drumPads: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /** LEGACY (#600 S10, the expand step): the air drum's pads are the air extension's overlay
+   *  element now, and their show flag is `airDrum.padsOnVideo`, which a stored or saved value here
+   *  is moved into (the air drum dial's v1 -> v2 step). Still accepted on read until the contract
+   *  step removes it; marked `legacy`, so it is not a settable path (commands, palette, assistant). */
+  drumPads: z.object({ show: z.boolean().default(true) }).prefault({}).meta({ legacy: true }),
   /** A node's on-screen targets (the chord map's chords and melody ladder): labelled cells a
    *  hand points at, the one in force lit. Generic: any node emitting a `CellGrid` on the
    *  `cellGrid` input is drawn. Only while such a node is in the graph. */
   cellGrid: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
-  /** The air flute's breath cue (#249 / the instruments-as-graphs ADR): drawn only when the
-   *  flute's branch asks for it, so a flute that borrows the face for its breath never
-   *  brings the expression bars along. */
-  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}),
+  /** LEGACY (#600 S10, the expand step): the air flute's breath cue is the air extension's
+   *  overlay cue now, and its options are `airFlute.breathCue`, which a stored or saved value
+   *  here is moved into (the air flute dial's v1 -> v2 step). Still accepted on read until the
+   *  contract step removes it; marked `legacy`, so it is not a settable path. */
+  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}).meta({ legacy: true }),
   /**
    * Face-expression bar graph (HUD cue): a bar + firing tick per emotion; the winner
    * is highlighted. Optional vertical x-axis labels (the expression name and/or the
@@ -281,7 +283,6 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   bodySkeleton: 'input',
   landmarks: 'input',
   conductorHud: 'output',
-  drumPads: 'guide',
   cellGrid: 'guide',
   markers: 'output',
   fingerLines: 'output',
@@ -289,7 +290,6 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   featureLab: 'input',
   featureCorrelation: 'input',
   chordName: 'output',
-  mouthCue: 'output',
   faceExpression: 'output',
   categoryLabel: 'output',
   categoryBars: 'output',

@@ -106,6 +106,9 @@
         "y": 0.78
       }
     },
+    "padsOnVideo": {
+      "show": true
+    },
     "pattern": "",
     "point": "stickTip",
     "rightSound": "kick",
@@ -115,6 +118,10 @@
   "airDrumPattern": null,
   "airFlute": {
     "breath": "mouth",
+    "breathCue": {
+      "position": "left",
+      "show": true
+    },
     "breathFrames": 2,
     "enabled": false,
     "enterFrames": 3,
