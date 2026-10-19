@@ -13,9 +13,8 @@ import { z } from 'zod';
 import { SCALE_TYPES, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { SOUND_IDS, type SoundId } from '@thoremin/sdk/music/sounds';
 import { VOICINGS, RENDERINGS, type VoicingId, type RenderingId } from '@/music/voicing';
-import { BODY_MODELS, FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
+import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
-import { BodyMapSchema, DEFAULT_BODY_MAP } from '@/nodes/mapping/body_map.schema';
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import { FaceControlsDialSchema, DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls.schema';
 import { ConductorDialSchema, LeadOffsetsSchema } from '@/nodes/features/conductor.schema';
@@ -196,18 +195,6 @@ export const HandsSettingsSchema = z.object({
 export type HandsSettings = z.infer<typeof HandsSettingsSchema>;
 export const DEFAULT_HANDS: HandsSettings = { handednessDwell: DEFAULT_HANDEDNESS_DWELL_FRAMES };
 
-/** The body source (#186): on/off + which PoseLandmarker model to load. `BODY_MODELS`
- *  is the node's own list (`@thoremin/sdk/nodes/domain`), re-exported so the panel reads one SSOT. */
-export { BODY_MODELS };
-export const BodySettingsSchema = z.object({
-  enabled: z.boolean(),
-  model: z.enum(BODY_MODELS),
-});
-export type BodySettings = z.infer<typeof BodySettingsSchema>;
-
-/** The shipped body defaults: off (the model is the most expensive in the graph), lite. */
-export const DEFAULT_BODY: BodySettings = { enabled: false, model: 'lite' };
-
 /**
  * The body conductor's per-device prefs (#427): the player's lead offset per joint,
  * learned against a click in the Conductor tool ("Learn my timing"). Per DEVICE like
@@ -263,11 +250,6 @@ export const CoreSettingsSchema = z.object({
   handMap: HandMapSchema,
   // The hands reading (#148). `.default(...)` keeps every earlier preset valid (dwell 0).
   hands: HandsSettingsSchema.default(DEFAULT_HANDS),
-  // The body source (#186). `.default(...)` keeps pre-body presets valid (off, lite).
-  body: BodySettingsSchema.default(DEFAULT_BODY),
-  // The body→sound routing (#186 PR E): four route slots over the catalog. `.default`
-  // keeps pre-routing presets valid (no routes = byte-identical sound).
-  bodyMap: BodyMapSchema.default(() => structuredClone(DEFAULT_BODY_MAP)),
   // The generative layer (#141 / #188). `.default(...)` keeps pre-#188 presets valid (off).
   // The head/face CONTROL axes (#76): per-axis gain / deadzone / zero / smoothing for
   // the `face-controls` node. The schema is the node's own params, imported rather

@@ -6,46 +6,6 @@
     "enabled": false,
     "model": "lite"
   },
-  "bodyMap": {
-    "routes": {
-      "a": {
-        "depth": 1,
-        "feature": "",
-        "inMax": 1,
-        "inMin": 0,
-        "invert": false,
-        "smoothing": 0.5,
-        "target": "none"
-      },
-      "b": {
-        "depth": 1,
-        "feature": "",
-        "inMax": 1,
-        "inMin": 0,
-        "invert": false,
-        "smoothing": 0.5,
-        "target": "none"
-      },
-      "c": {
-        "depth": 1,
-        "feature": "",
-        "inMax": 1,
-        "inMin": 0,
-        "invert": false,
-        "smoothing": 0.5,
-        "target": "none"
-      },
-      "d": {
-        "depth": 1,
-        "feature": "",
-        "inMax": 1,
-        "inMin": 0,
-        "invert": false,
-        "smoothing": 0.5,
-        "target": "none"
-      }
-    }
-  },
   "conductor": {
     "articulationFrom": "sharpness",
     "beatsPerBar": 4,

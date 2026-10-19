@@ -30,7 +30,7 @@
  * PR 3's `graphFor`, and until then every instrument composes every branch.
  */
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@/nodes/music/score.schema';
-import { BODY_GROUP_IDS, FACE_GROUP_IDS } from '@/features/groups';
+import { FACE_GROUP_IDS } from '@/features/groups';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
@@ -205,40 +205,6 @@ export const faceControls = defineBranch({
   overlay: ['faceLandmarks', 'chordGuide', 'chordName'],
 });
 
-export const bodySource = defineBranch({
-  id: 'body-source',
-  description: 'The second camera branch: the body model and its feature vector.',
-  nodes: [
-    { id: 'camBody', slot: 'body', params: {} },
-    { id: 'bodyVec', type: 'body-feature-vector', params: {} },
-    // The dancer's pulse (#186 PR F): folded into the vector as body.rhythm.*; the
-    // pace controller (PR H) reads it too.
-    { id: 'bodyPulse', type: 'body-pulse', params: {} },
-  ],
-  edges: [
-    to({ node: 'camBody', port: 'body' }, overlay('bodyFrame')),
-    to({ node: 'camBody', port: 'status' }, overlay('bodyStatus')),
-    to({ node: 'camBody', port: 'body' }, { node: 'bodyVec', port: 'body' }),
-    to({ node: 'camBody', port: 'body' }, { node: 'bodyPulse', port: 'body' }),
-    to({ node: 'bodyPulse', port: 'pulse' }, { node: 'bodyVec', port: 'pulse' }),
-    to({ node: 'bodyVec', port: 'vector' }, overlay('bodyVector')),
-  ],
-  overlay: ['bodySkeleton'],
-  demands: [...BODY_GROUP_IDS],
-});
-
-export const bodyRoute = defineBranch({
-  id: 'body-route',
-  description: 'Body features routed onto the hand voices as modulations.',
-  requires: ['body-source', 'field-voices'],
-  nodes: [{ id: 'bodyRoute', type: 'body-route', params: {} }],
-  edges: [
-    to({ node: 'bodyVec', port: 'vector' }, { node: 'bodyRoute', port: 'vector' }),
-    to(ui('bodyMap'), { node: 'bodyRoute', port: 'bodyMap' }),
-    to({ node: 'bodyRoute', port: 'mods' }, { node: 'map', port: 'mods' }),
-  ],
-});
-
 /** The sampled orchestra's node id in the conductor branch: the one place it is written
  *  (the engine loop's status reporter reads the node by it, `src/app/orchestraStatus.ts`). */
 export const ORCHESTRA_NODE_ID = 'orchestra';
@@ -306,8 +272,6 @@ export const BRANCHES: readonly GraphBranch[] = [
   faceChordVoice,
   faceChord,
   faceControls,
-  bodySource,
-  bodyRoute,
   conductor,
 ];
 

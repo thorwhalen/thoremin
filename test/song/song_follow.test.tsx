@@ -24,7 +24,7 @@ import { DEFAULT_SONG } from '@/slices/song/schema';
 import { renderClickTrack, SR } from '../helpers/clicks';
 import { setSongHandle, setSongPlaying, setSongPrefs, songPrefs } from '@/slices/song/app/state';
 import { SONG_COMMANDS } from '@/slices/song/app/songCommands';
-import { SONG } from '../helpers/extensions';
+import { BODY, SONG } from '../helpers/extensions';
 
 /** Core's registry with the song slice's commands (#600 S15: they are the slice's, registered by the shell's fold point). */
 const songRegistry = () => {
@@ -63,7 +63,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe.runIf(SONG)('Follow the dancer', () => {
-  it('four clicks from a cold load: Tools, Song, Choose a song, Follow the dancer', async () => {
+  it.runIf(BODY)('four clicks from a cold load: Tools, Song, Choose a song, Follow the dancer', async () => {
     render(<Shell />);
     fireEvent.click(screen.getByText('Tools'));
     const row = await screen.findByText('Song', { selector: '[role=dialog] span' });

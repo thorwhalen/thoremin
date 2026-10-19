@@ -14,17 +14,19 @@ import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
 import { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from '@/nodes/sources/body_contract';
 import { BLM, BODY_LANDMARK_COUNT, BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { BODY } from '../helpers/extensions';
+import { BODY_EXTENSION } from '@/slices/body';
 
 const appRegistry = () => createAppRegistry();
 
 /** Where each candidate's implementation lives, for the determinism guard below. */
 const CANDIDATE_SOURCES: Record<string, string> = {
-  'webcam-body': 'src/nodes/sources/webcam_body.ts',
-  'synthetic-body': 'src/nodes/sources/synthetic_body.ts',
-  'replay-body': 'src/nodes/sources/replay_body.ts',
+  'webcam-body': 'src/slices/body/nodes/webcam_body.ts',
+  'synthetic-body': 'src/slices/body/nodes/synthetic_body.ts',
+  'replay-body': 'src/slices/body/nodes/replay_body.ts',
 };
 
-describe('the body slot contract', () => {
+describe.runIf(BODY)('the body slot contract', () => {
   it('every declared candidate really satisfies it', () => {
     const reg = appRegistry();
     for (const type of SLOTS.body.candidates) {
@@ -79,7 +81,7 @@ describe('the body slot contract', () => {
   });
 });
 
-describe('swapping the body source in the real graph', () => {
+describe.runIf(BODY)('swapping the body source in the real graph', () => {
   it('replaces only the body node and leaves every edge valid', () => {
     const reg = appRegistry();
     const spec = defaultGraph({ body: 'synthetic-body' }, reg);
@@ -102,7 +104,7 @@ describe('swapping the body source in the real graph', () => {
   });
 });
 
-describe('the payoff: the whole body path runs with no camera', () => {
+describe.runIf(BODY)('the payoff: the whole body path runs with no camera', () => {
   it('a synthetic body drives the real graph to a present, well-formed frame, headlessly', () => {
     const reg = appRegistry();
     const engine = new Engine(defaultGraph({ source: 'synthetic-hands', body: 'synthetic-body' }, reg), reg, {
@@ -171,13 +173,13 @@ describe('the payoff: the whole body path runs with no camera', () => {
   });
 });
 
-describe('body source determinism (the seeded-RNG rule)', () => {
+describe.runIf(BODY)('body source determinism (the seeded-RNG rule)', () => {
   it('the candidate table covers every declared candidate', () => {
     expect(Object.keys(CANDIDATE_SOURCES).sort()).toEqual([...SLOTS.body.candidates].sort());
   });
 
   const driveSource = (type: string, times: number[], params: unknown = {}): string => {
-    const reg = createRegistry([...CORE_NODES, ...BROWSER_NODES]);
+    const reg = createRegistry([...CORE_NODES, ...BROWSER_NODES, ...(BODY_EXTENSION.nodes ?? [])]);
     const engine = new Engine({ nodes: [{ id: 's', type, params }], edges: [] }, reg, { validatePorts: true });
     const out: unknown[] = [];
     for (const t of times) {

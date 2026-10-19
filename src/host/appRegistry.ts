@@ -10,7 +10,6 @@ import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { CORE_NODES } from '@/nodes/index';
 import { webcamHandsNode } from '@/nodes/sources/webcam_hands';
 import { webcamFaceNode } from '@/nodes/sources/webcam_face';
-import { webcamBodyNode } from '@/nodes/sources/webcam_body';
 import { keyboardSourceNode } from '@/nodes/sources/keyboard';
 import { webAudioSynthNode } from '@/nodes/output/webaudio_synth';
 import { canvasOverlayNode, makeCanvasOverlayNode } from '@/nodes/output/canvas_overlay';
@@ -22,7 +21,6 @@ import { CONTRIBUTIONS, foldContributions, loadExtensionNodes, loadedExtensionNo
 export const BROWSER_NODES = [
   webcamHandsNode,
   webcamFaceNode,
-  webcamBodyNode,
   keyboardSourceNode,
   webAudioSynthNode,
   canvasOverlayNode,

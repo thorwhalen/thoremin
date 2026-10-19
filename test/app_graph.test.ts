@@ -15,10 +15,10 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG } from './helpers/extensions';
+import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY } from './helpers/extensions';
 
 describe('production app graph', () => {
-  it('builds with a valid topology', () => {
+  it.runIf(BODY)('builds with a valid topology', () => {
     const engine = new Engine(defaultGraph(), createAppRegistry());
     const order = engine.evaluationOrder();
     // sources must precede mapping which (via the merge) must precede synth
@@ -102,7 +102,7 @@ describe('production app graph', () => {
     }
   });
 
-  it('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
+  it.runIf(BODY)('wires the body source to the overlay (skeleton + load state) — the #186 reachability guard', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
@@ -213,7 +213,7 @@ describe('production app graph', () => {
     expect(inbound).toContain('config');
   });
 
-  it('wires the Feature Lab vector taps additively off the existing sources (#119)', () => {
+  it.runIf(BODY)('wires the Feature Lab vector taps additively off the existing sources (#119)', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
       edges.some((e) => e.from.node === fn && e.from.port === fp && e.to.node === tn && e.to.port === tp);
@@ -231,7 +231,7 @@ describe('production app graph', () => {
     expect(has('cam', 'hands', 'feat', 'hands')).toBe(true);
   });
 
-  it('the trainer tap names edges that ACTUALLY EXIST (#160)', () => {
+  it.runIf(BODY)('the trainer tap names edges that ACTUALLY EXIST (#160)', () => {
     // The trainer observes the live feature vector through a DAG tap keyed by
     // `"<node>.<port>"` strings. A tap listening to a key nothing emits is silent, not
     // broken — the panel would just capture nothing and the coverage meter would sit at

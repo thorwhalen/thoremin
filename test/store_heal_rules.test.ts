@@ -19,9 +19,7 @@ const CORE_HEALED = [
   'faceExpr',
   'handMap',
   'hands',
-  'body',
   'conductorPrefs',
-  'bodyMap',
   'faceControls',
   'conductor',
   'gestures',
@@ -35,7 +33,7 @@ const CORE_HEALED = [
 const MERGE_EXPLICIT = ['faceMapping', 'scoreDoc'];
 
 describe('the heal table', () => {
-  it('heals exactly the fourteen core whole-object fields (the generative `steer` is its slice\'s since #600 S14, the song\'s `songPrefs` since S15)', () => {
+  it('heals exactly the twelve core whole-object fields (the generative `steer` is its slice\'s since #600 S14, the song\'s `songPrefs` since S15, `body` and `bodyMap` the body slice\'s since S17b)', () => {
     expect(Object.keys(HEAL_RULES).sort()).toEqual([...CORE_HEALED].sort());
   });
 

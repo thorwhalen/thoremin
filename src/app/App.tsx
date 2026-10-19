@@ -21,7 +21,6 @@ import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './keyboardShortcuts';
 import { installTaggingKeymap } from './tagging/keymap';
 import { installRecording } from './recording/configStore';
-import { startBodyRouteDemand } from './bodyRouteDemand';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 import { stillSoundingNote } from './stillSounding';
 import { useControls } from './store';
@@ -146,7 +145,6 @@ export default function App({
   useEffect(() => installRecording(), []);
   // #186: the body routes claim the feature groups they read, so a configured route
   // is fed even with the Lab closed (the groups are computed only on demand).
-  useEffect(() => startBodyRouteDemand(), []);
   // The extensions' mount effects (the air instruments': the flute's breath demand, the
   // vocabulary loads, the fingering-prior sync, the drum-pattern sync), each with its cleanup.
   useEffect(() => {

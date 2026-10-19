@@ -17,15 +17,17 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { replayNode } from '@thoremin/dag';
-import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
+import type { BodyFrame } from '@/nodes';
+import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { BODY_GROUP_IDS } from '@/features/groups';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
-import { FIXTURES, loadStream, roundVector } from './helpers/fixtures';
+import { FIXTURES, loadStream, roundVector } from '../helpers/fixtures';
+import { BODY } from '../helpers/extensions';
 
 const SC = 'video_body_que_calor';
 const allFinite = (v: FeatureVector) => Object.values(v).every((x) => Number.isFinite(x));
 
-describe(`${SC}: a real dancer through the body pipeline`, () => {
+describe.runIf(BODY)(`${SC}: a real dancer through the body pipeline`, () => {
   const frames = loadStream(SC, 'camBody.body') as BodyFrame[];
   const recorded = loadStream(SC, 'bodyVec.vector') as FeatureVector[];
   const meta = JSON.parse(readFileSync(`${FIXTURES}/${SC}/meta.json`, 'utf8')) as {
@@ -82,7 +84,7 @@ describe(`${SC}: a real dancer through the body pipeline`, () => {
  */
 const MEASURED = ['video_body_budots', 'video_body_conducting_44', 'video_body_conducting_34', 'video_body_conducting_24'] as const;
 
-describe.each(MEASURED)('%s: a measured body clip', (sc) => {
+describe.runIf(BODY).each(MEASURED)('%s: a measured body clip', (sc) => {
   const frames = loadStream(sc, 'camBody.body') as BodyFrame[];
   const recorded = loadStream(sc, 'bodyVec.vector') as FeatureVector[];
   const meta = JSON.parse(readFileSync(`${FIXTURES}/${sc}/meta.json`, 'utf8')) as {

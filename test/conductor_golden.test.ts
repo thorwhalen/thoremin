@@ -19,7 +19,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
-import { bodyPulseNode, conductorNode, type BodyFrame, type HandsFrame } from '@/nodes';
+import { conductorNode, type BodyFrame, type HandsFrame } from '@/nodes';
+import { bodyPulseNode } from '@/slices/body/nodes/body_pulse';
 import { conduct, type Gesture } from './helpers/body_conduct';
 import { loadStream } from './helpers/fixtures';
 

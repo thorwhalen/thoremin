@@ -32,6 +32,9 @@ export const GENERATIVE = hasExtension('generative-layer');
 /** True when the build ships the song slice (#600 S15). */
 export const SONG = hasExtension('song-tool');
 
+/** The body slice (#600 S17b): the body camera branch, its nodes, router and panel. */
+export const BODY = hasExtension('body-tracking');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not

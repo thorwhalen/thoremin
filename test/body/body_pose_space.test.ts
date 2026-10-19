@@ -10,7 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
-import { syntheticBodyNode, bodyFeatureVectorNode } from '@/nodes';
+import { syntheticBodyNode } from '@/slices/body/nodes/synthetic_body';
+import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { BLM, makeBodyKeypoints, type BodyFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { BODY_FEATURES, FEATURE_BY_ID, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { Invariance } from '@thoremin/sdk/features/types';
@@ -24,6 +25,7 @@ import {
 } from '@thoremin/sdk/features/body_groups';
 import { BODY_MIRROR, mirrorBodyVector } from '@thoremin/sdk/features/body_mirror';
 import { createNoiseEstimator } from '@thoremin/sdk/enroll/noise';
+import { BODY } from '../helpers/extensions';
 
 const W = 640;
 const H = 480;
@@ -113,7 +115,7 @@ function poseNoise(withWorld: boolean, base = frameOf({ leftArm: 0.3, rightArm: 
 
 const invariantTo = (id: string, n: Invariance) => (FEATURE_BY_ID[id]?.invariantTo ?? []).includes(n);
 
-describe('body.dir: segment directions in the torso frame', () => {
+describe.runIf(BODY)('body.dir: segment directions in the torso frame', () => {
   const v = (over: Parameters<typeof frameOf>[0]) => vectors([frameOf(over)])[0];
 
   it('registers four segments x two sides x three elevations, which describe one unit direction', () => {
@@ -179,7 +181,7 @@ describe('body.dir: segment directions in the torso frame', () => {
   });
 });
 
-describe('bodyPoseCollects(): the pose space', () => {
+describe.runIf(BODY)('bodyPoseCollects(): the pose space', () => {
   it('claims the static groups and leaves motion, the pulse and the booleans out', () => {
     const c = bodyPoseCollects();
     expect(c.groups).toEqual(['body.angle', 'body.dir', 'body.pos', 'body.shape']);
@@ -205,7 +207,7 @@ describe('bodyPoseCollects(): the pose space', () => {
   });
 });
 
-describe('the pose space under nuisance: replays of synthetic-body', () => {
+describe.runIf(BODY)('the pose space under nuisance: replays of synthetic-body', () => {
   const replay = syntheticReplay();
   // Each nuisance on the set where it is not invariant by construction: scale and position
   // leave a metric, hip-centred world set untouched, so they are tested on the image set (a
@@ -254,7 +256,7 @@ describe('the pose space under nuisance: replays of synthetic-body', () => {
   });
 });
 
-describe('the visibility mask and coverage: legs out of frame', () => {
+describe.runIf(BODY)('the visibility mask and coverage: legs out of frame', () => {
   const LEGS: readonly number[] = [BLM.left_knee, BLM.right_knee, BLM.left_ankle, BLM.right_ankle, BLM.left_heel, BLM.right_heel, BLM.left_foot_index, BLM.right_foot_index];
   /** The frame cropped above the knees: the pose model still guesses the legs, below the
    *  frame and with a low visibility, as MediaPipe does. */
@@ -315,7 +317,7 @@ describe('the visibility mask and coverage: legs out of frame', () => {
   });
 });
 
-describe('the mirror map', () => {
+describe.runIf(BODY)('the mirror map', () => {
   const SIDE_SWAP = Object.fromEntries(
     Object.entries(BLM).map(([name, i]) => {
       const twin = name.startsWith('left_') ? `right_${name.slice(5)}` : name.startsWith('right_') ? `left_${name.slice(6)}` : name;

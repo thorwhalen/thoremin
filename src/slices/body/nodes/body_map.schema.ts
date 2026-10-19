@@ -5,7 +5,7 @@
  * `src/nodes` imports this module.
  */
 import { z } from 'zod';
-import { EFFECTS } from './hand_map.schema';
+import { EFFECTS } from '@thoremin/sdk/music/effects';
 
 /** The sound aspects a body feature can be routed to: the finger effects plus gain. */
 export const BODY_ROUTE_TARGETS = [...EFFECTS, 'gain'] as const;

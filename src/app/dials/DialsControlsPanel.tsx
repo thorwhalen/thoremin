@@ -33,7 +33,6 @@ import { VoiceControls } from './panels/voice';
 import { HandControls } from './panels/hand';
 import { FaceControls } from './panels/face';
 import { OverlayControls } from './panels/overlay';
-import { BodyControls } from './panels/body';
 import { ConductorControls } from './panels/conductor';
 import { LowLatencyAudioControl } from './panels/audio';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
@@ -86,11 +85,6 @@ export default function DialsControlsPanel({ leadAir = [] }: { leadAir?: readonl
 
       <TopSection label="Face">
         <FaceControls />
-      </TopSection>
-
-      {/* Body tracking (#186): the pose source, off by default (the heaviest model). */}
-      <TopSection label="Body">
-        <BodyControls />
       </TopSection>
 
       {/* The conductor (#187): conduct the score with a hand. Off by default. */}

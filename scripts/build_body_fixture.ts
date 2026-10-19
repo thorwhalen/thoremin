@@ -25,7 +25,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { replayNode, serializeRecords, parseRecords, type StreamRecord } from '@thoremin/dag';
-import { bodyFeatureVectorNode, type BodyFrame } from '@/nodes';
+import type { BodyFrame } from '@/nodes';
+import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { roundVector } from '../test/helpers/fixtures';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

@@ -13,12 +13,12 @@
  * Pure derivation (`bodyRouteGroups`) + one subscription (`startBodyRouteDemand`),
  * started from the app shell.
  */
-import type { BodyMap } from '@/nodes/mapping/body_map.schema';
-import { BODY_ROUTE_SLOTS } from '@/nodes/mapping/body_map.schema';
+import type { BodyMap } from '../nodes/body_map.schema';
+import { BODY_ROUTE_SLOTS } from '../nodes/body_map.schema';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import type { FeatureDemand } from '@thoremin/sdk/features/demand';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { useControls } from './store';
+import { controlsStore } from '@thoremin/sdk-ui/host';
 
 export const BODY_ROUTE_DEMAND_OWNER = 'body-route';
 
@@ -40,7 +40,7 @@ export function bodyRouteGroups(map: BodyMap | undefined): string[] {
  * store + demand so a test can drive it without the app singletons.
  */
 export function startBodyRouteDemand(
-  store: { getState(): { bodyMap?: BodyMap }; subscribe(listener: (s: { bodyMap?: BodyMap }) => void): () => void } = useControls,
+  store: { getState(): { bodyMap?: BodyMap }; subscribe(listener: (s: { bodyMap?: BodyMap }) => void): () => void } = controlsStore<{ bodyMap?: BodyMap }>(),
   demand: FeatureDemand = appFeatureDemand,
 ): () => void {
   let last = '';

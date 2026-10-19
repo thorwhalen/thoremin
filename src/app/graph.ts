@@ -113,10 +113,12 @@ const CORE_SLOTS: Record<string, SlotDef> = {
     candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
     contract: SOURCE_SLOT_CONTRACT,
   },
+  // The second camera branch (#186): the shell declares the slot and its contract; the body
+  // slice brings the candidates and the default (#600 S17). Without it the slot is empty.
   body: {
     role: 'source',
-    default: 'webcam-body',
-    candidates: ['webcam-body', 'synthetic-body', 'replay-body'],
+    default: '',
+    candidates: [],
     contract: BODY_SLOT_CONTRACT,
   },
   // The face's expression classifier (the ADR's seam 7). One candidate. A player's own

@@ -13,7 +13,7 @@ import { useControls, mergeControls } from '@/app/store';
 import { SettingsSchema } from '@/settings/schema';
 import { webcamHandsNode } from '@/nodes/sources/webcam_hands';
 import { webcamFaceNode } from '@/nodes/sources/webcam_face';
-import { webcamBodyNode } from '@/nodes/sources/webcam_body';
+import { webcamBodyNode } from '@/slices/body/nodes/webcam_body';
 
 describe('the capture the instrument asks for', () => {
   it('is 1280x720 at 16:9, up to 60 fps, the front camera, all soft', () => {

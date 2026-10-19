@@ -7,21 +7,23 @@ import { describe, it, expect } from 'vitest';
 import { Engine, runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { createCoreRegistry, voiceMappingNode, type SynthParams } from '@/nodes';
-import { bodyRouteMods, DEFAULT_BODY_MAP, NEUTRAL_MODS, BodyMapSchema, HOLD_GRACE_S, type BodyMap } from '@/nodes/mapping/body_map';
+import { bodyRouteMods, DEFAULT_BODY_MAP, NEUTRAL_MODS, BodyMapSchema, HOLD_GRACE_S, type BodyMap } from '@/slices/body/nodes/body_map';
 import { createFeatureDemand } from '@thoremin/sdk/features/demand';
-import { bodyRouteGroups, startBodyRouteDemand } from '@/app/bodyRouteDemand';
+import { bodyRouteGroups, startBodyRouteDemand } from '@/slices/body/app/bodyRouteDemand';
 import { MAPPING_SLOT_INPUTS } from '@/nodes/mapping/mapping_contract';
 import { SLOTS, defaultGraph } from '@/app/graph';
 import { SettingsSchema } from '@/settings/schema';
 import { structuredLeafPaths } from '@/app/commands/paths';
 import { registry } from '@/app/commands/registry';
 import { dialsStore } from '@/app/dials/settingsStore';
+import { BODY } from '../helpers/extensions';
+import { BODY_EXTENSION } from '@/slices/body';
 
 const mapWith = (a: Partial<BodyMap['routes']['a']>): BodyMap => ({
   routes: { ...DEFAULT_BODY_MAP.routes, a: { ...DEFAULT_BODY_MAP.routes.a, feature: 'body.kin.qom', target: 'brightness', inMin: 0, inMax: 2, ...a } },
 });
 
-describe('bodyRouteMods (pure)', () => {
+describe.runIf(BODY)('bodyRouteMods (pure)', () => {
   it('no routes → neutral mods (byte-identical sound)', () => {
     expect(bodyRouteMods({ 'body.kin.qom': 1 }, DEFAULT_BODY_MAP).mods).toEqual(NEUTRAL_MODS);
   });
@@ -109,7 +111,7 @@ describe('bodyRouteMods (pure)', () => {
   });
 });
 
-describe('voice-mapping applies mods', () => {
+describe.runIf(BODY)('voice-mapping applies mods', () => {
   const feats = {
     right: { present: true, x: 0.5, y: 0.5, wristX: 0.5, wristY: 0.5, openness: 1, pinch: 0, fingers: { index: 0, middle: 0, ring: 0, pinky: 0 } },
     left: { present: false, x: 0, y: 0, wristX: 0, wristY: 0, openness: 0, pinch: 0, fingers: { index: 0, middle: 0, ring: 0, pinky: 0 } },
@@ -138,7 +140,7 @@ describe('voice-mapping applies mods', () => {
   });
 });
 
-describe('the bodyMap dial', () => {
+describe.runIf(BODY)('the bodyMap dial', () => {
   it('is a structured dial whose route leaves are path-addressable (dial.setIn)', () => {
     const leaves = structuredLeafPaths();
     expect(leaves).toContain('bodyMap.routes.a.target');
@@ -151,7 +153,7 @@ describe('the bodyMap dial', () => {
   });
 });
 
-describe('the routes claim the groups they read (the production gate)', () => {
+describe.runIf(BODY)('the routes claim the groups they read (the production gate)', () => {
   it('bodyRouteGroups: the groups of the live routes, none when nothing is routed', () => {
     expect(bodyRouteGroups(DEFAULT_BODY_MAP)).toEqual([]);
     expect(bodyRouteGroups(undefined)).toEqual([]);
@@ -188,7 +190,7 @@ describe('the routes claim the groups they read (the production gate)', () => {
     const map = mapWith({ feature: 'body.angle.shoulder.left', target: 'vibrato', inMin: 0, inMax: 180, smoothing: 0 });
     const controls = { featureLab: { show: false, groups: [] as string[] }, bodyMap: map };
     const stop = startBodyRouteDemand({ getState: () => controls, subscribe: () => () => {} }, demand);
-    const reg = createCoreRegistry();
+    const reg = createCoreRegistry().register(...(BODY_EXTENSION.nodes ?? []));
     const spec = {
       nodes: [
         { id: 'b', type: 'synthetic-body', params: { armPeriod: 2, bounceAmount: 0 } },
@@ -211,7 +213,7 @@ describe('the routes claim the groups they read (the production gate)', () => {
   });
 });
 
-describe('dial.patch with leaf paths (the fold is atomic and shares dial.setIn\'s rules)', () => {
+describe.runIf(BODY)('dial.patch with leaf paths (the fold is atomic and shares dial.setIn\'s rules)', () => {
   const dispatch = (writes: Array<{ key: string; value?: unknown }>) => registry.dispatch('dial.patch', { writes });
   const routeA = () => (dialsStore.getState().effective.bodyMap as BodyMap).routes.a;
 
@@ -257,7 +259,7 @@ describe('dial.patch with leaf paths (the fold is atomic and shares dial.setIn\'
   });
 });
 
-describe('graph wiring (the reachability guards)', () => {
+describe.runIf(BODY)('graph wiring (the reachability guards)', () => {
   it('bodyVec → bodyRoute → map.mods, and ui.bodyMap → bodyRoute.bodyMap', () => {
     const edges = defaultGraph().edges;
     const has = (fn: string, fp: string, tn: string, tp: string) =>
@@ -275,7 +277,7 @@ describe('graph wiring (the reachability guards)', () => {
   });
 });
 
-describe('the whole path, headless: a raised arm adds vibrato to the voice', () => {
+describe.runIf(BODY)('the whole path, headless: a raised arm adds vibrato to the voice', () => {
   it('synthetic body → body-feature-vector → body-route → voice-mapping', async () => {
     // Vibrato rather than brightness: an open hand already sits at full brightness, and
     // an additive mod on a clamped-at-1 base is invisible — vibrato starts from 0.
@@ -298,7 +300,7 @@ describe('the whole path, headless: a raised arm adds vibrato to the voice', () 
         { from: { node: 'r', port: 'mods' }, to: { node: 'm', port: 'mods' } },
       ],
     };
-    const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 60, nominalDt: 1 / 30, recordOnly: ['r.mods', 'm.params', 'v.vector'] });
+    const { recorder } = await runHeadless(spec, createCoreRegistry().register(...(BODY_EXTENSION.nodes ?? [])), { ticks: 60, nominalDt: 1 / 30, recordOnly: ['r.mods', 'm.params', 'v.vector'] });
     const mods = recorder.values('r.mods') as { vibrato: number }[];
     const vec = recorder.values('v.vector') as Record<string, number>[];
     // The left arm sweeps down→up over 2 s: the mod tracks the shoulder angle.

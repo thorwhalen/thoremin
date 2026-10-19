@@ -139,7 +139,7 @@ export function migrateLayerSlices<L extends Record<string, unknown>>(layer: L, 
  *  saved instrument and a bound command name them. A new extension's dial is one object
  *  (`airDrum`); the registry refuses `layout: 'flat'` for a key not listed here, or declared by
  *  another extension than its owner. Each Phase E slice adds its key when it moves. */
-export const FLAT_SLICES: Readonly<Record<string, string>> = { midi: 'midi-output', steer: 'generative-layer' };
+export const FLAT_SLICES: Readonly<Record<string, string>> = { midi: 'midi-output', steer: 'generative-layer', body: 'body-tracking' };
 
 type FieldSchema = { safeParse(v: unknown): { success: boolean; data?: unknown }; parse(v: unknown): unknown };
 

@@ -25,7 +25,7 @@ import { composeInstrumentGraph, branchIdsFor } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { DEFAULT_CONDUCTOR_DIAL, type BodyFrame } from '@/nodes';
 import { loadStream } from './helpers/fixtures';
-import { SONG } from './helpers/extensions';
+import { BODY, SONG } from './helpers/extensions';
 
 const HZ = 30;
 const REGISTRY = createAppRegistry();
@@ -92,7 +92,7 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
   const frames = [...clip, ...clip, ...clip, ...clip];
   const PASS = clip.length / HZ;
 
-  it('starts on a cycle, stays in the clamp, never stops, and keeps its bars on the dancer', async () => {
+  it.runIf(BODY)('starts on a cycle, stays in the clamp, never stops, and keeps its bars on the dancer', async () => {
     const run = await dance(frames);
     const start = run.leads.findIndex(Boolean);
     // Silent until the relation has persisted and the next cycle came (the pulse is
@@ -151,7 +151,7 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     expect(passes[2].on).toBeGreaterThan(0.9);
   });
 
-  it('the first pass (#464): the score lands on the dancer\'s steps from its first cycles, not after the pulse settles', async () => {
+  it.runIf(BODY)('the first pass (#464): the score lands on the dancer\'s steps from its first cycles, not after the pulse settles', async () => {
     // The follower's first period here is 1.75 s at confidence 0.3; it settles to 1.95 s
     // two cycles after the start. The score's distance from each fitted cycle start, in
     // beats (modulo the bar), over the first pass: the lead plays the marked tempo until the
@@ -186,7 +186,7 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
     expect(Math.max(...node)).toBeLessThan(0.4);
   });
 
-  it('a narrower clamp holds the score inside it', async () => {
+  it.runIf(BODY)('a narrower clamp holds the score inside it', async () => {
     const run = await dance(frames, { ...DANCER, dancer: { ...DANCER.dancer, range: 0.04 } });
     const start = run.leads.findIndex(Boolean);
     expect(start).toBeGreaterThan(0);
@@ -195,20 +195,20 @@ describe('the real dancer leads the score (video_body_que_calor, a 4/4 demo at 1
 });
 
 describe('the dancer as a leader (the derivation, #380)', () => {
-  it('a dancer leading the score composes the body source with the conductor', () => {
+  it.runIf(BODY)('a dancer leading the score composes the body source with the conductor', () => {
     expect(branchIdsFor({ conductor: { enabled: true, source: 'dancer' } })).toEqual(expect.arrayContaining(['conductor', 'body-source']));
     expect(branchIdsFor({ conductor: { enabled: true, source: 'dancer' } })).not.toContain('song-pace');
   });
 
   // The pace branch is the song slice's (#600 S15): there while it is listed.
-  it.runIf(SONG)('a dancer leading the recording is the song following the dancer: the pace branch, never the beat servo', () => {
+  it.runIf(SONG && BODY)('a dancer leading the recording is the song following the dancer: the pace branch, never the beat servo', () => {
     const ids = branchIdsFor({ conductor: { enabled: true, source: 'dancer', conducts: 'recording' }, songHandle: {} });
     expect(ids).toEqual(expect.arrayContaining(['conductor', 'body-source', 'song-pace']));
     // Without a song there is nothing to pace.
     expect(branchIdsFor({ conductor: { enabled: true, source: 'dancer', conducts: 'recording' }, songHandle: null })).not.toContain('song-pace');
   });
 
-  it("the conductor's recordingTime stays empty while a dancer leads (the pace node then follows the pulse)", async () => {
+  it.runIf(BODY)("the conductor's recordingTime stays empty while a dancer leads (the pace node then follows the pulse)", async () => {
     const clip = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
     const run = { recording: [] as unknown[], leads: [] as boolean[] };
     const conductor = { ...DANCER, conducts: 'recording' as const };

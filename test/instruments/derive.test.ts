@@ -22,7 +22,7 @@ const _controlStateDerives: StrictDerivationSettings = null as unknown as Contro
 void _controlStateDerives;
 import { composeInstrumentGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, MIDI, GENERATIVE } from '../helpers/extensions';
+import { AIR, MIDI, GENERATIVE, BODY } from '../helpers/extensions';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
 import { labDemandGroups } from '@/app/labDemand';
 
@@ -62,14 +62,14 @@ describe('branchIdsFor: the dials imply the branches', () => {
     expect(branchIdsFor(withDrum).sort()).toEqual(['air-drum', 'field-voices']);
   });
 
-  it('the Lab showing a face group, or a face-group claim, implies the face source; the body likewise', () => {
+  it.runIf(BODY)('the Lab showing a face group, or a face-group claim, implies the face source; the body likewise', () => {
     const lab = { ...defaultFeatureLab(), show: true, groups: [FACE_GROUP_IDS[0]] };
     expect(ids('Pentatonic', { demanded: new Set(labDemandGroups(lab)) })).toContain('face-source');
     expect(ids('Pentatonic', { demanded: new Set([BODY_GROUP_IDS[0]]) })).toContain('body-source');
     expect(ids('Pentatonic', { demanded: new Set(['hand.geom.spread']) })).toEqual(['field-voices']);
   });
 
-  it('the body router needs the body, the hand voices AND a live route', () => {
+  it.runIf(BODY)('the body router needs the body, the hand voices AND a live route', () => {
     const s = seedSettings('Pentatonic');
     const bodyOn = { ...s, body: { ...s.body, enabled: true } };
     expect(branchIdsFor(bodyOn).sort()).toEqual(['body-source', 'field-voices']);
@@ -101,7 +101,7 @@ describe('branchIdsFor: the dials imply the branches', () => {
     expect(branchIdsFor(withOrchestra)).toContain('conductor');
   });
 
-  it('a partial settings object (mid-migration of an older persisted state) derives without throwing', () => {
+  it.runIf(BODY)('a partial settings object (mid-migration of an older persisted state) derives without throwing', () => {
     expect(branchIdsFor({})).toEqual(['field-voices']);
     expect(branchIdsFor({ faceMapping: 'chord' } as never).sort()).toEqual(['face-chord', 'face-source', 'field-voices']);
     expect(branchIdsFor({ bodyMap: { routes: { a: undefined } }, body: { enabled: true } }).sort()).toEqual(['body-source', 'field-voices']);

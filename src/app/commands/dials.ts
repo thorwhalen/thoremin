@@ -295,7 +295,7 @@ export const patchDialsCmd = defineCommand({
     writes: z
       .array(
         z.object({
-          key: z.string().describe('A dial key, or a leaf path of a structured dial (the same paths dial.setIn accepts, e.g. "bodyMap.routes.a.feature").'),
+          key: z.string().describe('A dial key, or a leaf path of a structured dial (the same paths dial.setIn accepts, e.g. "handMap.fingers.index.target").'),
           // OPTIONAL — an omitted value clears the dial. Not a convenience: the sync-hands
           // voice mirror (the panel's main patch caller) copies the source hand's fields
           // onto the other hand, and the #63 octave-range dials are legitimately ABSENT on
@@ -310,8 +310,8 @@ export const patchDialsCmd = defineCommand({
       .describe('An ordered list of { key, value } dial writes, applied in sequence.'),
   }),
   execute: ({ writes }) => {
-    // A write may name a dial OR a leaf path into a structured dial (`bodyMap.routes.a.feature`,
-    // #186): the leaf writes are folded onto their dial's current value, in order (a
+    // A write may name a dial OR a leaf path into a structured dial (`handMap.fingers.index.target`,
+    // a body route's `bodyMap.routes.a.feature`): the leaf writes are folded onto their dial's current value, in order (a
     // later leaf sees an earlier one), so one gesture that seeds several leaves of one
     // route lands as ONE whole-object write — and shares the all-or-nothing validation
     // below with the plain dial writes. Precedence note: a plain write to a structured

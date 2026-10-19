@@ -96,7 +96,15 @@
     "./timing/output_stage": "./src/timing/output_stage.ts",
     "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",
     "./timing/tracker": "./src/timing/tracker.ts",
-    "./util/ids": "./src/util/ids.ts"
+    "./util/ids": "./src/util/ids.ts",
+    "./sources/frame_pump": "./src/sources/frame_pump.ts",
+    "./sources/tasks_vision": "./src/sources/tasks_vision.ts",
+    "./sources/delegate": "./src/sources/delegate.ts",
+    "./sources/model_input": "./src/sources/model_input.ts",
+    "./sources/body_contract": "./src/sources/body_contract.ts",
+    "./nodes/slot_contract": "./src/nodes/slot_contract.ts",
+    "./music/effects": "./src/music/effects.ts",
+    "./features/feature_gate": "./src/features/feature_gate.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

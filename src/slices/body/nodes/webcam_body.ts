@@ -33,7 +33,7 @@
  * / "failed" without knowing this node.
  */
 import { z } from 'zod';
-import { acquireFramePump, stampToTiming } from './frame_pump';
+import { acquireFramePump, stampToTiming } from '@thoremin/sdk/sources/frame_pump';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { lazyResource, withActive, type LoadContext, type LoadResult, type LoadStatus } from '@thoremin/lazy';
@@ -44,10 +44,9 @@ import {
   type BodyModel,
   type Keypoint,
 } from '@thoremin/sdk/nodes/domain';
-import { BODY_SLOT_OUTPUT } from './body_contract';
-import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
-import { DelegateChoiceSchema, resolveDelegate } from './delegate';
-import { copyFramesOnCpu } from './model_input';
+import { BODY_SLOT_OUTPUT } from '@thoremin/sdk/sources/body_contract';
+import { MEDIAPIPE_MODELS_BASE } from '@thoremin/sdk/sources/tasks_vision';
+import { DelegateChoiceSchema, resolveDelegate } from '@thoremin/sdk/sources/delegate';
 
 export function bodyModelUrl(model: BodyModel): string {
   return `${MEDIAPIPE_MODELS_BASE}/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task`;
@@ -98,22 +97,6 @@ export interface PoseLandmarkerLike {
   detectForVideo(video: HTMLVideoElement, timestampMs: number): PoseLandmarkerResultLike;
   close(): void;
 }
-interface TasksVisionModule {
-  FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };
-  PoseLandmarker: {
-    createFromOptions(
-      fileset: unknown,
-      opts: {
-        baseOptions: { modelAssetPath: string; delegate?: 'GPU' | 'CPU' };
-        numPoses?: number;
-        minTrackingConfidence?: number;
-        outputSegmentationMasks?: boolean;
-        runningMode?: 'IMAGE' | 'VIDEO';
-      },
-    ): Promise<PoseLandmarkerLike>;
-  };
-}
-
 /** What the loader hands back: the landmarker and the model it was built for. */
 export interface BodyLandmarkerHandle {
   landmarker: PoseLandmarkerLike;
@@ -127,31 +110,18 @@ export type BodyLandmarkerFactory = (
   ctx: LoadContext,
 ) => Promise<LoadResult<BodyLandmarkerHandle>>;
 
-const defaultFactory: BodyLandmarkerFactory = async (opts, lctx) => {
-  const vision = (await import('@mediapipe/tasks-vision')) as unknown as TasksVisionModule;
-  const fileset = await vision.FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
-  if (lctx.signal.aborted) return { resource: null, reason: 'aborted' };
-  const options = (delegate: 'GPU' | 'CPU') => ({
-    baseOptions: { modelAssetPath: bodyModelUrl(opts.model), delegate },
-    numPoses: 1,
-    minTrackingConfidence: opts.minTrackingConfidence,
-    outputSegmentationMasks: false,
-    runningMode: 'VIDEO' as const,
-  });
-  let landmarker: PoseLandmarkerLike;
-  // The CPU delegate is handed a copy of each frame, never the element (#324, `model_input.ts`).
-  try {
-    landmarker = copyFramesOnCpu(await vision.PoseLandmarker.createFromOptions(fileset, options(opts.delegate)), opts.delegate);
-  } catch (gpuErr) {
-    // GPU/WebGL unavailable on this client → the CPU delegate (the float16 model runs
-    // on CPU). If CPU was already chosen, the failure stands.
-    if (opts.delegate !== 'GPU') throw gpuErr;
-    if (lctx.signal.aborted) return { resource: null, reason: 'aborted' };
-    console.warn('[thoremin] body model GPU delegate failed; falling back to CPU', gpuErr);
-    landmarker = copyFramesOnCpu(await vision.PoseLandmarker.createFromOptions(fileset, options('CPU')), 'CPU');
-  }
-  return { resource: { landmarker, model: opts.model }, message: `Body model (${opts.model}) ready` };
-};
+/** The installed default loader (#600 S17b): the slice's React half installs the browser's (a dynamic
+ *  import of tasks-vision, `../app/body_landmarker.ts`), so this node's pure side carries no
+ *  MediaPipe; a host or a test injects its own through `ctx.resources.createBodyLandmarker`. */
+let installedFactory: BodyLandmarkerFactory | undefined;
+
+/** Install the default loader (the slice's React half does, before any engine starts). */
+export function provideBodyLandmarkerFactory(factory: BodyLandmarkerFactory | undefined): void {
+  installedFactory = factory;
+}
+
+/** Without an installed or injected loader there is no body model: an honest failure, not a hang. */
+const noLoader: BodyLandmarkerFactory = async () => ({ resource: null, reason: 'failed', message: 'No body model loader is installed' });
 
 type BodyControlsGetter = () => {
   body?: { enabled?: boolean; model?: BodyModel };
@@ -189,7 +159,7 @@ export const webcamBodyNode = defineNode<Params>({
 
     const resource = lazyResource<BodyLandmarkerHandle>({
       load: (lctx) =>
-        (factory ?? defaultFactory)(
+        (factory ?? installedFactory ?? noLoader)(
           { model: requestedModel, delegate: resolveDelegate(p.delegate), minTrackingConfidence: p.minTrackingConfidence },
           lctx,
         ),

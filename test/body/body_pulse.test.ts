@@ -9,16 +9,20 @@
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
 import { PULSE_TRUSTED_CONFIDENCE, createPulseSelector, type PulseState } from '@thoremin/ictus';
-import { bodyPulseNode, bodyFeatureVectorNode, createCoreRegistry, pulseChannelValue, createYawUnwrapper, AUTO_PULSE_CHANNELS, type BodyFrame } from '@/nodes';
+import { createCoreRegistry, type BodyFrame } from '@/nodes';
+import { bodyPulseNode, pulseChannelValue, createYawUnwrapper, AUTO_PULSE_CHANNELS } from '@/slices/body/nodes/body_pulse';
+import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { defaultFeatureLab } from '@/features/labConfig';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { PULSE_GATE_CONFIDENCE } from '@thoremin/sdk/features/body_catalog';
-import { loadStream } from './helpers/fixtures';
+import { loadStream } from '../helpers/fixtures';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
 import { labDemandGroups } from '@/app/labDemand';
+import { BODY } from '../helpers/extensions';
+import { BODY_EXTENSION } from '@/slices/body';
 
 const BEAT = 60 / 129.2;
 const BAR = 4 * BEAT;
@@ -39,7 +43,7 @@ const anchorsOf = (states: readonly PulseState[]) => {
   return out;
 };
 
-describe('the real dancer (video_body_que_calor, 129.2 bpm)', () => {
+describe.runIf(BODY)('the real dancer (video_body_que_calor, 129.2 bpm)', () => {
   const frames = loadStream('video_body_que_calor', 'camBody.body') as BodyFrame[];
   const replay = async (params: Record<string, unknown> = {}) => {
     const out = await replayNode(bodyPulseNode.make(bodyPulseNode.params.parse(params)), { body: frames }, { dt: 1 / 30 });
@@ -81,7 +85,7 @@ describe('the real dancer (video_body_que_calor, 129.2 bpm)', () => {
   });
 });
 
-describe('the node', () => {
+describe.runIf(BODY)('the node', () => {
   const W = 640;
   const H = 480;
   /** A frame with the ankles `step` torso lengths apart (signed), torso 100 px. */
@@ -143,7 +147,7 @@ describe('the node', () => {
   });
 });
 
-describe('the synthetic body steps: the whole body path, with no camera', () => {
+describe.runIf(BODY)('the synthetic body steps: the whole body path, with no camera', () => {
   it('synthetic-body → body-pulse → body-feature-vector: the stride period, and body.rhythm.* in the vector', async () => {
     const spec: GraphSpec = {
       nodes: [
@@ -157,7 +161,7 @@ describe('the synthetic body steps: the whole body path, with no camera', () => 
         { from: { node: 'p', port: 'pulse' }, to: { node: 'v', port: 'pulse' } },
       ],
     };
-    const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 12 * 30, nominalDt: 1 / 30, recordOnly: ['p.pulse', 'v.vector'] });
+    const { recorder } = await runHeadless(spec, createCoreRegistry().register(...(BODY_EXTENSION.nodes ?? [])), { ticks: 12 * 30, nominalDt: 1 / 30, recordOnly: ['p.pulse', 'v.vector'] });
     const pulses = recorder.values('p.pulse') as PulseState[];
     const last = pulses.at(-1)!;
     expect(near(last.period, 1.2, 0.02)).toBe(true);
@@ -184,7 +188,7 @@ describe('the synthetic body steps: the whole body path, with no camera', () => 
   });
 });
 
-describe('wiring: the pulse rides the body branch', () => {
+describe.runIf(BODY)('wiring: the pulse rides the body branch', () => {
   it('camBody → bodyPulse → bodyVec, in the full graph', () => {
     const { edges } = defaultGraph();
     const has = (a: string, ap: string, b: string, bp: string) => edges.some((e) => e.from.node === a && e.from.port === ap && e.to.node === b && e.to.port === bp);
@@ -204,14 +208,14 @@ describe('wiring: the pulse rides the body branch', () => {
   });
 });
 
-describe('the body gate trusts the pulse where ictus does (#392)', () => {
+describe.runIf(BODY)('the body gate trusts the pulse where ictus does (#392)', () => {
   it('PULSE_GATE_CONFIDENCE (sdk, restated) equals PULSE_TRUSTED_CONFIDENCE (ictus)', () => {
     // The SDK does not depend on the inference package, so the threshold is stated twice.
     expect(PULSE_GATE_CONFIDENCE).toBe(PULSE_TRUSTED_CONFIDENCE);
   });
 });
 
-describe('channel: auto (#416)', () => {
+describe.runIf(BODY)('channel: auto (#416)', () => {
   const trusted = (outs: Array<Record<string, unknown>>) => outs.filter((o) => (o.pulse as PulseState).confidence >= PULSE_TRUSTED_CONFIDENCE);
   const run = async (clip: string, mask?: (f: BodyFrame) => BodyFrame, params: Record<string, unknown> = { channel: 'auto' }) => {
     const raw = loadStream(clip, 'camBody.body') as BodyFrame[];
@@ -292,7 +296,7 @@ describe('channel: auto (#416)', () => {
   });
 });
 
-describe('createPulseSelector (the persistence behind auto)', () => {
+describe.runIf(BODY)('createPulseSelector (the persistence behind auto)', () => {
   it('takes the first trusted channel at once, keeps the leader against a challenger shorter than the persistence, and switches after it', () => {
     const sel = createPulseSelector<'a' | 'b'>({ switchAfterS: 3, margin: 0.05 });
     expect(sel.update(0, { a: 0, b: 0 })).toBeNull();

@@ -6,24 +6,12 @@
  */
 import { type FingerName } from '@thoremin/sdk/nodes/domain';
 
-/** The sound aspects a finger can be routed to control. All are applied in the voice
- *  mapping (no synth changes): additive to brightness/vibrato/pan, folded into the
- *  pitch for pitchBend/octave, and a gain gate for `gate`. */
-export const EFFECTS = ['brightness', 'vibrato', 'pan', 'pitchBend', 'octave', 'gate'] as const;
-export type EffectId = (typeof EFFECTS)[number];
-
-/** Very short effect names for on-canvas cue labels. */
-export const EFFECT_SHORT: Record<EffectId, string> = {
-  brightness: 'brt',
-  vibrato: 'vib',
-  pan: 'pan',
-  pitchBend: 'bnd',
-  octave: 'oct',
-  gate: 'gate',
-};
+export { EFFECTS, EFFECT_SHORT } from '@thoremin/sdk/music/effects';
+export type { EffectId } from '@thoremin/sdk/music/effects';
+import type { EffectTarget } from '@thoremin/sdk/music/effects';
 
 /** A finger route target: an effect, or `none` (the finger does nothing). */
-export type FingerTarget = EffectId | 'none';
+export type FingerTarget = EffectTarget;
 
 /** How a finger's closeness drives its target. `continuous` = proportional;
  *  `trigger` = a discrete on/off past a threshold (a pinch gesture). */

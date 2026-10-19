@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { BODY_LANDMARK_COUNT, makeBodyKeypoints, type BodyFrame, type BodyStatus } from '@thoremin/sdk/nodes/domain';
-import { BODY_SLOT_OUTPUT } from './body_contract';
+import { BODY_SLOT_OUTPUT } from '@thoremin/sdk/sources/body_contract';
 
 const Params = z.object({
   width: z.number().default(640),

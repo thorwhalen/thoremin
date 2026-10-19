@@ -18,6 +18,7 @@ import { branchIdsFor } from '@/app/graph';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import type { DerivationSettings } from '@/instruments/derive';
 import type { ConductorSettings } from '@/settings/schema';
+import { BODY } from './helpers/extensions';
 
 const conductor = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const derived = () => branchIdsFor(useControls.getState() as unknown as DerivationSettings);
@@ -40,7 +41,7 @@ afterEach(async () => {
 });
 
 describe('Loudness from (the split role)', () => {
-  it('three clicks from a cold load: Conductor, Start conducting, Loudness from', async () => {
+  it.runIf(BODY)('three clicks from a cold load: Conductor, Start conducting, Loudness from', async () => {
     render(
       <>
         <ToolsBar />
@@ -72,7 +73,7 @@ describe('Loudness from (the split role)', () => {
     expect(screen.queryByTestId('conductor-articulation-from')).toBeNull();
   });
 
-  it('conducting with the body, the default (same as the beat) offers the articulation choice', async () => {
+  it.runIf(BODY)('conducting with the body, the default (same as the beat) offers the articulation choice', async () => {
     render(
       <>
         <ToolsBar />
@@ -93,7 +94,7 @@ describe('Loudness from (the split role)', () => {
     expect(derived()).toContain('body-source');
   });
 
-  it('a hand shapes: the shaping hand is a choice (#457), written through the dial', async () => {
+  it.runIf(BODY)('a hand shapes: the shaping hand is a choice (#457), written through the dial', async () => {
     render(
       <>
         <ToolsBar />

@@ -13,13 +13,12 @@
  * half-typed number) and only when finite.
  */
 import { useState } from 'react';
-import { dispatchDialSet, dispatchDialSetIn, dispatchDialPatch } from '../../dispatchDial';
-import { useDialsSettings } from '../useDialsSettings';
+import { dispatchDialSet, dispatchDialSetIn, dispatchDialPatch, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls, Toggle } from '@thoremin/sdk-ui/primitives';
-import { BODY_MODELS } from '@/settings/schema';
-import { BODY_ROUTE_SLOTS, BODY_ROUTE_TARGETS, type BodyMap, type BodyRouteSlot } from '@/nodes/mapping/body_map.schema';
+import { BODY_MODELS } from '../schema';
+import { BODY_ROUTE_SLOTS, BODY_ROUTE_TARGETS, type BodyMap, type BodyRouteSlot } from '../nodes/body_map.schema';
 import { ALL_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
-import { EFFECT_LABELS } from '../labels';
+import { EFFECT_LABELS } from '@thoremin/sdk/music/effects';
 
 const MODEL_LABEL: Record<(typeof BODY_MODELS)[number], string> = {
   lite: 'lite (fast, 5.8 MB download)',
