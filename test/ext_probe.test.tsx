@@ -16,7 +16,7 @@
  * Later steps of the refactor add each new contribution point to the probe first.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
@@ -26,6 +26,7 @@ import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
 import { PROBE_LAZY_UI_STUB } from './fixtures/ext-probe/lazy_ui_stub';
 import { labDemandGroups } from '@/app/labDemand';
+import { toolPanelProps } from './helpers/toolPanel';
 
 afterEach(cleanup);
 
@@ -383,6 +384,20 @@ describe('the probe contributes commands, a keybinding and a carve modality (#60
 });
 
 describe('the probe reaches every React contribution point', () => {
+  it('a tool panel hosts what other contributions bring to it (#600 S18b): sections, events, entry points', async () => {
+    const { default: ExtensionToolPanels } = await import('@/app/ExtensionToolPanels');
+    const { useTools } = await import('@/app/toolsStore');
+    act(() => useTools.getState().openTool(PROBE_TOOL_ID));
+    render(<ExtensionToolPanels />);
+    expect(screen.getByText('probe hosted section probing')).toBeTruthy();
+    probeSeen.events.length = 0;
+    fireEvent.click(screen.getByText('probe raise'));
+    expect(probeSeen.events).toEqual(['hosted:probing']);
+    fireEvent.click(screen.getByText('Open the lazy probe...'));
+    expect(useTools.getState().open).toBe(PROBE_LAZY_TOOL_ID);
+    act(() => useTools.getState().close());
+  });
+
   it('tools and entry points: the shell lists both probe tools, and the entry point is offered in its context', () => {
     const ids = app.tools.SHELL_TOOLS.map((t) => t.id);
     expect(ids).toEqual(expect.arrayContaining([PROBE_TOOL_ID, PROBE_LAZY_TOOL_ID]));
@@ -405,10 +420,10 @@ describe('the probe reaches every React contribution point', () => {
     const panels = Object.fromEntries(app.uis.EXTENSION_TOOL_PANELS.map((t) => [t.id, t.Panel]));
     const Eager = panels[PROBE_TOOL_ID];
     const Lazy = panels[PROBE_LAZY_TOOL_ID];
-    render(<Eager close={() => undefined} />);
+    render(<Eager {...toolPanelProps(() => undefined)} />);
     expect(screen.getByText('probe tool panel')).toBeTruthy();
     await act(async () => {
-      render(<Lazy close={() => undefined} />);
+      render(<Lazy {...toolPanelProps(() => undefined)} />);
     });
     expect(await screen.findByText('lazy probe tool panel')).toBeTruthy();
   });

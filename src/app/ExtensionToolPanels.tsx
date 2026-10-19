@@ -9,6 +9,28 @@ import { useTools } from './toolsStore';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 import { shellToolById } from './shellTools';
 import { TOOL_ICONS } from './toolIcons';
+import { raiseToolEvent, ToolSections } from './toolSections';
+import { entryPointsFrom, openEntryPoint } from './entryPoints';
+import type { ToolSectionContext } from '@thoremin/sdk-ui/types';
+
+/** The host's helpers for one tool's panel (#600 S18b): its hosted sections, its events, its entry
+ *  points, bound to its id once per tool so a panel's props are stable across renders. */
+const helpers = new Map<string, Pick<import('@thoremin/sdk-ui/types').ExtensionToolPanelProps, 'Sections' | 'raise' | 'entryPoints' | 'openEntryPoint' | 'openTool'>>();
+function helpersFor(id: string) {
+  let h = helpers.get(id);
+  if (!h) {
+    const Sections = ({ context }: { context: ToolSectionContext }) => <ToolSections from={id} context={context} />;
+    h = {
+      Sections,
+      raise: (event, context) => raiseToolEvent(id, event, context),
+      entryPoints: (context) => entryPointsFrom(id, context),
+      openEntryPoint,
+      openTool: (tool) => useTools.getState().openTool(tool),
+    };
+    helpers.set(id, h);
+  }
+  return h;
+}
 
 export default function ExtensionToolPanels() {
   const open = useTools((s) => s.open);
@@ -38,7 +60,7 @@ export default function ExtensionToolPanels() {
       </div>
       <div className="space-y-3 overflow-auto p-4">
         {tool && <p className="text-[10px] uppercase tracking-widest text-emerald-500/70">{tool.description}</p>}
-        <Panel close={close} />
+        <Panel close={close} {...helpersFor(entry.id)} />
       </div>
     </div>
   );
