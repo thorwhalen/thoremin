@@ -53,9 +53,11 @@ export const syntheticBodyNode = defineNode<Params>({
   params: Params,
   process(_inputs, p, ctx) {
     const t = ctx.time;
-    // A bounce is a |sin|-shaped dip: sharp at the bottom (the impact), which is
-    // what makes the deceleration-peak anchor detector's job well-posed.
-    const dip = Math.abs(Math.sin((Math.PI * t) / p.bouncePeriod));
+    // A bounce is a dip shaped like 1 - |sin|: sharp at the BOTTOM (the impact), which is
+    // what makes the deceleration-peak anchor detector's job well-posed. Image y grows
+    // downward, so the bottom is where `cy` is largest: the cusp of |sin| (its zero) has to
+    // land there, hence 1 - |sin| (#417: plain |sin| put the cusp at the top).
+    const dip = 1 - Math.abs(Math.sin((Math.PI * t) / p.bouncePeriod));
     const cy = 0.62 + p.bounceAmount * dip;
     const sway = (osc(t, p.swayPeriod) - 0.5) * 0.25;
     const { landmarks, world } = makeBodyKeypoints({
