@@ -1165,6 +1165,10 @@
         "default": 0
       },
       {
+        "name": "time",
+        "kind": "musical-time"
+      },
+      {
         "name": "midi",
         "kind": "held-notes"
       },
@@ -1342,6 +1346,21 @@
         "default": true
       },
       {
+        "name": "clock",
+        "type": "enum(tempo | song)",
+        "default": "tempo"
+      },
+      {
+        "name": "commit",
+        "type": "enum(now | beat)",
+        "default": "now"
+      },
+      {
+        "name": "commitBeats",
+        "type": "number",
+        "default": 1
+      },
+      {
         "name": "follow",
         "type": "enum(hands | midi)",
         "default": "hands"
@@ -1461,6 +1480,10 @@
       {
         "name": "expression",
         "kind": "face-expression"
+      },
+      {
+        "name": "time",
+        "kind": "musical-time"
       }
     ],
     "outputs": [
@@ -1591,6 +1614,11 @@
         "name": "order",
         "type": "enum(fixed | likely)",
         "default": "fixed"
+      },
+      {
+        "name": "clock",
+        "type": "enum(tempo | song)",
+        "default": "tempo"
       }
     ]
   },

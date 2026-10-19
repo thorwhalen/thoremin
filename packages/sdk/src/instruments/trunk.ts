@@ -18,4 +18,6 @@ export const TRUNK = {
   merge: 'merge',
   synth: 'synth',
   overlay: 'overlay',
+  /** The loaded song's player (#186 PR G): its `songTime` is the song's musical time. */
+  song: 'songPlayer',
 } as const;

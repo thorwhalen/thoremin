@@ -7,7 +7,7 @@
  * only says how the chords are laid out and played. The live readout ({@link ChordMapReadout})
  * is shown here and under the chosen row in the Instruments list.
  */
-import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
+import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
 import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
@@ -71,6 +71,9 @@ export function ChordMapControls() {
   const layout = c.layout ?? 'harmonic';
   const anchor = c.anchor ?? 'home';
   const follow = c.follow ?? 'hands';
+  const clock = c.clock ?? 'tempo';
+  const commit = c.commit ?? 'now';
+  const commitBeats = c.commitBeats ?? 1;
   const play = c.play ?? 'hold';
   const chordHand = c.chordHand ?? 'left';
   const point = c.point ?? 'palm';
@@ -185,6 +188,24 @@ export function ChordMapControls() {
         <input type="checkbox" checked={sevenths} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.sevenths', e.target.checked)} />
         Seventh chords
       </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="The beat the arpeggios step on and a change waits for: the Chord sound's tempo, or the song loaded in the Song tool while it plays.">
+        Keep time with
+        <select className={selectCls} value={clock} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.clock', e.target.value)}>
+          <option value="tempo">the Chord sound's tempo</option>
+          <option value="song">the song</option>
+        </select>
+      </label>
+      {play === 'hold' && (
+        <label className="flex items-center justify-between gap-2 text-xs" title="On the beat: a new chord waits for the next beat (one made just after a beat takes it), so changes land where the music wants them rather than when the camera saw your hand.">
+          A new chord sounds
+          <select className={selectCls} value={commit === 'beat' ? `beat${commitBeats}` : 'now'} disabled={!enabled} onChange={(e) => dispatchDialPatch(e.target.value === 'now' ? [['chordMap.commit', 'now']] : [['chordMap.commit', 'beat'], ['chordMap.commitBeats', Number(e.target.value.slice(4))]])}>
+            <option value="now">at once</option>
+            <option value="beat1">on the next beat</option>
+            <option value="beat2">on the next half bar (2 beats)</option>
+            <option value="beat4">on the next bar (4 beats)</option>
+          </select>
+        </label>
+      )}
       {play === 'strum' && <Range label={`Strum volume (${Math.round(volume * 100)}%)`} path="chordMap.volume" value={volume} min={0} max={1} step={0.05} enabled={enabled} />}
       <label className="flex items-center gap-2 text-xs" title="Your face colours the chords your hands choose: it never chooses one.">
         <input type="checkbox" checked={face} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.face', e.target.checked)} />

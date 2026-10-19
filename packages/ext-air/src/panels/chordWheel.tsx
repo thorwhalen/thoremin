@@ -64,6 +64,7 @@ export function ChordWheelControls() {
   const walk = c.walk ?? false;
   const tension = c.tension ?? 'off';
   const order = c.order ?? 'fixed';
+  const clock = c.clock ?? 'tempo';
   const walkBeats = c.walkBeats ?? 1;
   return (
     <div className="space-y-2" data-testid="chord-wheel-controls">
@@ -147,6 +148,13 @@ export function ChordWheelControls() {
               {TENSION_MODELS[m].name}
             </option>
           ))}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 text-xs" title="The beat the arpeggios and a walk step on: the Chord sound's tempo, or the song loaded in the Song tool while it plays.">
+        Keep time with
+        <select className={selectCls} value={clock} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.clock', e.target.value)}>
+          <option value="tempo">the Chord sound's tempo</option>
+          <option value="song">the song</option>
         </select>
       </label>
       {walk && (

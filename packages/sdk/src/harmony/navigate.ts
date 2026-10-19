@@ -294,6 +294,10 @@ export function createBeatWalk(): BeatWalk {
         if (pointing !== walking) return end();
         lastSeen = now;
       } else if (now - lastSeen > WALK_GRACE_S) return end();
+      // The beat went back (a song restarted, a seek): the next step boundary from where it is.
+      // (Right after a push the target may be one step past that boundary; more is a jump.)
+      const boundary = (Math.floor((beat + BEAT_EPS) / beats) + 1) * beats;
+      if (next > boundary + beats + BEAT_EPS) next = boundary;
       if (beat + BEAT_EPS < next) return null;
       next = (Math.floor((beat + BEAT_EPS) / beats) + 1) * beats;
       return walking;

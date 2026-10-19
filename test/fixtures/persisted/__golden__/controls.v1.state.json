@@ -244,6 +244,9 @@
     "captions": true,
     "cellSize": 0.2,
     "chordHand": "left",
+    "clock": "tempo",
+    "commit": "now",
+    "commitBeats": 1,
     "enabled": false,
     "enterFrames": 2,
     "face": false,
@@ -279,6 +282,7 @@
   "chordMapMidi": null,
   "chordWheel": {
     "bpm": 100,
+    "clock": "tempo",
     "dead": 0.07,
     "enabled": false,
     "enterFrames": 3,

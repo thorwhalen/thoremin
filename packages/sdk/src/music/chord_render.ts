@@ -32,6 +32,8 @@ export interface ChordRenderInput {
   coloration?: string;
   /** The realization's tension, 0..1, for a coloration that reads it (`byTension`); 0 by default. */
   tension?: number;
+  /** The figuration's beat from outside (musical time); absent: the tempo's own clock. */
+  beat?: number;
   bpm: number;
   octaveShift: number;
   /** The chord's volume (0..1). */
@@ -51,12 +53,15 @@ export interface ChordRenderOutput {
 
 export interface ChordRenderer {
   render(input: ChordRenderInput): ChordRenderOutput;
+  /** The figuration clock's beat so far (the realizer's), for a commit on the beat. */
+  beat(): number;
 }
 
 export function createChordRenderer({ idBase, maxVoices }: { idBase: number; maxVoices: number }): ChordRenderer {
   const realizer = createRealizer({ idBase, maxVoices });
   return {
-    render({ degree, spec, voicing, rendering, coloration, tension, bpm, octaveShift, gain, sound, silentSound, dt }) {
+    beat: () => realizer.beat(),
+    render({ degree, spec, voicing, rendering, coloration, tension, beat, bpm, octaveShift, gain, sound, silentSound, dt }) {
       const triad = degree >= 0 && spec ? diatonicTriad(spec, degree) : [];
       const { voices, voiced } = realizer.render({
         tones: tonesInRegister(triad),
@@ -64,6 +69,7 @@ export function createChordRenderer({ idBase, maxVoices }: { idBase: number; max
         spec: { ...DEFAULT_SPEC, voicing, figuration: rendering, coloration: coloration ?? DEFAULT_SPEC.coloration },
         controls: { ...DEFAULT_CONTROLS, register: octaveShift, tension: tension ?? DEFAULT_CONTROLS.tension },
         bpm,
+        beat,
         gain,
         sound,
         silentSound,
