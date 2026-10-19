@@ -33,7 +33,8 @@ describe('liveHandCount', () => {
   it('reads the skeleton dial, the gesture pref, the Lab and the demand from the store', () => {
     handless();
     const s = useControls.getState();
-    expect(liveHandCount({ ...s, overlay: { ...s.overlay, landmarks: { ...s.overlay.landmarks, show: true } } }, new Set(), null)).toBe(2);
+    // The skeleton alone no longer asks for every hand (#168 D13 b, #480): it draws what is tracked.
+    expect(liveHandCount({ ...s, overlay: { ...s.overlay, landmarks: { ...s.overlay.landmarks, show: true } } }, new Set(), null)).toBe(1);
     expect(liveHandCount({ ...s, gestures: { ...s.gestures, enabled: true } }, new Set(), null)).toBe(2);
     expect(liveHandCount({ ...s, featureLab: { ...s.featureLab, show: true, groups: ['hand.position.raw'] } }, new Set(), null)).toBe(2);
     expect(liveHandCount(s, new Set(['hand.position.raw']), null)).toBe(2);

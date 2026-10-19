@@ -16,10 +16,11 @@
  * the two hands every second or so. Every one-hand reader in thoremin picks its hand
  * RELATIVE to the others (the conductor: the player's right hand, else any; a named hand;
  * ASL: the higher hand), so for them one hand is a change a player would feel, and the skeleton
- * overlay (on by default) would draw one hand of two. Both are maintainer decisions (#168), held
- * in {@link HAND_COUNT_POLICY}: until they are made, a one-hand reader and the skeleton
- * overlay both keep the model looking for every hand, and only an instrument that reads no
- * hand at all, with the skeleton hidden and no hand tool open, runs on one.
+ * overlay (on by default) would draw one hand of two. Both are maintainer decisions (#168 D13),
+ * held in {@link HAND_COUNT_POLICY} and applied on the recommendations (#480): a one-hand reader
+ * gets one hand (with both in view the landmarker may hold the other one for a while), and the
+ * skeleton shows what the instrument tracks, so an instrument that reads one hand or none draws
+ * one; an open hand tool, a hand-group claim, gestures or a two-hand dial still ask for every hand.
  *
  * Pure: no store, no engine, no React.
  */
@@ -55,8 +56,10 @@ export interface HandCountPolicy {
   skeletonSeesAllHands: boolean;
 }
 
-/** Today's behaviour for both calls, until #168 D13 is answered. */
-export const HAND_COUNT_POLICY: HandCountPolicy = { oneHandReaders: ALL_HANDS, skeletonSeesAllHands: true };
+/** #168 D13, applied on the recommendations (#480): a one-hand reader looks for one hand, and the
+ *  skeleton draws what the instrument tracks. Set `oneHandReaders: ALL_HANDS` and
+ *  `skeletonSeesAllHands: true` to go back to the behaviour before #325. */
+export const HAND_COUNT_POLICY: HandCountPolicy = { oneHandReaders: 1, skeletonSeesAllHands: false };
 
 /** How many hands a branch reads: its declaration, else inferred from its edges. */
 export function branchHands(branch: GraphBranch): 0 | 1 | 2 {
