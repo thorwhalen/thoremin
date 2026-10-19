@@ -4,15 +4,11 @@
  * re-read when the document object changes. Pure derivations of a {@link ScoreDoc}; the
  * node keeps one per instance.
  */
-import { barStartAt, beatsPerBarAt, timeSignatureAt, type ScoreDoc } from '@thoremin/sdk/score/schema';
+import { barStartAt, beatsPerBarAt, firstTempo, timeSignatureAt, type ScoreDoc } from '@thoremin/sdk/score/schema';
 import { readScoreDoc } from '@thoremin/sdk/score/prepare';
 
-/** The score's first marked tempo (bpm), if it marks one. */
-export function firstTempo(doc: ScoreDoc): number | null {
-  let first: { beat: number; bpm: number } | null = null;
-  for (const m of doc.tempoMap) if (!first || m.beat < first.beat) first = m;
-  return first ? first.bpm : null;
-}
+/** The score's first marked tempo: a score query, in the SDK beside the others (#600 S7). */
+export { firstTempo };
 
 /** The score's marked tempo (bpm) at a beat: the last mark at or before it, else the
  *  first. Null when it marks none. */

@@ -44,7 +44,7 @@ import { useControls } from './store';
 import { dispatchCommand, dispatchDialSetIn } from './dispatchDial';
 import { ConductorControls } from './dials/panels/conductor';
 import ConductorTiming from './ConductorTiming';
-import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor';
+import { CONDUCTOR_SOURCES } from '@/nodes/features/conductor.schema';
 import { useDialsSettings } from './dials/useDialsSettings';
 import { useConductorStatus, type ConductorLive } from './conductorStatus';
 import { toolById } from './tools';

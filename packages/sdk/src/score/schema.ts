@@ -197,3 +197,10 @@ export function partId(name: string, index: number, taken: Set<string>): string 
   taken.add(id);
   return id;
 }
+
+/** The score's first marked tempo (bpm), if it marks one: the earliest mark in its tempo map. */
+export function firstTempo(doc: ScoreDoc): number | null {
+  let first: { beat: number; bpm: number } | null = null;
+  for (const m of doc.tempoMap) if (!first || m.beat < first.beat) first = m;
+  return first ? first.bpm : null;
+}
