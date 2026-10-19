@@ -37,8 +37,14 @@ test('the Air drum joins the graph and hits when the synthetic hand strikes', as
   // frame that shows them), and a tick that decided one carries it, with a sound and a velocity,
   // out of the node's `hits` port toward the drum voice.
   await expect.poll(async () => (await status())?.hits ?? 0, { timeout: 30_000 }).toBeGreaterThan(2);
+  // A hit is PREDICTED only when the pipeline is fast enough to get ahead of the stroke (a ghost
+  // note on the first, and any hit while the machine is too busy to keep the frame rate up, is
+  // reported late): so a prediction must come, but not necessarily by the third hit. Waiting for
+  // the first one is the assertion, with room for a loaded runner (this was flaky when it read
+  // the count the instant the third hit landed, #629).
+  await expect.poll(async () => (await status())?.predicted ?? 0, { timeout: 45_000 }).toBeGreaterThan(0);
   const s = (await status())!;
-  expect(s.predicted).toBeGreaterThan(0);
+  expect(s.predicted).toBeLessThanOrEqual(s.hits);
   expect(s.ready.right || s.ready.left).toBe(true);
   await expect
     .poll(() => page.evaluate(() => (window.thoremin!.getOutput('airDrum', 'hits') as { sound?: string; velocity?: number }[] | undefined)?.length ?? 0), { timeout: 15_000, intervals: [16] })
