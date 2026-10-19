@@ -104,7 +104,8 @@
     "./sources/body_contract": "./src/sources/body_contract.ts",
     "./nodes/slot_contract": "./src/nodes/slot_contract.ts",
     "./music/effects": "./src/music/effects.ts",
-    "./features/feature_gate": "./src/features/feature_gate.ts"
+    "./features/feature_gate": "./src/features/feature_gate.ts",
+    "./score/demo": "./src/score/demo.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

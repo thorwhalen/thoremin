@@ -59,6 +59,18 @@ import type { ExtensionToolDecl, ToolEntryPointDecl } from './tools';
 export interface ExtensionToolPanelProps {
   /** Close the tool (the same as the frame's X). */
   close: () => void;
+  /** The sections OTHER extensions contribute to this tool (#600 S18b; {@link ExtensionToolSection}),
+   *  rendered by the host for a context: a tool that hosts sections places this where they go. */
+  Sections: ComponentType<{ context: ToolSectionContext }>;
+  /** Raise one of this panel's events to those sections, synchronously, inside the click that caused
+   *  it (a section may unlock media playback there). */
+  raise: (event: string, context: ToolSectionContext) => void;
+  /** The entry points other extensions declare FROM this tool (#465), whose `when` holds over `context`. */
+  entryPoints: (context: Readonly<Record<string, string | number | boolean>>) => readonly ToolEntryPointDecl[];
+  /** Follow an entry point (it opens its tool). */
+  openEntryPoint: (entry: ToolEntryPointDecl) => void;
+  /** Open another tool by id (closing this one). */
+  openTool: (id: string) => void;
 }
 
 export interface ExtensionTool extends ExtensionToolDecl {

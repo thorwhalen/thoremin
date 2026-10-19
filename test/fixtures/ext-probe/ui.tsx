@@ -50,11 +50,30 @@ function ProbeSection({ context }: { context: ToolSectionContext }) {
   return <p>probe section {String(context['conductor.conducts'])}</p>;
 }
 
-function ProbeToolPanel({ close }: ExtensionToolPanelProps) {
+/** A section the probe hosts in its own tool (#600 S18b): the host renders it inside the panel. */
+function ProbeHostedSection({ context }: { context: ToolSectionContext }) {
+  return <p>probe hosted section {String(context.mode)}</p>;
+}
+
+/** The probe's tool panel: it hosts sections, raises an event to them, and offers the entry points
+ *  declared from it, all through the props the host hands it (#600 S18b). */
+function ProbeToolPanel({ close, Sections, raise, entryPoints, openEntryPoint }: ExtensionToolPanelProps) {
+  const context = { mode: 'probing' };
   return (
-    <button type="button" onClick={close}>
-      probe tool panel
-    </button>
+    <div>
+      <button type="button" onClick={close}>
+        probe tool panel
+      </button>
+      <Sections context={context} />
+      <button type="button" onClick={() => raise('ping', context)}>
+        probe raise
+      </button>
+      {entryPoints({ probe: true }).map((e) => (
+        <button key={e.id} type="button" onClick={() => openEntryPoint(e)}>
+          {e.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -125,6 +144,8 @@ export const PROBE_UI: ExtensionUi = {
         stop: (c) => void probeSeen.events.push(`stop:${String(c['conductor.conducts'])}`),
       },
     },
+    // ...and one in its own tool, which its panel hosts through the host's props (#600 S18b).
+    { id: 'probe-hosted', from: PROBE_TOOL_ID, Section: ProbeHostedSection, on: { ping: (c) => void probeSeen.events.push(`hosted:${String(c.mode)}`) } },
   ],
   entryPoints: [{ id: 'probe-entry', from: PROBE_TOOL_ID, tool: 'probe-lazy-tool', label: 'Open the lazy probe...', when: { probe: true } }],
 };
