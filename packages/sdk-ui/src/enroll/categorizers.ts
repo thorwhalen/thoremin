@@ -187,6 +187,20 @@ export function defaultCategorizerProvider(): DataProvider<CategorizerRecord> {
   }));
 }
 
+/**
+ * The ids of the records kept in this browser's localStorage copies of the categorizers (the
+ * legacy face collection and the one collection's localStorage copy), read with the provider
+ * that writes them: the orphan-stills sweep's veto (a record there that is not in the one
+ * collection may name stills). Here, beside the writers, so a change of either reaches both.
+ */
+export async function localCategorizerCopyIds(): Promise<string[]> {
+  const ids: string[] = [];
+  for (const key of [LEGACY_FACE_STORAGE_KEY, CATEGORIZERS_STORAGE_KEY]) {
+    for (const r of (await localStorageCollectionProvider<CategorizerRecord>(key).getList({})).data) ids.push(r.id);
+  }
+  return ids;
+}
+
 /** The copy under way, per collection (its storage key, or an injected provider): shared by every
  *  view of it that asks while it runs. */
 const copies = new Map<unknown, Promise<unknown>>();

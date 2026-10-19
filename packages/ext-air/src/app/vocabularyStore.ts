@@ -32,8 +32,9 @@ import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '..
 export const MOUTH_REJECT_SCALE = 3;
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll';
 import { airControls } from './controls';
+import { AIR_STORES } from '../stores';
 
-export const VOCABULARIES_STORAGE_KEY = 'thoremin-air-vocabularies';
+export const VOCABULARIES_STORAGE_KEY = AIR_STORES.vocabularies.legacyKey;
 
 export const VocabularyRecordSchema = z.object({
   id: z.string().min(1),

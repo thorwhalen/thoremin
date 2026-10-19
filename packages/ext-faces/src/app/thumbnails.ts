@@ -18,6 +18,7 @@
  */
 import { meanLuma } from '@thoremin/sdk/enroll/light';
 import type { PixelBox, PixelPoint } from '@thoremin/sdk-ui/enroll/modality';
+import { FACES_STORES } from '../stores';
 
 export interface ThumbStore {
   get(key: string): Promise<Blob | null>;
@@ -44,7 +45,8 @@ export function memoryThumbStore(): ThumbStore {
   };
 }
 
-const DB_NAME = 'thoremin-faces';
+// The database declared in the manifest (`../stores.ts`, #600 S12).
+const DB_NAME = FACES_STORES.stills.legacyKey;
 const STORE = 'thumbs';
 
 /** IndexedDB, or memory when it is unavailable or refuses to open. */

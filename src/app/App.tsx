@@ -9,6 +9,8 @@
  * All signal processing happens in the DAG engine via {@link useThoreminEngine};
  * this component is purely presentational + lifecycle.
  */
+// The app's storage target, installed before any store is used (#600 S12).
+import './host/storage';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './useEngine';

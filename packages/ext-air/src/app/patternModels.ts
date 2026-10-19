@@ -12,8 +12,9 @@ import { create } from 'zustand';
 import type { DataProvider } from '@zodal/store';
 import { PatternModelSchema, type PatternModel } from '../lib/pattern_fit';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
+import { AIR_STORES } from '../stores';
 
-export const PATTERN_MODELS_STORAGE_KEY = 'thoremin-drum-pattern-models';
+export const PATTERN_MODELS_STORAGE_KEY = AIR_STORES.patternModels.legacyKey;
 
 export const PatternModelRecordSchema = z.object({
   id: z.string().min(1),

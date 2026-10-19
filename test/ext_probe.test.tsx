@@ -20,7 +20,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
+import { PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_VOICE_ID } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -51,6 +51,8 @@ type App = {
   commands: typeof import('@/app/commands/registry');
   keys: typeof import('@/app/keyboardShortcuts');
   modalities: typeof import('@thoremin/sdk/features/modalities');
+  contributions: typeof import('@/host/contributions');
+  storage: typeof import('@thoremin/sdk-ui/storage');
 };
 let app: App;
 /** The lazy probe's React half, as the host loads it (one module instance after the reset). */
@@ -73,8 +75,8 @@ beforeAll(async () => {
     import('@/app/store'),
   ]);
   const category = await import('@/app/library/category');
-  const [commands, keys, modalities] = await Promise.all([import('@/app/commands/registry'), import('@/app/keyboardShortcuts'), import('@thoremin/sdk/features/modalities')]);
-  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities };
+  const [commands, keys, modalities, contributions, storage] = await Promise.all([import('@/app/commands/registry'), import('@/app/keyboardShortcuts'), import('@thoremin/sdk/features/modalities'), import('@/host/contributions'), import('@thoremin/sdk-ui/storage')]);
+  app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities, contributions, storage };
 });
 
 describe('the probe reaches every pure contribution point', () => {
@@ -171,6 +173,21 @@ describe('the probe contributes a chord producer (#600 S4)', () => {
     expect([into('exprChord'), into('poseChord'), into(PROBE_NODE_ID)]).toEqual(['a', 'b', 'c']);
     // The registry sized the selector for every producer there is (two core, the probe, one spare).
     expect(reg.get('chord-select').inputs.map((p) => p.name)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('the probe declares a store (#600 S12)', () => {
+  it('the storage-key registry lists it, owned by the probe, and the seam reaches its collection', async () => {
+    expect(app.contributions.CONTRIBUTIONS.storageKeys).toContainEqual({ key: PROBE_STORE.legacyKey, kind: 'localStorage', owner: 'probe', purpose: PROBE_STORE.description });
+    const { createInMemoryProvider } = await import('@zodal/store');
+    const memory = createInMemoryProvider<{ id: string }>([]);
+    const previous = app.storage.provideStorage({ collection: (key) => (key === PROBE_STORE.legacyKey ? memory : createInMemoryProvider([])) as never });
+    try {
+      await app.storage.storage().collection<{ id: string }>(PROBE_STORE).create({ id: 'note' });
+      expect((await memory.getList({})).data).toEqual([{ id: 'note' }]);
+    } finally {
+      app.storage.provideStorage(previous);
+    }
   });
 });
 
