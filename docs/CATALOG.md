@@ -487,6 +487,14 @@ A next-chord wheel: the chord in force in the centre, one move per wedge at a fi
 - **out:** params:synth-params, grid:cell-grid, status:chord-wheel-status, triad:number[]
 - **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true), steer (enum(hand | face | both)="hand"), faceMoves (object={}), faceFrames (number=6), walk (boolean=false), walkBeats (number=1), tension (enum(off | function | tps | profile)="off"), order (enum(fixed | likely)="fixed"), clock (enum(tempo | song | conductor)="tempo")
 
+#### `chord-chart` — Chord chart
+Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.
+
+- **roles:** mapping, music
+- **in:** time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
+- **out:** params:synth-params, status:chord-chart-status, triad:number[]
+- **params:** enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)
+
 ### Sign language
 _Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key._
 
@@ -570,15 +578,4 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues),
 - **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, conductorTime:musical-time, conductorEnabled:boolean, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, categories:category-scores, categoryCaptions:string[], elements:string[], faceVector:feature-vector, handVector:feature-vector, bodyVector:feature-vector, categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.chordMap.grid:cell-grid, air.chordMap.config:chord-map-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), conductorHud (object={}), drumPads (object={}), cellGrid (object={}), timbreLevels (object={}), mouthCue (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), featureLab (object={}), tagHud (object={}), trainerHud (object={})
-
-### Other
-
-
-#### `chord-chart` — Chord chart
-Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.
-
-- **roles:** mapping, music
-- **in:** time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
-- **out:** params:synth-params, status:chord-chart-status, triad:number[]
-- **params:** enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)
 

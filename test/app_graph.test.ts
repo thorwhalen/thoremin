@@ -5,6 +5,7 @@
  * browser. The webcam node lazy-loads TF.js inside init(), which we never call
  * here, so the app registry is Node-importable.
  */
+import { CHORD_CHART_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_chart';
 import { describe, it, expect } from 'vitest';
 import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
 import { CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_map';
@@ -86,7 +87,7 @@ describe('production app graph', () => {
     // controller (#186 PR H) the 29th, the dwelled hands (#314) the 30th. The ASL extension adds its reader and its chord node,
     // the faces extension its personal categorizer (#330 P4). The #13 midi-out sink is the MIDI
     // slice's since #600 S13, counted with it (29 core nodes + 1).
-    expect(order).toHaveLength((AIR ? 39 : 29) + (MIDI ? 1 : 0) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
+    expect(order).toHaveLength((AIR ? 40 : 29) + (MIDI ? 1 : 0) + (ASL ? 2 : 0) + (FACES ? 3 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     expect(order.indexOf('bodyPulse')).toBeLessThan(order.indexOf('pace'));
@@ -349,7 +350,9 @@ describe('production app graph', () => {
     const chordMap = [0, 1, 2, 3, 4].map((i) => CHORD_MAP_VOICE_ID_BASE + i).concat(CHORD_MAP_MELODY_VOICE_ID);
     // The chord wheel (air) its five chord voices.
     const chordWheel = [0, 1, 2, 3, 4].map((i) => CHORD_WHEEL_VOICE_ID_BASE + i);
-    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap, ...chordWheel] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
+    // The chord chart (air, H9) its five chord voices.
+    const chordChart = [0, 1, 2, 3, 4].map((i) => CHORD_CHART_VOICE_ID_BASE + i);
+    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap, ...chordWheel, ...chordChart] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
     expect([...ids].sort((a, b) => a - b)).toEqual(merged0.sort((a, b) => a - b));
     expect(ids.slice(0, 2)).toEqual([0, 1]); // the hand voices lead (the overlay reads them by position)
     expect(new Set(ids).size).toBe(ids.length); // no id collision across hands + both chords + flute
