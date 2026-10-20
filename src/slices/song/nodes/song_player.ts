@@ -224,6 +224,10 @@ export const songPlayerNode = defineNode<Params>({
           return idle(ctx, status);
         }
         if (!audio) {
+          // Boundary B, like the synth: at any clock speed but real time the song goes
+          // silent too, rather than playing on at wall-clock rate under a silent instrument.
+          if (stretcher && loadedId) stretcher.pause();
+          wasPlaying = false;
           return idle(ctx, { phase: 'unavailable', reason: 'no-audio', message: 'Tap to play to start the audio, then play the song' }, song.grid);
         }
         // A new song retries a stretcher that failed to load (a chunk lost to a redeploy).

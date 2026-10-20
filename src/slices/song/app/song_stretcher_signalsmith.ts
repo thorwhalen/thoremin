@@ -58,6 +58,8 @@ async function loadSignalsmith(): Promise<SignalsmithFactory> {
 
 /** The slice of Signalsmith's node this adapter uses (the package ships no types). */
 interface StretchNode extends AudioNode {
+  /** An AudioWorkletNode's: fired once when its processor threw, after which it renders silence. */
+  onprocessorerror?: ((ev: Event) => void) | null;
   schedule(change: { active?: boolean; input?: number; output?: number; rate?: number }): unknown;
   /** The trailing array is a transfer list: the package posts those buffers instead of copying them. */
   addBuffers(channels: Float32Array[], transfer?: ArrayBufferLike[]): Promise<number>;
@@ -105,6 +107,8 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
   fader.connect(gain);
   let node: StretchNode | null = null;
   let fallback: Stretcher | null = null;
+  /** The song the worklet holds, for the hand-over to the media element if it dies. */
+  let loadedUrl: string | null = null;
   let loadId = 0;
   let duration = 0;
   let rate = 1;
@@ -159,6 +163,9 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         }
         n.connect(fader);
         node = n;
+        // A processor that throws mid-song renders silence from then on and says so once: the
+        // media element takes the song over from where it was, so "Playing" stays true to the ear.
+        n.onprocessorerror = (ev) => failOver(n, ev);
       } catch (e) {
         if (disposed) return null;
         console.warn(`[song-player] Signalsmith Stretch could not start, playing through the media element: ${String(e)}`);
@@ -171,10 +178,35 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
     return starting;
   };
 
+  const failOver = (n: StretchNode, ev: unknown): void => {
+    if (disposed || fallback || node !== n) return;
+    const at = position();
+    const resume = wanted;
+    wanted = false;
+    node = null;
+    n.disconnect();
+    console.warn(`[song-player] Signalsmith Stretch failed while playing, the media element takes over at ${at.toFixed(2)} s: ${String(ev)}`);
+    const next = createMediaElementStretcher(audio);
+    next.setVolume(volume);
+    next.setRate(rate);
+    fallback = next;
+    if (loadedUrl === null) return;
+    const url = loadedUrl;
+    void next
+      .load(url)
+      .then(() => {
+        if (disposed || fallback !== next) return;
+        next.seek?.(at);
+        if (resume) next.play();
+      })
+      .catch((e) => console.error('[song-player] the media element could not take the song over', e));
+  };
+
   return {
     async load(url) {
       const id = ++loadId;
       wanted = false;
+      loadedUrl = url;
       const n = await start();
       if (fallback) return fallback.load(url);
       if (!n) throw new Error('the song player could not start');

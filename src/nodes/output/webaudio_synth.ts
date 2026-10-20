@@ -50,6 +50,8 @@ interface Voice {
   nodes: AudioNode[];
   attack: number;
   release: number;
+  /** When this voice's id left the stream (context seconds); NaN while it is in it. */
+  absentSince: number;
 }
 
 /** Map a brightness (0..1) to a low-pass cutoff (Hz), exponentially. NaN-safe. */
@@ -60,6 +62,18 @@ function brightnessToCutoff(brightness: number): number {
 
 /** Extra detune (cents) added at full live vibrato, on top of any preset base. */
 const MAX_VIBRATO_CENTS = 35;
+
+/**
+ * How long (seconds) a voice whose id has LEFT the stream is kept after its fade began
+ * before its oscillators are stopped and freed. A producer that leaves the graph mid-note
+ * (an instrument switch) or a score whose note ended (one voice id per note, gone after
+ * its release tick) only ever sends silence by absence: without a reaper every note a
+ * conducted piece played kept its oscillators running, one set per note, until the piece
+ * was changed. Ten release constants is under -40 dB for any preset, and a reaped id that
+ * comes back is rebuilt at the pitch it had (`lastFreq`), as the kept voice would have been.
+ */
+export const ABSENT_VOICE_REAP_S = 2;
+const REAP_RELEASES = 10;
 const DFLT_VIBRATO_HZ = 5.5;
 
 /** Total vibrato depth (cents) from a preset base + a live amount (0..1). NaN-safe. */
@@ -128,7 +142,7 @@ function ensureBus(ac: AudioContext, master: GainNode, current: Bus | null): Bus
   return { ac, out: comp, reverbIn, nodes: [comp, makeup, reverbIn, convolver, reverbOut] };
 }
 
-function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voice {
+function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params, startFreq?: number): Voice {
   const preset = getSound(v.sound);
   const now = ac.currentTime;
   const nodes: AudioNode[] = [];
@@ -161,6 +175,9 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
   const partials: PartialOsc[] = preset.partials.map((part) => {
     const osc = ac.createOscillator();
     osc.type = part.type;
+    // A voice rebuilt for an id the reaper freed starts where that voice was left, so the
+    // glide below runs from the same pitch it would have run from had the voice been kept.
+    if (startFreq !== undefined) osc.frequency.setValueAtTime(startFreq * (part.ratio ?? 1), now);
     if (part.detuneCents) osc.detune.setValueAtTime(part.detuneCents, now);
     const g = ac.createGain();
     g.gain.setValueAtTime(part.gain ?? 1, now);
@@ -214,6 +231,7 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params): Voic
     nodes,
     attack: preset.attack ?? p.gainGlide,
     release: preset.release ?? p.gainGlide,
+    absentSince: NaN,
   };
 }
 
@@ -271,6 +289,8 @@ export const webAudioSynthNode = defineNode<Params>({
   params: Params,
   make(p) {
     const voices = new Map<number, Voice>();
+    /** The last pitch each id was asked for, kept past the voice itself (see the reaper). */
+    const lastFreq = new Map<number, number>();
     let bus: Bus | null = null;
 
     return {
@@ -298,7 +318,20 @@ export const webAudioSynthNode = defineNode<Params>({
         // send it the silence. Producers keep stable ids while they exist, so this only fires
         // on such a removal.
         const seen = new Set(sp.voices.map((v) => v.id));
-        for (const [id, voice] of voices) if (!seen.has(id)) voice.voiceGain.gain.setTargetAtTime(0, now, voice.release);
+        for (const [id, voice] of voices) {
+          if (seen.has(id)) {
+            voice.absentSince = NaN;
+            continue;
+          }
+          if (Number.isNaN(voice.absentSince)) {
+            voice.absentSince = now;
+            voice.voiceGain.gain.setTargetAtTime(0, now, voice.release);
+          } else if (now - voice.absentSince > Math.max(ABSENT_VOICE_REAP_S, REAP_RELEASES * voice.release)) {
+            // Faded past hearing: free its oscillators (a hard stop, nothing left to click).
+            teardownVoice(voice, ac);
+            voices.delete(id);
+          }
+        }
 
         for (const v of sp.voices) {
           // Guard against non-finite params (a degenerate upstream feature):
@@ -314,9 +347,10 @@ export const webAudioSynthNode = defineNode<Params>({
           }
           if (v.present && v.gain > 0) {
             if (!voice) {
-              voice = buildVoice(ac, bus, v, p);
+              voice = buildVoice(ac, bus, v, p, lastFreq.get(v.id));
               voices.set(v.id, voice);
             }
+            lastFreq.set(v.id, v.freq);
             for (const part of voice.partials) {
               part.osc.frequency.setTargetAtTime(v.freq * part.ratio, now, p.freqGlide);
             }
@@ -342,6 +376,7 @@ export const webAudioSynthNode = defineNode<Params>({
       dispose() {
         if (bus) for (const voice of voices.values()) teardownVoice(voice, bus.ac);
         voices.clear();
+        lastFreq.clear();
         if (bus) {
           for (const n of bus.nodes) {
             try {
