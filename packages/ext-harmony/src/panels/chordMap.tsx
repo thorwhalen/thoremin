@@ -74,6 +74,8 @@ export function ChordMapControls() {
   const layout = c.layout ?? 'harmonic';
   const anchor = c.anchor ?? 'home';
   const gridOnVideo = c.gridOnVideo?.show ?? true;
+  const torusShow = c.torusOnVideo?.show ?? false;
+  const turnsPerMinute = c.torusOnVideo?.turnsPerMinute ?? 3;
   const follow = c.follow ?? 'hands';
   const chordsFrom = c.chordsFrom ?? 'key';
   const clock = c.clock ?? 'tempo';
@@ -230,6 +232,11 @@ export function ChordMapControls() {
         <input type="checkbox" checked={gridOnVideo} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.gridOnVideo.show', e.target.checked)} />
         Draw the map on the video
       </label>
+      <label className="flex items-center gap-2 text-xs" title="The seven chords on a torus, where every chord touches the other six: the three loops are the moves by a second, a third and a fourth, the map's three directions. The loop of the move you just made lights up.">
+        <input type="checkbox" checked={torusShow} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.torusOnVideo.show', e.target.checked)} />
+        Show the chords on a turning torus
+      </label>
+      {torusShow && <Range label={`Torus turns (${turnsPerMinute} a minute)`} path="chordMap.torusOnVideo.turnsPerMinute" value={turnsPerMinute} min={0} max={20} step={1} enabled={enabled} />}
       <label className="flex items-center gap-2 text-xs" title="The key's seventh chords: Cmaj7, Dm7, G7, Bø7. Neighbours a third apart then share three notes.">
         <input type="checkbox" checked={sevenths} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.sevenths', e.target.checked)} />
         Seventh chords

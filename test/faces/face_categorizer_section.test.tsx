@@ -84,7 +84,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe.runIf(FACES)('the face categorizer section of the instrument editor', () => {
+// Each test waits up to LOAD_MS for the lazy section, so its own limit must exceed it (vitest's 5 s default made the wait unreachable).
+describe.runIf(FACES)('the face categorizer section of the instrument editor', { timeout: LOAD_MS + 5000 }, () => {
   it('is a section of the editor, closed until opened, offering the general model and the shared ones', async () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('Face categorizer')).toBeTruthy();

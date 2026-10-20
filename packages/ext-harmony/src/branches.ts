@@ -12,6 +12,8 @@ import { HARMONY_EXTENSION_ID } from './id';
 /** The chord map's overlay element (#610 item 4; it was core's `cellGrid`): this slice's own,
  *  drawn from its grid. */
 export const CHORD_MAP_ELEMENT = 'chordMap';
+/** The chord map's torus (#745): the seven chords on a turning torus, drawn from its status. */
+export const CHORD_TORUS_ELEMENT = 'chordTorus';
 /** The node type of the chord map's strum sink: the SDK's plucked-string sink (`makePluckOutNode`). */
 export const CHORD_STRUM_OUT = 'chord-strum-out';
 
@@ -46,13 +48,14 @@ export const chordMap = defineBranch({
     to({ node: 'chordMap', port: 'notes' }, { node: 'chordStrumOut', port: 'notes' }),
     to(ui('muteStrikes'), { node: 'chordStrumOut', port: 'mute' }),
     to({ node: 'chordMap', port: 'grid' }, overlay(overlayPortName(HARMONY_EXTENSION_ID, CHORD_MAP_ELEMENT, 'grid'))),
+    to({ node: 'chordMap', port: 'status' }, overlay(overlayPortName(HARMONY_EXTENSION_ID, CHORD_TORUS_ELEMENT, 'status'))),
   ],
   voices: [{ from: { node: 'chordMap', port: 'params' }, role: 'instrument' }],
   // Its chord on the shared chord name, chord guide and keyboard strip (#600 S4's pool, #610).
   // Below the face (30) and pose (20) chords, so composing it moves none of their inputs; an
   // instrument rarely plays both, and the map lights its own chord either way.
   chords: [{ from: { node: 'chordMap', port: 'triad' }, priority: 10 }],
-  overlay: [overlayElementId(HARMONY_EXTENSION_ID, CHORD_MAP_ELEMENT)],
+  overlay: [overlayElementId(HARMONY_EXTENSION_ID, CHORD_MAP_ELEMENT), overlayElementId(HARMONY_EXTENSION_ID, CHORD_TORUS_ELEMENT)],
 });
 
 /** The chord wheel's overlay element (#600 S5): this slice's own, drawn from its grid. */

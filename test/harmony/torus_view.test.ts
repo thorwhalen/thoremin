@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TORUS_CYCLES, TORUS_DEGREES, DEFAULT_TORUS, flatPosition, torusPoint, rotate, project, loopPoints, torusView,
-} from '../../packages/ext-harmony/src/views/torus';
+} from '../../packages/ext-harmony/src/lib/torus';
 
 const dist = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 

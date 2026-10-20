@@ -19,8 +19,12 @@ import { ChordChartDialSchema } from './nodes/chord_chart';
  *  `overlay.cellGrid` in core's overlay dial). */
 const GridOnVideoSchema = z.object({ show: z.boolean().default(true) }).prefault({});
 
-/** The chord map: the node's params, plus whether its grid is drawn on the video. */
-export const ChordMapSettingsSchema = ChordMapDialSchema.extend({ gridOnVideo: GridOnVideoSchema });
+/** The seven chords as a turning torus on the video (#745, `nodes/overlay/chord_torus.ts`): off by
+ *  default; how many turns a minute (0 holds it still). */
+const TorusOnVideoSchema = z.object({ show: z.boolean().default(false), turnsPerMinute: z.number().min(0).max(20).default(3) }).prefault({});
+
+/** The chord map: the node's params, plus whether its grid and its torus are drawn on the video. */
+export const ChordMapSettingsSchema = ChordMapDialSchema.extend({ gridOnVideo: GridOnVideoSchema, torusOnVideo: TorusOnVideoSchema });
 export type ChordMapSettings = z.infer<typeof ChordMapSettingsSchema>;
 export const DEFAULT_CHORD_MAP: ChordMapSettings = ChordMapSettingsSchema.parse({});
 
