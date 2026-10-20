@@ -28,11 +28,6 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'categoryTargets', kind: 'category-targets' },
   { name: 'octaveShift', kind: 'number', default: 0 },
   { name: 'overlayConfig', kind: 'overlay-config' },
-  // LEGACY (#600 S10b, expand): the ASL reader's reading and captions, wired by name by the pinned
-  // ASL plugin, read as the first classifier ahead of the pool. Removed once the plugin declares
-  // `categories` / `categoryCaptions` on its branches (the contract step).
-  { name: 'categories', kind: 'category-scores' },
-  { name: 'categoryCaptions', kind: 'string[]' },
   // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
   // the current instrument. Absent → every element (headless tests, pre-composition).
   { name: 'elements', kind: 'string[]' },

@@ -38,6 +38,13 @@ describe.runIf(ASL)('the ASL instruments', () => {
     expect(s.faceChord.chordSource).toBe('custom');
   });
 
+  it('the reading and its chord captions reach the overlay through its category pool, by the branches\' declarations (#655)', () => {
+    const { spec } = composeInstrumentGraph(['asl-signs', 'asl-chord'], { source: 'synthetic-hands' }, createAppRegistry());
+    const into = (node: string, port: string) => spec.edges.filter((e) => e.from.node === node && e.from.port === port).map((e) => `${e.to.node}.${e.to.port}`);
+    expect(into('aslSigns', 'signs')).toEqual(['overlay.classifier1']);
+    expect(into('signChord', 'captions')).toEqual(['overlay.classifier1Captions']);
+  });
+
   it('the chords graph ticks with validated ports and emits a reading', () => {
     const registry = createAppRegistry();
     const { spec } = composeInstrumentGraph(['asl-signs', 'asl-chord'], { source: 'synthetic-hands' }, registry);
