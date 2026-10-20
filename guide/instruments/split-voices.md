@@ -10,5 +10,5 @@ settings: Sound
 Two different instruments, one in each hand.
 
 :::details How it works
-Each hand is a voice with its own scale, sound and range. In **Sound**, "Sync with right" makes the left voice copy the right; switch it off to give them different sounds.
+Each hand is a voice with its own scale, sound and range. In **Sound**, "Sync both hands" makes the left voice copy the right; switch it off to give the left hand its own scale, sound and range.
 :::

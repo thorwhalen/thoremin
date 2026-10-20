@@ -13,7 +13,10 @@ The fastest way to change anything: every setting is a searchable command. An op
 |-----|--------|
 | Up / Down | Octave up / down |
 | Right / Left | Magnetism up / down |
-| m | Mute (hands and chords) |
+| m | Mute everything |
+| t | Open the Tools list |
+| Cmd/Ctrl + Z | Undo the last setting change |
+| Cmd/Ctrl + Shift + Z | Redo |
 | 1 to 9 | Toggle annotation 1 to 9, while annotation mode is on |
 | Cmd/Ctrl + K | Command palette |
 

@@ -6,10 +6,10 @@ Your whole body can lead the music. Open the [Conductor](tool:conductor) and the
 
 ## Conduct a score
 
-Load a MIDI or MusicXML score (a demo is built in), switch the conductor on and beat time in front of the camera. A sampled orchestra plays and follows your tempo and your loudness. You choose which parts play, and the orchestra downloads only when you switch it on.
+Load a MIDI or MusicXML score (a demo is built in), press **Start conducting** and beat time in front of the camera. A sampled orchestra plays and follows your tempo and your loudness. You choose which parts play, and the orchestra is optional: tick **Play with the orchestra** and it downloads the first time.
 
 :::details Hand or body
-By default your beating hand's strokes are the beats. Choose **body** and several joints (arm and trunk) are read: start, hold, fermata and cut-off come from your body, and your other hand can shape loudness and staccato. *Learn my timing* measures how far your trunk lags a click, so the beat lands when you meant it. Body conducting needs most of your upper body in view.
+By default your beating hand's strokes are the beats. Choose **body** and several joints (arm and trunk) are read: start, hold, fermata and cut-off come from your body, and your other hand can shape loudness and staccato. *Learn my timing* measures how far each joint lags a click and keeps the ones it measured clearly, so the beat lands when you meant it. Body conducting needs most of your upper body in view.
 :::
 
 :::details Start, hold and stop with poses

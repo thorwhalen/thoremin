@@ -14,5 +14,5 @@ A stick tip is estimated from the way you hold your hand. The hit is *predicted*
 :::
 
 :::details Settings
-**Air drum** in the editor has the pad editor, each hand's drum sound, the stick length, how hard a stroke must be to count as a hard hit, and a pattern trainer that drills short drum patterns. Pad layouts can be saved.
+**Air drum** in the editor has the pad editor, the stick point, each hand's drum sound, how fast a stroke must be to sound at full volume, the lead, and a pattern trainer that drills short drum patterns. Pad layouts can be saved.
 :::
