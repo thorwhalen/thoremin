@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting · Thoremin guide</title>
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+<header><nav aria-label="Guide"><a href="index.html">Guide</a><a href="instruments.html">Instruments</a><a href="tools.html">Tools</a><a href="settings.html">Settings</a><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><a href="../manual.html">Manual</a><a class="app" href="../">Back to the app</a></nav></header>
+<main>
+<h1>Troubleshooting</h1>
+<h2>No sound</h2>
+<p>Browsers will not make sound until you tap. Tap anywhere on the page once. If the status still says it is waiting, check that the tab is not muted and the device volume is up. The <strong>m</strong> key mutes the hands and the chords: press it again.</p>
+<h2>The camera does not start</h2>
+<ul>
+<li>Allow the camera when the browser asks. If you said no, the address bar&#39;s camera icon lets you change it.</li>
+<li>Close other programs that use the camera (video calls). Only one can have it.</li>
+<li>The page must be opened from its real address (<code>https://</code>), not from a file.</li>
+<li>Without a camera, add <code>?slot.source=synthetic-hands</code> to the address to try the instruments with a pretend hand.</li>
+</ul>
+<h2>It does not see my hand, or jitters</h2>
+<ul>
+<li>Light the room from the front or the side, not from behind you. The face tools say &quot;Too dark: add light, or record again in this light&quot; when it is too dim.</li>
+<li>Keep your hand in view and a little away from the camera, with the palm toward it.</li>
+<li>The <strong>Wrist Theremin</strong> instrument is steadier than the fingertip.</li>
+<li>With two hands close together the second can be missed; move them apart.</li>
+</ul>
+<h2>Browsers</h2>
+<p>Chrome and Edge work best. Safari and Firefox work for playing, with gaps: no folder picker for saving takes (they download a zip), and Safari has no Web MIDI. The first time you open an extension (air, ASL, faces) it downloads a little, then works offline of that.</p>
+<h2>MIDI</h2>
+<p>Needs Chrome or Edge. Switch <strong>MIDI</strong> on in the editor, then choose the port. A device you plug in later appears after you switch MIDI off and on. <a href="instruments/play-along-midi.html">Play Along (MIDI)</a>) needs a MIDI keyboard connected before you open it.</p>
+<h2>Microphone</h2>
+<p><a href="instruments/play-along-microphone.html">Play Along (microphone)</a>) asks to use the microphone. Allow it; if you said no, the address bar&#39;s icon lets you change it. It hears a guitar, a piano or a recording through the speakers; it hears chords best when the sound is clear.</p>
+<h2>Latency (the sound comes late)</h2>
+<ul>
+<li>Use headphones or a wired speaker: Bluetooth adds a noticeable delay.</li>
+<li>Close other heavy tabs. The hand model is the most expensive part.</li>
+<li>The air instruments predict the hit before the frame that shows it, so they sound on time even at 30 frames a second; a bright, steady picture helps them most.</li>
+<li>Add <code>?probe=latency</code> to the address to see where the time goes, stage by stage.</li>
+</ul>
+<h2>Something broke</h2>
+<p>Reloading restores your saved instruments and your working state. If a setting seems wrong, reselecting the instrument reverts it to its saved version.</p>
+
+</main>
+<footer><p>Thoremin turns your camera into a musical instrument. Everything runs in your browser: nothing you play is uploaded. <a href="../">Open the app</a>.</p></footer>
+</body>
+</html>

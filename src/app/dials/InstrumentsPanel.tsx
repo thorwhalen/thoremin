@@ -49,7 +49,7 @@ import { useDialsSettings } from './useDialsSettings';
 import { useLibrary } from '@/app/library/useLibrary';
 import InstrumentTags from '@/app/library/InstrumentTags';
 import TagsEditor from '@/app/library/TagsEditor';
-import { TrainingLink } from '@/app/training/TrainingLink';
+import { EditorLinks } from '@/app/guide/EditorLinks';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
 import { INSTRUMENT_CATALOG, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
@@ -459,11 +459,7 @@ export default function InstrumentsPanel() {
           )}
           <div className="border-t border-white/10 pt-3">
             {/* #263/#269: where this instrument's training lives, from its spec. */}
-            {selected && (
-              <div className="mb-2">
-                <TrainingLink spec={library.specOf(selected)} />
-              </div>
-            )}
+            {selected && <EditorLinks name={selected} spec={library.specOf(selected)} category={library.categoryOf(selected)} />}
             <DialsControlsPanel leadAir={editorLead} />
           </div>
         </div>

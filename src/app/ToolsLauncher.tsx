@@ -53,7 +53,7 @@ function ToolRow({ tool }: { tool: Tool }) {
   return (
     <li className="flex items-start gap-1" data-launcher-tool={tool.id}>
       {tool.kind === 'link' ? (
-        <a href={tool.href} className={rowCls} onClick={() => useTools.getState().closeLauncher()}>
+        <a href={tool.href} target="_blank" rel="noopener" className={rowCls} onClick={() => useTools.getState().closeLauncher()}>
           {body}
         </a>
       ) : (

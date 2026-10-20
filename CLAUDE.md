@@ -101,6 +101,7 @@ via the provider. Never `await` a provider in the tick/audio loop.
 
 ## Dev skills (`skills/`, linked from `.claude/skills/`)
 
+- **`thoremin-dev-guide`** — keeping the player guide (and, in its second section, the private research guide) true: when a seed, tool or editor section is added or changed, how to add its guide entry, regenerate its picture and the voice to write in. Read it before shipping a player-visible change.
 - **`thoremin-dev-video-data`** — every video downloaded to train, test, measure or build a fixture keeps ALL its landmark streams (pose, hands, face; gzipped NDJSON) with a `meta.json` (source URL, licence, description, on-screen labels, subtitles, where each label came from, extractor and model); the video itself is deletable. Read it before fetching any footage.
 
 ## Verification gates (every change)
@@ -228,6 +229,10 @@ So, when you add a user-facing capability:
 3. **Test the reachability, not just the logic.** `test/tools_shell.test.tsx` (jsdom) and
    `test/app_shell.test.ts` are the pattern. A green unit suite says the code runs; it
    says nothing about whether a player can get to it.
+4. **Give it a guide entry.** The player guide (in the app, Tools, Guide) has a page per
+   instrument, per tool and a section per editor section, with a picture each; a new one without
+   an entry fails `test/guide_coverage.test.ts`. How to add one, regenerate the pictures and the
+   voice to write in: the `thoremin-dev-guide` skill (`skills/thoremin-dev-guide/SKILL.md`).
 
 ## Where things live
 
@@ -310,6 +315,7 @@ So, when you add a user-facing capability:
 | **Instruments as declared graphs** (ADR PRs 1, 3, 4: #276, #278) — `GraphBranch` (a named, sparse piece of graph with owned edges, voices by role, overlay elements, implied-by demands), `composeGraph` (four rules; order-independent), the branch table; the pure `deriveBranchIds` (dials + demand + Lab → the branch set, given the build's table; an explicit set still unions a tool's demand) and `assembleSpecWith`, bound to this build's extensions as `branchIdsFor` / `assembleSpec` in `src/app/graph.ts`; the live graph is composed in `useEngine` and re-applied on instrument switch; the overlay draws only the composed element set (on the `graphElements` port); the `InstrumentSpec` (a join of the profile store's Layer, the library's metadata record and the derivation: class cache, explicit branches, training route, image reference, `features` facet), exposed by `useLibrary().specOf` | `src/instruments/` (`branch.ts`, `compose.ts`, `branches.ts`, `derive.ts`, `spec.ts`), `src/app/useEngine.ts` (`liveGraph`, `applyLive`), `src/app/library/` (`derive.ts`, `useLibrary.ts`, `model.ts`), `test/instruments/`, `test/fixtures/graph/` |
 | **Training routes** (#263/#269) — where "train this instrument" goes: the spec's `training.route` when declared, else the air branch it composes (flute/guitar sequence, drum patterns, each in its own settings section by DOM anchor), else the Trainer tool; the link at the top of every instrument's editor | `src/app/training/routes.ts`, `src/app/training/TrainingLink.tsx`, `test/training_routes.test.ts` |
 | **Research guide** (private, for the owner) — research, experiments, ADRs and decisions, and the horizon (epics, open issues by theme, what waits on the owner) as a static site built outside the repo and published to annals; the curation is `guide.json` (public material only), the private notes an overlay outside the repo; every build prints a staleness report (new, changed and uncurated docs, moved decisions). When a research doc, ADR or decision lands, add its entry and run `npm run research-guide -- --publish` | `scripts/research_guide/` (see its `README.md`), `test/research_guide.test.ts` |
+| **Player guide** — what works and how to play it, shipped with the app: Markdown sources, one page per instrument and tool, a section per editor section, pictures captured from the app on synthetic sources; the Tools menu's "Guide" and each instrument editor's "Guide: how to play this" open it; a coverage guard keeps it equal to the seeds, tools and sections. `docs/USER_GUIDE.md` points at it | `guide/` (sources), `public/guide/` (generated: `npm run guide`; pictures `npm run guide:media`), `scripts/lib_guide.ts`, `scripts/gen_guide.ts`, `smoke/guide_media.mjs`, `smoke/guide_scenes.json`, `src/app/guide/`, `test/guide_coverage.test.ts`, `skills/thoremin-dev-guide/` |
 | Conceptual model | `docs/design/component-model.md` |
 | **Instruments as declared graphs + extensions** (ADR, accepted 2026-09-27 after an independent review: trunk + branches composed by four rules, `InstrumentSpec`, the `Extension` manifest with a generated `store-controls` port list, the package cut, the seven-PR sequence; class id `field` = "Field instruments", #274) | `docs/design/instruments-as-graphs-and-extensions.md` |
 
