@@ -15,6 +15,7 @@
 import { promptSpeech } from '@thoremin/sdk-ui/enroll/speech';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ModalityWords } from '@thoremin/sdk/enroll/modality';
+import { DARK_ROOM_MESSAGE } from '@thoremin/sdk/enroll/light';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { useWords } from './words';
 import { useStore } from 'zustand';
@@ -94,6 +95,11 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
       <p className="text-base font-bold text-white" role="status" aria-live="polite" data-faces-reading={r?.categoryId ?? (none ? 'none' : '')}>
         {headline}
       </p>
+      {test.tooDark && (
+        <p role="status" className="text-xs text-amber-600 dark:text-amber-400" data-faces-too-dark>
+          {DARK_ROOM_MESSAGE}
+        </p>
+      )}
       {r && !test.noFace && <MarginMeter r={r} live={live} />}
       <ul className="space-y-0.5">
         {live.model.categories.map((c) => {

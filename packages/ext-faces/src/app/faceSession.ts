@@ -68,6 +68,8 @@ export function browserTestStoreFor(ui: CarveModalityUi, script: SyntheticScript
     now: () => performance.now(),
     pollMs: FACE_TEST_DEFAULTS.pollMs,
     publishMs: FACE_TEST_DEFAULTS.publishMs,
+    frames: openLiveFrames,
+    region: ui.region,
   });
 }
 
