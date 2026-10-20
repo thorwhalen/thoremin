@@ -45,8 +45,8 @@
    "title": "Body and dance",
    "blurb": "The body as a source: which channel carries the beat, the pose feature space, the dancer's pulse pacing a song.",
    "guide": {
-    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/poses.html",
-    "label": "Your poses (the body as a source)"
+    "url": "https://apps.thorwhalen.com/thoremin/guide/conduct-and-dance.html",
+    "label": "Conduct and dance (the body as a source)"
    },
    "media": [
     {
@@ -68,8 +68,8 @@
    "title": "Conducting and the orchestra",
    "blurb": "Conducting gestures, the virtual orchestra, meter, lead offsets, transport and expression.",
    "guide": {
-    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/conductor.html",
-    "label": "The Conductor tool"
+    "url": "https://apps.thorwhalen.com/thoremin/guide/conduct-and-dance.html",
+    "label": "Conduct and dance"
    },
    "media": [
     {
@@ -91,8 +91,8 @@
    "title": "Face and personal categorizers",
    "blurb": "Expressions, a player's own face, hand and pose categories, lighting and distance, carve quality.",
    "guide": {
-    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/faces.html",
-    "label": "Your faces (personal categorizers)"
+    "url": "https://apps.thorwhalen.com/thoremin/guide/teach-it-yourself.html",
+    "label": "Teach it yourself (your faces, hand shapes and poses)"
    },
    "media": [
     {
@@ -120,8 +120,8 @@
    "title": "Trainer and sequence training",
    "blurb": "Learning a player's own categories from cues; fingering priors, drum patterns, scripted sequences.",
    "guide": {
-    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/trainer.html",
-    "label": "The Trainer"
+    "url": "https://apps.thorwhalen.com/thoremin/guide/teach-it-yourself.html",
+    "label": "Teach it yourself (the Trainer and your categories)"
    },
    "media": [
     {
