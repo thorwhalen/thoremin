@@ -75,6 +75,8 @@ const END_EPS_S = 0.005;
 
 /** What the worklet holds short of the song (seconds) before the hand-over counts as lost. */
 const HANDOVER_EPS_S = 0.01;
+/** Thrown to a load waiting on the worklet when its processor dies (see `createSignalsmithStretcherWith`). */
+const WORKLET_DIED = Symbol('the Signalsmith worklet died');
 
 /**
  * Hand the decoded song to the worklet by transfer: the buffer's own channel arrays, or (`copy`)
@@ -109,6 +111,13 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
   let fallback: Stretcher | null = null;
   /** The song the worklet holds, for the hand-over to the media element if it dies. */
   let loadedUrl: string | null = null;
+  /** Rejects with {@link WORKLET_DIED} when the worklet's processor dies (`failOver`), so a
+   *  `load` waiting on the worklet's reply gives up instead of hanging on a processor that will
+   *  never answer; the media element's hand-over (`takeover`) is then what that load becomes. */
+  let died: Promise<never> = new Promise<never>(() => {});
+  let markDied: () => void = () => {};
+  /** The media element taking the loaded song over (its load, seek and resume), once it has. */
+  let takeover: Promise<void> | null = null;
   let loadId = 0;
   let duration = 0;
   let rate = 1;
@@ -163,6 +172,10 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         }
         n.connect(fader);
         node = n;
+        died = new Promise<never>((_, reject) => {
+          markDied = () => reject(WORKLET_DIED);
+        });
+        died.catch(() => {}); // settled only through `alive`, where it is caught
         // A processor that throws mid-song renders silence from then on and says so once: the
         // media element takes the song over from where it was, so "Playing" stays true to the ear.
         n.onprocessorerror = (ev) => failOver(n, ev);
@@ -190,17 +203,21 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
     next.setVolume(volume);
     next.setRate(rate);
     fallback = next;
+    // A load waiting on this worklet (the processor died while the song was decoding or being
+    // handed over) stops waiting and becomes the hand-over below.
+    markDied();
     if (loadedUrl === null) return;
     const url = loadedUrl;
-    void next
-      .load(url)
-      .then(() => {
-        if (disposed || fallback !== next) return;
-        next.seek?.(at);
-        if (resume) next.play();
-      })
-      .catch((e) => console.error('[song-player] the media element could not take the song over', e));
+    takeover = next.load(url).then(() => {
+      if (disposed || fallback !== next) return;
+      next.seek?.(at);
+      if (resume) next.play();
+    });
+    takeover.catch((e) => console.error('[song-player] the media element could not take the song over', e));
   };
+
+  /** A reply from the worklet, or {@link WORKLET_DIED} the moment its processor dies. */
+  const alive = <T,>(reply: Promise<T>): Promise<T> => Promise.race([reply, died]);
 
   return {
     async load(url) {
@@ -221,22 +238,30 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       const current = () => {
         if (id !== loadId) throw new Error('superseded');
       };
-      const decoded = await decode();
-      const seconds = decoded.duration;
-      await n.dropBuffers();
-      current();
-      // The buffer's own arrays, TRANSFERRED (#365): one decoded copy held, not two.
-      if (!(await handOver(n, decoded, false, seconds))) {
-        await n.dropBuffers();
+      try {
+        const decoded = await alive(decode());
+        const seconds = decoded.duration;
+        await alive(n.dropBuffers());
         current();
-        // Refused before anything was detached: copies of the same buffer. Else decode again.
-        const intact = Array.from({ length: decoded.numberOfChannels }, (_, c) => decoded.getChannelData(c).length).every((len) => len === decoded.length);
-        if (!(await handOver(n, intact ? decoded : await decode(), true, seconds))) throw new Error('the worklet did not take the song');
+        // The buffer's own arrays, TRANSFERRED (#365): one decoded copy held, not two.
+        if (!(await alive(handOver(n, decoded, false, seconds)))) {
+          await alive(n.dropBuffers());
+          current();
+          // Refused before anything was detached: copies of the same buffer. Else decode again.
+          const intact = Array.from({ length: decoded.numberOfChannels }, (_, c) => decoded.getChannelData(c).length).every((len) => len === decoded.length);
+          if (!(await alive(handOver(n, intact ? decoded : await decode(), true, seconds)))) throw new Error('the worklet did not take the song');
+        }
+        current();
+        duration = seconds;
+        n.schedule({ active: false, input: 0, output: now() });
+        anchor(0);
+      } catch (e) {
+        // The processor died under this load: the media element has (or is loading) the song.
+        if (e !== WORKLET_DIED) throw e;
+        if (id !== loadId) throw new Error('superseded');
+        if (!takeover) throw new Error('the song player died while loading');
+        await takeover;
       }
-      current();
-      duration = seconds;
-      n.schedule({ active: false, input: 0, output: now() });
-      anchor(0);
     },
     play() {
       if (fallback) return fallback.play();
