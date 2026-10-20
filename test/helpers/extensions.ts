@@ -17,6 +17,9 @@ export const hasExtension = (id: string): boolean => EXTENSIONS.some((e) => e.id
 /** True when the build ships the air instruments. */
 export const AIR = hasExtension('air');
 
+/** True when the build ships the harmony slice: the chord map, the chord wheel, the chord chart (#674). */
+export const HARMONY = hasExtension('harmonic-layers');
+
 /** True when the build ships the ASL sign reader and its instruments. */
 export const ASL = hasExtension('asl');
 

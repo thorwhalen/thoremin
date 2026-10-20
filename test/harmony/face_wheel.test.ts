@@ -7,14 +7,14 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createCategoryStepper } from '@thoremin/sdk/harmony/navigate';
-import { chordWheelNode, faceMoveFor, type ChordWheelStatus } from '@thoremin/ext-air/nodes/chord_wheel';
+import { chordWheelNode, faceMoveFor, type ChordWheelStatus } from '@thoremin/ext-harmony/nodes/chord_wheel';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { createAppRegistry } from '@/nodes/browser';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { ExpressionScores } from '@thoremin/sdk/music/expression';
 import type { ScaleSpec } from '@thoremin/sdk/music/theory';
-import { AIR } from '../helpers/extensions';
+import { HARMONY } from '../helpers/extensions';
 
 const C: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };
 const face = (label: ExpressionScores['label'] | null): ExpressionScores | undefined =>
@@ -76,7 +76,7 @@ describe('the face steers the chord wheel', () => {
   });
 });
 
-describe.runIf(AIR)('the face wheel in the graph', () => {
+describe.runIf(HARMONY)('the face wheel in the graph', () => {
   it('composes the face model only while the face steers, and the Face Wheel does', () => {
     const settings = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Face Wheel')!.layer);
     const ids = branchIdsFor(settings);

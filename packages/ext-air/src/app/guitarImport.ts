@@ -10,7 +10,7 @@
  */
 import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { parseChordName } from '../lib/guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { MIN_SAMPLES_PER_ENTRY } from '../lib/vocabulary';
 import { airControls } from './controls';
 import { useGuitarVocabulary, type VocabularyState } from './vocabularyStore';

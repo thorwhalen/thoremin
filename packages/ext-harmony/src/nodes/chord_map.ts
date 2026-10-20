@@ -13,15 +13,15 @@
  *   every other chord thoremin plays. The other hand plays a melody on the chord's tones: its
  *   height over a ladder of them (from an octave above the chord's register), a continuous voice.
  * - `strum`: the other hand strums, and the chord under the chord hand at the moment the
- *   strum is decided is strummed as a guitarist voices it, on `pluck-out`. The decision is the
- *   air guitar's (`../lib/strum.ts`): predicted before the frame that shows it, committed with
+ *   strum is decided is strummed as a guitarist voices it, on its strum sink (`chord-strum-out`, the
+ *   SDK's plucked-string sink). The decision is the air guitar's (`@thoremin/sdk/gesture/strum`): predicted before the frame that shows it, committed with
  *   the lead the output needs plus the frame's age, late strums sounded at once and softer.
  *
  * A cell is chosen with hysteresis (a new cell's centre must be nearer than the sounding one's
  * by a margin) and a dwell of a few camera frames, and kept a moment after the hand leaves the
  * grid or is lost, so tracking jitter at a border never flickers the harmony. The grid, the
- * melody ladder and the moves around the sounding chord are drawn by the air extension's own
- * overlay element (`air/chordMap`), from the `grid` output.
+ * melody ladder and the moves around the sounding chord are drawn by the harmony slice's own
+ * overlay element (`harmonic-layers/chordMap`), from the `grid` output.
  *
  * A MIDI keyboard can choose the chord instead of the pointing hand (`follow` = `midi`, H8 of
  * #613, "MIDI chooses, the camera performs"): the chord the keys hold, in any inversion and after
@@ -78,14 +78,14 @@ import {
   type MapCell,
   type Region,
 } from '../lib/chord_map';
-import { createStrumDetector, type StrumDetector } from '../lib/strum';
+import { createStrumDetector, type StrumDetector } from '@thoremin/sdk/gesture/strum';
 import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
 import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
-import { parseChordName } from '../lib/guitar';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
-import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
-import { LATE_VELOCITY, strumNotes } from './air_guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
+import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
+import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];

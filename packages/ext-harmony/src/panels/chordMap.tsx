@@ -13,7 +13,7 @@ import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
 import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
 import type { ChordMapSettings } from '../dials';
 import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams } from '../nodes/chord_map';
-import { PLAYER_HANDS } from '../nodes/air_bass';
+import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
 
 const PLAY_LABEL: Record<ChordMapDialParams['play'], string> = {
   hold: 'hold the chord, melody with the other hand',

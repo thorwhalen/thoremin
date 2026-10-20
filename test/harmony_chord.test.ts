@@ -25,7 +25,7 @@ import {
   type Key,
 } from '@thoremin/sdk/harmony/chord';
 import { classifyChord, nashvilleNumber, romanNumeral, NOTES, type ChordQuality } from '@thoremin/sdk/music/theory';
-import { CHORD_QUALITIES } from '@thoremin/ext-air/lib/guitar';
+import { CHORD_QUALITIES } from '@thoremin/sdk/music/guitar';
 
 /** `classifyChord` as it was before the quality table (copied verbatim, the facade's reference). */
 function referenceClassify(tones: number[]): { root: number; quality: ChordQuality; symbol: string } | null {

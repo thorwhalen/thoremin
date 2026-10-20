@@ -102,7 +102,7 @@ const Params = z.object({
   /** The full-body skeleton (#186) — drawn when body tracking is on; shows the load state. */
   bodySkeleton: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** LEGACY (#610 item 4, the expand step, as S10 did for the drum pads): the chord map's grid is
-   *  the air extension's overlay element now, and its show flag is `chordMap.gridOnVideo`, which
+   *  the harmony slice's overlay element now (#674; the air extension's before), and its show flag is `chordMap.gridOnVideo`, which
    *  a stored or saved value here is moved into (the chord map dial's v1 -> v2 step). Still
    *  accepted on read until the contract step removes it; marked `legacy`, so it is not a
    *  settable path (commands, palette, assistant). */

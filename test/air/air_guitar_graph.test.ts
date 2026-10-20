@@ -13,7 +13,7 @@ import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
-import { guitarVoicing, parseChordName } from '@thoremin/ext-air/lib/guitar';
+import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
 import { AIR } from '../helpers/extensions';
 

@@ -17,7 +17,7 @@
  * or key if that was refused. The `startMidiChordIn` pattern.
  */
 import { chromaFromSpectrum, createLevelGate } from '@thoremin/sdk/harmony/chroma';
-import { airControls } from './controls';
+import { harmonyControls } from './controls';
 import type { AudioHeard } from '../lib/audio_heard';
 
 type MapState = { chordMap?: { enabled?: boolean; follow?: string } };
@@ -101,8 +101,8 @@ export function magnitudesOf(db: ArrayLike<number>): Float64Array {
 
 /** Start watching the dial; listens only while the map follows the microphone. */
 export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
-  const store = deps.store ?? (airControls.store() as unknown as NonNullable<MicChordInDeps['store']>);
-  const publish = deps.publish ?? ((heard) => airControls.setTransient('chordMapAudio', heard));
+  const store = deps.store ?? (harmonyControls.store() as unknown as NonNullable<MicChordInDeps['store']>);
+  const publish = deps.publish ?? ((heard) => harmonyControls.setTransient('chordMapAudio', heard));
   const open = deps.open === undefined ? browserOpen() : deps.open;
   const every = deps.every ?? ((fn, ms) => {
     const id = setInterval(fn, ms);

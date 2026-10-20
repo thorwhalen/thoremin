@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { createBeatWalk, createDirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { radial } from '@thoremin/sdk/harmony/layout';
-import { chordWheelNode, wheelRegion, CHORD_WHEEL_VOICE_ID_BASE, type ChordWheelStatus } from '@thoremin/ext-air/nodes/chord_wheel';
+import { chordWheelNode, wheelRegion, CHORD_WHEEL_VOICE_ID_BASE, type ChordWheelStatus } from '@thoremin/ext-harmony/nodes/chord_wheel';
 import { freqToMidi, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import type { HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import type { CellGrid } from '@thoremin/sdk/nodes/cell_grid';

@@ -33,7 +33,7 @@ import { realtimeOutputAllowed } from '@thoremin/dag';
 import { scheduleAt, type TickClock } from '@thoremin/sdk/timing/clock_map';
 import type { AudioView } from '@thoremin/sdk/timing/audio';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
-import { createEventBatchParser } from '../lib/event_batch';
+import { createEventBatchParser } from '@thoremin/sdk/nodes/event_batch';
 import { DRUM_SOUNDS, DrumHitSchema, type DrumSound } from './air_drum';
 
 /** Per-hit shading of a voice beyond its loudness. */

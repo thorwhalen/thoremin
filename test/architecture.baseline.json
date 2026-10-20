@@ -3,6 +3,7 @@
   "nodeImplementationImports": 0,
   "extensionNamesInCore": {
     "air": 7,
+    "harmonic-layers": 0,
     "asl": 0,
     "midi-output": 0,
     "generative-layer": 0,

@@ -3,7 +3,7 @@
  * §2.3 to §2.5): the geometry is generic (any relations walk a lattice: the video's diatonic map
  * and a Tonnetz lattice alike), a radial layout puts each move at a fixed angle and a direction
  * picks it, a swept scalar picks a slot, and one pure reducer applies the navigators' intents.
- * The chord map's own tests (`test/air/chord_map_*`) pin that moving its layout and tracker here
+ * The chord map's own tests (`test/harmony/chord_map_*`) pin that moving its layout and tracker here
  * changed nothing.
  */
 import { describe, it, expect } from 'vitest';

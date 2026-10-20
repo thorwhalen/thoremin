@@ -25,7 +25,7 @@ import { classifyChord, diatonicChord, diatonicTriad, letterChordSpec, letterDeg
 import { chordName, chordSymbol, diatonicChords as harmonyChords, functionOf, keyOf, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { chordOfPitchClasses } from '@thoremin/sdk/harmony/chord_in';
 import { QUALITIES, qualityOfIntervals } from '@thoremin/sdk/harmony/qualities';
-import { parseChordName } from './guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
 import { createCellTracker as createNavTracker, type CellChoice, type CellTrackerOptions } from '@thoremin/sdk/harmony/navigate';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';

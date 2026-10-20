@@ -28,7 +28,7 @@ import {
 } from '@thoremin/sdk/nodes/domain';
 import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
 import { DEFAULT_PADS_SET } from '@thoremin/sdk/nodes/music/drum_pads';
-import { AIR, CONDUCTOR } from './helpers/extensions';
+import { AIR, CONDUCTOR, HARMONY } from './helpers/extensions';
 
 function fullInputs() {
   const frame: HandsFrame = {
@@ -108,14 +108,15 @@ function drawPads(paramsPartial: Record<string, unknown>, extra: { airDrumConfig
   return rc;
 }
 
-/** The chord map's grid, the air extension's element since #610 item 4 (core's `cellGrid` before):
+/** The chord map's grid, the harmony slice's element (#674; the air extension's since #610 item 4,
+ *  core's `cellGrid` before):
  *  every core element off, the grid and the chord map's dial on its ports. */
 function drawGrid(grid: unknown, config: Record<string, unknown> = {}) {
   const rc = makeRecordingCanvas();
-  const node = makeCanvasOverlayNode(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'air'));
+  const node = makeCanvasOverlayNode(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'harmonic-layers'));
   const handlers = node.make(node.params.parse(onlyElement('none')));
   const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
-  handlers.process({ ...fullInputs(), 'air.chordMap.grid': grid, 'air.chordMap.config': { enabled: true, ...config } }, ctx);
+  handlers.process({ ...fullInputs(), 'harmonic-layers.chordMap.grid': grid, 'harmonic-layers.chordMap.config': { enabled: true, ...config } }, ctx);
   return rc;
 }
 
@@ -139,7 +140,7 @@ const onlyElement = (name: string) =>
   ) as Record<string, { show: boolean }>;
 
 describe('canvas-overlay composable elements', () => {
-  it.runIf(AIR)('the chord map\'s grid (Guide, the air extension\'s since #610 item 4): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
+  it.runIf(HARMONY)('the chord map\'s grid (Guide, the harmony slice\'s since #674, the air extension\'s from #610 item 4): each cell outlined and labelled where the node put it, the one in force brightest; captions and pointers; nothing without a grid', () => {
     const grid = {
       cells: [
         { x: 0.25, y: 0.5, w: 0.2, h: 0.3, shape: 'hex', label: 'C', sub: 'I', color: '#f87171', state: 'active' },

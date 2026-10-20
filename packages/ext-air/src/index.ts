@@ -1,6 +1,7 @@
 /**
  * The air extension (PR 5a of the instruments-as-graphs ADR): the drum, the bass, the guitar
- * and the flute as ONE manifest. The app folds over `EXTENSIONS` for its node registry, its
+ * and the flute as ONE manifest (the chord instruments are the harmony slice's since #674,
+ * `@thoremin/ext-harmony`). The app folds over `EXTENSIONS` for its node registry, its
  * branch table, its dials form, its settings schema and type (`defineExtension` keeps the
  * slices' keys literal, so the `Settings` type computed from the generated list declaration
  * knows `airDrum`), its `store-controls` ports and its derivation; its class and catalog rows
@@ -19,9 +20,6 @@
  *
  * Pure: no React (the editor sections and status hooks are `./ui.tsx`, the React half).
  */
-import { chordChartNode } from './nodes/chord_chart';
-import type { MidiHeld } from './lib/midi_held';
-import type { AudioHeard } from './lib/audio_heard';
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
 import type { TrainedModel } from '@thoremin/sdk/enroll';
 import type { PatternPlay } from './lib/pattern_play';
@@ -32,10 +30,6 @@ import { airGuitarNode } from './nodes/air_guitar';
 import { airFluteNode } from './nodes/air_flute';
 import { drumOutNode } from './nodes/drum_out';
 import { pluckOutNode } from './nodes/pluck_out';
-import { chordMapNode } from './nodes/chord_map';
-import { chordWheelNode } from './nodes/chord_wheel';
-import { drawCellGrid, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
-import { CHORD_MAP_ELEMENT, CHORD_WHEEL_ELEMENT } from './branches';
 import { AIR_BRANCHES } from './branches';
 import { AIR_DIAL_SLICES } from './dials';
 import { AIR_TRAINING } from './training';
@@ -69,48 +63,19 @@ export const AIR_EXTENSION = defineExtension({
     { id: 'guitar', label: 'Air guitar', emoji: '🤘', class: 'air', usesScale: false, on: dialOn('airGuitar') },
     // The flute plays the notes the player named when enrolling fingerings, not the scale.
     { id: 'flute', label: 'Air flute', emoji: '🪈', class: 'air', usesScale: false, on: dialOn('airFlute') },
-    // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
-    { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'air', usesScale: true, on: dialOn('chordMap') },
-    // The chord wheel steps through a space of chords from the chord-source key.
-    { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
-    // The chord chart plays the conducted piece's own chords, not the scale.
-    // It walks the conducted piece: listed only in a build that ships the conductor (#697).
-    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'air', usesScale: false, on: dialOn('chordChart'), requires: ['conductor'] },
   ],
-  // Its overlay elements: the chord wheel's grid (#600 S5), fed its grid, configured by its dial;
-  // and (#600 S10; they were core's) the drum's pads and sticks on the video, just beneath the chord
-  // map's grid where core drew them, and the flute's breath cue, stacked on its edge where core put
-  // it. Every element's options are this extension's dials, delivered by the host.
+  // Its overlay elements (#600 S10; they were core's): the drum's pads and sticks on the video,
+  // beneath the markers where core drew them, and the flute's breath cue, stacked on its edge where
+  // core put it. Every element's options are this extension's dials, delivered by the host.
   overlay: [
-    { name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } },
     { name: DRUM_PADS_ELEMENT, category: 'guide', drawBefore: 'markers', inputs: [{ name: 'hits', kind: 'drum-hits' }, { name: 'hands', kind: 'hands-frame' }], config: { dialKey: 'airDrum' } },
-    // The chord map's grid (#610 item 4; core's `cellGrid` before): just above the drum pads and
-    // beneath the markers, where core drew it.
-    { name: CHORD_MAP_ELEMENT, category: 'guide', drawBefore: 'markers', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordMap' } },
     { name: BREATH_CUE_ELEMENT, category: 'output', cue: true, drawBefore: 'faceExpression', inputs: [{ name: 'status', kind: 'air-flute-status' }], config: { dialKey: 'airFlute' } },
   ],
   overlayElements: [
     drumPadsElement,
     breathCueElement,
-    {
-      name: CHORD_MAP_ELEMENT,
-      draw(g, frame, inputs) {
-        const config = inputs.config as { enabled?: boolean; gridOnVideo?: { show?: boolean } } | undefined;
-        if (config?.enabled !== true || config.gridOnVideo?.show === false) return;
-        const grid = cellGridOf(inputs.grid);
-        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
-      },
-    },
-    {
-      name: CHORD_WHEEL_ELEMENT,
-      draw(g, frame, inputs) {
-        if ((inputs.config as { enabled?: boolean } | undefined)?.enabled !== true) return;
-        const grid = cellGridOf(inputs.grid);
-        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
-      },
-    },
   ],
-  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode, chordMapNode, chordWheelNode, chordChartNode] as unknown as NodeDef<unknown>[],
+  nodes: [airDrumNode, airBassNode, airGuitarNode, airFluteNode, drumOutNode, pluckOutNode] as unknown as NodeDef<unknown>[],
   branches: AIR_BRANCHES,
   dials: AIR_DIAL_SLICES,
   // The enrolled classifiers: transient hot-store fields the nodes read as ports. Always
@@ -121,10 +86,6 @@ export const AIR_EXTENSION = defineExtension({
     transientPort<TrainedModel>()('airFluteMouthModel', 'shape-model'),
     // #269: the trained drum pattern in play (pattern + model), resolved by the app off the tick.
     transientPort<PatternPlay>()('airDrumPattern', 'drum-pattern'),
-    // H8 of #613: the notes a MIDI keyboard holds, while the chord map follows one.
-    transientPort<MidiHeld>()('chordMapMidi', 'held-notes'),
-    // H8 of #613: the microphone's chroma, while the chord map follows the microphone.
-    transientPort<AudioHeard>()('chordMapAudio', 'audio-chroma'),
   ],
   // The four air instruments (#249), played by miming, listed in their own class. Each
   // silences the theremin voices (hand-map max gain 0) so the hands only play the air
@@ -151,46 +112,6 @@ export const AIR_EXTENSION = defineExtension({
     // Play a flute in the air: enrolled finger lifts of both hands choose the note, the
     // enrolled blowing mouth sounds it (the enrolment steps are in its settings).
     { name: 'Air Flute', patch: { ...SILENT_THEREMIN, airFlute: { enabled: true } } },
-    // Point at a key's chords (Pur Pasteur's harmonic map): the left hand over a chord holds
-    // it, the right hand's height plays a melody on its tones. C major, as in the video; the
-    // key is the chord-source scale (the Sound section's root and scale).
-    // Each change voice-led, common tones held, as the video voices it (H3 of #613); the melody
-    // hand's tilt chooses its notes (chord tones, pentatonic, scale), as the video's right hand.
-    { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt' } } },
-    // The same map coloured by the face (H7 of #613): a held smile turns A minor to A major, a
-    // frown back; an open mouth with raised brows adds the seventh, then the ninth.
-    { name: 'Chord Map + Face', patch: { ...SILENT_THEREMIN, right: { root: 9, type: 'minor' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt', face: true } } },
-    // A pentatonic's own five chords (#671): stacks of its own thirds, the sus chords and the
-    // sixths of folk and pop harmony, laid out on five hexes (every step visits all five).
-    { name: 'Pentatonic Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'pentatonic' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, chordsFrom: 'scale' } } },
-    // MIDI chooses, the camera performs (H8 of #613): the chords a MIDI keyboard holds light up
-    // on the map, and the other hand plays the melody over them (or strums them).
-    { name: 'Play Along (MIDI)', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, follow: 'midi', melodyNotes: 'tilt' } } },
-    // The microphone chooses (H8 of #613): a guitar's, a piano's or a band's chords light up on the
-    // map, heard a quarter second before they count, and the other hand plays the melody over them.
-    { name: 'Play Along (microphone)', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, follow: 'audio', melodyNotes: 'tilt' } } },
-    // The same map, strummed: the right hand strums the chord under the left, predicted
-    // before the frame that shows the strum (the air guitar's timing).
-    // A next-chord wheel (H5 of #613): the key's six diatonic moves around the chord in force,
-    // voice-led; push the left hand toward a move and hold it.
-    { name: 'Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true } } },
-    // The wheel steered by the face (the face as harmonic expression, #613 H6): each expression
-    // held a moment is a move (a smile to the dominant, a sad face to the relative minor).
-    { name: 'Face Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, steer: 'face' } } },
-    // The same wheel with the Tonnetz's moves (P, L, R, N, S, H): it leaves the key.
-    { name: 'Tonnetz Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, moves: 'tonnetz' } } },
-    // Walk a cycle on the beat (H11 of #613): hold a push out and the wheel keeps making that
-    // move, one per beat, arpeggiated so the beat is heard: up walks the cycle of fourths.
-    { name: 'Wheel Walk', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed', rendering: 'arpUp', bpm: 90 }, chordWheel: { enabled: true, walk: true } } },
-    // The design's next-chord wheel (§6.2, H10 of #613): the likeliest next chord on top (Piston's
-    // usual root progressions), each chord's distance from home in Lerdahl's tonal pitch space;
-    // raise the right hand for rarer progressions on top (#672).
-    { name: 'Next-Chord Wheel', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordWheel: { enabled: true, order: 'likely', tension: 'tps', surpriseFrom: 'hand' } } },
-    // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's quartet read for its chords,
-    // played voice-led and arpeggiated on the conductor's beat under the first violin's tune,
-    // which is all the conductor's own score plays (the quartet is not doubled).
-    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin' }, chordChart: { enabled: true } }, requires: ['conductor'] },
-    { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,
   // What it keeps in the browser (#600 S12), under the keys it has always used.
@@ -202,22 +123,6 @@ export const AIR_EXTENSION = defineExtension({
     if (on(settings.airBass)) ids.push('air-bass');
     if (on(settings.airGuitar)) ids.push('air-guitar');
     if (on(settings.airFlute)) ids.push('air-flute');
-    if (on(settings.chordMap)) {
-      ids.push('chord-map');
-      // The face model is composed only while the face colours the map.
-      if ((settings.chordMap as { face?: boolean }).face === true) ids.push('chord-map-face');
-    }
-    if (on(settings.chordChart)) ids.push('chord-chart');
-    if (on(settings.chordWheel)) {
-      ids.push('chord-wheel');
-      // The face model is composed only while the face steers.
-      const steer = (settings.chordWheel as { steer?: string }).steer;
-      if (steer === 'face' || steer === 'both') ids.push('chord-wheel-face');
-      // The face model, too, while the face sets the surprise.
-      // (only while the wheel is ranked: the key's moves, likeliest on top).
-      const wheel = settings.chordWheel as { surpriseFrom?: string; order?: string; moves?: string };
-      if (wheel.surpriseFrom === 'face' && wheel.order === 'likely' && (wheel.moves ?? 'diatonic') === 'diatonic') ids.push('chord-wheel-affect');
-    }
     return ids;
   },
 });

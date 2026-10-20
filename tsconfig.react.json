@@ -20,6 +20,7 @@
     "src/extensions/virtual.d.ts",
     "packages/sdk-ui/src",
     "packages/ext-air/src",
+    "packages/ext-harmony/src",
     "node_modules/@thoremin/ext-asl/src",
     "packages/ext-faces/src",
     "test/**/*.test.tsx"

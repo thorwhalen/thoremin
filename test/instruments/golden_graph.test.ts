@@ -158,11 +158,11 @@ const REMOVED_SINCE_SNAPSHOT: EdgeSpec[] = [
  *  is the core + air graph, so these and every edge touching them are set aside before the
  *  comparison; their own branches are tested in `test/asl/`. */
 const LATER_EXTENSION_NODES = new Set([
-  // The chord map (air), added after the snapshot; its own wiring is `test/air/chord_map_graph.test.ts`.
+  // The chord map (the harmony slice's since #674), added after the snapshot; its own wiring is `test/harmony/chord_map_graph.test.ts`.
   'chordMap',
   'chordStrumOut',
   'chordWheel',
-  // The chord chart (air, H9 of #613); its wiring is `test/air/chord_chart.test.ts`.
+  // The chord chart (the harmony slice's, H9 of #613); its wiring is `test/harmony/chord_chart.test.ts`.
   'chordChart',
   ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord', 'catBlend'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
@@ -177,7 +177,7 @@ const REPLACED_BY_LATER_EXTENSIONS: EdgeSpec[] = hasExtension('faces')
 /** Overlay ports of extension elements added after the snapshot (#600 S5): the chord wheel's and
  *  (#610 item 4) the chord map's, whose config edges the host wires from `ui`, so no node filter
  *  catches them. */
-const LATER_OVERLAY_PORT = /^air\.(chordWheel|chordMap)\./;
+const LATER_OVERLAY_PORT = /^harmonic-layers\.(chordWheel|chordMap)\./; // the harmony slice's since #674
 const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),

@@ -4,7 +4,7 @@
 
 ## 0. TL;DR
 
-The chord map (#609, `packages/ext-air/src/nodes/chord_map.ts`) is one instance of a family. Pur Pasteur's harmonic map lays out the seven chords of a key by three relations (moves by a fourth, a third and a second) and lets a hand point at one. Change the relations and you get a Tonnetz; change the layout and you get a circle of fifths or a "next chord" wheel centred on where you are; change the input and the face, a sign, a MIDI keyboard or a sung note chooses; change the realization and the same chord comes out as a voice-led pad, a strum or an arpeggio. Today each chord instrument in thoremin owns all of these at once.
+The chord map (#609, `packages/ext-harmony/src/nodes/chord_map.ts`) is one instance of a family. Pur Pasteur's harmonic map lays out the seven chords of a key by three relations (moves by a fourth, a third and a second) and lets a hand point at one. Change the relations and you get a Tonnetz; change the layout and you get a circle of fifths or a "next chord" wheel centred on where you are; change the input and the face, a sign, a MIDI keyboard or a sung note chooses; change the realization and the same chord comes out as a voice-led pad, a strum or an arpeggio. Today each chord instrument in thoremin owns all of these at once.
 
 This design separates them into seven parts, each a pure library contract in a new `@thoremin/sdk/harmony/` with one or more strategies behind it:
 
@@ -13,7 +13,7 @@ This design separates them into seven parts, each a pure library contract in a n
 | 1 | **Chord** (vocabulary) | what a chord is, before any notes | `theory.ts` (`ChordQuality`, `diatonicChord`), `guitar.ts` (a second `ChordQuality`), tonal in `chord.ts` |
 | 2 | **Space** (relations) | which chords there are and how they are related: a graph whose edges are named relations | implicit: "the seven degrees of a key", `moveText` in `chord_map.ts` |
 | 3 | **State** | where the harmony is: key, current chord, its function, history, what is pending and when | a local `lastDegree` in each node |
-| 4 | **Layout** | where each chord or move is on the screen, possibly as a function of the state | `layoutCells` in `ext-air/lib/chord_map.ts` |
+| 4 | **Layout** | where each chord or move is on the screen, possibly as a function of the state | `layoutCells` in `ext-harmony/lib/chord_map.ts` |
 | 5 | **Navigation** | how input features become a chosen chord or a move, and when the choice commits | `createCellTracker`, `yawToDegree`, the expression and category degree tables, `letterDegree`, the strum detector |
 | 6 | **Realization** | how a chord becomes notes: coloration, reduction, bass, voicing, figuration | `voicing.ts` (`VOICINGS`, `RENDERINGS`), `chord_render.ts`, `guitar.ts`, `pose_chord.ts`'s brow seventh |
 | 7 | **Rendering** | where notes and pictures go: synth voices, timed note events, MIDI, the orchestra, the overlay | each node's own output ports |
@@ -40,7 +40,7 @@ Everything in this section is pure TypeScript in `packages/sdk/src/harmony/` (no
 
 ### 2.1 Chord: one vocabulary
 
-Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `ext-air/lib/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts`. The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
+Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `sdk/music/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts`. The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
 
 ```ts
 // packages/sdk/src/harmony/chord.ts
@@ -265,7 +265,7 @@ export const TargetSchema = z.discriminatedUnion('kind', [
 
 The existing behaviours are all instances: the chord map is `point` + `hit` + `dwell(2, 0.12, 0.3)`; the pose chord is `scalar(headYaw)` + `quantize(7 degrees)` + `immediate`, gated by the mouth (`scalar(mouthOpen)` as a release threshold), with the brow as `control(addSeventh)`; the face chord is `category` + `table(expression -> degree)` + the categorizer's own hysteresis; the ASL chord is `category(letter)` + `table(letterDegree)`; the air guitar is `category(enrolled shape named "Em")` + `table(name -> chord)` + `gated(strum)` with `predicted`; the chord map's strum mode is `point` + `hit` + `gated(strum, predicted)`.
 
-The **commit time** is part of the intent (`at`), and only the commit policy decides it. "Immediate" is the next tick; "quantized" is the next grid line of the musical clock (the conductor's or the song's `musical-time`, which exists); "predicted" is the impact predictor's time, as for the strum today (`ext-air/lib/strum.ts`). The realizer honours `at`; it never invents its own timing for a chord change. That keeps one rule for "when does a change take effect" across all instruments (R§4.4).
+The **commit time** is part of the intent (`at`), and only the commit policy decides it. "Immediate" is the next tick; "quantized" is the next grid line of the musical clock (the conductor's or the song's `musical-time`, which exists); "predicted" is the impact predictor's time, as for the strum today (`sdk/gesture/strum.ts`). The realizer honours `at`; it never invents its own timing for a chord change. That keeps one rule for "when does a change take effect" across all instruments (R§4.4).
 
 ### 2.6 Realization: one seam per aspect
 
@@ -362,7 +362,7 @@ The navigators read the harmonic state on a **delayed** edge (`EdgeSpec.delayed`
 ### 4.3 Where the code lives
 
 - `@thoremin/sdk/harmony/*`: the seven parts' contracts and their default strategies (layer L2 of #600's target, "shared domain libraries"). `@thoremin/sdk/music/{theory,voicing,chord_render}.ts` become facades that re-export from it.
-- A **harmony slice** (`packages/ext-harmony`, or `src/slices/harmony` if #600 puts built-in slices in-tree): the nodes above, the `harmony` dial, the branches and instruments of §6, its overlay element for links and wedges (S5), its commands (`harmony/key.next`, `harmony/space.set`, S7). The chord map moves here from `ext-air` once the slice exists (it is a harmony instrument that happens to use hands; ext-air keeps the guitar, bass, drum and flute). Choice 1 in §9.
+- A **harmony slice** (`packages/ext-harmony`, or `src/slices/harmony` if #600 puts built-in slices in-tree): the nodes above, the `harmony` dial, the branches and instruments of §6, its overlay element for links and wedges (S5), its commands (`harmony/key.next`, `harmony/space.set`, S7). The chord map moves here from `ext-air` once the slice exists (it is a harmony instrument that happens to use hands; ext-air keeps the guitar, bass, drum and flute). Choice 1 in §9. **Landed in #674**: `packages/ext-harmony` (extension id `harmonic-layers`) holds the chord map, the chord wheel and the chord chart with their dials, branches, overlay elements, transients, seeds and catalog rows, moved unchanged; what they shared with the air guitar (the strum detector and `strumNotes`, the guitar voicing, the note events, the plucked-string sink, the player's hands) is the SDK's. Its rows stay under the air class for now (#705). The generic nodes of H5 (`harmonic-state`, `point-nav`, `chord-realizer`) and a `harmony` dial are still to come, in this package.
 - The face, categorizer, pose and ASL chord nodes stay where they are, calling the SDK libraries.
 
 ### 4.4 Swaps and the "two real implementations" rule
@@ -392,7 +392,7 @@ The composer checks two pairings and refuses a graph that breaks them, naming bo
 | `categorizer-chord` (`packages/ext-faces/src/nodes/categorizer_chord.ts`) | category(a saved hand/pose categorizer), table(`categorizerChords.degrees`, Auto by position) | none | same renderer | same as above |
 | `pose-chord` (`src/nodes/music/pose_chord.ts`) | scalar(yaw) quantized to degrees; scalar(mouthOpen) gate; scalar(pitch) to register; scalar(brow) to `addSeventh`; scalar(smile) to brightness | none | its own copy of voicing + gains (it predates the shared renderer) | node stays; quantize and gates to `harmony/navigate`; the seventh to coloration `diatonicSeventh`; rendering to `createRealizer` (removes the last duplicate of the renderer) |
 | `sign-chord` (`thoremin-asl`, external) | category(letter), table(`letterDegree`), `holdChord` | last chord held | its own copy of voicing + gains | a `thoremin-asl` PR after H2 to call `createRealizer`; `letterDegree` stays in the SDK |
-| `chord-map` (`packages/ext-air/src/nodes/chord_map.ts`) | point(palm or fingertip), hit on `layoutCells`, `createCellTracker` (dwell 2 frames, hysteresis 0.12, release 0.3 s); strum mode: gated(predicted strum) | `lastDegree` | renderer (hold); `strumNotes` + `guitarVoicing` (strum) | layouts to `harmony/layout` (`lattice`, `strip`), tracker to `harmony/navigate`, `diatonicChords` to `harmony/chord`, strum to `harmony/trigger`, guitar voicing to the `fretboard` voicer; the node becomes `point-nav` + `harmonic-state` + `chord-realizer` in the harmony slice (H5) |
+| `chord-map` (`packages/ext-harmony/src/nodes/chord_map.ts`) | point(palm or fingertip), hit on `layoutCells`, `createCellTracker` (dwell 2 frames, hysteresis 0.12, release 0.3 s); strum mode: gated(predicted strum) | `lastDegree` | renderer (hold); `strumNotes` + `guitarVoicing` (strum) | layouts to `harmony/layout` (`lattice`, `strip`), tracker to `harmony/navigate`, `diatonicChords` to `harmony/chord`, strum to `harmony/trigger`, guitar voicing to the `fretboard` voicer; the node becomes `point-nav` + `harmonic-state` + `chord-realizer` in the harmony slice (H5) |
 | melody ladder (inside `chord-map`) | point(height) over the current chord's tones | reads the chord | one continuous voice | stays an element of the chord map: a layout of the chord's tones (a `strip` over `pitchClasses(chord)` in a register), not of chords |
 | `air-guitar` (`ext-air`) | category(an enrolled shape whose NAME is a chord), gated(predicted strum) | the latched chord | `strumNotes` over `guitarVoicing` | names parse with `harmony/chord` (`parseChordId` and tonal), voicing is the `fretboard` voicer, the strum is `harmony/trigger`; the node stays in ext-air |
 | `chord` + `progression` (`src/nodes/music/`) | progression: scalar(position) over a fixed list | none | `voiceChord`: close stacking | composed by no branch today (only the catalog lists them); keep, and re-express `progression` as `scalar-nav` over a `path` space when a branch wants one; deprecate `chord` after H2 |

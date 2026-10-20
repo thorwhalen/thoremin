@@ -5,25 +5,15 @@
  * flute's breath demand, the vocabulary loads, the fingering-prior sync, the drum-pattern sync). The panel and store modules
  * live under `./panels/` and `./app/` (5b).
  */
-import { startMidiChordIn } from './app/midiChordIn';
-import { startMicChordIn } from './app/micChordIn';
 import type { ExtensionUi, StatusHook } from '@thoremin/sdk-ui/types';
 import { AirDrumControls, AirDrumReadout } from './panels/airDrum';
 import { AirBassControls, AirBassReadout } from './panels/airBass';
 import { AirGuitarControls, AirGuitarReadout } from './panels/airGuitar';
 import { AirFluteControls, AirFluteReadout } from './panels/airFlute';
-import { ChordMapControls, ChordMapReadout } from './panels/chordMap';
-import { ChordWheelControls, ChordWheelReadout } from './panels/chordWheel';
-import { ChordChartControls, ChordChartReadout } from './panels/chordChart';
-import { useChordChartStatus, makeChordChartReporter, CHORD_CHART_NODE_ID } from './app/chordChartStatus';
-import { IDLE_CHORD_CHART_STATUS } from './nodes/chord_chart';
 import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './app/airDrumStatus';
 import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './app/airBassStatus';
 import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from './app/airGuitarStatus';
 import { useAirFluteStatus, makeAirFluteReporter, ABSENT_AIR_FLUTE_LIVE, AIR_FLUTE_NODE_ID } from './app/airFluteStatus';
-import { useChordMapStatus, makeChordMapReporter, ABSENT_CHORD_MAP_LIVE, CHORD_MAP_NODE_ID } from './app/chordMapStatus';
-import { useChordWheelStatus, makeChordWheelReporter, CHORD_WHEEL_NODE_ID } from './app/chordWheelStatus';
-import { IDLE_CHORD_WHEEL_STATUS } from './nodes/chord_wheel';
 import { makeShapeTap, clearShapes, setShape } from './app/shapeTap';
 import { loadAirVocabularies, startFlutePriorSync } from './app/vocabularyStore';
 import { startAirFluteDemand } from './app/airFluteDemand';
@@ -49,17 +39,8 @@ export const AIR_UI: ExtensionUi = {
     { instrumentId: 'bass', section: 'Air bass', Controls: AirBassControls, Readout: AirBassReadout },
     { instrumentId: 'guitar', section: 'Air guitar', Controls: AirGuitarControls, Readout: AirGuitarReadout },
     { instrumentId: 'flute', section: 'Air flute', Controls: AirFluteControls, Readout: AirFluteReadout },
-    { instrumentId: 'chords', section: 'Chord map', Controls: ChordMapControls, Readout: ChordMapReadout },
-    { instrumentId: 'wheel', section: 'Chord wheel', Controls: ChordWheelControls, Readout: ChordWheelReadout },
-    { instrumentId: 'chart', section: 'Chord chart', Controls: ChordChartControls, Readout: ChordChartReadout },
   ],
   statusHooks: [
-    {
-      nodeId: CHORD_CHART_NODE_ID,
-      make: (engine) => makeChordChartReporter(engine),
-      onRemoved: () => useChordChartStatus.getState().report(IDLE_CHORD_CHART_STATUS),
-      reset: () => useChordChartStatus.getState().reset(),
-    },
     {
       nodeId: AIR_DRUM_NODE_ID,
       make: (engine) => makeAirDrumReporter(engine),
@@ -89,18 +70,6 @@ export const AIR_UI: ExtensionUi = {
     },
     shapeHook(AIR_FLUTE_NODE_ID, 'shape'),
     shapeHook(AIR_FLUTE_NODE_ID, 'mouth'),
-    {
-      nodeId: CHORD_MAP_NODE_ID,
-      make: (engine) => makeChordMapReporter(engine),
-      onRemoved: () => useChordMapStatus.getState().report(ABSENT_CHORD_MAP_LIVE),
-      reset: () => useChordMapStatus.getState().reset(),
-    },
-    {
-      nodeId: CHORD_WHEEL_NODE_ID,
-      make: (engine) => makeChordWheelReporter(engine),
-      onRemoved: () => useChordWheelStatus.getState().report(IDLE_CHORD_WHEEL_STATUS),
-      reset: () => useChordWheelStatus.getState().reset(),
-    },
   ],
   onMount: [
     // #249: the flute's breath is the mouth; it claims the mouth features while on.
@@ -117,10 +86,6 @@ export const AIR_UI: ExtensionUi = {
     // #451: a carved hand-shape categorizer named as chords can become the air guitar's chords
     // (a copy into its vocabulary, offered by the carve tool through sdk-ui's importer seam).
     () => provideVocabularyImporter(guitarVocabularyImporter()),
-    // H8 of #613: while a chord map follows MIDI, listen to the keyboards (only then).
-    () => startMidiChordIn(),
-    // H8 of #613: while a chord map follows the microphone, hear it (only then).
-    () => startMicChordIn(),
   ],
 };
 

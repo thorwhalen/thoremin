@@ -1,5 +1,5 @@
 /**
- * The strum decision the air guitar and the chord map share (`@thoremin/ext-air/lib/strum`):
+ * The strum decision the air guitar and the chord map share (`@thoremin/sdk/gesture/strum`, the SDK's since #674):
  * strokes of a steady down-and-up motion are predicted ahead of the frame that shows them; the
  * lead the output needs is read LIVE at each sample (a changed setting applies at once, and the
  * learned stroke floor is kept, which rebuilding the detector would lose); a repeated sample
@@ -7,7 +7,7 @@
  * lead at construction; this pins the fix.
  */
 import { describe, it, expect } from 'vitest';
-import { createStrumDetector, type Strum } from '@thoremin/ext-air/lib/strum';
+import { createStrumDetector, type Strum } from '@thoremin/sdk/gesture/strum';
 
 const FPS = 30;
 const PERIOD = 0.5;

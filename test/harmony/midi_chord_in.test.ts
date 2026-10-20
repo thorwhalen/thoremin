@@ -3,8 +3,8 @@
  * included), and the listener that opens only while the map follows MIDI.
  */
 import { describe, it, expect } from 'vitest';
-import { createHeldNotes, type MidiHeld } from '@thoremin/ext-air/lib/midi_held';
-import { startMidiChordIn, type MidiAccessLike, type MidiInputLike } from '@thoremin/ext-air/app/midiChordIn';
+import { createHeldNotes, type MidiHeld } from '@thoremin/ext-harmony/lib/midi_held';
+import { startMidiChordIn, type MidiAccessLike, type MidiInputLike } from '@thoremin/ext-harmony/app/midiChordIn';
 
 describe('held notes', () => {
   it('follows note on and off (and note on at velocity 0), per input', () => {

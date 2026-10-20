@@ -27,7 +27,7 @@ import { GUITAR_STARTER_SEQUENCES } from '../app/starterSequences';
 import { TRAINING_ANCHORS } from '../training';
 import { airControls } from '../app/controls';
 import { checkTake } from '../lib/fingering_prior';
-import { parseChordName } from '../lib/guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { PLAYER_HANDS } from '../nodes/air_bass';
 import { STRUM_POINTS, type AirGuitarDialParams } from '../nodes/air_guitar';
 

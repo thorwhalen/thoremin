@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (60)
+## Nodes (61)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -472,7 +472,7 @@ Play a flute in the air: large finger lifts of both hands, enrolled per player a
 - **params:** enabled (boolean=false), breath (enum(mouth | always)="mouth"), volume (number=0.5), enterFrames (number=3), breathFrames (number=2), faceHold (number=0.3), mirrorHandedness (boolean=true)
 
 #### `pluck-out` — Pluck out
-Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).
+Sounds plucked-string note events (the air bass and guitar) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).
 
 - **roles:** synth
 - **in:** notes:note-events, mute:boolean
@@ -502,6 +502,14 @@ Conduct a chord chart: the piece the conductor conducts, reduced to its chords b
 - **in:** time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
 - **out:** params:synth-params, status:chord-chart-status, triad:number[]
 - **params:** enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)
+
+#### `chord-strum-out` — Chord strum out
+Sounds the chord map's strums (the chord's guitar voicing) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).
+
+- **roles:** synth
+- **in:** notes:note-events, mute:boolean
+- **out:** —
+- **params:** timbre (enum(bass | guitar)="bass"), mono (boolean=true)
 
 ### Sign language
 _Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key._
@@ -583,7 +591,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.chordMap.grid:cell-grid, air.chordMap.config:chord-map-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), cellGrid (object={}), timbreLevels (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={}), trainerHud (object={})
 

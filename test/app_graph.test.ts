@@ -5,11 +5,11 @@
  * browser. The webcam node lazy-loads TF.js inside init(), which we never call
  * here, so the app registry is Node-importable.
  */
-import { CHORD_CHART_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_chart';
+import { CHORD_CHART_VOICE_ID_BASE } from '@thoremin/ext-harmony/nodes/chord_chart';
 import { describe, it, expect } from 'vitest';
 import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
-import { CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_map';
-import { CHORD_WHEEL_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_wheel';
+import { CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-harmony/nodes/chord_map';
+import { CHORD_WHEEL_VOICE_ID_BASE } from '@thoremin/ext-harmony/nodes/chord_wheel';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
 import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';

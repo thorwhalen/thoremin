@@ -2,7 +2,7 @@
  * The drum-out and pluck-out nodes take a whole tick's batch of events (#391 item 4):
  * one malformed event, such as a non-finite optional field, must not silence the rest of
  * its tick. Each node parses every event on its own, skips and counts a bad one, and
- * logs only the first (#393 item 8; `@thoremin/ext-air/lib/event_batch`). The
+ * logs only the first (#393 item 8; `@thoremin/sdk/nodes/event_batch`). The
  * well-formed batches are checked too, so a fix that skips per event is held to playing
  * every good one exactly once.
  */
@@ -11,7 +11,7 @@ import { drumOutNode, type DrumSink } from '@thoremin/ext-air/nodes/drum_out';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { pluckOutNode } from '@thoremin/ext-air/nodes/pluck_out';
 import type { NoteEvent } from '@thoremin/ext-air/nodes/air_bass';
-import { createEventBatchParser } from '@thoremin/ext-air/lib/event_batch';
+import { createEventBatchParser } from '@thoremin/sdk/nodes/event_batch';
 import { DrumHitSchema } from '@thoremin/ext-air/nodes/air_drum';
 import { knownOutputStage } from '../helpers/timing';
 
