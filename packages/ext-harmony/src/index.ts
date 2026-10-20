@@ -150,6 +150,8 @@ export const HARMONY_EXTENSION = defineExtension({
       ids.push('chord-map');
       // The face model is composed only while the face colours the map.
       if ((settings.chordMap as { face?: boolean }).face === true) ids.push('chord-map-face');
+      // The sign reader's reading, only while signs choose the chord.
+      if ((settings.chordMap as { follow?: string }).follow === 'signs') ids.push('chord-map-signs');
     }
     if (on(settings.chordChart)) ids.push('chord-chart');
     if (on(settings.chordWheel)) {

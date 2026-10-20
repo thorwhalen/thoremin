@@ -26,7 +26,10 @@
  * A MIDI keyboard can choose the chord instead of the pointing hand (`follow` = `midi`, H8 of
  * #613, "MIDI chooses, the camera performs"): the chord the keys hold, in any inversion and after
  * a short dwell, lights its cell; the hands then play the melody over it or strum it (a chord
- * outside the key is strummed by its name and named in the status).
+ * outside the key is strummed by its name and named in the status). So can a signed letter
+ * (`follow` = `signs`, ASL's reading on the `signs` input): a letter A..G held a moment lights the
+ * chord of the key spelled on it (the ASL chords' rule, `letterDegree`: in D major F is F#m), the
+ * harmony stays while other shapes pass, and the other hand plays the melody over it or strums it.
  *
  * It keeps time with the Chord sound's tempo or with the loaded song (`clock`, H9 of #613): the
  * arpeggio steps on the song's beats, and with `commit` = `beat` a held change waits for the
@@ -48,10 +51,10 @@ import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/c
 import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
-import { letterChordSpec, midiToFreq, midiToName, keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { letterChordSpec, letterDegree, midiToFreq, midiToName, keyName, NOTE_LETTERS, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import { LM, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { LM, type CategoryScores, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import {
@@ -131,6 +134,11 @@ const TENSION_STEPS = 3;
 /** The palm's centre: the wrist and the four knuckles. */
 const PALM_POINTS = [LM.wrist, LM.index_mcp, LM.middle_mcp, LM.ring_mcp, LM.pinky_mcp] as const;
 
+/** What chooses the map's chord. */
+export const CHORD_MAP_FOLLOW = ['hands', 'midi', 'audio', 'signs'] as const;
+
+const isLetter = (label: string | null | undefined): label is NoteLetter => !!label && (NOTE_LETTERS as readonly string[]).includes(label);
+
 const Params = z.object({
   /** Off by default: a player who never chooses the chord map hears nothing new. */
   enabled: z.boolean().default(false),
@@ -191,9 +199,12 @@ const Params = z.object({
   commit: z.enum(['now', 'beat']).default('now'),
   /** With commit on the beat: beats between the moments a change may land (2 = every other beat). */
   commitBeats: z.number().int().min(1).max(4).default(1),
-  /** What chooses the chord: the pointing hand, the chord a MIDI keyboard holds, or the chord
-   *  the microphone hears (a guitar, a piano, a band). */
-  follow: z.enum(['hands', 'midi', 'audio']).default('hands'),
+  /** What chooses the chord: the pointing hand, the chord a MIDI keyboard holds, the chord
+   *  the microphone hears (a guitar, a piano, a band), or a signed letter A..G (ASL's reading). */
+  follow: z.enum(CHORD_MAP_FOLLOW).default('hands'),
+  /** With signs: seconds a letter must be read before its chord is the harmony (a passing
+   *  shape between two letters passes). */
+  signDwellS: z.number().min(0).max(1).default(0.2),
   /** With MIDI: seconds a new chord must be held before it is the harmony (passing tones pass). */
   midiDwellS: z.number().min(0).max(0.5).default(0.08),
   /** With the microphone: seconds a new chord must be heard before it is the harmony (a strum's
@@ -257,7 +268,10 @@ export interface ChordMapStatus {
   midi: 'off' | 'waiting' | 'denied' | 'unavailable' | 'no-input' | 'listening';
   /** With the microphone: whether it can be heard, and whether anything is sounding. */
   audio: 'off' | 'waiting' | 'denied' | 'unavailable' | 'quiet' | 'listening';
-  /** The chord the keyboard or the microphone holds (null: none yet). */
+  /** With signs: whether a hand is read, and the sign it makes (null: none). */
+  signs: 'off' | 'waiting' | 'reading';
+  sign: string | null;
+  /** The chord the keyboard, the microphone or the signed letter holds (null: none yet). */
   inputChord: string | null;
   /** With the face: the key's mode in force ('key': the key's own) and the tension steps added. */
   mode: 'key' | 'darker' | 'brighter';
@@ -279,6 +293,8 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   ready: false,
   midi: 'off',
   audio: 'off',
+  signs: 'off',
+  sign: null,
   inputChord: null,
   mode: 'key',
   tension: 0,
@@ -373,6 +389,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'audio', kind: 'audio-chroma' },
     // The face's smoothed controls, while the face colours the map (`face`).
     { name: 'face', kind: 'face-features' },
+    // ASL's sign reading, while the map follows signs (`follow`): an optional edge.
+    { name: 'signs', kind: 'category-scores' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -575,9 +593,10 @@ export const chordMapNode = defineNode<Params>({
         // nearest the middle, or the one already lit); a chord outside the key lights none.
         const midi = c.follow === 'midi' ? ((inputs.midi as MidiHeld | null | undefined) ?? null) : null;
         const audio = c.follow === 'audio' ? ((inputs.audio as AudioHeard | null | undefined) ?? null) : null;
+        const signs = c.follow === 'signs' ? ((inputs.signs as CategoryScores | null | undefined) ?? null) : null;
         let heard: Chord | null = null;
-        if (c.follow === 'midi' || c.follow === 'audio') {
-          const dwell = c.follow === 'midi' ? c.midiDwellS : c.audioDwellS;
+        if (c.follow === 'midi' || c.follow === 'audio' || c.follow === 'signs') {
+          const dwell = c.follow === 'midi' ? c.midiDwellS : c.follow === 'audio' ? c.audioDwellS : c.signDwellS;
           const fKey = `${c.follow}|${dwell}`;
           if (!follower || followerKey !== fKey) {
             follower = createChordFollower({ dwellS: dwell });
@@ -589,8 +608,11 @@ export const chordMapNode = defineNode<Params>({
             const held = midi?.held ?? [];
             const exact = held.length ? chords.find((ch) => ch.chord && samePitchClasses(ch.triad, [...new Set(held.map((n) => ((n % 12) + 12) % 12))]))?.chord : undefined;
             heard = exact ? follower.pushChord(exact, now) : follower.push(held, now);
-          }
-          else {
+          } else if (c.follow === 'signs') {
+            // A letter names the key's chord spelled on it; any other shape keeps the harmony.
+            const letter = signs?.present && isLetter(signs.label) ? signs.label : null;
+            heard = follower.pushChord(letter ? (keyChords(keyOf(spec))[letterDegree(spec, letter)] ?? null) : null, now);
+          } else {
             // Only a clear reading counts: loud enough, close to a chord, and clearly that one.
             const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }, ownScale ? { qualities: [...CHROMA_QUALITIES, 'sus2', 'sus4', 'maj6'] } : {}) : null;
             heard = follower.pushChord(match && match.score >= AUDIO_MIN_SCORE && match.margin >= AUDIO_MIN_MARGIN ? match.chord : null, now);
@@ -703,6 +725,8 @@ export const chordMapNode = defineNode<Params>({
           melodySet,
           // What changed, not what the face reads: a frown on a minor key changes nothing.
           midi: midiStatus,
+          signs: c.follow !== 'signs' ? 'off' : signs?.present ? 'reading' : 'waiting',
+          sign: c.follow === 'signs' && signs?.present ? signs.label : null,
           audio: audioStatus,
           inputChord: heardName && !active && heard ? `${heardName} (outside the key)` : heardName,
           mode: spec.type === ownSpec?.type ? 'key' : modeLevel === VALENCE_LEVELS.darker ? 'darker' : 'brighter',

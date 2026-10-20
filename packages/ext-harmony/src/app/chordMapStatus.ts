@@ -28,6 +28,8 @@ export const useChordMapStatus = create<ChordMapStatusState>((set) => ({
 /** What to tell the player, per state. */
 export function describeChordMapLive(live: ChordMapLive): string {
   if (!live.enabled) return 'Off. Tick "Play the chord map" (the Chord Map instruments have it on).';
+  if (live.signs === 'waiting' && live.chord === null && !live.inputChord) return `Key of ${live.key}. Show your hand and fingerspell a letter A to G: its chord lights up.`;
+  if (live.signs !== 'off' && live.chord === null && !live.inputChord) return `Key of ${live.key}. Fingerspell a letter A to G${live.sign ? ` (reading ${live.sign})` : ''}.`;
   if (live.midi === 'waiting') return 'Waiting for the browser: allow MIDI access to hear your keyboard.';
   if (live.midi === 'denied') return 'MIDI access was refused. Allow it in the site settings, or choose the chords with your hand.';
   if (live.midi === 'unavailable') return 'This browser cannot hear MIDI (Safari has no Web MIDI): use Chrome, Edge or Firefox, or choose the chords with your hand.';
@@ -40,7 +42,7 @@ export function describeChordMapLive(live: ChordMapLive): string {
     if (!live.inputChord) return live.audio !== 'off' ? `Key of ${live.key}. Listening for a chord.` : `Key of ${live.key}. Play a chord on your MIDI keyboard.`;
     return live.play === 'strum' ? `${live.inputChord}. Strum it with your other hand.` : `${live.inputChord}. Raise or lower your other hand for a melody on its notes.`;
   }
-  if (!live.pointing && live.midi === 'off' && live.audio === 'off') return 'Show your chord hand: put its palm over a chord on the screen.';
+  if (!live.pointing && live.midi === 'off' && live.audio === 'off' && live.signs === 'off') return 'Show your chord hand: put its palm over a chord on the screen.';
   if (live.chord === null) return `Key of ${live.key}. Move your chord hand over a chord.`;
   const chord = `${live.chord} (${live.numeral})${live.mode === 'brighter' ? ', the smile made it major' : live.mode === 'darker' ? ', the frown made it minor' : ''}${live.tension > 1 ? ', with a ninth' : live.tension > 0 ? ', with a seventh' : ''}`;
   if (live.play === 'hold') return live.melody ? `${chord}, melody ${live.melody} (${live.melodySet === 'chord' ? 'chord tones' : live.melodySet}).` : `${chord}. Raise or lower your other hand for a melody on its notes.`;
@@ -56,7 +58,7 @@ export interface OutputReader {
 
 /** Quantise what the view shows. */
 export function chordMapLiveKey(l: ChordMapLive): string {
-  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0].join('|');
+  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0, l.signs, l.sign ?? '-', l.inputChord ?? '-'].join('|');
 }
 
 export function makeChordMapReporter(
