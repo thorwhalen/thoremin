@@ -8,12 +8,16 @@
  * committed with at least `minLead` seconds to spare PLUS the age of the camera frame (a
  * frame seen late leaves less time). A strum the predictor did not see coming is sounded on
  * its confirmation, at once, as a late strum. The caller decides what a strum plays (it
- * latches its chord at the moment of the decision) and how loud.
+ * latches its chord at the moment of the decision) and how loud; {@link strumNotes} is what a
+ * chord sounds as, the guitar voicing low string first.
  *
+ * In the SDK (#674) because two extensions strum: the air guitar and the harmony slice's chord map.
  * Pure and Node-safe.
  */
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { clamp01 } from '@thoremin/stats';
+import { guitarVoicing, parseChordName } from '../music/guitar';
+import type { NoteEvent } from '../nodes/note_events';
 
 export interface StrumDetectorOptions {
   /** How far ahead of the strum it is committed, seconds (the air drum's lead), until the
@@ -75,4 +79,30 @@ export function createStrumDetector(opts: StrumDetectorOptions): StrumDetector {
     },
     ready: () => Number.isFinite(predictor.level()),
   };
+}
+
+/** Velocity of a strum sounded on confirmation instead of prediction. */
+export const LATE_VELOCITY = 0.6;
+
+/**
+ * The notes of one strum of `chordName` at time `t`: the chord's guitar voicing, low
+ * string first, `spread` seconds apart, each on its string's voice. A string the chord
+ * does not play gets a zero-velocity note at the strum's start: a damp, so a G's low
+ * strings do not ring on under the D that follows it. Empty for a name that is not a chord.
+ */
+export function strumNotes(chordName: string, t: number, velocity: number, spread: number, extra: Pick<NoteEvent, 'predicted' | 'lead'>, octaveShift = 0): NoteEvent[] {
+  const chord = parseChordName(chordName);
+  if (!chord) return [];
+  const notes: NoteEvent[] = [];
+  let k = 0;
+  const voicing = guitarVoicing(chord);
+  voicing.forEach((midi, string) => {
+    if (midi === null) notes.push({ t, midi: 0, velocity: 0, voice: string, ...extra });
+  });
+  voicing.forEach((midi, string) => {
+    if (midi === null) return;
+    notes.push({ t: t + k * spread, midi: midi + 12 * octaveShift, velocity, voice: string, ...extra });
+    k += 1;
+  });
+  return notes;
 }

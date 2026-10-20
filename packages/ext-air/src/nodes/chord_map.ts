@@ -78,14 +78,14 @@ import {
   type MapCell,
   type Region,
 } from '../lib/chord_map';
-import { createStrumDetector, type StrumDetector } from '../lib/strum';
+import { createStrumDetector, type StrumDetector } from '@thoremin/sdk/gesture/strum';
 import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
 import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
-import { parseChordName } from '../lib/guitar';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
+import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
-import { LATE_VELOCITY, strumNotes } from './air_guitar';
+import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];

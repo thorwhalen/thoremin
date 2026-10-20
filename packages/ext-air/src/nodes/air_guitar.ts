@@ -29,13 +29,13 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { createStrumDetector, type StrumDetector } from '../lib/strum';
+import { createStrumDetector, LATE_VELOCITY, strumNotes, type StrumDetector } from '@thoremin/sdk/gesture/strum';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
-import { guitarVoicing, parseChordName } from '../lib/guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
+import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
 
 export const STRUM_POINTS = ['wrist', 'indexTip'] as const;
@@ -100,32 +100,6 @@ export const IDLE_AIR_GUITAR_STATUS: AirGuitarStatus = {
   lastLead: 0,
   ready: false,
 };
-
-/** Velocity of a strum sounded on confirmation instead of prediction. */
-export const LATE_VELOCITY = 0.6;
-
-/**
- * The notes of one strum of `chordName` at time `t`: the chord's guitar voicing, low
- * string first, `spread` seconds apart, each on its string's voice. A string the chord
- * does not play gets a zero-velocity note at the strum's start: a damp, so a G's low
- * strings do not ring on under the D that follows it. Empty for a name that is not a chord.
- */
-export function strumNotes(chordName: string, t: number, velocity: number, spread: number, extra: Pick<NoteEvent, 'predicted' | 'lead'>, octaveShift = 0): NoteEvent[] {
-  const chord = parseChordName(chordName);
-  if (!chord) return [];
-  const notes: NoteEvent[] = [];
-  let k = 0;
-  const voicing = guitarVoicing(chord);
-  voicing.forEach((midi, string) => {
-    if (midi === null) notes.push({ t, midi: 0, velocity: 0, voice: string, ...extra });
-  });
-  voicing.forEach((midi, string) => {
-    if (midi === null) return;
-    notes.push({ t: t + k * spread, midi: midi + 12 * octaveShift, velocity, voice: string, ...extra });
-    k += 1;
-  });
-  return notes;
-}
 
 export const airGuitarNode = defineNode<Params>({
   type: 'air-guitar',

@@ -29,10 +29,11 @@ import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { clamp01 } from '@thoremin/stats';
 import { LM, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
-import { NoteEventsSchema, type NoteEvent } from './note_events';
+import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 
-export const PLAYER_HANDS = ['right', 'left'] as const;
-export type PlayerHand = (typeof PLAYER_HANDS)[number];
+// The player's hands (the SDK's since #674, shared with the harmony slice), re-exported here.
+import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+export { PLAYER_HANDS, labelFor, type PlayerHand };
 export const PLUCK_POINTS = ['indexTip', 'wrist'] as const;
 export type PluckPoint = (typeof PLUCK_POINTS)[number];
 
@@ -72,7 +73,7 @@ export const AirBassDialSchema = Params;
 export type AirBassDialParams = Params;
 export const DEFAULT_AIR_BASS_DIAL: AirBassDialParams = AirBassDialSchema.parse({});
 
-export { NoteEventSchema, NoteEventsSchema, type NoteEvent } from './note_events';
+export { NoteEventSchema, NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 
 /** What the Instruments view shows. */
 export interface AirBassStatus {
@@ -97,13 +98,6 @@ export const IDLE_AIR_BASS_STATUS: AirBassStatus = { enabled: false, fretting: f
 const LATE_VELOCITY = 0.6;
 /** Two samples closer than this are not two camera frames (the air drum's rule). */
 const MIN_SAMPLE_SPACING = 0.004;
-
-/** MediaPipe's label for the player's hand, given the mirror convention. */
-export function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
-  const raw = hand === 'right' ? 'Right' : 'Left';
-  if (!mirrorHandedness) return raw;
-  return raw === 'Right' ? 'Left' : 'Right';
-}
 
 const dist = (a: Keypoint, b: Keypoint) => Math.hypot(a.x - b.x, a.y - b.y);
 

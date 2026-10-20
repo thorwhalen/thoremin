@@ -8,10 +8,10 @@
 import { describe, it, expect } from 'vitest';
 import { diatonicChords, melodyNotesFor, pentatonicOf, scaleOf, setForTilt, setLadder, layoutCells } from '@thoremin/ext-air/lib/chord_map';
 import { chordMapNode, chordMapRegions, handTilt, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE, type ChordMapStatus } from '@thoremin/ext-air/nodes/chord_map';
-import { guitarVoicing, parseChordName } from '@thoremin/ext-air/lib/guitar';
+import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi, midiToName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { makeHandKeypoints, type Hand, type HandsFrame, type SynthParams } from '@thoremin/sdk/nodes/domain';
-import type { NoteEvent } from '@thoremin/ext-air/nodes/note_events';
+import type { NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { chordMapTake, palmAt, W, H } from './synthetic_chord_map';
 
 const C: ScaleSpec = { root: 0, type: 'major', octaves: 2, baseOctave: 3 };

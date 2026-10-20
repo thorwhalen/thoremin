@@ -7,7 +7,7 @@
  * lead at construction; this pins the fix.
  */
 import { describe, it, expect } from 'vitest';
-import { createStrumDetector, type Strum } from '@thoremin/ext-air/lib/strum';
+import { createStrumDetector, type Strum } from '@thoremin/sdk/gesture/strum';
 
 const FPS = 30;
 const PERIOD = 0.5;

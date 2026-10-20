@@ -15,7 +15,7 @@ import { settingsFromLayer } from '@/app/library/derive';
 import { DEFAULT_CHORD_MAP } from '@thoremin/ext-air/dials';
 import { chordMapRegions, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_map';
 import { layoutCells } from '@thoremin/ext-air/lib/chord_map';
-import { guitarVoicing, parseChordName } from '@thoremin/ext-air/lib/guitar';
+import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { chordMapTake, W, H } from './synthetic_chord_map';

@@ -11,7 +11,7 @@ import { drumOutNode, type DrumSink } from '@thoremin/ext-air/nodes/drum_out';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { pluckOutNode } from '@thoremin/ext-air/nodes/pluck_out';
 import type { NoteEvent } from '@thoremin/ext-air/nodes/air_bass';
-import { createEventBatchParser } from '@thoremin/ext-air/lib/event_batch';
+import { createEventBatchParser } from '@thoremin/sdk/nodes/event_batch';
 import { DrumHitSchema } from '@thoremin/ext-air/nodes/air_drum';
 import { knownOutputStage } from '../helpers/timing';
 

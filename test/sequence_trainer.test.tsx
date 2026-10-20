@@ -20,7 +20,7 @@ import { GUITAR_STARTER_SEQUENCES } from '@thoremin/ext-air/app/starterSequences
 import { useControls } from '@/app/store';
 import { emptyVocabulary } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
-import { parseChordName } from '@thoremin/ext-air/lib/guitar';
+import { parseChordName } from '@thoremin/sdk/music/guitar';
 import type { SequenceRecord, TargetCheck } from '@thoremin/sdk/enroll';
 import { enrolSamples } from './air/synthetic_guitar';
 import { AIR } from './helpers/extensions';
