@@ -74,7 +74,8 @@ export const AIR_EXTENSION = defineExtension({
     // The chord wheel steps through a space of chords from the chord-source key.
     { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
     // The chord chart plays the conducted piece's own chords, not the scale.
-    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'air', usesScale: false, on: dialOn('chordChart') },
+    // It walks the conducted piece: listed only in a build that ships the conductor (#697).
+    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'air', usesScale: false, on: dialOn('chordChart'), requires: ['conductor'] },
   ],
   // Its overlay elements: the chord wheel's grid (#600 S5), fed its grid, configured by its dial;
   // and (#600 S10; they were core's) the drum's pads and sticks on the video, just beneath the chord
@@ -188,7 +189,7 @@ export const AIR_EXTENSION = defineExtension({
     // Conduct a chord chart (H9 of #613, the design's 6.6): Haydn's quartet read for its chords,
     // played voice-led and arpeggiated on the conductor's beat under the first violin's tune,
     // which is all the conductor's own score plays (the quartet is not doubled).
-    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin' }, chordChart: { enabled: true } } },
+    { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin' }, chordChart: { enabled: true } }, requires: ['conductor'] },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   training: AIR_TRAINING,

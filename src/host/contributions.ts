@@ -85,6 +85,9 @@ export interface Contributions {
   transientInitials: Readonly<Record<string, unknown>>;
   /** Every shipped instrument, seeded after core's own; names unique. */
   instruments: readonly ExtensionInstrument[];
+  /** The catalog rows and instruments withheld because the build does not ship a branch they
+   *  require (#697), by id and by name: the shell hides the editor section of a withheld row. */
+  withheld: { catalog: readonly string[]; instruments: readonly string[] };
   /** Every training route (ids unique) and the branch -> route table, tried before core's Trainer. */
   trainingRoutes: readonly TrainingRoute[];
   trainingByBranch: readonly (readonly [branch: string, route: string])[];
@@ -261,7 +264,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
       return e.trunk ?? [];
     }),
     nodeTypes: keyed('node type', extensions, (e) => [...(e.nodes ?? []).map((n) => n.type), ...(e.provides ?? [])], (t) => t),
-    instruments: keyed('instrument', extensions, (e) => e.instruments ?? [], (i) => i.name),
+    ...withRequirementsMet(extensions, [...CORE_BRANCHES, ...branches].map((b) => b.id)),
     trainingRoutes: keyed('training route', extensions, (e) => e.training?.routes ?? [], (r) => r.id),
     trainingByBranch: extensions.flatMap((e) => e.training?.byBranch ?? []),
     pools: poolSizesFor([...CORE_BRANCHES, ...branches]),
@@ -272,7 +275,24 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     slotCandidates: slotCandidatesOf(extensions),
     hushes: keyed('hush', extensions, (e) => e.hushes ?? [], (h) => h.id),
     readsTwoHands: extensions.flatMap((e) => (e.readsTwoHands ? [e.readsTwoHands] : [])),
-    ...libraryFold(extensions),
+  };
+}
+
+/**
+ * The catalog rows and shipped instruments whose `requires` this build meets (#697), the rest
+ * withheld: a row or a seed that needs a branch of an extension the build leaves out (the chord
+ * chart, the conductor's) would list or seed an instrument that cannot compose.
+ */
+function withRequirementsMet(extensions: readonly Extension[], branchIds: readonly string[]): Pick<Contributions, 'instruments' | 'classes' | 'catalog' | 'withheld'> {
+  const known = new Set(branchIds);
+  const met = (x: { requires?: readonly string[] }): boolean => (x.requires ?? []).every((id) => known.has(id));
+  const instruments = keyed('instrument', extensions, (e) => e.instruments ?? [], (i) => i.name);
+  const { classes, catalog } = libraryFold(extensions);
+  return {
+    instruments: instruments.filter(met),
+    classes,
+    catalog: catalog.filter(met),
+    withheld: { catalog: catalog.filter((r) => !met(r)).map((r) => r.id), instruments: instruments.filter((i) => !met(i)).map((i) => i.name) },
   };
 }
 

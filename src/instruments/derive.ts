@@ -34,10 +34,52 @@ import type { ToolDeriveContext } from '@thoremin/sdk/instruments/extension';
 export interface DerivationTable {
   knownBranchIds: ReadonlySet<string>;
   extensions: readonly { id: string; derive: (settings: DerivationSettings, context: { implied: ReadonlySet<string> }) => readonly string[]; toolDerive?: (settings: DerivationSettings, context: ToolDeriveContext) => readonly string[] }[];
-  /** The branches that declare feature `demands` (#600 S17): one is implied while a live claim
-   *  (the Lab's shown groups, a tool's demand) wants any group it declares. A source branch
-   *  says what it measures; nothing names it to turn it on. */
-  implying?: readonly { id: string; demands?: readonly string[] }[];
+  /** The build's branches, as far as the derivation reads them. Their declared `demands` (#600
+   *  S17): one is implied while a live claim (the Lab's shown groups, a tool's demand) wants any
+   *  group it declares; a source branch says what it measures, nothing names it to turn it on.
+   *  Their `requires` (#697): a branch that requires one this build does not ship is dropped. */
+  implying?: readonly { id: string; demands?: readonly string[]; requires?: readonly string[] }[];
+}
+
+/** The ids a branch requires, transitively, that the build does not know (#697): empty when it
+ *  can compose. A cycle is the composer's error to report, not this one's. */
+function unmetRequirements(id: string, table: DerivationTable): string[] {
+  const requires = new Map((table.implying ?? []).map((b) => [b.id, b.requires ?? []] as const));
+  const missing = new Set<string>();
+  const seen = new Set<string>();
+  const visit = (at: string): void => {
+    if (seen.has(at)) return;
+    seen.add(at);
+    for (const r of requires.get(at) ?? []) {
+      if (table.knownBranchIds.has(r)) visit(r);
+      else missing.add(r);
+    }
+  };
+  visit(id);
+  return [...missing];
+}
+
+/** The unmet requirements already reported, so the selector's every-change run warns once each. */
+const reportedUnmet = new Set<string>();
+
+/**
+ * The branches that can compose in this build (#697): a branch whose requirement another extension
+ * provides (the air extension's chord chart requires the conductor slice's `conductor`) is dropped,
+ * with one warning, when the build leaves that extension out. Like an unknown id, an unmet
+ * requirement must not take the app down (`composeGraph` would throw); the instrument plays without
+ * that branch, and the extension hides what needs it.
+ */
+function composable(ids: readonly string[], table: DerivationTable): string[] {
+  return ids.filter((id) => {
+    const missing = unmetRequirements(id, table);
+    if (missing.length === 0) return true;
+    const key = `${id}<-${missing.join(',')}`;
+    if (!reportedUnmet.has(key)) {
+      reportedUnmet.add(key);
+      console.warn(`[thoremin] the branch "${id}" requires ${missing.map((m) => `"${m}"`).join(', ')}, which this build does not ship: it is left out`);
+    }
+    return false;
+  });
 }
 
 /** The groups a live claim wants: the demand (the Lab claims its shown groups there while it is
@@ -116,7 +158,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
     // What a tool needs, also into an explicit set (the body conductor's pose, a dancer leading
     // the song: the conductor and song slices' tool needs, #600 S15/S18).
     addToolNeeds();
-    return ids;
+    return composable(ids, table);
   }
 
   // The hand voices default ON: a settings object with no hand map yet (mid-migration) is a
@@ -138,7 +180,7 @@ export function deriveBranchIds(settings: DerivationSettings, ctx: DerivationCon
   // explicit id: the derivation must not take the app down.
   for (const ext of table.extensions) for (const id of ext.derive(settings, { implied: claimed })) add(id, table.knownBranchIds.has(id));
   addToolNeeds();
-  return ids;
+  return composable(ids, table);
 }
 
 /** A stable key for a branch set, so a host can tell "the set changed" without a deep compare. */
