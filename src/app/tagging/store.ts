@@ -31,12 +31,13 @@ import {
 } from '@thoremin/taglog/affordances';
 import { TagEventSink } from '@thoremin/taglog/provider/sink';
 import {
-  createTagSetProvider,
+  TAGSETS_STORAGE_KEY,
   loadLastUsed,
   saveTagSet,
   TagSetDocSchema,
   type TagSetDoc,
 } from '@thoremin/taglog/provider/defsStore';
+import { hostCollection } from '@thoremin/sdk-ui/storage';
 import type { TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 
 /** The active take's runtime context (present only while recording). */
@@ -234,7 +235,7 @@ function newTagId(): string {
 // --- persistence: a lazily-created provider + a debounced "last-used" save ---------
 let _provider: DataProvider<TagSetDoc> | null = null;
 function provider(): DataProvider<TagSetDoc> {
-  return (_provider ??= createTagSetProvider());
+  return (_provider ??= hostCollection<TagSetDoc>(TAGSETS_STORAGE_KEY));
 }
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** Debounced persist of the current defs+config as the "last-used" tag set. Best

@@ -36,8 +36,10 @@ export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   ls('thoremin-trainer-prefs', 'core', 'the trainer\'s preferences'),
   ls('thoremin-trainer-voice', 'core', 'the trainer\'s spoken-cue voice'),
   ls('thoremin-category-binding', 'core', 'the category binding store'),
-  // Named collections (the first five through the storage seam's default; #659 lists the stores
-  // that still build their own localStorage provider).
+  // Named collections. Through the storage seam: every `createNamedCollectionStore` collection,
+  // and since #659 the bar pins, the Instruments view, the library tags and the annotation tag
+  // sets. Still their own localStorage provider: the tool pins, the categorizer copies, the bound
+  // sets, the instrument meta, the profiles and the zustand persist stores (#659 lists them).
   ls('thoremin-presets', 'core', 'settings presets'),
   ls('thoremin-cues', 'core', 'the trainer\'s cues'),
   ls('thoremin-routines', 'core', 'the trainer\'s routines'),

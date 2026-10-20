@@ -19,7 +19,7 @@
  * ({@link ./useLibrary}) stays a thin adapter.
  */
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { createLocalStorageProvider } from '@zodal/store-localstorage';
+import { hostCollection } from '@thoremin/sdk-ui/storage';
 import {
   TagSchema,
   InstrumentMetaSchema,
@@ -50,7 +50,7 @@ function hasLocalStorage(): boolean {
 function makeTagsProvider(): DataProvider<Tag> {
   if (hasLocalStorage()) {
     try {
-      return createLocalStorageProvider<Tag>({ storageKey: TAGS_KEY, idField: 'id' });
+      return hostCollection<Tag>(TAGS_KEY);
     } catch {
       /* fall through to in-memory */
     }
