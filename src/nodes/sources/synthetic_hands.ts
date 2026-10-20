@@ -35,13 +35,27 @@ const Params = z.object({
   strike: z.boolean().default(() => strikeFromUrl()),
   /** Seconds between strokes. */
   strikePeriod: z.number().default(0.9),
+  /**
+   * Beating time instead of the sweep: one hand (the right) stays put mid-frame and drops once per
+   * `conductPeriod` seconds, a quick fall to the beat and a slower rebound, the way a conductor's
+   * hand marks the ictus, so the conductor has strokes to follow with no camera. Off by default;
+   * `?synthetic.conduct=1` turns it on for a browser run (the guide's pictures).
+   */
+  conduct: z.boolean().default(() => flagFromUrl('synthetic.conduct')),
+  /** Seconds between beats (0.75 s: 80 beats a minute). */
+  conductPeriod: z.number().default(0.75),
+  /** How far a beat drops, as a share of the frame's height. */
+  conductDrop: z.number().default(0.12),
 });
 type Params = z.infer<typeof Params>;
 
-/** `?synthetic.strike=1` (a browser only): the smoke's switch for the strike mode. */
-function strikeFromUrl(): boolean {
-  return typeof location !== 'undefined' && new URLSearchParams(location.search).get('synthetic.strike') === '1';
+/** `?<name>=1` (a browser only): the switch a smoke or the guide's pictures turn a mode on with. */
+function flagFromUrl(name: string): boolean {
+  return typeof location !== 'undefined' && new URLSearchParams(location.search).get(name) === '1';
 }
+
+/** `?synthetic.strike=1`: the smoke's switch for the strike mode. */
+const strikeFromUrl = (): boolean => flagFromUrl('synthetic.strike');
 
 /** The stroke's height as a fraction of its travel: 0 raised, 1 at the surface. A fall in the
  *  first sixth of the period (fast, the way a stick comes down), a slow rise after. */
@@ -66,6 +80,16 @@ function osc(time: number, period: number, phase = 0): number {
   return 0.5 + 0.5 * Math.sin((2 * Math.PI * time) / period + phase);
 }
 
+/** The conducting mode's frame at `time`: one hand mid-frame, held open, dropping by the beat's shape
+ *  (the strike's quick fall and slow rise). One hand, not two: two identical hands leave which one
+ *  the app tracks to chance, frame by frame, and a conductor that switches hands sees no stroke. */
+function conductFrame(p: Params, time: number): HandsFrame {
+  const drop = strikeShape((time / p.conductPeriod) % 1) * p.conductDrop * p.height;
+  const cy = p.yNorm * p.height - (p.conductDrop * p.height) / 2 + drop;
+  const hand: Hand = { handedness: 'Right', keypoints: makeHandKeypoints({ cx: p.width / 2, cy, scale: p.scale, spread: 0.6, pinch: 0, handedness: 'Right' }), score: 1 };
+  return { width: p.width, height: p.height, hands: [hand] };
+}
+
 export const syntheticHandsNode = defineNode<Params>({
   type: 'synthetic-hands',
   roles: ['source'],
@@ -75,6 +99,7 @@ export const syntheticHandsNode = defineNode<Params>({
   outputs: [SOURCE_SLOT_OUTPUT],
   params: Params,
   process(_inputs, p, ctx) {
+    if (p.conduct) return { hands: conductFrame(p, ctx.time) };
     const margin = p.scale;
     const phase = (ctx.time / p.sweepPeriod) % 1;
     const cx = p.strike ? p.width / 2 : margin + phase * (p.width - 2 * margin);
