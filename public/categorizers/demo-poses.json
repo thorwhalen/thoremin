@@ -1,0 +1,3564 @@
+{
+  "format": "thoremin.categorizer",
+  "version": 3,
+  "name": "Demo: arms up, an arm out, crouch",
+  "modality": "body",
+  "createdAt": "2026-10-20T00:00:00.000Z",
+  "features": [
+    "body.pos.wrist.left.rise",
+    "body.pos.wrist.right.rise",
+    "body.angle.shoulder.right",
+    "body.angle.shoulder.left",
+    "body.dir.upperArm.right.up",
+    "body.dir.upperArm.left.up",
+    "body.dir.forearm.right.up",
+    "body.dir.forearm.left.up",
+    "body.dir.upperArm.left.out",
+    "body.dir.upperArm.right.out",
+    "body.dir.forearm.right.out",
+    "body.dir.forearm.left.out",
+    "body.shape.extension",
+    "body.angle.knee.right",
+    "body.angle.knee.left",
+    "body.shape.openness",
+    "body.dir.shank.right.up",
+    "body.dir.shank.left.up",
+    "body.dir.thigh.right.up",
+    "body.dir.thigh.left.up",
+    "body.dir.shank.right.out",
+    "body.dir.shank.left.out",
+    "body.dir.thigh.right.out",
+    "body.dir.thigh.left.out"
+  ],
+  "weights": {
+    "body.angle.elbow.left": 1.5160224089254826,
+    "body.angle.knee.left": 0.7438630845420361,
+    "body.angle.hip.left": 1.079257324065114,
+    "body.angle.shoulder.left": 0.28279845357847544,
+    "body.angle.elbow.right": 1.492602982625442,
+    "body.angle.knee.right": 0.7482631068939395,
+    "body.angle.hip.right": 1.0790286385405337,
+    "body.angle.shoulder.right": 0.2836147204437587,
+    "body.angle.torso.lean": 3.798618475138163,
+    "body.angle.head.tilt": 1.1335136286176457,
+    "body.dir.upperArm.left.out": 0.52140465975559,
+    "body.dir.upperArm.left.up": 0.28135361656079133,
+    "body.dir.upperArm.left.fwd": 1.5111705842142547,
+    "body.dir.upperArm.right.out": 0.5197985792616661,
+    "body.dir.upperArm.right.up": 0.28116912590655657,
+    "body.dir.upperArm.right.fwd": 1.515476985384592,
+    "body.dir.forearm.left.out": 0.5079243625824352,
+    "body.dir.forearm.left.up": 0.2780349567008535,
+    "body.dir.forearm.left.fwd": 1.3347537989985483,
+    "body.dir.forearm.right.out": 0.5160119200436578,
+    "body.dir.forearm.right.up": 0.2803207389339804,
+    "body.dir.forearm.right.fwd": 1.330192520127879,
+    "body.dir.thigh.left.out": 1.1509582338580948,
+    "body.dir.thigh.left.up": 1.3592033925932576,
+    "body.dir.thigh.left.fwd": 1.5096644217803727,
+    "body.dir.thigh.right.out": 1.1572592630915892,
+    "body.dir.thigh.right.up": 1.3595296432345356,
+    "body.dir.thigh.right.fwd": 1.5023986652013706,
+    "body.dir.shank.left.out": 1.2036155907472363,
+    "body.dir.shank.left.up": 1.3922930713878856,
+    "body.dir.shank.left.fwd": 1.647674814302867,
+    "body.dir.shank.right.out": 1.2366667527129895,
+    "body.dir.shank.right.up": 1.4064658805161854,
+    "body.dir.shank.right.fwd": 1.7679761902071764,
+    "body.pos.wrist.left.rise": 21.573323042894074,
+    "body.pos.wrist.right.rise": 21.43317203771227,
+    "body.shape.extension": 63.94403685317499,
+    "body.shape.openness": 19.468211041675154,
+    "body.shape.stance": 110.74103781705514,
+    "body.shape.height": 58.86935898889269
+  },
+  "strangers": "neutral",
+  "rejectRadius": 2.6600725586248415,
+  "samples": [
+    {
+      "id": "take-demo-poses:0",
+      "vector": {
+        "body.angle.elbow.left": 179.16697067874708,
+        "body.angle.knee.left": 179.54504883985678,
+        "body.angle.hip.left": 173.3850998373499,
+        "body.angle.shoulder.left": 177.38760078296258,
+        "body.angle.elbow.right": 179.34939785710483,
+        "body.angle.knee.right": 179.51859174043042,
+        "body.angle.hip.right": 173.00859415384636,
+        "body.angle.shoulder.right": 178.11588495576277,
+        "body.angle.torso.lean": -0.16335134037884824,
+        "body.angle.head.tilt": 0.1933565787072992,
+        "body.dir.upperArm.left.out": 9.396884345159725,
+        "body.dir.upperArm.left.up": 80.59626377329657,
+        "body.dir.upperArm.left.fwd": -0.03133698024957301,
+        "body.dir.upperArm.right.out": 8.650009930559028,
+        "body.dir.upperArm.right.up": 81.34322608037083,
+        "body.dir.upperArm.right.fwd": -0.06058783802252421,
+        "body.dir.forearm.left.out": 9.105621387157885,
+        "body.dir.forearm.left.up": 80.88149570800849,
+        "body.dir.forearm.left.fwd": 0.005215927641546404,
+        "body.dir.forearm.right.out": 8.81092697929021,
+        "body.dir.forearm.right.up": 81.18705134933657,
+        "body.dir.forearm.right.fwd": 0.03375131721111946,
+        "body.dir.thigh.left.out": -0.21063247032942684,
+        "body.dir.thigh.left.up": -89.70412665143623,
+        "body.dir.thigh.left.fwd": 0.0017824922057491019,
+        "body.dir.thigh.right.out": 0.1809602992253263,
+        "body.dir.thigh.right.up": -89.64574134425024,
+        "body.dir.thigh.right.fwd": 0.05094926932129898,
+        "body.dir.shank.left.out": -0.23376951468858131,
+        "body.dir.shank.left.up": -89.63234425347413,
+        "body.dir.shank.left.fwd": 0.13188801209221315,
+        "body.dir.shank.right.out": 0.3217723926082545,
+        "body.dir.shank.right.up": -89.5424149543981,
+        "body.dir.shank.right.fwd": 0.06395623932672168,
+        "body.pos.wrist.left.rise": 1.0855515063707988,
+        "body.pos.wrist.right.rise": 1.0848202591918614,
+        "body.shape.extension": 1.7883241664545584,
+        "body.shape.openness": 1.4094159172292113,
+        "body.shape.stance": 0.7160563330062424,
+        "body.shape.height": 3.0482716656198674
+      },
+      "t": 16873,
+      "cue": "poses-yours",
+      "support": [
+        [
+          1.087,
+          1.07989,
+          177.38392,
+          177.35433,
+          80.73527,
+          80.74813,
+          81.22025,
+          80.47057,
+          9.2261,
+          9.26238,
+          8.77975,
+          9.51419,
+          1.78681,
+          179.27372,
+          179.75471,
+          1.42078,
+          -89.32038,
+          -89.8511,
+          -89.93563,
+          -89.60656,
+          0.6783,
+          -0.11302,
+          -0.04798,
+          -0.27748
+        ],
+        [
+          1.08019,
+          1.07772,
+          177.86089,
+          177.05336,
+          81.26552,
+          80.41539,
+          81.05291,
+          81.24257,
+          9.58162,
+          8.73325,
+          8.94577,
+          8.7515,
+          1.7822,
+          179.88478,
+          179.5382,
+          1.41,
+          -89.76116,
+          -89.48359,
+          -89.82046,
+          -89.94157,
+          0.11372,
+          -0.45416,
+          0.1489,
+          -0.05775
+        ],
+        [
+          1.08026,
+          1.08339,
+          178.08464,
+          177.1532,
+          81.42516,
+          80.45351,
+          81.26599,
+          81.01253,
+          9.54546,
+          8.56757,
+          8.72457,
+          8.96187,
+          1.78355,
+          179.27277,
+          179.34184,
+          1.40776,
+          -89.52349,
+          -89.13222,
+          -89.5911,
+          -89.79033,
+          -0.0818,
+          -0.69592,
+          0.40228,
+          -0.17034
+        ],
+        [
+          1.09074,
+          1.08728,
+          178.72829,
+          176.96381,
+          81.92089,
+          80.12878,
+          80.99578,
+          81.20579,
+          9.8712,
+          8.07706,
+          9.00034,
+          8.79414,
+          1.79081,
+          179.62366,
+          179.12411,
+          1.40748,
+          -89.32018,
+          -89.90117,
+          -89.39261,
+          -89.20351,
+          0.64064,
+          0.05211,
+          0.36598,
+          -0.7505
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.51,
+          1.543
+        ],
+        "wrist.left": [
+          -0.589,
+          2.036
+        ],
+        "knee.left": [
+          -0.297,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.294,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.503,
+          1.544
+        ],
+        "wrist.right": [
+          0.579,
+          2.038
+        ],
+        "knee.right": [
+          0.302,
+          -0.75
+        ],
+        "ankle.right": [
+          0.306,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:1",
+      "vector": {
+        "body.angle.elbow.left": 179.33100475142584,
+        "body.angle.knee.left": 179.27607971462797,
+        "body.angle.hip.left": 173.1947250612816,
+        "body.angle.shoulder.left": 14.143758524914782,
+        "body.angle.elbow.right": 179.2265123047374,
+        "body.angle.knee.right": 179.454403694757,
+        "body.angle.hip.right": 173.3412420303485,
+        "body.angle.shoulder.right": 14.072821238325078,
+        "body.angle.torso.lean": 0.07564484452470295,
+        "body.angle.head.tilt": 0.16086573718291092,
+        "body.dir.upperArm.left.out": 7.37375599118608,
+        "body.dir.upperArm.left.up": -82.62155830238787,
+        "body.dir.upperArm.left.fwd": 0.13051117771340467,
+        "body.dir.upperArm.right.out": 7.294700833074155,
+        "body.dir.upperArm.right.up": -82.69845345082804,
+        "body.dir.upperArm.right.fwd": -0.2017825250612233,
+        "body.dir.forearm.left.out": 7.03061584242887,
+        "body.dir.forearm.left.up": -82.96361468840405,
+        "body.dir.forearm.left.fwd": 0.07533681197106515,
+        "body.dir.forearm.right.out": 7.188577976957569,
+        "body.dir.forearm.right.up": -82.80453400247146,
+        "body.dir.forearm.right.fwd": 0.2786989178676113,
+        "body.dir.thigh.left.out": 0.025287737124167254,
+        "body.dir.thigh.left.up": -89.6100735962334,
+        "body.dir.thigh.left.fwd": 0.3082828213919761,
+        "body.dir.thigh.right.out": -0.1252075026647883,
+        "body.dir.thigh.right.up": -89.61479656621246,
+        "body.dir.thigh.right.fwd": 0.22384845557278713,
+        "body.dir.shank.left.out": 0.2373133289778585,
+        "body.dir.shank.left.up": -89.47833467724692,
+        "body.dir.shank.left.fwd": 0.022961409252626755,
+        "body.dir.shank.right.out": -0.14827658908873664,
+        "body.dir.shank.right.up": -89.56930218507145,
+        "body.dir.shank.right.fwd": 0.15205844586082165,
+        "body.pos.wrist.left.rise": -1.0917349711004307,
+        "body.pos.wrist.right.rise": -1.0923884712079883,
+        "body.shape.extension": 1.1478526862280563,
+        "body.shape.openness": 1.3300467466625148,
+        "body.shape.stance": 0.7167070839898896,
+        "body.shape.height": 3.049537616366238
+      },
+      "t": 18424,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09173,
+          -1.08421,
+          14.2355,
+          13.49056,
+          -82.55905,
+          -83.29954,
+          -82.77774,
+          -82.70405,
+          6.69918,
+          7.43777,
+          7.21928,
+          7.29,
+          1.1422,
+          179.66654,
+          179.18123,
+          1.32754,
+          -89.69987,
+          -89.63218,
+          -89.9109,
+          -89.51574,
+          -0.29581,
+          0.28526,
+          0.00705,
+          -0.15276
+        ],
+        [
+          -1.09166,
+          -1.09044,
+          13.61622,
+          14.40017,
+          -83.13934,
+          -82.35082,
+          -82.59432,
+          -82.56123,
+          7.64182,
+          6.85842,
+          7.40562,
+          7.43422,
+          1.14821,
+          179.48525,
+          179.15005,
+          1.33509,
+          -89.41518,
+          -89.13121,
+          -89.48478,
+          -89.97855,
+          -0.57896,
+          0.74623,
+          -0.23004,
+          0.02143
+        ],
+        [
+          -1.0949,
+          -1.09207,
+          13.85504,
+          14.15405,
+          -83.23196,
+          -82.85305,
+          -82.1513,
+          -83.17135,
+          7.14695,
+          6.75124,
+          7.84122,
+          6.82307,
+          1.14889,
+          179.51846,
+          179.42206,
+          1.32459,
+          -89.73109,
+          -89.52991,
+          -89.77389,
+          -89.80977,
+          -0.10641,
+          0.35882,
+          0.17375,
+          0.04859
+        ],
+        [
+          -1.0899,
+          -1.09863,
+          14.22421,
+          14.48084,
+          -82.40471,
+          -82.15572,
+          -82.51499,
+          -83.24659,
+          7.82332,
+          7.59439,
+          7.46644,
+          6.74454,
+          1.15048,
+          179.75119,
+          178.98823,
+          1.34032,
+          -89.30752,
+          -89.66158,
+          -89.54452,
+          -89.16738,
+          -0.07991,
+          -0.31577,
+          0.0088,
+          0.02107
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.491,
+          0.455
+        ],
+        "wrist.left": [
+          -0.552,
+          -0.042
+        ],
+        "knee.left": [
+          -0.3,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.303,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.49,
+          0.454
+        ],
+        "wrist.right": [
+          0.552,
+          -0.042
+        ],
+        "knee.right": [
+          0.298,
+          -0.75
+        ],
+        "ankle.right": [
+          0.296,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:2",
+      "vector": {
+        "body.angle.elbow.left": 179.28434607439172,
+        "body.angle.knee.left": 179.42371001082284,
+        "body.angle.hip.left": 173.03915182360817,
+        "body.angle.shoulder.left": 96.91192795035404,
+        "body.angle.elbow.right": 179.15456880424958,
+        "body.angle.knee.right": 179.55439448890584,
+        "body.angle.hip.right": 173.33672945374855,
+        "body.angle.shoulder.right": 13.885108320421306,
+        "body.angle.torso.lean": 0.06013538393739095,
+        "body.angle.head.tilt": 0.0506156175877335,
+        "body.dir.upperArm.left.out": 89.48478305830369,
+        "body.dir.upperArm.left.up": 0.10769510520713746,
+        "body.dir.upperArm.left.fwd": 0.13148529100333933,
+        "body.dir.upperArm.right.out": 7.069578528435953,
+        "body.dir.upperArm.right.up": -82.92403531713457,
+        "body.dir.upperArm.right.fwd": -0.09939914955355802,
+        "body.dir.forearm.left.out": 89.47824345279534,
+        "body.dir.forearm.left.up": 0.03560828224081823,
+        "body.dir.forearm.left.fwd": 0.04365049959623942,
+        "body.dir.forearm.right.out": 7.240795455187092,
+        "body.dir.forearm.right.up": -82.7413276167301,
+        "body.dir.forearm.right.fwd": 0.1671739846439441,
+        "body.dir.thigh.left.out": 0.15208043803599533,
+        "body.dir.thigh.left.up": -89.56639725700408,
+        "body.dir.thigh.left.fwd": -0.03439542202789248,
+        "body.dir.thigh.right.out": -0.16105767348788685,
+        "body.dir.thigh.right.up": -89.59106801643175,
+        "body.dir.thigh.right.fwd": 0.08587370841368708,
+        "body.dir.shank.left.out": -0.0893147489837793,
+        "body.dir.shank.left.up": -89.60477666002838,
+        "body.dir.shank.left.fwd": 0.2312594773922927,
+        "body.dir.shank.right.out": -0.15492608010216652,
+        "body.dir.shank.right.up": -89.61193999683174,
+        "body.dir.shank.right.fwd": 0.15793869474653455,
+        "body.pos.wrist.left.rise": 0.00023782764516880686,
+        "body.pos.wrist.right.rise": -1.0927402454022075,
+        "body.shape.extension": 1.4001805587545881,
+        "body.shape.openness": 2.7969566612038115,
+        "body.shape.stance": 0.7120047111117409,
+        "body.shape.height": 3.0519420848003342
+      },
+      "t": 19942,
+      "cue": "poses-yours",
+      "support": [
+        [
+          0.00223,
+          -1.09406,
+          13.93743,
+          97.74151,
+          -82.97634,
+          0.85324,
+          -82.75159,
+          -0.34298,
+          89.14668,
+          7.02279,
+          7.20464,
+          89.5763,
+          1.40328,
+          179.91395,
+          179.20021,
+          2.80778,
+          -89.49321,
+          -89.60389,
+          -89.40736,
+          -89.27122,
+          -0.09045,
+          -0.15742,
+          -0.09965,
+          0.64215
+        ],
+        [
+          -0.00288,
+          -1.09179,
+          14.00279,
+          96.80221,
+          -82.7984,
+          0.02733,
+          -82.69699,
+          -0.46071,
+          89.76703,
+          7.20098,
+          7.29067,
+          89.37743,
+          1.39935,
+          179.38694,
+          179.60825,
+          2.78325,
+          -89.56805,
+          -89.75365,
+          -89.61674,
+          -89.6504,
+          -0.43129,
+          -0.19242,
+          0.07005,
+          -0.26175
+        ],
+        [
+          0.00229,
+          -1.09429,
+          13.81328,
+          96.95671,
+          -82.86029,
+          0.30085,
+          -82.16253,
+          -0.0854,
+          89.55287,
+          7.13968,
+          7.8334,
+          89.8399,
+          1.4041,
+          179.86192,
+          179.21709,
+          2.81555,
+          -89.6924,
+          -89.36417,
+          -89.81171,
+          -89.5572,
+          -0.15231,
+          -0.55969,
+          -0.04258,
+          0.21878
+        ],
+        [
+          0.00552,
+          -1.0981,
+          14.12052,
+          97.2765,
+          -82.76366,
+          0.37636,
+          -83.11458,
+          0.61143,
+          89.52606,
+          7.23474,
+          6.87478,
+          89.38181,
+          1.40521,
+          179.48051,
+          179.05595,
+          2.79376,
+          -89.65442,
+          -89.48818,
+          -89.62106,
+          -89.44587,
+          -0.3226,
+          -0.2997,
+          -0.12658,
+          0.55401
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.97,
+          1.001
+        ],
+        "wrist.left": [
+          -1.47,
+          1.001
+        ],
+        "knee.left": [
+          -0.302,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.301,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.488,
+          0.454
+        ],
+        "wrist.right": [
+          0.551,
+          -0.042
+        ],
+        "knee.right": [
+          0.298,
+          -0.75
+        ],
+        "ankle.right": [
+          0.296,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:3",
+      "vector": {
+        "body.angle.elbow.left": 179.17674382810907,
+        "body.angle.knee.left": 179.5363688219307,
+        "body.angle.hip.left": 173.2685248442275,
+        "body.angle.shoulder.left": 13.94213337706029,
+        "body.angle.elbow.right": 179.25849580174324,
+        "body.angle.knee.right": 179.30580529423634,
+        "body.angle.hip.right": 173.06640466850848,
+        "body.angle.shoulder.right": 13.843163151616734,
+        "body.angle.torso.lean": -0.07154781747395596,
+        "body.angle.head.tilt": 0.011693225857487138,
+        "body.dir.upperArm.left.out": 7.075288270449913,
+        "body.dir.upperArm.left.up": -82.91400458885605,
+        "body.dir.upperArm.left.fwd": -0.15130150895418593,
+        "body.dir.upperArm.right.out": 6.993808916269179,
+        "body.dir.upperArm.right.up": -83.00188868605326,
+        "body.dir.upperArm.right.fwd": 0.017103620489371602,
+        "body.dir.forearm.left.out": 7.1612446622460055,
+        "body.dir.forearm.left.up": -82.82543647574644,
+        "body.dir.forearm.left.fwd": 0.21017174814574507,
+        "body.dir.forearm.right.out": 7.39819829007853,
+        "body.dir.forearm.right.up": -82.59438991682813,
+        "body.dir.forearm.right.fwd": 0.03636834225668639,
+        "body.dir.thigh.left.out": -0.14112242388030183,
+        "body.dir.thigh.left.up": -89.62770289532594,
+        "body.dir.thigh.left.fwd": 0.07108415318254034,
+        "body.dir.thigh.right.out": 0.0765580016997277,
+        "body.dir.thigh.right.up": -89.53622502966141,
+        "body.dir.thigh.right.fwd": -0.023590858680698365,
+        "body.dir.shank.left.out": -0.14401187916122338,
+        "body.dir.shank.left.up": -89.58602737094692,
+        "body.dir.shank.left.fwd": 0.0733108943004663,
+        "body.dir.shank.right.out": 0.06445278327339599,
+        "body.dir.shank.right.up": -89.54441713353583,
+        "body.dir.shank.right.fwd": -0.057053920690948605,
+        "body.pos.wrist.left.rise": -1.0907871191161564,
+        "body.pos.wrist.right.rise": -1.0920596561677427,
+        "body.shape.extension": 1.1494540073349608,
+        "body.shape.openness": 1.325366417019133,
+        "body.shape.stance": 0.7123640005672118,
+        "body.shape.height": 3.0539829426172527
+      },
+      "t": 21493,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09204,
+          -1.0926,
+          14.05285,
+          13.49986,
+          -82.75288,
+          -83.34231,
+          -82.97401,
+          -82.51075,
+          6.63971,
+          7.24395,
+          7.02584,
+          7.47914,
+          1.1452,
+          179.38359,
+          179.70849,
+          1.3229,
+          -89.49276,
+          -89.49433,
+          -89.75945,
+          -89.72184,
+          0.33395,
+          -0.49163,
+          0.13251,
+          -0.20782
+        ],
+        [
+          -1.09218,
+          -1.09193,
+          13.39433,
+          13.93615,
+          -83.33141,
+          -82.81398,
+          -81.88491,
+          -82.77851,
+          7.16399,
+          6.66702,
+          8.10645,
+          7.19619,
+          1.14564,
+          179.53361,
+          179.22087,
+          1.33341,
+          -89.67329,
+          -89.27959,
+          -89.70886,
+          -89.84441,
+          0.32337,
+          -0.72041,
+          -0.08054,
+          0.04462
+        ],
+        [
+          -1.09032,
+          -1.09521,
+          14.39171,
+          14.30374,
+          -82.51631,
+          -82.62205,
+          -82.49053,
+          -83.10989,
+          7.37463,
+          7.48367,
+          7.50261,
+          6.88019,
+          1.15578,
+          179.07991,
+          179.3447,
+          1.33215,
+          -89.56509,
+          -89.52943,
+          -89.23456,
+          -89.45495,
+          -0.14639,
+          -0.11205,
+          0.74428,
+          -0.54387
+        ],
+        [
+          -1.08973,
+          -1.08933,
+          13.44407,
+          13.56366,
+          -83.44187,
+          -83.2625,
+          -82.41428,
+          -82.72713,
+          6.73354,
+          6.55796,
+          7.58563,
+          7.2644,
+          1.14527,
+          179.72312,
+          179.64272,
+          1.31894,
+          -89.69043,
+          -89.42659,
+          -89.83755,
+          -89.66556,
+          -0.03084,
+          -0.05378,
+          -0.15144,
+          -0.21803
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.488,
+          0.454
+        ],
+        "wrist.left": [
+          -0.55,
+          -0.042
+        ],
+        "knee.left": [
+          -0.298,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.296,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.487,
+          0.454
+        ],
+        "wrist.right": [
+          0.551,
+          -0.042
+        ],
+        "knee.right": [
+          0.301,
+          -0.75
+        ],
+        "ankle.right": [
+          0.302,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:4",
+      "vector": {
+        "body.angle.elbow.left": 179.2000423528545,
+        "body.angle.knee.left": 179.35956947815833,
+        "body.angle.hip.left": 173.24887990001824,
+        "body.angle.shoulder.left": 13.852049122664237,
+        "body.angle.elbow.right": 179.23804787641038,
+        "body.angle.knee.right": 179.54021267431474,
+        "body.angle.hip.right": 173.07111979054133,
+        "body.angle.shoulder.right": 96.85183980965735,
+        "body.angle.torso.lean": -0.030743448849811193,
+        "body.angle.head.tilt": -0.02401124228641146,
+        "body.dir.upperArm.left.out": 7.004708966124662,
+        "body.dir.upperArm.left.up": -82.98551550678039,
+        "body.dir.upperArm.left.fwd": 0.06092133287308122,
+        "body.dir.upperArm.right.out": 89.55005693324925,
+        "body.dir.upperArm.right.up": 0.006619907386027125,
+        "body.dir.upperArm.right.fwd": 0.056912041849350434,
+        "body.dir.forearm.left.out": 7.356695798267208,
+        "body.dir.forearm.left.up": -82.63734260738653,
+        "body.dir.forearm.left.fwd": 0.03371429677045239,
+        "body.dir.forearm.right.out": 89.39138378836498,
+        "body.dir.forearm.right.up": 0.1318166397252568,
+        "body.dir.forearm.right.fwd": -0.0914503312229204,
+        "body.dir.thigh.left.out": -0.10057768552828505,
+        "body.dir.thigh.left.up": -89.51923313513264,
+        "body.dir.thigh.left.fwd": -0.007061755386530061,
+        "body.dir.thigh.right.out": 0.0780934124881829,
+        "body.dir.thigh.right.up": -89.66837405634435,
+        "body.dir.thigh.right.fwd": -0.012349375369106783,
+        "body.dir.shank.left.out": -0.048816626245530355,
+        "body.dir.shank.left.up": -89.71756481085437,
+        "body.dir.shank.left.fwd": 0.06509806131976112,
+        "body.dir.shank.right.out": 0.1136132633992568,
+        "body.dir.shank.right.up": -89.67470744801076,
+        "body.dir.shank.right.fwd": -0.014248079170735428,
+        "body.pos.wrist.left.rise": -1.0920109623990228,
+        "body.pos.wrist.right.rise": 0.0007457308287156018,
+        "body.shape.extension": 1.3966683046874921,
+        "body.shape.openness": 2.7968863251674105,
+        "body.shape.stance": 0.7144371939600166,
+        "body.shape.height": 3.044255035898053
+      },
+      "t": 23044,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09183,
+          -0.00347,
+          96.59423,
+          13.84337,
+          -0.30998,
+          -83.05425,
+          0.17654,
+          -82.69496,
+          6.91623,
+          89.64504,
+          89.3319,
+          7.30173,
+          1.39572,
+          179.52949,
+          179.36202,
+          2.7877,
+          -89.71909,
+          -89.52817,
+          -89.79632,
+          -89.62623,
+          0.08939,
+          -0.40039,
+          0.03361,
+          -0.15597
+        ],
+        [
+          -1.0906,
+          0.00168,
+          96.80295,
+          13.4687,
+          -0.19582,
+          -83.50317,
+          0.80164,
+          -82.35836,
+          6.49283,
+          89.74287,
+          89.13918,
+          7.63353,
+          1.39791,
+          179.48872,
+          179.3217,
+          2.77593,
+          -89.35098,
+          -89.62327,
+          -89.82799,
+          -89.50068,
+          0.5714,
+          0.02408,
+          0.17166,
+          -0.49573
+        ],
+        [
+          -1.09418,
+          -0.00043,
+          96.05922,
+          14.14653,
+          -0.50586,
+          -82.44109,
+          0.58809,
+          -82.74303,
+          7.54467,
+          89.42295,
+          89.35204,
+          7.25689,
+          1.39585,
+          179.81665,
+          179.52305,
+          2.82171,
+          -89.69583,
+          -89.91318,
+          -89.75366,
+          -89.60473,
+          0.0061,
+          0.04511,
+          0.15237,
+          -0.0649
+        ],
+        [
+          -1.09192,
+          -0.00197,
+          96.81815,
+          14.11926,
+          0.10859,
+          -82.62995,
+          -0.37482,
+          -82.8157,
+          7.35324,
+          89.3713,
+          89.41972,
+          7.17952,
+          1.40064,
+          179.51799,
+          179.11193,
+          2.80571,
+          -89.95456,
+          -89.68616,
+          -89.49959,
+          -89.36064,
+          0.04214,
+          -0.02903,
+          0.03769,
+          -0.41241
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.487,
+          0.454
+        ],
+        "wrist.left": [
+          -0.551,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.298,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.97,
+          1
+        ],
+        "wrist.right": [
+          1.47,
+          1.001
+        ],
+        "knee.right": [
+          0.301,
+          -0.75
+        ],
+        "ankle.right": [
+          0.302,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:5",
+      "vector": {
+        "body.angle.elbow.left": 179.06818619941512,
+        "body.angle.knee.left": 179.4109533377848,
+        "body.angle.hip.left": 173.30077791592248,
+        "body.angle.shoulder.left": 14.049021432238904,
+        "body.angle.elbow.right": 179.08936045226147,
+        "body.angle.knee.right": 179.51944328776983,
+        "body.angle.hip.right": 173.3889486184967,
+        "body.angle.shoulder.right": 13.889264369481852,
+        "body.angle.torso.lean": -0.02579221005648125,
+        "body.angle.head.tilt": -0.018674458369288924,
+        "body.dir.upperArm.left.out": 7.291493551474536,
+        "body.dir.upperArm.left.up": -82.70173264644184,
+        "body.dir.upperArm.left.fwd": -0.03628467022020114,
+        "body.dir.upperArm.right.out": 7.127724582129272,
+        "body.dir.upperArm.right.up": -82.8620829651504,
+        "body.dir.upperArm.right.fwd": 0.08831259275842505,
+        "body.dir.forearm.left.out": 7.164066685452007,
+        "body.dir.forearm.left.up": -82.81730467651343,
+        "body.dir.forearm.left.fwd": 0.0813078664855609,
+        "body.dir.forearm.right.out": 7.253798696659516,
+        "body.dir.forearm.right.up": -82.73337355568118,
+        "body.dir.forearm.right.fwd": -0.04231786527225151,
+        "body.dir.thigh.left.out": -0.06278216536687263,
+        "body.dir.thigh.left.up": -89.59236862768421,
+        "body.dir.thigh.left.fwd": -0.1768976978728743,
+        "body.dir.thigh.right.out": -0.153009647920327,
+        "body.dir.thigh.right.up": -89.68645686909191,
+        "body.dir.thigh.right.fwd": 0.03362671775310205,
+        "body.dir.shank.left.out": -0.10013905985019005,
+        "body.dir.shank.left.up": -89.63858904057892,
+        "body.dir.shank.left.fwd": 0.11010881956692958,
+        "body.dir.shank.right.out": 0.055335740686881706,
+        "body.dir.shank.right.up": -89.64737193683945,
+        "body.dir.shank.right.fwd": -0.11369100630227541,
+        "body.pos.wrist.left.rise": -1.0913775554615468,
+        "body.pos.wrist.right.rise": -1.0899483007153297,
+        "body.shape.extension": 1.147421150962248,
+        "body.shape.openness": 1.3287821072288006,
+        "body.shape.stance": 0.7136955834095461,
+        "body.shape.height": 3.049192097388577
+      },
+      "t": 24595,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.0911,
+          -1.09178,
+          13.74346,
+          13.93876,
+          -82.79232,
+          -82.67685,
+          -82.72868,
+          -82.56093,
+          7.32227,
+          7.18624,
+          7.26854,
+          7.37763,
+          1.14887,
+          179.80677,
+          179.7179,
+          1.33359,
+          -89.65878,
+          -89.67036,
+          -89.77627,
+          -89.86202,
+          -0.08239,
+          -0.10788,
+          0.07012,
+          -0.13454
+        ],
+        [
+          -1.09306,
+          -1.09461,
+          14.44816,
+          14.24864,
+          -82.38571,
+          -82.58546,
+          -83.26085,
+          -83.19014,
+          7.40319,
+          7.61398,
+          6.73728,
+          6.80372,
+          1.14416,
+          179.10194,
+          179.32685,
+          1.32816,
+          -89.44223,
+          -89.88615,
+          -89.58899,
+          -89.43116,
+          0.06976,
+          -0.04802,
+          -0.3229,
+          0.44073
+        ],
+        [
+          -1.09355,
+          -1.08977,
+          13.78624,
+          14.14134,
+          -83.0205,
+          -82.6247,
+          -81.92358,
+          -82.85018,
+          7.37018,
+          6.97947,
+          8.07594,
+          7.11698,
+          1.15355,
+          179.65657,
+          179.47677,
+          1.33585,
+          -89.49888,
+          -89.74474,
+          -89.84092,
+          -89.4049,
+          0.42541,
+          -0.03479,
+          0.12508,
+          -0.55636
+        ],
+        [
+          -1.093,
+          -1.08892,
+          13.86764,
+          13.61651,
+          -82.87881,
+          -83.16783,
+          -83.28318,
+          -82.13994,
+          6.82608,
+          7.1111,
+          6.68522,
+          7.83949,
+          1.14483,
+          179.38189,
+          179.63771,
+          1.32401,
+          -89.81188,
+          -89.4659,
+          -89.56946,
+          -89.63292,
+          0.18753,
+          -0.45367,
+          -0.42426,
+          -0.09855
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.49,
+          0.454
+        ],
+        "wrist.left": [
+          -0.552,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.298,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.488,
+          0.454
+        ],
+        "wrist.right": [
+          0.551,
+          -0.042
+        ],
+        "knee.right": [
+          0.298,
+          -0.75
+        ],
+        "ankle.right": [
+          0.299,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:6",
+      "vector": {
+        "body.angle.elbow.left": 179.2225242198973,
+        "body.angle.knee.left": 124.72067971834223,
+        "body.angle.hip.left": 145.4606408066537,
+        "body.angle.shoulder.left": 42.96091424528581,
+        "body.angle.elbow.right": 179.15952636092237,
+        "body.angle.knee.right": 124.50509714193672,
+        "body.angle.hip.right": 145.3771410184624,
+        "body.angle.shoulder.right": 42.80213117728475,
+        "body.angle.torso.lean": 0.040165608617837086,
+        "body.angle.head.tilt": -0.07127683283570635,
+        "body.dir.upperArm.left.out": 36.03328883903217,
+        "body.dir.upperArm.left.up": -53.96457208148469,
+        "body.dir.upperArm.left.fwd": -0.2181660357304392,
+        "body.dir.upperArm.right.out": 35.88686320147092,
+        "body.dir.upperArm.right.up": -54.11029781241217,
+        "body.dir.upperArm.right.fwd": 0.1312690421034884,
+        "body.dir.forearm.left.out": 35.992107474936226,
+        "body.dir.forearm.left.up": -54.00558555351187,
+        "body.dir.forearm.left.fwd": -0.016475197159280204,
+        "body.dir.forearm.right.out": 35.96981387770316,
+        "body.dir.forearm.right.up": -54.02579617372441,
+        "body.dir.forearm.right.fwd": 0.00031056049520046536,
+        "body.dir.thigh.left.out": 27.609759826744224,
+        "body.dir.thigh.left.up": -62.385723732432986,
+        "body.dir.thigh.left.fwd": -0.3149017062726212,
+        "body.dir.thigh.right.out": 27.707497031265042,
+        "body.dir.thigh.right.up": -62.28979233741324,
+        "body.dir.thigh.right.fwd": -0.1274610488743335,
+        "body.dir.shank.left.out": -27.666687345508855,
+        "body.dir.shank.left.up": -62.3320138387994,
+        "body.dir.shank.left.fwd": -0.05342995683774911,
+        "body.dir.shank.right.out": -27.783583863551684,
+        "body.dir.shank.right.up": -62.21197028627333,
+        "body.dir.shank.right.fwd": -0.1971391265829853,
+        "body.pos.wrist.left.rise": -0.8915612699971533,
+        "body.pos.wrist.right.rise": -0.89178043160666,
+        "body.shape.extension": 1.1690595007848044,
+        "body.shape.openness": 2.5361288632264167,
+        "body.shape.stance": 0.7125471308363047,
+        "body.shape.height": 2.5814078659118915
+      },
+      "t": 26179,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -0.8929,
+          -0.89281,
+          42.60507,
+          43.04874,
+          -54.38899,
+          -53.98647,
+          -53.52082,
+          -54.29741,
+          36.01029,
+          35.61004,
+          36.47372,
+          35.70248,
+          1.16662,
+          124.14571,
+          124.37249,
+          2.5431,
+          -62.373,
+          -62.03645,
+          -61.76284,
+          -62.33604,
+          -27.62041,
+          -27.96335,
+          28.23365,
+          27.6637
+        ],
+        [
+          -0.89106,
+          -0.8942,
+          42.59981,
+          43.58159,
+          -54.2897,
+          -53.32184,
+          -54.25466,
+          -54.54251,
+          36.67802,
+          35.70327,
+          35.74533,
+          35.44306,
+          1.16884,
+          124.14396,
+          124.93277,
+          2.53743,
+          -61.72134,
+          -62.8282,
+          -62.42219,
+          -62.10078,
+          -28.2782,
+          -27.17121,
+          27.57775,
+          27.89524
+        ],
+        [
+          -0.89643,
+          -0.89054,
+          43.34164,
+          42.84356,
+          -53.69299,
+          -54.19801,
+          -54.38476,
+          -54.01222,
+          35.80043,
+          36.3042,
+          35.61473,
+          35.98662,
+          1.17141,
+          124.04824,
+          125.45591,
+          2.53278,
+          -61.87821,
+          -63.05732,
+          -62.16983,
+          -62.39464,
+          -28.1107,
+          -26.94054,
+          27.82295,
+          27.60354
+        ],
+        [
+          -0.88891,
+          -0.8933,
+          43.23522,
+          43.16842,
+          -53.78425,
+          -53.88724,
+          -54.07047,
+          -54.17053,
+          36.10878,
+          36.2102,
+          35.92453,
+          35.8293,
+          1.17085,
+          123.93263,
+          123.63607,
+          2.53627,
+          -62.27409,
+          -61.66538,
+          -61.65601,
+          -61.96642,
+          -27.72591,
+          -28.32975,
+          28.33911,
+          28.03306
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.744,
+          0.555
+        ],
+        "wrist.left": [
+          -1.037,
+          0.151
+        ],
+        "knee.left": [
+          -0.648,
+          -0.665
+        ],
+        "ankle.left": [
+          -0.313,
+          -1.302
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.742,
+          0.554
+        ],
+        "wrist.right": [
+          1.036,
+          0.15
+        ],
+        "knee.right": [
+          0.649,
+          -0.664
+        ],
+        "ankle.right": [
+          0.313,
+          -1.301
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:7",
+      "vector": {
+        "body.angle.elbow.left": 179.03014243953297,
+        "body.angle.knee.left": 179.475091168815,
+        "body.angle.hip.left": 173.1322677691415,
+        "body.angle.shoulder.left": 14.102384520826657,
+        "body.angle.elbow.right": 179.10043735851656,
+        "body.angle.knee.right": 179.4692310380295,
+        "body.angle.hip.right": 172.8178564413633,
+        "body.angle.shoulder.right": 14.15617693760838,
+        "body.angle.torso.lean": -0.06906100943558433,
+        "body.angle.head.tilt": -0.07251954735115647,
+        "body.dir.upperArm.left.out": 7.185044507283476,
+        "body.dir.upperArm.left.up": -82.80396804945902,
+        "body.dir.upperArm.left.fwd": -0.01163388049112724,
+        "body.dir.upperArm.right.out": 7.242365463204876,
+        "body.dir.upperArm.right.up": -82.74697687223194,
+        "body.dir.upperArm.right.fwd": -0.13727977535738944,
+        "body.dir.forearm.left.out": 6.8641375763763195,
+        "body.dir.forearm.left.up": -83.11749532038317,
+        "body.dir.forearm.left.fwd": 0.11907941450978562,
+        "body.dir.forearm.right.out": 7.204164797066037,
+        "body.dir.forearm.right.up": -82.78635247082106,
+        "body.dir.forearm.right.fwd": 0.17997715105895196,
+        "body.dir.thigh.left.out": -0.05241248655061765,
+        "body.dir.thigh.left.up": -89.62343752349665,
+        "body.dir.thigh.left.fwd": 0.16353410587117867,
+        "body.dir.thigh.right.out": 0.2698778319826712,
+        "body.dir.thigh.right.up": -89.58222813467738,
+        "body.dir.thigh.right.fwd": 0.039444176637554944,
+        "body.dir.shank.left.out": -0.09135986160937976,
+        "body.dir.shank.left.up": -89.66500435600612,
+        "body.dir.shank.left.fwd": -0.043527189907703503,
+        "body.dir.shank.right.out": 0.13616306045683962,
+        "body.dir.shank.right.up": -89.63917055737778,
+        "body.dir.shank.right.fwd": 0.09246347861710047,
+        "body.pos.wrist.left.rise": -1.0915340960533937,
+        "body.pos.wrist.right.rise": -1.0914042923996272,
+        "body.shape.extension": 1.1475203449339728,
+        "body.shape.openness": 1.3247287952661615,
+        "body.shape.stance": 0.7156131819720611,
+        "body.shape.height": 3.04902500310089
+      },
+      "t": 27730,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09352,
+          -1.09059,
+          13.48996,
+          14.10144,
+          -83.28191,
+          -82.63623,
+          -82.34757,
+          -83.20252,
+          7.36282,
+          6.71373,
+          7.63909,
+          6.78961,
+          1.14581,
+          179.54181,
+          179.53102,
+          1.32455,
+          -89.67845,
+          -89.64877,
+          -89.78588,
+          -89.79371,
+          0.1026,
+          -0.19331,
+          -0.21226,
+          -0.11749
+        ],
+        [
+          -1.0947,
+          -1.09647,
+          14.27251,
+          13.75001,
+          -82.55933,
+          -83.101,
+          -82.74134,
+          -82.55423,
+          6.86617,
+          7.43454,
+          7.24791,
+          7.42063,
+          1.1522,
+          179.40641,
+          179.49741,
+          1.33113,
+          -89.56937,
+          -89.64269,
+          -89.50698,
+          -89.80586,
+          0.26679,
+          -0.34962,
+          0.4355,
+          0.0883
+        ],
+        [
+          -1.08978,
+          -1.0897,
+          13.91386,
+          13.93064,
+          -83.00214,
+          -83.04352,
+          -82.38068,
+          -83.29774,
+          6.94327,
+          6.99423,
+          7.61468,
+          6.69661,
+          1.14586,
+          179.60182,
+          179.61056,
+          1.32094,
+          -89.51999,
+          -89.87942,
+          -89.47004,
+          -89.50962,
+          0.41476,
+          -0.10099,
+          0.50972,
+          -0.48916
+        ],
+        [
+          -1.09268,
+          -1.09021,
+          14.01249,
+          13.77885,
+          -82.84565,
+          -83.0407,
+          -83.03812,
+          -82.79194,
+          6.95892,
+          7.13947,
+          6.95521,
+          7.19508,
+          1.14692,
+          179.22023,
+          179.16702,
+          1.32248,
+          -89.65667,
+          -89.5904,
+          -89.56161,
+          -89.56232,
+          -0.03299,
+          -0.1614,
+          0.10361,
+          0.30568
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.489,
+          0.454
+        ],
+        "wrist.left": [
+          -0.549,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.298,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.489,
+          0.454
+        ],
+        "wrist.right": [
+          0.552,
+          -0.042
+        ],
+        "knee.right": [
+          0.304,
+          -0.75
+        ],
+        "ankle.right": [
+          0.305,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:8",
+      "vector": {
+        "body.angle.elbow.left": 179.21161771814516,
+        "body.angle.knee.left": 179.48973576310007,
+        "body.angle.hip.left": 173.17455801892956,
+        "body.angle.shoulder.left": 177.60007288704,
+        "body.angle.elbow.right": 179.35631544051674,
+        "body.angle.knee.right": 179.27473729803955,
+        "body.angle.hip.right": 173.18310202961896,
+        "body.angle.shoulder.right": 177.84638214584243,
+        "body.angle.torso.lean": -0.04800671630482574,
+        "body.angle.head.tilt": -0.11733668712226791,
+        "body.dir.upperArm.left.out": 9.160251975335953,
+        "body.dir.upperArm.left.up": 80.8243254830576,
+        "body.dir.upperArm.left.fwd": -0.15659127388512029,
+        "body.dir.upperArm.right.out": 8.95920290184225,
+        "body.dir.upperArm.right.up": 81.02808581885253,
+        "body.dir.upperArm.right.fwd": 0.2720781690507763,
+        "body.dir.forearm.left.out": 8.936134794169575,
+        "body.dir.forearm.left.up": 81.05835467396152,
+        "body.dir.forearm.left.fwd": 0.07084761388128724,
+        "body.dir.forearm.right.out": 8.965178985768322,
+        "body.dir.forearm.right.up": 81.03109107087982,
+        "body.dir.forearm.right.fwd": -0.049021992166121964,
+        "body.dir.thigh.left.out": -0.04597080337924015,
+        "body.dir.thigh.left.up": -89.57883101309216,
+        "body.dir.thigh.left.fwd": -0.04871352551165782,
+        "body.dir.thigh.right.out": -0.05788586038533371,
+        "body.dir.thigh.right.up": -89.56791322961834,
+        "body.dir.thigh.right.fwd": 0.03546260750390634,
+        "body.dir.shank.left.out": -0.1402741068081178,
+        "body.dir.shank.left.up": -89.70161430373543,
+        "body.dir.shank.left.fwd": -0.07168699490860996,
+        "body.dir.shank.right.out": 0.18690759988260658,
+        "body.dir.shank.right.up": -89.52265520793068,
+        "body.dir.shank.right.fwd": -0.022183192317255594,
+        "body.pos.wrist.left.rise": 1.0847282477438827,
+        "body.pos.wrist.right.rise": 1.0849257960616367,
+        "body.shape.extension": 1.7880682088814452,
+        "body.shape.openness": 1.409416001155495,
+        "body.shape.stance": 0.7128321998484235,
+        "body.shape.height": 3.047658804061447
+      },
+      "t": 29281,
+      "cue": "poses-yours",
+      "support": [
+        [
+          1.08489,
+          1.08498,
+          178.30251,
+          178.17255,
+          81.26977,
+          81.27789,
+          80.56203,
+          80.93906,
+          8.69402,
+          8.72879,
+          9.43654,
+          9.05789,
+          1.79061,
+          179.18738,
+          179.79633,
+          1.40672,
+          -89.50203,
+          -89.90469,
+          -89.68337,
+          -89.85882,
+          -0.39173,
+          0.09505,
+          0.27441,
+          -0.07445
+        ],
+        [
+          1.08389,
+          1.08386,
+          177.93043,
+          177.6017,
+          80.95819,
+          80.5872,
+          81.27949,
+          81.38168,
+          9.41272,
+          9.03029,
+          8.7205,
+          8.61584,
+          1.7849,
+          179.26766,
+          179.04054,
+          1.40654,
+          -89.48491,
+          -89.48555,
+          -89.50611,
+          -89.54493,
+          0.51003,
+          -0.29153,
+          -0.09494,
+          0.354
+        ],
+        [
+          1.08057,
+          1.08293,
+          177.86497,
+          177.33521,
+          80.97736,
+          80.50148,
+          80.92349,
+          81.06331,
+          9.49043,
+          9.01003,
+          9.07639,
+          8.93599,
+          1.78784,
+          179.54665,
+          179.58497,
+          1.41301,
+          -89.77026,
+          -89.84276,
+          -89.66593,
+          -89.43513,
+          0.20311,
+          0.0993,
+          -0.22957,
+          0.2309
+        ],
+        [
+          1.08602,
+          1.08512,
+          177.96065,
+          177.49833,
+          81.2417,
+          80.68689,
+          81.22882,
+          80.84788,
+          9.30717,
+          8.73008,
+          8.77112,
+          9.1447,
+          1.78918,
+          179.38981,
+          179.13457,
+          1.40848,
+          -89.40254,
+          -89.32984,
+          -89.5857,
+          -89.17823,
+          0.5697,
+          -0.65629,
+          0.00626,
+          -0.11791
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.508,
+          1.543
+        ],
+        "wrist.left": [
+          -0.585,
+          2.037
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.298,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.506,
+          1.543
+        ],
+        "wrist.right": [
+          0.584,
+          2.037
+        ],
+        "knee.right": [
+          0.299,
+          -0.75
+        ],
+        "ankle.right": [
+          0.302,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:9",
+      "vector": {
+        "body.angle.elbow.left": 179.50030271211182,
+        "body.angle.knee.left": 179.5459404299604,
+        "body.angle.hip.left": 173.14598816663866,
+        "body.angle.shoulder.left": 14.120272868848811,
+        "body.angle.elbow.right": 179.4831954851613,
+        "body.angle.knee.right": 179.526819469496,
+        "body.angle.hip.right": 173.27214684325867,
+        "body.angle.shoulder.right": 14.051027026596843,
+        "body.angle.torso.lean": 0.03830328049558095,
+        "body.angle.head.tilt": 0.06538500661946056,
+        "body.dir.upperArm.left.out": 7.27487742100585,
+        "body.dir.upperArm.left.up": -82.72349121281684,
+        "body.dir.upperArm.left.fwd": -0.030112393019172484,
+        "body.dir.upperArm.right.out": 7.218779728584312,
+        "body.dir.upperArm.right.up": -82.77899904028763,
+        "body.dir.upperArm.right.fwd": 0.1362590919953346,
+        "body.dir.forearm.left.out": 7.149467851338293,
+        "body.dir.forearm.left.up": -82.84445089127611,
+        "body.dir.forearm.left.fwd": 0.06405321131925495,
+        "body.dir.forearm.right.out": 7.031119295231635,
+        "body.dir.forearm.right.up": -82.95458085680194,
+        "body.dir.forearm.right.fwd": 0.24535955719230318,
+        "body.dir.thigh.left.out": 0.0015758518918477784,
+        "body.dir.thigh.left.up": -89.73642799774319,
+        "body.dir.thigh.left.fwd": 0.03179735102879938,
+        "body.dir.thigh.right.out": -0.11419723294290787,
+        "body.dir.thigh.right.up": -89.62440366583229,
+        "body.dir.thigh.right.fwd": 0.17690809475561087,
+        "body.dir.shank.left.out": 0.017897670966190563,
+        "body.dir.shank.left.up": -89.6276120403184,
+        "body.dir.shank.left.fwd": 0.05184736603178479,
+        "body.dir.shank.right.out": 0.0033826299582840405,
+        "body.dir.shank.right.up": -89.60303270174248,
+        "body.dir.shank.right.fwd": 0.027792108762099404,
+        "body.pos.wrist.left.rise": -1.088675151821817,
+        "body.pos.wrist.right.rise": -1.0924098259897812,
+        "body.shape.extension": 1.1466565150445749,
+        "body.shape.openness": 1.3268851238431714,
+        "body.shape.stance": 0.7128871560579747,
+        "body.shape.height": 3.0475687420260154
+      },
+      "t": 30832,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.08691,
+          -1.09467,
+          13.6052,
+          14.0911,
+          -83.27252,
+          -82.80172,
+          -83.02788,
+          -82.40343,
+          7.19827,
+          6.71803,
+          6.97035,
+          7.58377,
+          1.14796,
+          179.46216,
+          179.51256,
+          1.32296,
+          -89.71718,
+          -89.31639,
+          -89.18266,
+          -89.74214,
+          -0.20969,
+          0.52874,
+          -0.66925,
+          0.07894
+        ],
+        [
+          -1.0932,
+          -1.0978,
+          14.03071,
+          13.70185,
+          -82.80638,
+          -83.12722,
+          -82.85845,
+          -82.359,
+          6.87244,
+          7.19321,
+          7.14003,
+          7.64025,
+          1.15583,
+          179.16383,
+          179.30422,
+          1.32806,
+          -89.53219,
+          -89.35233,
+          -89.5594,
+          -89.65749,
+          0.38465,
+          -0.47647,
+          -0.07104,
+          -0.26027
+        ],
+        [
+          -1.09023,
+          -1.08966,
+          14.05725,
+          14.02737,
+          -82.80089,
+          -82.79823,
+          -82.66933,
+          -82.9377,
+          7.19961,
+          7.19911,
+          7.32461,
+          7.05392,
+          1.14469,
+          179.49691,
+          179.77416,
+          1.32824,
+          -89.50681,
+          -89.76759,
+          -89.6515,
+          -89.90191,
+          0.16676,
+          -0.23065,
+          0.34846,
+          -0.03856
+        ],
+        [
+          -1.08708,
+          -1.09126,
+          14.03136,
+          14.10119,
+          -82.89503,
+          -82.83209,
+          -83.59261,
+          -83.04869,
+          7.16657,
+          7.10497,
+          6.37591,
+          6.95091,
+          1.14171,
+          179.45206,
+          179.62218,
+          1.31326,
+          -89.88412,
+          -89.8646,
+          -89.51002,
+          -89.65376,
+          0.11385,
+          0.13334,
+          -0.28142,
+          0.04367
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.49,
+          0.454
+        ],
+        "wrist.left": [
+          -0.552,
+          -0.042
+        ],
+        "knee.left": [
+          -0.3,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.3,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.489,
+          0.454
+        ],
+        "wrist.right": [
+          0.55,
+          -0.042
+        ],
+        "knee.right": [
+          0.299,
+          -0.75
+        ],
+        "ankle.right": [
+          0.299,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:10",
+      "vector": {
+        "body.angle.elbow.left": 179.23866533878876,
+        "body.angle.knee.left": 179.4249395190897,
+        "body.angle.hip.left": 173.21731047092757,
+        "body.angle.shoulder.left": 96.74847748477,
+        "body.angle.elbow.right": 179.17922877201886,
+        "body.angle.knee.right": 179.54971990299134,
+        "body.angle.hip.right": 173.10872365641268,
+        "body.angle.shoulder.right": 14.057888958489183,
+        "body.angle.torso.lean": 0.004016545352600753,
+        "body.angle.head.tilt": -0.009443452199652959,
+        "body.dir.upperArm.left.out": 89.48604821765522,
+        "body.dir.upperArm.left.up": -0.14181378046843376,
+        "body.dir.upperArm.left.fwd": 0.13068819184689306,
+        "body.dir.upperArm.right.out": 7.148659842583275,
+        "body.dir.upperArm.right.up": -82.84220461213604,
+        "body.dir.upperArm.right.fwd": -0.29187763755548535,
+        "body.dir.forearm.left.out": 89.56533884326545,
+        "body.dir.forearm.left.up": 0.15133737221966273,
+        "body.dir.forearm.left.fwd": -0.14070197696169873,
+        "body.dir.forearm.right.out": 7.235793231217841,
+        "body.dir.forearm.right.up": -82.75764613659365,
+        "body.dir.forearm.right.fwd": 0.24530562804281328,
+        "body.dir.thigh.left.out": -0.11846068210733955,
+        "body.dir.thigh.left.up": -89.60508854335067,
+        "body.dir.thigh.left.fwd": 0.08194527690835413,
+        "body.dir.thigh.right.out": -0.02689909740488661,
+        "body.dir.thigh.right.up": -89.57098843247465,
+        "body.dir.thigh.right.fwd": -0.022733206701344807,
+        "body.dir.shank.left.out": 0.22812354775964508,
+        "body.dir.shank.left.up": -89.65780240447619,
+        "body.dir.shank.left.fwd": 0.017861892680640777,
+        "body.dir.shank.right.out": 0.04433470348401571,
+        "body.dir.shank.right.up": -89.7007764067929,
+        "body.dir.shank.right.fwd": 0.056478260573001204,
+        "body.pos.wrist.left.rise": 0.0000031911438926581956,
+        "body.pos.wrist.right.rise": -1.091516814224738,
+        "body.shape.extension": 1.3994879113896872,
+        "body.shape.openness": 2.7925499846905626,
+        "body.shape.stance": 0.714344998121974,
+        "body.shape.height": 3.0513032036135326
+      },
+      "t": 32350,
+      "cue": "poses-yours",
+      "support": [
+        [
+          0.00204,
+          -1.09368,
+          14.68014,
+          96.74796,
+          -82.10886,
+          -0.01156,
+          -83.264,
+          0.19114,
+          89.97028,
+          7.88497,
+          6.73557,
+          89.79844,
+          1.40286,
+          179.88678,
+          179.77353,
+          2.80603,
+          -89.89698,
+          -89.86114,
+          -89.93675,
+          -89.84721,
+          -0.09223,
+          -0.03948,
+          0.02012,
+          -0.13453
+        ],
+        [
+          0.00063,
+          -1.09298,
+          13.76843,
+          96.46086,
+          -83.06377,
+          -0.32514,
+          -82.13385,
+          0.54406,
+          89.64308,
+          6.93384,
+          7.857,
+          89.29844,
+          1.40122,
+          179.8046,
+          179.07369,
+          2.80554,
+          -89.80054,
+          -89.29286,
+          -89.91769,
+          -89.77787,
+          -0.02068,
+          0.57765,
+          0.07698,
+          -0.20215
+        ],
+        [
+          -0.00486,
+          -1.09127,
+          14.37109,
+          96.70787,
+          -82.58469,
+          -0.30889,
+          -83.13921,
+          -0.53248,
+          89.68799,
+          7.41369,
+          6.85839,
+          89.32855,
+          1.39523,
+          179.23178,
+          179.00833,
+          2.78223,
+          -89.3903,
+          -89.87592,
+          -89.14383,
+          -89.10871,
+          -0.11692,
+          0.11756,
+          0.65018,
+          -0.4863
+        ],
+        [
+          0.00313,
+          -1.0909,
+          13.75148,
+          97.12628,
+          -83.20362,
+          0.17229,
+          -82.75547,
+          0.23942,
+          89.12425,
+          6.76217,
+          7.23874,
+          89.66613,
+          1.40075,
+          179.58456,
+          179.76975,
+          2.77562,
+          -89.77137,
+          -89.65564,
+          -89.35851,
+          -89.72046,
+          -0.01942,
+          0.11532,
+          -0.13121,
+          -0.1054
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.97,
+          0.999
+        ],
+        "wrist.left": [
+          -1.47,
+          1
+        ],
+        "knee.left": [
+          -0.298,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.301,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.488,
+          0.454
+        ],
+        "wrist.right": [
+          0.551,
+          -0.042
+        ],
+        "knee.right": [
+          0.3,
+          -0.75
+        ],
+        "ankle.right": [
+          0.3,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:11",
+      "vector": {
+        "body.angle.elbow.left": 179.15358744388936,
+        "body.angle.knee.left": 179.33626692156355,
+        "body.angle.hip.left": 173.22159211540156,
+        "body.angle.shoulder.left": 13.905524203042344,
+        "body.angle.elbow.right": 179.17275287895245,
+        "body.angle.knee.right": 179.50514181250514,
+        "body.angle.hip.right": 173.03094723157784,
+        "body.angle.shoulder.right": 13.915722883865511,
+        "body.angle.torso.lean": -0.08894243886208084,
+        "body.angle.head.tilt": 0.06760019929334486,
+        "body.dir.upperArm.left.out": 7.048226004206375,
+        "body.dir.upperArm.left.up": -82.94187075888436,
+        "body.dir.upperArm.left.fwd": 0.16383684448857586,
+        "body.dir.upperArm.right.out": 7.05669036862569,
+        "body.dir.upperArm.right.up": -82.93804758639284,
+        "body.dir.upperArm.right.fwd": -0.1403729731164633,
+        "body.dir.forearm.left.out": 7.189217089026361,
+        "body.dir.forearm.left.up": -82.7998618155479,
+        "body.dir.forearm.left.fwd": 0.047098743481343186,
+        "body.dir.forearm.right.out": 7.187899910524836,
+        "body.dir.forearm.right.up": -82.80795169585954,
+        "body.dir.forearm.right.fwd": 0.05299038585841456,
+        "body.dir.thigh.left.out": -0.08221819329479797,
+        "body.dir.thigh.left.up": -89.59718590874492,
+        "body.dir.thigh.left.fwd": 0.1834519403490545,
+        "body.dir.thigh.right.out": 0.09790417425971769,
+        "body.dir.thigh.right.up": -89.58257654626647,
+        "body.dir.thigh.right.fwd": 0.0837806155105283,
+        "body.dir.shank.left.out": -0.3025430215739038,
+        "body.dir.shank.left.up": -89.5273089008141,
+        "body.dir.shank.left.fwd": -0.05503319842430213,
+        "body.dir.shank.right.out": 0.11360804989323037,
+        "body.dir.shank.right.up": -89.58135690644492,
+        "body.dir.shank.right.fwd": 0.026871942110759377,
+        "body.pos.wrist.left.rise": -1.089905904413717,
+        "body.pos.wrist.right.rise": -1.0913438233827661,
+        "body.shape.extension": 1.1477020351554463,
+        "body.shape.openness": 1.3239753250749549,
+        "body.shape.stance": 0.7115427308168432,
+        "body.shape.height": 3.0510184888571055
+      },
+      "t": 33901,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.08967,
+          -1.09618,
+          13.57138,
+          13.90841,
+          -83.44454,
+          -83.13202,
+          -82.47989,
+          -82.54328,
+          6.86518,
+          6.55091,
+          7.51382,
+          7.43209,
+          1.15367,
+          179.49636,
+          179.12708,
+          1.32001,
+          -89.72011,
+          -89.44977,
+          -89.70897,
+          -89.58949,
+          -0.24274,
+          -0.50496,
+          0.02001,
+          0.36725
+        ],
+        [
+          -1.08402,
+          -1.09354,
+          13.82267,
+          13.56626,
+          -83.14898,
+          -83.39516,
+          -82.90861,
+          -82.1964,
+          6.59279,
+          6.84579,
+          7.08758,
+          7.80241,
+          1.14684,
+          179.30707,
+          179.17914,
+          1.32037,
+          -89.65748,
+          -89.17332,
+          -89.36293,
+          -89.97969,
+          0.34222,
+          -0.55608,
+          0.08939,
+          0.01028
+        ],
+        [
+          -1.09553,
+          -1.0902,
+          14.34169,
+          13.45911,
+          -82.49551,
+          -83.34235,
+          -83.00054,
+          -82.7269,
+          6.65523,
+          7.49546,
+          6.9985,
+          7.27237,
+          1.14602,
+          179.24061,
+          179.59256,
+          1.32498,
+          -89.38425,
+          -89.67483,
+          -89.44721,
+          -89.46782,
+          0.40056,
+          -0.24336,
+          0.47158,
+          -0.52654
+        ],
+        [
+          -1.08607,
+          -1.08776,
+          13.46864,
+          14.03266,
+          -83.12492,
+          -82.56789,
+          -82.65729,
+          -82.79053,
+          7.40645,
+          6.85927,
+          7.33759,
+          7.20766,
+          1.14553,
+          179.74679,
+          179.53265,
+          1.32823,
+          -89.70459,
+          -89.31612,
+          -89.79897,
+          -89.72794,
+          0.08164,
+          -0.32568,
+          0.19294,
+          -0.23103
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.487,
+          0.454
+        ],
+        "wrist.left": [
+          -0.55,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.295,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.488,
+          0.454
+        ],
+        "wrist.right": [
+          0.55,
+          -0.042
+        ],
+        "knee.right": [
+          0.301,
+          -0.75
+        ],
+        "ankle.right": [
+          0.303,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:12",
+      "vector": {
+        "body.angle.elbow.left": 179.09979539666153,
+        "body.angle.knee.left": 179.4734924298074,
+        "body.angle.hip.left": 173.26573995983466,
+        "body.angle.shoulder.left": 14.10237449092686,
+        "body.angle.elbow.right": 179.40301061724756,
+        "body.angle.knee.right": 179.36178797106484,
+        "body.angle.hip.right": 172.97025747741,
+        "body.angle.shoulder.right": 96.88340884326647,
+        "body.angle.torso.lean": -0.07644114948800368,
+        "body.angle.head.tilt": -0.06191085450413304,
+        "body.dir.upperArm.left.out": 7.2643596507597685,
+        "body.dir.upperArm.left.up": -82.72482139815129,
+        "body.dir.upperArm.left.fwd": -0.025461904452802858,
+        "body.dir.upperArm.right.out": 89.61298732768235,
+        "body.dir.upperArm.right.up": 0.047125295582561455,
+        "body.dir.upperArm.right.fwd": -0.15231356237606028,
+        "body.dir.forearm.left.out": 7.062190673365669,
+        "body.dir.forearm.left.up": -82.92500135881123,
+        "body.dir.forearm.left.fwd": 0.14601454071128925,
+        "body.dir.forearm.right.out": 89.59810641583616,
+        "body.dir.forearm.right.up": 0.19167129036745587,
+        "body.dir.forearm.right.fwd": 0.06690812413616849,
+        "body.dir.thigh.left.out": -0.10332552463753328,
+        "body.dir.thigh.left.up": -89.70348345473714,
+        "body.dir.thigh.left.fwd": -0.07994297957768208,
+        "body.dir.thigh.right.out": 0.18151260331774985,
+        "body.dir.thigh.right.up": -89.58231558085073,
+        "body.dir.thigh.right.fwd": -0.04129338810787006,
+        "body.dir.shank.left.out": -0.16457514482851404,
+        "body.dir.shank.left.up": -89.53052846881346,
+        "body.dir.shank.left.fwd": 0.0571624532343067,
+        "body.dir.shank.right.out": 0.17652555764569794,
+        "body.dir.shank.right.up": -89.56869358496633,
+        "body.dir.shank.right.fwd": 0.0430452785040423,
+        "body.pos.wrist.left.rise": -1.090203863138402,
+        "body.pos.wrist.right.rise": 0.0008366928235016554,
+        "body.shape.extension": 1.3970898740260704,
+        "body.shape.openness": 2.796056189746779,
+        "body.shape.stance": 0.7156327153565417,
+        "body.shape.height": 3.04519753817459
+      },
+      "t": 35452,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09259,
+          -0.00262,
+          97.12593,
+          14.1789,
+          0.1245,
+          -82.77889,
+          -0.2643,
+          -83.24929,
+          7.21979,
+          89.31881,
+          89.62386,
+          6.74062,
+          1.39611,
+          179.53104,
+          179.55013,
+          2.78823,
+          -89.69741,
+          -89.31794,
+          -89.43211,
+          -89.71525,
+          0.05192,
+          -0.12106,
+          0.5167,
+          0.08552
+        ],
+        [
+          -1.09,
+          -0.0037,
+          96.2439,
+          14.23652,
+          -0.36237,
+          -82.37663,
+          0.26301,
+          -83.46356,
+          7.57953,
+          89.5036,
+          89.45841,
+          6.5282,
+          1.39294,
+          179.38116,
+          179.56339,
+          2.79426,
+          -89.47182,
+          -89.46785,
+          -89.90601,
+          -89.59024,
+          0.10832,
+          -0.4757,
+          -0.04475,
+          -0.36607
+        ],
+        [
+          -1.08717,
+          -0.00069,
+          97.19965,
+          14.35414,
+          0.35084,
+          -82.47014,
+          -0.09677,
+          -83.2904,
+          7.52986,
+          89.43054,
+          89.76966,
+          6.68526,
+          1.39107,
+          179.29885,
+          179.55658,
+          2.79561,
+          -89.41684,
+          -89.87,
+          -89.51485,
+          -89.54873,
+          0.55034,
+          0.01342,
+          0.2265,
+          -0.42994
+        ],
+        [
+          -1.08799,
+          0.00572,
+          96.61415,
+          13.89309,
+          -0.13818,
+          -82.87524,
+          0.53269,
+          -82.34367,
+          7.11823,
+          89.74418,
+          89.46731,
+          7.65179,
+          1.40205,
+          179.56381,
+          178.88478,
+          2.80172,
+          -89.84493,
+          -89.312,
+          -89.43207,
+          -89.46763,
+          -0.07668,
+          0.68786,
+          -0.02183,
+          -0.34588
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.49,
+          0.454
+        ],
+        "wrist.left": [
+          -0.551,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.297,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.97,
+          1
+        ],
+        "wrist.right": [
+          1.47,
+          1.002
+        ],
+        "knee.right": [
+          0.302,
+          -0.75
+        ],
+        "ankle.right": [
+          0.305,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:13",
+      "vector": {
+        "body.angle.elbow.left": 179.2977784983429,
+        "body.angle.knee.left": 179.4504794978355,
+        "body.angle.hip.left": 173.24022480436017,
+        "body.angle.shoulder.left": 14.21981982738894,
+        "body.angle.elbow.right": 179.34740781090176,
+        "body.angle.knee.right": 179.43991051711092,
+        "body.angle.hip.right": 173.10296061042112,
+        "body.angle.shoulder.right": 13.96957822087992,
+        "body.angle.torso.lean": -0.03342129061114914,
+        "body.angle.head.tilt": -0.18121854937385234,
+        "body.dir.upperArm.left.out": 7.387392077631098,
+        "body.dir.upperArm.left.up": -82.60516426267235,
+        "body.dir.upperArm.left.fwd": 0.06887432608491667,
+        "body.dir.upperArm.right.out": 7.141656654176239,
+        "body.dir.upperArm.right.up": -82.85031648604333,
+        "body.dir.upperArm.right.fwd": -0.03560806534442136,
+        "body.dir.forearm.left.out": 7.068748393863825,
+        "body.dir.forearm.left.up": -82.92480565055607,
+        "body.dir.forearm.left.fwd": -0.11544166001544101,
+        "body.dir.forearm.right.out": 7.19338617433413,
+        "body.dir.forearm.right.up": -82.79888907982067,
+        "body.dir.forearm.right.fwd": -0.06261736653858538,
+        "body.dir.thigh.left.out": -0.08001166210306904,
+        "body.dir.thigh.left.up": -89.60210858816971,
+        "body.dir.thigh.left.fwd": -0.04371754529199954,
+        "body.dir.thigh.right.out": 0.06312718359389931,
+        "body.dir.thigh.right.up": -89.61325485819836,
+        "body.dir.thigh.right.fwd": -0.046686714596629826,
+        "body.dir.shank.left.out": 0.011236224446341519,
+        "body.dir.shank.left.up": -89.70978011494051,
+        "body.dir.shank.left.fwd": 0.02725681061962144,
+        "body.dir.shank.right.out": -0.020257665723251977,
+        "body.dir.shank.right.up": -89.69275089452256,
+        "body.dir.shank.right.fwd": -0.04302188395163205,
+        "body.pos.wrist.left.rise": -1.0904163296048457,
+        "body.pos.wrist.right.rise": -1.0935534173890882,
+        "body.shape.extension": 1.1496501480600583,
+        "body.shape.openness": 1.328147699400485,
+        "body.shape.stance": 0.7148141480564368,
+        "body.shape.height": 3.0545749757238227
+      },
+      "t": 37003,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.09098,
+          -1.0926,
+          13.68755,
+          14.18684,
+          -83.15289,
+          -82.67561,
+          -82.40342,
+          -83.21077,
+          7.3206,
+          6.84548,
+          7.59658,
+          6.78167,
+          1.14558,
+          179.40501,
+          179.13248,
+          1.32457,
+          -89.67209,
+          -89.44902,
+          -89.71014,
+          -89.58504,
+          0.17772,
+          -0.21977,
+          -0.00779,
+          -0.20267
+        ],
+        [
+          -1.09145,
+          -1.09284,
+          13.99645,
+          14.26487,
+          -82.71332,
+          -82.38657,
+          -82.46736,
+          -83.3999,
+          7.60627,
+          7.27958,
+          7.51814,
+          6.56526,
+          1.14853,
+          179.60359,
+          179.53521,
+          1.33248,
+          -89.91076,
+          -89.49377,
+          -89.60448,
+          -89.61528,
+          0.07637,
+          -0.37123,
+          0.23839,
+          -0.36534
+        ],
+        [
+          -1.08882,
+          -1.09098,
+          14.19633,
+          14.6554,
+          -82.63007,
+          -82.23525,
+          -83.06274,
+          -82.89891,
+          7.76331,
+          7.34966,
+          6.91925,
+          7.10027,
+          1.14754,
+          179.19713,
+          179.34126,
+          1.33259,
+          -89.64602,
+          -89.8829,
+          -89.28835,
+          -89.37285,
+          0.35397,
+          0.11511,
+          -0.02311,
+          0.00008
+        ],
+        [
+          -1.08794,
+          -1.08993,
+          14.02626,
+          13.5722,
+          -82.96765,
+          -83.38498,
+          -82.68576,
+          -82.93841,
+          6.61025,
+          7.02482,
+          7.30679,
+          7.06072,
+          1.1475,
+          179.39565,
+          179.52447,
+          1.31589,
+          -89.67975,
+          -89.72543,
+          -89.70666,
+          -89.71167,
+          -0.19346,
+          0.24281,
+          0.08686,
+          -0.2306
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.491,
+          0.455
+        ],
+        "wrist.left": [
+          -0.552,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.299,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.488,
+          0.454
+        ],
+        "wrist.right": [
+          0.551,
+          -0.042
+        ],
+        "knee.right": [
+          0.301,
+          -0.75
+        ],
+        "ankle.right": [
+          0.301,
+          -1.47
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:14",
+      "vector": {
+        "body.angle.elbow.left": 179.21261765737455,
+        "body.angle.knee.left": 124.58306976861115,
+        "body.angle.hip.left": 145.51387816661293,
+        "body.angle.shoulder.left": 42.72230629757403,
+        "body.angle.elbow.right": 179.3542708465561,
+        "body.angle.knee.right": 124.4601179475475,
+        "body.angle.hip.right": 145.50084230173934,
+        "body.angle.shoulder.right": 42.86356851199475,
+        "body.angle.torso.lean": -0.014265693890870226,
+        "body.angle.head.tilt": -0.09695943936696379,
+        "body.dir.upperArm.left.out": 35.93442121260069,
+        "body.dir.upperArm.left.up": -54.06174310049746,
+        "body.dir.upperArm.left.fwd": -0.08251535927945947,
+        "body.dir.upperArm.right.out": 36.06781030993119,
+        "body.dir.upperArm.right.up": -53.92915354098331,
+        "body.dir.upperArm.right.fwd": 0.09926129805480695,
+        "body.dir.forearm.left.out": 35.9967520279099,
+        "body.dir.forearm.left.up": -53.999669326510464,
+        "body.dir.forearm.left.fwd": -0.014577546632991892,
+        "body.dir.forearm.right.out": 36.023650396302564,
+        "body.dir.forearm.right.up": -53.97222001422438,
+        "body.dir.forearm.right.fwd": -0.0671386303526687,
+        "body.dir.thigh.left.out": 27.697159474799967,
+        "body.dir.thigh.left.up": -62.29868116949908,
+        "body.dir.thigh.left.fwd": 0.1408057362240959,
+        "body.dir.thigh.right.out": 27.702818912837547,
+        "body.dir.thigh.right.up": -62.293320295837276,
+        "body.dir.thigh.right.fwd": 0.1357178286674,
+        "body.dir.shank.left.out": -27.714602226660418,
+        "body.dir.shank.left.up": -62.28270681965889,
+        "body.dir.shank.left.fwd": -0.06079181450780119,
+        "body.dir.shank.right.out": -27.829460178407754,
+        "body.dir.shank.right.up": -62.16652311615566,
+        "body.dir.shank.right.fwd": -0.07379398355200525,
+        "body.pos.wrist.left.rise": -0.8891836269733167,
+        "body.pos.wrist.right.rise": -0.8884060396871792,
+        "body.shape.extension": 1.1668154012678682,
+        "body.shape.openness": 2.537638168581529,
+        "body.shape.stance": 0.712895337651643,
+        "body.shape.height": 2.5775381636524974
+      },
+      "t": 38587,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -0.88925,
+          -0.88578,
+          42.92302,
+          42.77375,
+          -53.85228,
+          -54.00746,
+          -54.05429,
+          -54.02583,
+          35.99225,
+          36.14211,
+          35.94571,
+          35.97408,
+          1.1638,
+          124.38398,
+          123.6487,
+          2.53716,
+          -61.80157,
+          -62.25027,
+          -62.58234,
+          -61.39825,
+          -28.19601,
+          -27.74952,
+          27.41396,
+          28.60173
+        ],
+        [
+          -0.89443,
+          -0.8857,
+          43.23375,
+          42.75836,
+          -53.69863,
+          -54.17052,
+          -53.95727,
+          -54.24693,
+          35.8268,
+          36.29781,
+          36.04227,
+          35.75073,
+          1.16795,
+          124.5073,
+          125.15043,
+          2.53825,
+          -62.68499,
+          -62.23977,
+          -61.82094,
+          -62.90982,
+          -27.31482,
+          -27.75876,
+          28.17756,
+          27.09017
+        ],
+        [
+          -0.89139,
+          -0.89016,
+          42.83355,
+          42.89025,
+          -54.10812,
+          -54.01027,
+          -54.34458,
+          -54.28455,
+          35.97911,
+          35.89188,
+          35.64107,
+          35.71441,
+          1.16555,
+          124.6273,
+          123.91261,
+          2.52541,
+          -62.00038,
+          -62.0035,
+          -62.62691,
+          -61.90886,
+          -27.99452,
+          -27.98933,
+          27.36888,
+          28.07971
+        ],
+        [
+          -0.88479,
+          -0.88652,
+          42.73863,
+          42.78623,
+          -54.06061,
+          -53.99279,
+          -53.66196,
+          -53.53511,
+          36.00124,
+          35.93918,
+          36.32418,
+          36.463,
+          1.1695,
+          124.95024,
+          124.91816,
+          2.5345,
+          -62.31377,
+          -62.38592,
+          -62.63629,
+          -62.53181,
+          -27.67748,
+          -27.61226,
+          27.35826,
+          27.46304
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.743,
+          0.555
+        ],
+        "wrist.left": [
+          -1.037,
+          0.15
+        ],
+        "knee.left": [
+          -0.649,
+          -0.664
+        ],
+        "ankle.left": [
+          -0.314,
+          -1.301
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.744,
+          0.555
+        ],
+        "wrist.right": [
+          1.038,
+          0.151
+        ],
+        "knee.right": [
+          0.649,
+          -0.664
+        ],
+        "ankle.right": [
+          0.313,
+          -1.301
+        ]
+      }
+    },
+    {
+      "id": "take-demo-poses:15",
+      "vector": {
+        "body.angle.elbow.left": 179.41255258827871,
+        "body.angle.knee.left": 179.42547383333746,
+        "body.angle.hip.left": 173.1959579986096,
+        "body.angle.shoulder.left": 13.871311676882787,
+        "body.angle.elbow.right": 179.15055486368584,
+        "body.angle.knee.right": 179.35248584797972,
+        "body.angle.hip.right": 172.8940187598585,
+        "body.angle.shoulder.right": 14.065861051745804,
+        "body.angle.torso.lean": -0.041096015599814184,
+        "body.angle.head.tilt": -0.023559318830345385,
+        "body.dir.upperArm.left.out": 6.980451953092019,
+        "body.dir.upperArm.left.up": -83.01442228317583,
+        "body.dir.upperArm.left.fwd": 0.11521788235015852,
+        "body.dir.upperArm.right.out": 7.168136839393538,
+        "body.dir.upperArm.right.up": -82.82468931477571,
+        "body.dir.upperArm.right.fwd": 0.0648946698327642,
+        "body.dir.forearm.left.out": 7.1289598325879036,
+        "body.dir.forearm.left.up": -82.86494283563465,
+        "body.dir.forearm.left.fwd": -0.027975252241461773,
+        "body.dir.forearm.right.out": 7.25289196452683,
+        "body.dir.forearm.right.up": -82.74048326337243,
+        "body.dir.forearm.right.fwd": -0.059991955254060585,
+        "body.dir.thigh.left.out": -0.08828947465539849,
+        "body.dir.thigh.left.up": -89.73056389280227,
+        "body.dir.thigh.left.fwd": -0.0255053026683374,
+        "body.dir.thigh.right.out": 0.20586530138538492,
+        "body.dir.thigh.right.up": -89.63341118067245,
+        "body.dir.thigh.right.fwd": 0.05434040645918239,
+        "body.dir.shank.left.out": -0.06852495635984018,
+        "body.dir.shank.left.up": -89.63678778048482,
+        "body.dir.shank.left.fwd": -0.04816612401568282,
+        "body.dir.shank.right.out": 0.0041115337423991895,
+        "body.dir.shank.right.up": -89.6014916274952,
+        "body.dir.shank.right.fwd": -0.1923477892322673,
+        "body.pos.wrist.left.rise": -1.0912930157577516,
+        "body.pos.wrist.right.rise": -1.091774211404513,
+        "body.shape.extension": 1.1497907408009285,
+        "body.shape.openness": 1.324294602385372,
+        "body.shape.stance": 0.7139795399656251,
+        "body.shape.height": 3.0555305170746134
+      },
+      "t": 40105,
+      "cue": "poses-yours",
+      "support": [
+        [
+          -1.08607,
+          -1.08981,
+          13.42575,
+          13.75238,
+          -83.44287,
+          -83.14043,
+          -82.48232,
+          -82.46242,
+          6.85324,
+          6.54301,
+          7.51765,
+          7.53737,
+          1.14688,
+          179.3066,
+          179.43393,
+          1.32202,
+          -89.43686,
+          -89.65062,
+          -89.75614,
+          -89.77338,
+          -0.4558,
+          -0.17331,
+          0.20739,
+          0.03123
+        ],
+        [
+          -1.08763,
+          -1.09347,
+          14.52549,
+          13.70714,
+          -82.36632,
+          -83.20293,
+          -83.22868,
+          -82.4102,
+          6.79651,
+          7.63059,
+          6.75785,
+          7.58899,
+          1.14888,
+          179.18135,
+          179.32084,
+          1.3277,
+          -89.58534,
+          -89.59779,
+          -89.48804,
+          -89.65709,
+          -0.21315,
+          0.06913,
+          0.51132,
+          -0.29281
+        ],
+        [
+          -1.08607,
+          -1.09141,
+          14.38044,
+          14.14916,
+          -82.38417,
+          -82.64191,
+          -82.61214,
+          -82.86902,
+          7.35794,
+          7.60538,
+          7.38704,
+          7.11701,
+          1.14881,
+          179.29481,
+          179.59821,
+          1.33606,
+          -89.56038,
+          -89.64256,
+          -89.54326,
+          -89.95427,
+          -0.04693,
+          -0.08833,
+          0.45272,
+          0.02237
+        ],
+        [
+          -1.09292,
+          -1.09159,
+          13.75318,
+          14.05063,
+          -83.28151,
+          -82.94445,
+          -82.30609,
+          -83.52349,
+          7.05541,
+          6.71774,
+          7.69378,
+          6.47639,
+          1.14906,
+          179.11856,
+          179.6533,
+          1.31536,
+          -89.55669,
+          -89.71463,
+          -89.53804,
+          -89.92493,
+          0.11226,
+          -0.25685,
+          0.0936,
+          0.0315
+        ]
+      ],
+      "skeleton": {
+        "hip": [
+          0,
+          0
+        ],
+        "neck": [
+          0,
+          1
+        ],
+        "head": [
+          0,
+          1.47
+        ],
+        "shoulder.left": [
+          -0.42,
+          1
+        ],
+        "hip.left": [
+          -0.3,
+          0
+        ],
+        "elbow.left": [
+          -0.487,
+          0.454
+        ],
+        "wrist.left": [
+          -0.549,
+          -0.042
+        ],
+        "knee.left": [
+          -0.299,
+          -0.75
+        ],
+        "ankle.left": [
+          -0.298,
+          -1.47
+        ],
+        "shoulder.right": [
+          0.42,
+          1
+        ],
+        "hip.right": [
+          0.3,
+          0
+        ],
+        "elbow.right": [
+          0.489,
+          0.454
+        ],
+        "wrist.right": [
+          0.552,
+          -0.042
+        ],
+        "knee.right": [
+          0.303,
+          -0.75
+        ],
+        "ankle.right": [
+          0.303,
+          -1.47
+        ]
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-1",
+      "label": "arms up",
+      "members": [
+        "take-demo-poses:0",
+        "take-demo-poses:8"
+      ]
+    },
+    {
+      "id": "cat-2",
+      "label": "left arm out",
+      "members": [
+        "take-demo-poses:2",
+        "take-demo-poses:10"
+      ]
+    },
+    {
+      "id": "cat-3",
+      "label": "right arm out",
+      "members": [
+        "take-demo-poses:4",
+        "take-demo-poses:12"
+      ]
+    },
+    {
+      "id": "cat-4",
+      "label": "crouch",
+      "members": [
+        "take-demo-poses:6",
+        "take-demo-poses:14"
+      ]
+    }
+  ],
+  "neutral": [
+    "take-demo-poses:1",
+    "take-demo-poses:3",
+    "take-demo-poses:5",
+    "take-demo-poses:7",
+    "take-demo-poses:9",
+    "take-demo-poses:11",
+    "take-demo-poses:13",
+    "take-demo-poses:15"
+  ],
+  "neutralTrained": true
+}

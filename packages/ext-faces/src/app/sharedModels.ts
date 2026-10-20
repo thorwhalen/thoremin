@@ -10,7 +10,7 @@
  */
 import type { NamedCollectionStore, NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { slugId } from '@thoremin/sdk/util/ids';
-import { parseSharedIndex, readSharedFile, SHARED_DIR, SHARED_INDEX_FILE, sharedId, sharedName, type SharedEntry } from '../lib/shared';
+import { entryModality, parseSharedIndex, readSharedFile, SHARED_DIR, SHARED_MODALITIES, SHARED_INDEX_FILE, sharedId, sharedName, type SharedEntry } from '../lib/shared';
 import type { FaceModelRecord, SavedFaceModel } from './models';
 
 export interface SharedSourceDeps {
@@ -28,8 +28,9 @@ export interface SharedSource {
   /** The shipped index (an empty listing when there is none or it cannot be read). */
   list(): Promise<SharedListing>;
   /** A shared categorizer as a saved record (no stills, no tuning), or null when `id` is not a
-   *  shared one, is not listed, or its file cannot be read. */
-  load(id: string): Promise<FaceModelRecord | null>;
+   *  shared one, is not listed, reads another modality than `modality` (face by default), or its
+   *  file cannot be read. */
+  load(id: string, modality?: NonNullable<SharedEntry['modality']>): Promise<FaceModelRecord | null>;
 }
 
 export function createSharedSource(deps: SharedSourceDeps): SharedSource {
@@ -51,18 +52,18 @@ export function createSharedSource(deps: SharedSourceDeps): SharedSource {
   };
 
   const read = async (entry: SharedEntry): Promise<FaceModelRecord | null> => {
-    const r = readSharedFile(await deps.fetchJson(`${SHARED_DIR}${entry.name}.json`));
+    const r = readSharedFile(await deps.fetchJson(`${SHARED_DIR}${entry.name}.json`), SHARED_MODALITIES[entryModality(entry)]);
     if (!r.ok) return null;
     return { id: sharedId(entry.name), name: entry.label, createdAt: 0, model: { categorizer: r.categorizer } };
   };
 
   return {
     list,
-    async load(id) {
+    async load(id, modality = 'face') {
       const name = sharedName(id);
       if (name === null) return null;
       const entry = (await list()).entries.find((e) => e.name === name);
-      if (!entry) return null;
+      if (!entry || entryModality(entry) !== modality) return null;
       let file = files.get(name);
       if (!file) {
         file = read(entry).catch(() => null);

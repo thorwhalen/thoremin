@@ -1,6 +1,7 @@
 /**
- * Shared face categorizers (#330 P5): categorizers shipped with the app for every player, read
- * beside the player's own. Pure: the ids, the index's schema, and a shipped file read as a
+ * Shared categorizers (#330 P5): categorizers shipped with the app for every player, read beside
+ * the player's own: face ones for the face chords, and hand-shape and pose ones for the
+ * categorizer chords (an entry's `modality`; face when absent). Pure: the ids, the index's schema, and a shipped file read as a
  * categorizer; the fetching is the app's (`../app/sharedModels.ts`).
  *
  * - **Ids.** A shared categorizer's id is `shared:<name>`. A saved categorizer's id is a slug of
@@ -22,10 +23,18 @@ import { z } from 'zod';
 import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { foreignModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { handModality } from '@thoremin/sdk/features/modalities/hand';
+import { bodyModality } from '@thoremin/sdk/features/modalities/body';
+import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import { categorySlot, MAX_CATEGORY_SLOTS } from '../schema';
 
 /** The id prefix of a shared categorizer. */
 export const SHARED_PREFIX = 'shared:';
+
+export const isSharedId = (id: string | null | undefined): boolean => typeof id === 'string' && id.startsWith(SHARED_PREFIX) && id.length > SHARED_PREFIX.length;
+
+export const sharedId = (name: string): string => `${SHARED_PREFIX}${name}`;
+
 
 /** The folder, under the app's base URL, the shared files are served from. */
 export const SHARED_DIR = 'categorizers/';
@@ -33,9 +42,7 @@ export const SHARED_DIR = 'categorizers/';
 /** The index file in {@link SHARED_DIR}. */
 export const SHARED_INDEX_FILE = 'index.json';
 
-export const isSharedId = (id: string | null | undefined): boolean => typeof id === 'string' && id.startsWith(SHARED_PREFIX) && id.length > SHARED_PREFIX.length;
 
-export const sharedId = (name: string): string => `${SHARED_PREFIX}${name}`;
 
 /** The shared name of `id` (null when `id` is not a shared one). */
 export const sharedName = (id: string): string | null => (isSharedId(id) ? id.slice(SHARED_PREFIX.length) : null);
@@ -52,6 +59,8 @@ export const SharedEntrySchema = z.object({
   description: z.string().optional(),
   /** A demonstration of the mechanism, not a model meant to fit anyone: the panel says so. */
   demo: z.boolean().optional(),
+  /** What it reads: a face (the default), a hand's shape, or the body's pose. */
+  modality: z.enum(['face', 'hand', 'body']).optional(),
 });
 export type SharedEntry = z.infer<typeof SharedEntrySchema>;
 
@@ -72,6 +81,12 @@ export function parseSharedIndex(input: unknown): { entries: SharedEntry[]; erro
   return { entries: r.data.categorizers.filter((e) => !seen.has(e.name) && (seen.add(e.name), true)), error: null };
 }
 
+/** The carve modality each shared entry's `modality` names. */
+export const SHARED_MODALITIES: Readonly<Record<NonNullable<SharedEntry['modality']>, CarveModality>> = { face: faceModality, hand: handModality, body: bodyModality };
+
+/** What an entry reads (face when it does not say). */
+export const entryModality = (e: Pick<SharedEntry, 'modality'>): NonNullable<SharedEntry['modality']> => e.modality ?? 'face';
+
 /** `categorizer` with its categories' ids set to the dial's slots, in order. */
 export function withSlotIds(categorizer: PersonalCategorizer): PersonalCategorizer {
   return { ...categorizer, categories: categorizer.categories.map((c, i) => ({ ...c, id: categorySlot(i) })) };
@@ -79,14 +94,14 @@ export function withSlotIds(categorizer: PersonalCategorizer): PersonalCategoriz
 
 /**
  * A shipped file read as a categorizer: validated (an older version migrated, a newer one
- * refused), a face one, at most {@link MAX_CATEGORY_SLOTS} categories, its category ids the
+ * refused), one of `modality` (a face by default), at most {@link MAX_CATEGORY_SLOTS} categories, its category ids the
  * dial's slots. The error says why it is not one.
  */
-export function readSharedFile(input: string | unknown): { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string } {
+export function readSharedFile(input: string | unknown, modality: CarveModality = faceModality): { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string } {
   const r = importCategorizer(input);
   if (!r.ok) return { ok: false, error: r.error };
   const c = r.categorizer;
-  const foreign = foreignModality(faceModality, c);
+  const foreign = foreignModality(modality, c);
   if (foreign) return { ok: false, error: foreign };
   if (c.categories.length > MAX_CATEGORY_SLOTS) return { ok: false, error: `${c.categories.length} categories, more than the ${MAX_CATEGORY_SLOTS} an instrument can give chords to` };
   return { ok: true, categorizer: withSlotIds(c) };

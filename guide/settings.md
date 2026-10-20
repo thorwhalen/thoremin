@@ -102,5 +102,5 @@ Choose which of your saved pose models the instrument plays, and whether it star
 
 ## Categorizer chords {#categorizer-chords}
 
-The chords your own categories play, one degree of the key per group.
+The chords your own categories play, one degree of the key per group. Besides your own hand-shape and pose categorizers, **Chords from** lists two shipped examples (a few hand shapes, a few poses), which the Hand-shape Chords and Pose Chords instruments play.
 

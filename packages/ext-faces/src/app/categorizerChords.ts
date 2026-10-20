@@ -6,6 +6,9 @@
  * record's own tuning (`../lib/categorizerChord.ts`), and hands it to the DAG through the
  * `categorizerChordsModel` transient.
  *
+ * A shipped hand-shape or pose categorizer (#330 P5) has the id `<modality>:shared:<name>` and is
+ * read from the app's shared files ({@link sharedSource}) instead of the collection.
+ *
  * It re-resolves when the dial names another categorizer and when the saved categorizers change,
  * and drops the answer to a request a later one has overtaken. A record this device does not have
  * publishes null: nothing plays, and the panel says why.
@@ -21,6 +24,17 @@ import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import { CHORD_MODALITY, categorizerChordPlay, type CategorizerChordPlay } from '../lib/categorizerChord';
 import { chordModalityOf, type CategorizerChordsDial, type ChordModality } from '../schema';
 import { onFaceModelsChanged, type FaceModelRecord } from './models';
+import { sharedSource, type SharedSource } from './sharedModels';
+import { isSharedId, sharedId } from '../lib/shared';
+
+/** The id of a shipped categorizer of `modality` in the categorizer chords' dial. */
+export const sharedChordId = (modality: ChordModality, name: string): string => `${modality}:${sharedId(name)}`;
+
+/** The shared id inside a categorizer chords id (`hand:shared:x` -> `shared:x`), or null. */
+export function sharedPartOf(modality: ChordModality, id: string): string | null {
+  const rest = id.startsWith(`${modality}:`) ? id.slice(modality.length + 1) : '';
+  return isSharedId(rest) ? rest : null;
+}
 
 /** The transient field the node reads (declared by the manifest, `../index.ts`). */
 export const CATEGORIZER_CHORDS_MODEL_FIELD = 'categorizerChordsModel';
@@ -55,10 +69,13 @@ export interface CategorizerChordsDeps {
 
 /** The browser's dependencies: the hot store through the SDK host and the one categorizer
  *  collection, viewed by the id's modality. */
-export function browserCategorizerChordsDeps(): CategorizerChordsDeps {
+export function browserCategorizerChordsDeps(shared: SharedSource = sharedSource()): CategorizerChordsDeps {
   const stores = { hand: createCategorizerStore(CHORD_MODALITY.hand), body: createCategorizerStore(CHORD_MODALITY.body) };
   return {
-    load: (modality, id) => stores[modality].load(id),
+    load: (modality, id) => {
+      const part = sharedPartOf(modality, id);
+      return part ? shared.load(part, modality) : stores[modality].load(id);
+    },
     dial: () => controls().get().categorizerChords as Partial<CategorizerChordsDial> | undefined,
     subscribe: (l) => controls().subscribe(l),
     onModelsChanged: onFaceModelsChanged,

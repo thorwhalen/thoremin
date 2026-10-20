@@ -7,6 +7,20 @@
    "label": "Demo: smile and open smile",
    "description": "Made from the app's own three-second test recording of one face: a rest, a smile, a smile with the mouth open. Two faces; a face near the rest is none of these.",
    "demo": true
+  },
+  {
+   "name": "demo-hand-shapes",
+   "label": "Demo: open, fist, point, pinch (hand shapes)",
+   "description": "Carved from the app's scripted hand (no person): an open hand, a fist, a pointing hand and a pinch, the relaxed hand as none of these.",
+   "demo": true,
+   "modality": "hand"
+  },
+  {
+   "name": "demo-poses",
+   "label": "Demo: arms up, an arm out, crouch (poses)",
+   "description": "Carved from the app's scripted body (no person): arms up, the left arm out, the right arm out and a crouch, standing at rest as none of these.",
+   "demo": true,
+   "modality": "body"
   }
  ]
 }
