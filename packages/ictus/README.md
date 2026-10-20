@@ -81,6 +81,17 @@ On A1's conductor clips, through the follower, the default marks the beat with F
 
 `scheduler.ts` (#187 PR 5) is the research map's pending-event scheduler (§6.3, §7.3): a score's notes in beats become note-on / note-off commands with times, each committed only once its predicted time `now + (B - beat) / (bpm / 60)` falls inside a short horizon (the output stage plus two engine ticks in practice), and never moved after. Held (`bpm` 0) commits nothing ahead and releases nothing sounding, so a fermata note sustains; a note the beat has passed entirely is skipped, one under way starts now; one voice per key and channel (unison parts merge, a re-struck key is released a hair before the new onset, and an onset never lands on or before its key's committed release); a rewind releases everything; releases are lazy, so the tempo keeps shaping a held note until just before it ends. The caller maps the times to its output clock; thoremin's `orchestra` node does it through the one clock map. Hold detection and the preparatory beat stay in the follower (the `conductor` node freezes the beat); the KTH ritard prior at low confidence is not in v1.
 
+## Supported frame rates
+
+Stated for the publishing exit criteria of #178, from the numbers already in `docs/research/subframe-impact-prediction.md` (the `an.impacts` bench: 288 clips, tempi 96 to 132 bpm, noise 0, 60 ms minimum lead, `predict` mode, surface and air strokes; spread is the standard deviation of the timing error).
+
+- **24 to 60 fps: supported.** The spread falls with the rate: about 13 ms at 24 fps, 9 ms at 30 fps and 5 ms at 60 fps. Beyond 60 fps the detector is not the limit; the pipeline's latency is.
+- **15 to 20 fps: supported, degraded.** The detector and the predictor work (the shipped `parabola` detector misses no strokes at 15 fps), the spread is about 15 ms, and a prediction is always a single fit, so it is less stable. At 15 fps a 67 ms frame cannot always leave the 60 ms lead (about 28 % of predictions fall short of it), and a fast tempo's next descent can overrun the three departure samples the floor is learned from; the two-sample fallback keeps the floor. A consumer whose `unlearnedConfirmations()` stays high should tell the player the camera is too slow for prediction.
+- **Below 15 fps: not supported.** Nothing here was measured below it, and at 15 fps the sampling period (67 ms) already exceeds the lead.
+- **Irregular pacing is handled** when the stamps are the capture stamps: an inference-paced 30 fps camera (alternating 33 and 67 ms) gives a spread of about 12 ms, and a camera polled at 60 Hz that repeats frames is detected and de-duplicated. With nominal (non-capture) stamps expect the 4 ms of stamp noise at which the air drum switches prediction off.
+- **Tempo ceiling, not a rate floor.** The Python predecessor's 30 fps conducting recogniser was perfect below 150 bpm and fell to about half at 200 bpm; the same limit applies here, so quote the rate together with the tempo (the bench stops at 132 bpm).
+- At 30 Hz the body pulse resolves the period to under 1 % and the phase to about a quarter frame (epic #186).
+
 ## What v1 leaves for later
 
 The map's `predict(t)`, gains scaled by the inter-beat interval, and `Anchor.kind`. None is needed by the first consumers; each is an additive change behind the same interface. `MusicalTime.leadOffset` (the conductor's beat leads the sound by a per-person constant) exists as a field since #232; nothing measures it yet (a trainer cue will).
