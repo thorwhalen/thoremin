@@ -14,6 +14,8 @@ import { CHORD_MAP_LAYOUTS, LAYOUTS } from '../lib/chord_map';
 import type { ChordMapSettings } from '../dials';
 import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams } from '../nodes/chord_map';
 import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
+import { CAPTION_SET_IDS, captionSet } from '@thoremin/sdk/harmony/captions';
+import { IDIOMS } from '@thoremin/sdk/harmony/idioms';
 
 const PLAY_LABEL: Record<ChordMapDialParams['play'], string> = {
   hold: 'hold the chord, melody with the other hand',
@@ -86,6 +88,9 @@ export function ChordMapControls() {
   const melodyVolume = c.melodyVolume ?? 0.45;
   const volume = c.volume ?? 0.7;
   const captions = c.captions ?? true;
+  const captionSetId = c.captionSet ?? 'interval';
+  const idiom = c.idiom ?? 'none';
+  const trailSteps = c.trailSteps ?? 3;
   const melodyNotes = c.melodyNotes ?? 'chord';
   const sevenths = c.sevenths ?? false;
   const face = c.face ?? false;
@@ -176,6 +181,30 @@ export function ChordMapControls() {
           Show each move from the chord (4th up, 3rd down...)
         </label>
       )}
+      {layout === 'harmonic' && captions && (
+        <label className="flex items-center justify-between gap-2 text-xs" title={`What the words on each move say. ${captionSet('computed').name}: the notes it keeps, whether it turns darker or brighter, and how expected it is (after ${captionSet('computed').models.join(', ')}).`}>
+          Move captions
+          <select className={selectCls} value={captionSetId} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.captionSet', e.target.value)}>
+            {CAPTION_SET_IDS.map((id) => (
+              <option key={id} value={id}>
+                {captionSet(id).name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="flex items-center justify-between gap-2 text-xs" title="A known chord path drawn ahead of the chord you play as a dashed trail; it follows you along the path, and waits where you left it if you wander off.">
+        Trail to follow
+        <select className={selectCls} value={idiom} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.idiom', e.target.value)}>
+          <option value="none">none</option>
+          {IDIOMS.map((i) => (
+            <option key={i.id} value={i.id} title={i.description}>
+              {i.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {idiom !== 'none' && <Range label={`Trail length (${trailSteps} chords ahead)`} path="chordMap.trailSteps" value={trailSteps} min={1} max={8} step={1} enabled={enabled} />}
       {play === 'hold' && (
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={melody} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.melody', e.target.checked)} />

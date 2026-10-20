@@ -49,7 +49,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
 import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
-import { chordName, chordSymbol, diatonicChords as keyChords, keyOf, pitchClasses, type Chord, type Key } from '@thoremin/sdk/harmony/chord';
+import { chordName, diatonicChords as keyChords, keyOf, pitchClasses, type Chord } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
 import { letterChordSpec, letterDegree, midiToFreq, midiToName, keyName, NOTE_LETTERS, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
@@ -82,10 +82,13 @@ import {
   type Region,
 } from '../lib/chord_map';
 import { createStrumDetector, type StrumDetector } from '@thoremin/sdk/gesture/strum';
+import { heardChordTones, samePitchClasses, strummable } from '../lib/heard_chord';
+import { createPathFollower, type IdiomStatus } from '../lib/map_paths';
+import { CAPTION_SET_IDS } from '@thoremin/sdk/harmony/captions';
+import { IDIOM_IDS } from '@thoremin/sdk/harmony/idioms';
 import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
 import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
-import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
@@ -134,6 +137,9 @@ const TENSION_STEPS = 3;
 /** The palm's centre: the wrist and the four knuckles. */
 const PALM_POINTS = [LM.wrist, LM.index_mcp, LM.middle_mcp, LM.ring_mcp, LM.pinky_mcp] as const;
 
+/** The idiom whose way ahead the map draws as a ghost trail (#713), or none. */
+export const CHORD_MAP_IDIOMS = ['none', ...IDIOM_IDS] as [string, ...string[]];
+
 /** What chooses the map's chord. */
 export const CHORD_MAP_FOLLOW = ['hands', 'midi', 'audio', 'signs'] as const;
 
@@ -161,6 +167,14 @@ const Params = z.object({
   releaseS: z.number().min(0).max(2).default(0.3),
   /** Show what each move from the sounding chord does, on its edges. */
   captions: z.boolean().default(true),
+  /** The words on those moves (#714): the interval in scale steps, or what the move does (the
+   *  tones it keeps, its colour, how expected it is after the Piston prior). */
+  captionSet: z.enum(CAPTION_SET_IDS).default('interval'),
+  /** A named path (Pachelbel, the Romanesca, the circle of fifths...) drawn ahead of the chord in
+   *  force as a ghost trail that follows the player along it (#713); `none` draws nothing. */
+  idiom: z.enum(CHORD_MAP_IDIOMS).default('none'),
+  /** With an idiom: how many of its next chords the trail shows. */
+  trailSteps: z.number().int().min(1).max(8).default(3),
   /** Hold mode: the other hand plays a melody. */
   melody: z.boolean().default(true),
   /** Which notes the melody hand plays: the chord's tones, the key's pentatonic, the whole
@@ -276,6 +290,8 @@ export interface ChordMapStatus {
   /** With the face: the key's mode in force ('key': the key's own) and the tension steps added. */
   mode: 'key' | 'darker' | 'brighter';
   tension: number;
+  /** With an idiom: where the player is on it (null: no idiom drawn). */
+  idiom: IdiomStatus | null;
 }
 
 export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
@@ -298,31 +314,8 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   inputChord: null,
   mode: 'key',
   tension: 0,
+  idiom: null,
 };
-
-/** A chord's tones on the map's register, root first (a heard chord outside the key). */
-function heardChordTones(chord: Chord, spec: ScaleSpec): number[] {
-  const base = (spec.baseOctave + 1) * 12 + chord.root;
-  return pitchClasses(chord).map((p) => base + ((p - chord.root + 12) % 12));
-}
-
-/** The triad under each four-note quality: what is strummed when the guitar has no shape for the chord. */
-const TRIAD_OF: Partial<Record<Chord['quality'], Chord['quality']>> = { maj7: 'maj', '7': 'maj', min7: 'min', hdim7: 'dim', dim7: 'dim', minmaj7: 'min', augmaj7: 'aug' };
-
-/** A chord's name the guitar voicing can strum: its own, else its triad's (C#dim7 strums C#dim). */
-function strummable(chord: Chord, key: Key): string {
-  const own = chordSymbol(chord, key);
-  if (parseChordName(own)) return own;
-  const triad = TRIAD_OF[chord.quality];
-  return triad ? chordSymbol({ root: chord.root, quality: triad }, key) : own;
-}
-
-/** Whether a chord's notes are the same pitch classes as a set (a heard chord against a scale's own). */
-function samePitchClasses(notes: readonly number[], pcs: readonly number[]): boolean {
-  const a = new Set(notes.map((n) => ((n % 12) + 12) % 12));
-  const b = new Set(pcs);
-  return a.size === b.size && [...a].every((p) => b.has(p));
-}
 
 /** The cell of a degree nearest the middle of its region (null: none of that degree). */
 function nearestOfDegree(cells: readonly MapCell[], degree: number, region: Region): number | null {
@@ -420,6 +413,7 @@ export const chordMapNode = defineNode<Params>({
     let lastCell = -1;
     let melodySet: MelodySet = 'chord';
     let otherTilt: number | null = null;
+    const paths = createPathFollower();
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
     let valence: LevelTracker | null = null;
     const quantizer = createBeatQuantizer(-1);
@@ -470,6 +464,7 @@ export const chordMapNode = defineNode<Params>({
       changedUntil = -Infinity;
       melodySet = 'chord';
       otherTilt = null;
+      paths.reset();
       status = { ...IDLE_CHORD_MAP_STATUS };
       valence?.reset();
       arousal.reset();
@@ -733,6 +728,9 @@ export const chordMapNode = defineNode<Params>({
           // A pentatonic's own chords take no seventh (its scale has none to add): no tension shown.
           tension: !ownScale && tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
+        // The idiom's trail and the caption set's words (#713, #714; `lib/map_paths.ts`).
+        const { trail, moveText, idiom: idiomStatus } = paths.push({ idiom: c.idiom, captionSet: c.captionSet, trailSteps: c.trailSteps, spec, chords, shown });
+        status = { ...status, idiom: idiomStatus };
         const marks =
           anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;
         const grid: CellGrid = chordMapGrid({
@@ -743,6 +741,8 @@ export const chordMapNode = defineNode<Params>({
           chords,
           choice: shownChoice,
           captions: c.captions,
+          moveText,
+          trail,
           ladder,
           pointers: [chordPoint, c.play === 'hold' && c.melody ? otherPoint : null].filter((x): x is { x: number; y: number } => x !== null),
         });

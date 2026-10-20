@@ -25,8 +25,16 @@ export const useChordMapStatus = create<ChordMapStatusState>((set) => ({
   reset: () => set({ live: ABSENT_CHORD_MAP_LIVE }),
 }));
 
-/** What to tell the player, per state. */
+/** What to tell the player, per state, and where they are on the idiom the trail draws (#713). */
 export function describeChordMapLive(live: ChordMapLive): string {
+  const said = describeState(live);
+  const idiom = live.enabled ? live.idiom : null;
+  if (!idiom) return said;
+  if (idiom.step === 0) return `${said} ${idiom.name}: follow the trail from its first chord.`;
+  return `${said} ${idiom.name}: ${idiom.onPath ? `chord ${idiom.step} of ${idiom.steps}` : `off the path (it waits at chord ${idiom.step})`}.`;
+}
+
+function describeState(live: ChordMapLive): string {
   if (!live.enabled) return 'Off. Tick "Play the chord map" (the Chord Map instruments have it on).';
   if (live.signs === 'waiting' && live.chord === null && !live.inputChord) return `Key of ${live.key}. Show your hand and fingerspell a letter A to G: its chord lights up.`;
   if (live.signs !== 'off' && live.chord === null && !live.inputChord) return `Key of ${live.key}. Fingerspell a letter A to G${live.sign ? ` (reading ${live.sign})` : ''}.`;
@@ -58,7 +66,7 @@ export interface OutputReader {
 
 /** Quantise what the view shows. */
 export function chordMapLiveKey(l: ChordMapLive): string {
-  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0, l.signs, l.sign ?? '-', l.inputChord ?? '-'].join('|');
+  return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0, l.signs, l.sign ?? '-', l.inputChord ?? '-', l.idiom ? `${l.idiom.step}${l.idiom.onPath ? '' : '!'}` : '-'].join('|');
 }
 
 export function makeChordMapReporter(
