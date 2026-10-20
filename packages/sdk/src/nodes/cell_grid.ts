@@ -45,9 +45,22 @@ export type GridCell = z.infer<typeof GridCellSchema>;
 export const GridCaptionSchema = z.object({ x: z.number(), y: z.number(), text: z.string() });
 export type GridCaption = z.infer<typeof GridCaptionSchema>;
 
+/** A ghost trail (#713): the way a path goes on from here, drawn faintly over the cells, each
+ *  point numbered in order; `from` is where it starts (the cell in force), not numbered. */
+export const GridTrailSchema = z.object({
+  points: z.array(z.object({ x: z.number(), y: z.number() })),
+  from: z.object({ x: z.number(), y: z.number() }).optional(),
+  color: z.string().default('#ffffff'),
+  /** What the trail is (an idiom's name), shown by its first point; '' for none. */
+  label: z.string().default(''),
+});
+export type GridTrail = z.infer<typeof GridTrailSchema>;
+
 export const CellGridSchema = z.object({
   cells: z.array(GridCellSchema),
   captions: z.array(GridCaptionSchema).default([]),
+  /** Ghost trails, drawn under the captions; absent for none (additive, #713). */
+  trails: z.array(GridTrailSchema).optional(),
   /** Where each pointing hand is, so the player sees the point that chooses. */
   pointers: z.array(z.object({ x: z.number(), y: z.number() })).default([]),
 });

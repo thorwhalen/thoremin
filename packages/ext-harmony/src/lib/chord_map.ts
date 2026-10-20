@@ -29,6 +29,7 @@ import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { HEX_NEIGHBOURS, HEX_ROW_STEP, cellAt as layoutCellAt, cellDistance as layoutCellDistance, hexLattice, latticeChord, strip, type Cell, type Region } from '@thoremin/sdk/harmony/layout';
 import { createCellTracker as createNavTracker, type CellChoice, type CellTrackerOptions } from '@thoremin/sdk/harmony/navigate';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
+import type { CaptionSet } from '@thoremin/sdk/harmony/captions';
 import type { CellGrid, GridCaption, GridCell } from '@thoremin/sdk/nodes/cell_grid';
 
 /** The number of chords a key has, and so the period of every layout. */
@@ -295,15 +296,34 @@ export function moveText(from: number, to: number, degrees = DEGREES): string {
 }
 
 /** The captions around a hex cell: on each of its six edges, what moving across it does. */
-export function neighbourCaptions(layoutId: ChordMapLayoutId, cell: MapCell, degrees = DEGREES): GridCaption[] {
+export function neighbourCaptions(layoutId: ChordMapLayoutId, cell: MapCell, degrees = DEGREES, text: MoveText = (from, to) => moveText(from, to, degrees)): GridCaption[] {
   const layout = LAYOUTS[layoutId];
   if (layout.shape !== 'hex') return [];
   const step = cell.h * HEX_ROW_STEP;
   return HEX_NEIGHBOURS.map((n) => ({
     x: cell.x + (n.dx * cell.w) / 2,
     y: cell.y + (n.dy * step) / 2,
-    text: moveText(cell.degree, degreeAt(layout, cell.q + n.dq, cell.r + n.dr, degrees), degrees),
+    text: text(cell.degree, degreeAt(layout, cell.q + n.dq, cell.r + n.dr, degrees)),
   }));
+}
+
+/** What a caption says about the move from one degree to another. */
+export type MoveText = (from: number, to: number) => string;
+
+/**
+ * A caption set's words for the map's moves (#714): the set's caption of the move between the
+ * two degrees' chords in the key, the interval text where the set has none (the interval set
+ * always, a move to a chord the set cannot read). Degrees are the key's (`chordMapGrid` maps a
+ * letters map's layout degrees back).
+ */
+export function captionTextFor(set: CaptionSet, chords: readonly DiatonicChord[], key: Key): MoveText {
+  return (from, to) => {
+    const a = chords[from]?.chord;
+    const b = chords[to]?.chord;
+    const fallback = moveText(from, to, chords.length);
+    if (!a || !b || from === to) return fallback;
+    return set.caption({ from: a, to: b }, undefined, key) ?? fallback;
+  };
 }
 
 // ---- The melody ladder -------------------------------------------------------------------
@@ -433,6 +453,38 @@ export interface ChordMapView {
   laidOut?: readonly MapCell[];
   /** A mark per cell (aligned with `cells`): its home, or relit by a modulation. */
   marks?: readonly (GridCell['mark'] | undefined)[];
+  /** The words on the moves around the active cell (the interval text by default). */
+  moveText?: MoveText;
+  /** A ghost trail (#713): the degrees a path goes on to from the active chord, in order, and
+   *  its name; each drawn on the cell of that degree nearest the one before. */
+  trail?: { degrees: readonly (number | null)[]; label: string };
+}
+
+/** The ghost trail's colour on the map. */
+const TRAIL_COLOR = '#e2e8f0';
+
+/** The points of a trail: for each degree, its cell nearest the previous point (the first
+ *  nearest the active cell, or the centre with none); a degree with no cell ends the trail. */
+export function trailPoints(cells: readonly MapCell[], degrees: readonly (number | null)[], start: { x: number; y: number } | null): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  let at = start ?? { x: 0.5, y: 0.5 };
+  for (const d of degrees) {
+    if (d === null) break;
+    let best: MapCell | undefined;
+    let bestD = Infinity;
+    for (const c of cells) {
+      if (c.degree !== d) continue;
+      const dist = (c.x - at.x) ** 2 + (c.y - at.y) ** 2;
+      if (dist < bestD) {
+        bestD = dist;
+        best = c;
+      }
+    }
+    if (!best) break;
+    at = { x: best.x, y: best.y };
+    out.push(at);
+  }
+  return out;
 }
 
 /** The chord map as the overlay's cell grid. */
@@ -464,10 +516,23 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
     });
   }
   const laidOutActive = view.choice.active !== null ? (view.laidOut ?? view.cells)[view.choice.active] : undefined;
-  const captions = view.captions && laidOutActive ? neighbourCaptions(view.layout, laidOutActive, view.chords.length) : [];
+  // The captions are read where the layout puts the neighbours (`laidOut`, the layout's own
+  // degrees); a caption set that reads the chords gets the key's degrees back (the letters map
+  // shifts every degree by the same amount).
+  const n = view.chords.length;
+  const shift = active && laidOutActive ? mod(active.degree - laidOutActive.degree, n) : 0;
+  const text = view.moveText;
+  const shifted: MoveText | undefined = text && ((from, to) => text(mod(from + shift, n), mod(to + shift, n)));
+  const captions = view.captions && laidOutActive ? neighbourCaptions(view.layout, laidOutActive, n, shifted) : [];
   if (view.ladder?.set) {
     const { region, set } = view.ladder;
     captions.push({ x: (region.x0 + region.x1) / 2, y: region.y0 - LADDER_CAPTION_GAP, text: SET_CAPTION[set] });
   }
-  return { cells, captions, pointers: [...view.pointers] };
+  const grid: CellGrid = { cells, captions, pointers: [...view.pointers] };
+  if (view.trail) {
+    const from = active ? { x: active.x, y: active.y } : null;
+    const points = trailPoints(view.cells, view.trail.degrees, from);
+    if (points.length) grid.trails = [{ points, ...(from ? { from } : {}), color: TRAIL_COLOR, label: view.trail.label }];
+  }
+  return grid;
 }
