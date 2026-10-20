@@ -1,0 +1,2172 @@
+{
+ "areas": [
+  {
+   "id": "timing",
+   "title": "Timing and rhythm",
+   "blurb": "Musical time from 30 fps gesture: perceptual thresholds, sub-frame onset prediction, ictus, the rhythm priors."
+  },
+  {
+   "id": "latency",
+   "title": "Latency",
+   "blurb": "Where the lag comes from, camera to speaker, and what the browser allows."
+  },
+  {
+   "id": "body",
+   "title": "Body and dance",
+   "blurb": "The body as a source: which channel carries the beat, the pose feature space, the dancer's pulse pacing a song."
+  },
+  {
+   "id": "conductor",
+   "title": "Conducting and the orchestra",
+   "blurb": "Conducting gestures, the virtual orchestra, meter, lead offsets, transport and expression."
+  },
+  {
+   "id": "face",
+   "title": "Face and personal categorizers",
+   "blurb": "Expressions, a player's own face, hand and pose categories, lighting and distance, carve quality."
+  },
+  {
+   "id": "trainer",
+   "title": "Trainer and sequence training",
+   "blurb": "Learning a player's own categories from cues; fingering priors, drum patterns, scripted sequences."
+  },
+  {
+   "id": "air",
+   "title": "Air instruments",
+   "blurb": "Drum, bass, guitar and flute played at nothing: prior art, footage pipelines, first models."
+  },
+  {
+   "id": "harmony",
+   "title": "Harmony and chord layouts",
+   "blurb": "Chord maps, lattices and wheels; harmony as composable layers; relations, tension and realization."
+  },
+  {
+   "id": "asl",
+   "title": "Sign language",
+   "blurb": "Reading ASL from the hand; the plugin moved to its own repository."
+  },
+  {
+   "id": "generative",
+   "title": "Generative AI",
+   "blurb": "Steering a generative music model (Lyria RealTime) from gesture."
+  },
+  {
+   "id": "datasets",
+   "title": "Datasets",
+   "blurb": "Every clip set and dataset thoremin trained, tuned or measured on, with licences."
+  },
+  {
+   "id": "architecture",
+   "title": "Architecture and engineering",
+   "blurb": "The DAG, the component model, testing, CI cost and the mapping spectrum."
+  }
+ ],
+ "docs": [
+  {
+   "path": "docs/research/air-instruments.md",
+   "title": "Air instruments: prior art, a footage pipeline, and a first model (guitar chord shapes)",
+   "area": "air",
+   "abstract": "This research map asks what is known about air guitar, drums, flute and bass, and whether models learned from footage of people playing the real instruments can drive them. It surveys the prior art, describes the footage pipeline in the repository (video, tracked landmarks, audio-derived labels), and reports a first model: guitar chord shape from the fretting hand, scored leave-one-player-out. Chord shape does not transfer across players because a chord is not a shape, so the target is per-player enrolment in the trainer rather than a shared model. Flute fingering from landmarks is near chance, bass pitch is not a shape, the embouchure leads the sound but only as an arming signal, and for drums the wrist is the wrong tracking point because the stick tip and fingers move while the wrist barely does.",
+   "status": "current",
+   "numbers": [
+    "Chord shape: 96% within a player, 24% across players, on 31,000 labelled frames",
+    "Two seconds of a player's own hand per chord gives 90 to 98%",
+    "Embouchure moves a median 300 ms before the sound on 181 notes from rest (spread 100 to 300 ms), so it is an arming signal, not a timing anchor",
+    "Drum wrists give at best F = 47% at 70 ms after lag correction; bass pitch 10% across players, 32% within"
+   ],
+   "issues": [
+    248,
+    263,
+    233,
+    269
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/asl-recognition.md",
+   "title": "ASL recognition: moved",
+   "area": "asl",
+   "abstract": "This is a stub. The ASL research write-up (the data, the model choices and the numbers) moved with the ASL plugin to its own repository, thorwhalen/thoremin-asl, on 2026-10-13, where it lives as docs/asl-recognition.md. Its history up to the move is in this repository's log for the path. Nothing else is recorded here.",
+   "status": "moved",
+   "numbers": [],
+   "issues": [],
+   "prs": []
+  },
+  {
+   "path": "docs/research/body-and-pace-research-map.md",
+   "title": "Body as a source, and pacing a song from the dancer's pulse: a research map",
+   "area": "body",
+   "abstract": "The epic asks for body movement to control sound and to pace a pre-existing song from the dancer's own pulse, all client-side. The map covers pose in the browser, a body feature catalog (angles, velocity, energy, shape, Laban effort, relational booleans), pulse estimation, a browser beat tracker, pitch-preserving time-stretch, and the pace controller that relates the dancer's period to the song's beat. Items are tagged measured, from docs or inferred. Key conclusions: periodicity should be taken from per-channel positions and angles rather than speed, tempo should be a least-squares slope rather than an inter-beat interval, octave ambiguity is the controller's job (ratio nearest 1), and the Signalsmith Stretch worklet is the upgrade over the media element's own playbackRate.",
+   "status": "implemented",
+   "numbers": [
+    "Pose model download: lite 5.8 MB, full 9.4 MB, heavy 30.7 MB; lite runs 25-30 fps on a laptop CPU, 11-12 fps on a Pixel 5",
+    "Wrist-y autocorrelation r = 0.37 against 0.11 for wrist speed and 0.15 for whole-body energy",
+    "Median IBI read a 129.200 bpm loop as 130.43; a least-squares line read 129.201",
+    "D-Jogger precedent: phase coherence R = 0.17 (tempo match), 0.73 (plus in-phase start), 0.92 (plus phase nudging); stretch clamp +-10%"
+   ],
+   "issues": [
+    186,
+    178,
+    187
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/body-conducting-and-pose-categories.md",
+   "title": "Body conducting and pose categories: which body channel carries the beat, and at which level",
+   "area": "body",
+   "abstract": "Sub-issue A1 of the body-movement epic measures which body channel carries the beat, and at which metrical level, before any default is chosen. It builds pose fixtures from conductor and dance clips plus a synthetic control, scores channel by event by level cells with F, F after a fitted lag, and a circular R with a Rayleigh p, and tests the two-levels-give-the-meter idea. The trunk centroid height marks the beat for a conductor on the 4- and 2-patterns, torso rotation marks the bar, the turning point beats other events, and a multi-joint sum never beats the best single channel. The doc then records the defaults chosen (body conductor channels, the dancer's auto channel, transport rules, per-joint lead offset, the pulse follower's tempo step) and how to reproduce the run.",
+   "status": "implemented",
+   "numbers": [
+    "Trunk com.y locks to the conductor's beat at R 0.77 (4-pattern) and 0.68 (2-pattern), Rayleigh p below 1e-4, but only R 0.35 (p 0.08) on the slow 3-pattern",
+    "Torso yaw marks the bar: R 0.98 and 0.84 on the 4- and 2-pattern",
+    "The turning point won 31 of 32 significant cells; the multi-joint envelope was never significant at the beat",
+    "Two levels at once do not give the meter: lateral/vertical ratio read 3.73 and 2.04 on two clips, nothing on the third"
+   ],
+   "issues": [
+    373,
+    386,
+    375,
+    427,
+    339,
+    416
+   ],
+   "prs": [],
+   "figures": [
+    "docs/research/data/body-channels.csv"
+   ]
+  },
+  {
+   "path": "docs/research/carve-quality-vs-live.md",
+   "title": "Carve quality chips against the live readout (#553)",
+   "area": "trainer",
+   "abstract": "The question is whether the carve quality chips, with a category's spread taken from the holds' supporting frames, move toward what the Trying readout shows frame by frame on a real recording. The method uses the 97-frame video_face_expressions recording, cuts holds of 4, 6, 8 and 10 frames, and compares the chip ratio before and after supporting frames with the frames' own separation and the live classify and margin readout. Supporting frames bring the chip within about 0.2 of the frames' own separation and rank categories as the live readout does. The chip still ignores frames that wander past the reject radius, so a share-past-reject-radius figure was added (#564), with a provisional 0.25 line chosen on this single recording.",
+   "status": "implemented",
+   "numbers": [
+    "Chip ratio within about 0.2 of the frames' own separation after supporting frames; before, it overshot by 0.3 to 1.3",
+    "Open smile read as itself in only 43 to 67% of frames against 90 to 93% for the smile",
+    "Share past reject radius flags the open smile at 33 to 57% and the smile at 7 to 10%; sloppy threshold 0.25 (provisional, one recording)"
+   ],
+   "issues": [
+    436,
+    553,
+    564
+   ],
+   "prs": [
+    552
+   ]
+  },
+  {
+   "path": "docs/research/chord-layouts.md",
+   "title": "Chord layouts: grids, lattices and wheels, and what is known about playing them",
+   "area": "harmony",
+   "abstract": "The note asks what the Pur Pasteur Motion Capture Harmonic Map is and what is known about layouts for choosing chords, so that thoremin can build a camera instrument from it. It describes the video's tool from the page and four published frames, surveys chord-button grids, isomorphic note layouts and circle-of-fifths wheels, compares them, and reviews evidence on learnability, playability, target size and the transit problem. Section 6 then records the instrument built: a harmonic hexagonal lattice (fourth across, third and second on the diagonals), fifths and scale-order rows, hysteresis and a two-frame dwell for choosing a chord, hold and strum playing modes, and the video's unsourced emotion labels deliberately not reproduced. Open follow-ups include voice leading, sevenths and chord changes timed ahead of the frame.",
+   "status": "implemented",
+   "numbers": [
+    "Axes in scale steps: +3 (a fourth across a row), +2 (third, down-right), -1 (second, down-left) mod 7",
+    "Chord choice: two camera frames (about 67 ms at 30 fps) dwell and 0.12 cell widths of hysteresis; chord kept 0.3 s after hand loss",
+    "Harmonic cells are 0.2 frame heights wide by default"
+   ],
+   "issues": [
+    613,
+    602,
+    610
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "title": "Conducting gestures and a virtual orchestra: a research map",
+   "area": "conductor",
+   "abstract": "The map covers three problems for a conductor instrument: understanding conducting gestures from a 30 to 60 Hz hand trajectory (ictus, beat pattern, tempo, dynamics, articulation), a client-side score pipeline, and a virtual orchestra with tempo-following playback that can also pace a recording. It surveys conducting-recognition systems, rhythm models (adaptive oscillators, multiple-hypothesis trackers, Kalman and particle filters, score followers), score parsers and renderers, sample sets and synthesisers, accompaniment systems, and browser time-stretch libraries with their licences and latencies. Section 8 fixes the decisions: ictus as peak deceleration into the turning point, an adaptive oscillator prior, a pending-event scheduler with HOLD and fermata, @tonejs/midi and musicxml-io behind a ScoreDoc, spessasynth with a cut SF3, Signalsmith Stretch for audio pacing, and a pure extraction-ready ictus package.",
+   "status": "implemented",
+   "numbers": [
+    "Orchestra soundfont target under 15 MB, cut from MuseScore_General (MIT)",
+    "Signalsmith Stretch 47.6 kB gz is the only library with rate changes schedulable on the audio clock; Rubber Band is GPL",
+    "A requested mid-block rate change takes effect at the next block (about 23 ms at 4096/1024); worst-case cumulative error 100 ms in under two minutes if the pacer counts requested rather than effective rate"
+   ],
+   "issues": [
+    187,
+    178,
+    180,
+    186
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/conducting-meter.md",
+   "title": "Can the conductor's hand pattern say 2, 3 or 4? (#187 PR 6)",
+   "area": "conductor",
+   "abstract": "The question was whether the conductor's hand pattern can reliably separate 2/4, 3/4 and 4/4 so a meter classifier could ship. Two features of the stroke follower's anchors were fitted (stroke strength and the verticality of the approach) as the share of variance explained by a bar-position split, against a chance level from 400 shuffles, on every committed conducting clip from the hand tracker and the pose wrists. The verdict is no: the classifier is not viable on this footage and PR 6 was closed as measured-not-viable, with nothing added to ictus. The bar length keeps coming from the score's time signature or the conductor dial's beatsPerBar. Retrying needs several conductors per meter, longer than 8 bars, with annotated beats.",
+   "status": "measured-negative",
+   "numbers": [
+    "Strength classified 1 of 3 clips on each of three sources; verticality 0 of 3 on all",
+    "Best-fitting N was right in 7 of 18 cells and above chance in 3",
+    "Hand tracker 4/4: R2 0.62 against a chance level of 0.63, on 3 to 4 bar clips"
+   ],
+   "issues": [
+    187,
+    364
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/datasets.md",
+   "title": "Datasets thoremin has trained, tuned or measured on",
+   "area": "datasets",
+   "abstract": "This table lists every clip set and dataset used to train, tune, test or measure anything in thoremin: the source, licence, what used it, the derived landmark streams and where they live (committed fixture, app-data dir or regenerable), and whether raw media is kept. It enforces the video-data rule that every downloaded video keeps all its landmark streams with a meta.json while the video itself may be deleted. Entries include the choir conductor and Budots dance clips (CC BY 3.0), the Que Calor choreography, conducting-pattern hand clips, synthetic hands, bodies and impact benches, the air-instruments footage, real-vs-air takes and the ASL corpus. A row is added whenever a new source is used.",
+   "status": "current",
+   "numbers": [
+    "Hands read on wrist crops cover 91-100% of choir-conductor frames (#527)",
+    "Budots dance hands: 41% of frames whole, 54% with crops",
+    "Budots soundtrack fixture holds 115 beats from the tracker's own SongGrid (not ground truth)"
+   ],
+   "issues": [
+    373,
+    510,
+    527,
+    346
+   ],
+   "prs": [
+    517
+   ],
+   "figures": [
+    "docs/research/data/body-channels.csv"
+   ]
+  },
+  {
+   "path": "docs/research/drum-pattern-training.md",
+   "title": "Drum pattern training: fit a player's tempo and positions to a short score, then play them back snapped and humanised",
+   "area": "air",
+   "abstract": "This design record, written before the code, specifies training the air drum on short patterns. A pattern is a percussion ScoreDoc written in a one-line grid notation; a training take shows a strip over the pads with a count-in click while the player plays it several times. An offline pure fit recovers the player's tempo, their feel (mean timing offset per event and its spread) and their positions (which pad and where on it) as a zodal model record. Playback then snaps each hit to the nearest score event at the running phase and adds the learned offset, with the timing magnet fully on. The three open choices are decided: a cursor yes, a metronome for count-in and first pass, raw hits as feedback in training and snapped hits in playback.",
+   "status": "design-record",
+   "numbers": [
+    "Synthetic verification: twenty seeds of the rock beat at recall and precision 1",
+    "Fit recovers the mean tempo within 1 bpm and the snare's lateness within 0.03 of a beat (four passes slowing 1.5 bpm each)",
+    "Eight slowing passes stay above 0.98 with per-pass lines"
+   ],
+   "issues": [
+    269,
+    263,
+    235,
+    239,
+    256,
+    187,
+    247
+   ],
+   "prs": []
+  },
+  {
+   "path": "docs/research/face-categorizer-lighting-and-distance.md",
+   "title": "Lighting and camera distance vs a personal face categorizer",
+   "area": "face",
+   "abstract": "Asks how far lighting and camera distance move the feature vector a personal face categorizer classifies, compared with the distances that separate its categories. It re-renders one studio-lit clip under ten synthetic lighting variants and runs the app's own feature and classifier code, then measures a camera dolly on the head-pose fixture, all in noise units. Ordinary lighting moves the mean vector by about sensor-noise levels, so no lighting dial was built; a too-dark warning is the follow-up. Distance does move held faces out of their reject radius, concentrated in about a dozen features, so the categorizer learns a per-player slope against log face scale and keeps it only where r-squared is at least 0.5.",
+   "status": "implemented",
+   "numbers": [
+    "Lighting shifts of 6-13 NU against a happy-vs-sad distance of 104.7 NU",
+    "Only very dim and noisy (about -2.5 EV) moves 59 NU; accuracy falls from 92% to 85%",
+    "Dolly 35.5 to 17.6 cm moves far vs near by 63.7 NU against a reject radius of 52.7 NU",
+    "27 of 67 non-pose features move more than 3 NU over the dolly"
+   ],
+   "issues": [
+    330
+   ]
+  },
+  {
+   "path": "docs/research/fingering-priors-and-sequence-training.md",
+   "title": "Fingering-chart priors and scripted sequence training for the air winds",
+   "area": "air",
+   "abstract": "Design record for making air-flute enrolment faster than typing one note at a time. Fingering charts for seven winds are encoded as data; a chart becomes a conjugate Bayesian prior over the finger-flexion features of an enrolled vocabulary, so the instrument knows roughly what each note looks like and the player's own samples only tune it. A scripted sequence runner (targets with lead-in, countdown, settle and hold) is kept a sibling of the trainer's routines rather than a cue. It is checked on a synthetic flautist, including that all features are scored in one common space after an early version misread enrolled notes.",
+   "status": "implemented",
+   "numbers": [
+    "Seven instruments' charts encoded",
+    "Prior strength 10 pseudo-samples, so one 2 s hold outvotes the chart about four to one",
+    "Early version at twice test jitter read an enrolled G as A, F or G# in 29 of 30 frames"
+   ],
+   "issues": [
+    263
+   ]
+  },
+  {
+   "path": "docs/research/harmony-relations-and-realization.md",
+   "title": "Harmony as layers: chord relations, distances, layouts, navigation, realization and emotion",
+   "area": "harmony",
+   "abstract": "Evidence note for the harmonic-layers design (epic #613). It reconstructs what a chord-map video encodes from its frames, then surveys chord relations (diatonic steps, neo-Riemannian transformations, functional moves), distance and tension models, relative layouts and directional navigation, commit timing, coloration and voice leading, and the link between face affect and harmony. Conclusion: relations are data, adjacency and distance are separate objects, coloration and voicing are separate stages, and for the face valence maps to mode while arousal maps to tempo, density and loudness rather than chord choice. The video's per-move emotion labels found no supporting study.",
+   "status": "design-record",
+   "numbers": [
+    "Gesture menus stay within about eight directions",
+    "Two tension models cheap enough for the browser: Lerdahl integer distance and the spiral array's three distances",
+    "Valence-to-mode is well supported; the video's per-move labels are unsupported"
+   ],
+   "issues": [
+    613,
+    602
+   ]
+  },
+  {
+   "path": "docs/research/intent-and-subframe-timing.md",
+   "title": "Intent, actuality, and sounding good: musical timing beyond the frame rate",
+   "area": "timing",
+   "abstract": "Verifies two numbers the timing design leans on: the latency at which players notice (a 20-30 ms just-noticeable difference for a real theremin, not a universal constant) and the frame rate thoremin really runs at, derived from the code (30 fps camera, display-rate tick, not 44). It then states the principle that actuality, intent and sounding good are three conflicting objectives whose trade-off should be a dial. Finally it separates three problems inside 'beyond the frame rate': sub-frame localisation, producing sound at the event, and predicting an air impact with no surface. It set up the harness and the later prediction work.",
+   "status": "implemented",
+   "numbers": [
+    "Theremin latency JND 20-30 ms; 10 and 20 ms undetected, 30 ms detected in 60% of comparisons",
+    "No frame rate of 44 in the code: no frameRate constraint, tick on requestAnimationFrame",
+    "Pitch time constant 30 ms in the synth"
+   ],
+   "issues": [
+    226,
+    227
+   ]
+  },
+  {
+   "path": "docs/research/latency-budget-and-browser-realtime.md",
+   "title": "Where the lag comes from, and whether another language would cut it",
+   "area": "latency",
+   "abstract": "Measures the hand-to-speaker lag stage by stage on the built app with a latency probe, then asks whether Rust or WebAssembly would help. The lag comes from camera wait, the hand model, audio output buffering and the synth's deliberate glide; none is code a different language would speed up, and the pure-WebAssembly CPU path of the model measured twice as slow as the GPU one. The DAG tick that thoremin wrote costs 0.3 ms. The levers that move the number are architectural: the smoothing constant, the compressor, a 60 fps camera, inference in a worker, and anticipating the gesture.",
+   "status": "measured-negative",
+   "numbers": [
+    "About 100 ms from hand movement to the pitch half-way to its new value, excluding camera hardware",
+    "Hand inference 20.5 ms on GPU; WebAssembly CPU path 42 ms",
+    "DAG tick 0.27 ms; parameter write to loudspeaker 31.9 ms",
+    "Synth glide: 20.8 ms to half, 69 ms to 90%"
+   ],
+   "issues": [
+    227,
+    226
+   ]
+  },
+  {
+   "path": "docs/research/rhythm-from-gesture-research-map.md",
+   "title": "Inferring Rhythm and Tempo from Low-Frame-Rate Gesture: A Research Map",
+   "area": "timing",
+   "abstract": "Rhythm needs 1-20 ms timing but the camera gives 16.7-33 ms frames, so literal frame-to-onset mapping cannot work. The map frames the problem as causal Bayesian estimation of a latent high-rate timing process from sparse observations under a strong musical prior. It reviews finite-rate-of-innovation theory (the license to go below Nyquist), Bayesian rhythm and tempo models, adaptive-oscillator entrainment as the real-time engine, and conducting-gesture systems as the closest applied analogue, then sketches the architecture. It led to the ictus package.",
+   "status": "implemented",
+   "numbers": [
+    "Perceptual timing 1-20 ms against a 16.7-33 ms frame period"
+   ],
+   "issues": [
+    178
+   ]
+  },
+  {
+   "path": "docs/research/subframe-impact-prediction.md",
+   "title": "Sub-frame impact prediction from body video: method, harness, numbers",
+   "area": "timing",
+   "abstract": "Working answer to the resolution, prediction and intent problems, scored on synthetic ground truth from the an.impacts harness: 288 clips of a stick or ball striking a surface or reversing in mid-air, across frame rates, shutters and capture-timing regimes. Three causal estimators are compared on actuality, intent and musicality. A surface impact can be predicted about 50 ms early with less error than the frame-snapped detector has afterwards; air impacts are predicted as early at about baseline error; the adaptive oscillator tracks intent 65-75 ms late under an accelerando and a tempo-trend prior fixes it. A timing magnet gives the actuality-intent dial. Real-hand tracker noise and the consuming instrument are not yet settled.",
+   "status": "implemented",
+   "numbers": [
+    "Surface impact predicted about 50 ms before it happens",
+    "Oscillator estimates intended beat 65-75 ms late under accelerando",
+    "Pulling halfway to the trend prior buys about 10% on intent for 60% on actuality",
+    "Air-stroke prediction spread 9.8 ms, not better than baseline"
+   ],
+   "issues": [
+    231,
+    232,
+    239
+   ]
+  },
+  {
+   "path": "docs/research/trainer-mode.md",
+   "title": "Research: trainer mode, learning a player's own control categories from a live stream",
+   "area": "trainer",
+   "abstract": "Evidence for letting a player carve their own control categories instead of tuning the shipped expression model. The complaint is a known identity-bias gap in expression recognition, answered in the literature by personalisation; the prior art is supervised (Wekinator, mapping-by-demonstration), but the unlabelled version works too by building a hierarchy once and cutting it at any k, before or after. Open-set rejection gives a first-class no-man's-land, invariance is mostly built from the declared nuisance axes, and a guided enrolment ritual is the right delivery. The key recommendation is to train over the feature vector, not the face, so it generalises to any modality.",
+   "status": "implemented",
+   "numbers": [
+    "Invariance request about 70% already built (#131)"
+   ],
+   "issues": [
+    160,
+    163,
+    131
+   ]
+  },
+  {
+   "path": "docs/ARCHITECTURE.md",
+   "title": "Thoremin Architecture",
+   "area": "architecture",
+   "abstract": "Overview of the app as a typed dataflow DAG, a TypeScript mirror of the Python meshed library, from sensor inputs through feature, mapping, music-logic and synthesis nodes to audio and video outputs. It keeps the old six-layer story as onboarding narrative only and points to the component model (roles, elements, slots) as the durable one. It describes the DAG runtime, the default instrument graph, the app layer, the frozen legacy app and the roadmap. Version zero is frontend-only for lowest latency.",
+   "status": "current",
+   "numbers": [],
+   "issues": [
+    87
+   ]
+  },
+  {
+   "path": "docs/MAPPING_SPECTRUM.md",
+   "title": "The direct to indirect mapping spectrum",
+   "area": "architecture",
+   "abstract": "Describes how sensor features map to musical intent as one continuum rather than two apps: from direct (x to scale-snapped pitch, y to volume) through face-driven harmony in the middle, to indirect steering of a generative model and conductor mode. It separates nodes that are built and tested from nodes wired into the default graph, noting the direct and middle sections run while the indirect and conductor ones were built but not wired. Also covers user-authored mappings and scaling the learning curve.",
+   "status": "current",
+   "issues": [
+    128,
+    141
+   ]
+  },
+  {
+   "path": "docs/CI_COST.md",
+   "title": "What CI would cost if this repo were private",
+   "area": "architecture",
+   "abstract": "Because the repo is public, Actions are free and the billing field reads zero, so the cost is reconstructed from real wall-clock durations of the 20 latest runs of each workflow times the private-repo Linux rate with per-job rounding up to whole minutes. It extrapolates a monthly figure over a shared 18-day window, identifies where the time goes, describes the cheap-by-default gating, and says how to re-run the measurement. Meant to be read before changing visibility.",
+   "status": "current",
+   "numbers": [
+    "About $5.15 per month in total at the recent, burst-heavy pace",
+    "ci.yml about 89 s per run, billed 2 minutes, 150 runs in 18 days",
+    "Rate $0.006 per minute, Linux 2-core"
+   ],
+   "issues": [
+    262
+   ]
+  },
+  {
+   "path": "docs/TESTING.md",
+   "title": "Testing strategy (DAG-aware record and replay)",
+   "area": "architecture",
+   "abstract": "Explains testing by tapping every DAG edge, persisting the stream as NDJSON and replaying it into downstream stages, so tests run without camera, GPU or audio. It defines four tiers (pure functions, node replay, headless subgraph, end-to-end from video) plus a fifth browser smoke harness, states exactly what CI enforces (typecheck, test and build yes; catalog regeneration is still manual), and documents fixture layout, recording fixtures, replay in tests and audible spot-checks.",
+   "status": "current",
+   "issues": [
+    209,
+    187
+   ]
+  },
+  {
+   "path": "docs/lyria-docs/music-generation.md",
+   "title": "Gemini API: music generation with Lyria RealTime",
+   "area": "generative",
+   "abstract": "Saved copy of Google's Gemini API guide to Lyria RealTime. It explains that music is streamed over a persistent bidirectional WebSocket similar to the Live API, with a session opened by connecting to the experimental model, steered by weighted prompts and a music generation config, and audio received as a stream. Kept as reference for the generative layer; an external page, not a thoremin design.",
+   "status": "current",
+   "issues": [
+    141
+   ]
+  },
+  {
+   "path": "docs/lyria-docs/lyria-realtime-exp.md",
+   "title": "Lyria RealTime experimental model card",
+   "area": "generative",
+   "abstract": "Saved model page for the experimental Lyria RealTime engine: text weighted prompts in, raw 16-bit PCM out, with the stated streaming limits. Reference for what the generative layer can ask of the model.",
+   "status": "current",
+   "numbers": [
+    "48 kHz stereo output",
+    "Control latency maximum 2 seconds"
+   ],
+   "issues": [
+    141
+   ]
+  },
+  {
+   "path": "docs/lyria-docs/live-music.md",
+   "title": "Live Music API: WebSockets API reference",
+   "area": "generative",
+   "abstract": "Saved reference for the WebSocket protocol behind Lyria RealTime: the endpoint, the session setup message that must come first, and the rule that each client message is a JSON object with exactly one of the allowed fields. Reference for the Lyria engine implementation.",
+   "status": "current",
+   "issues": [
+    141
+   ]
+  },
+  {
+   "path": "docs/lyria-docs/lyria-realtime.md",
+   "title": "Lyria RealTime (DeepMind model page)",
+   "area": "generative",
+   "abstract": "Saved DeepMind product page for Lyria RealTime, describing professional-grade 48 kHz stereo audio streaming for performance or as a source of inspiration. Mostly navigation boilerplate; background reference only.",
+   "status": "current",
+   "numbers": [
+    "48 kHz stereo"
+   ],
+   "issues": [
+    141
+   ]
+  },
+  {
+   "path": "docs/lyria-docs/lyria-realtime-the-developers-guide-to-infinite-music-streaming-4m1h.md",
+   "title": "Lyria RealTime: The Developer's Guide to Infinite Music Streaming",
+   "area": "generative",
+   "abstract": "Saved Google AI developer article walking through how Lyria RealTime works, SDK setup in Python and JavaScript, basic streaming, steering with weighted prompts (with cross-fading advice), the configuration knobs, and use cases such as biometric beat, social DJ, focus flow and game music, plus prompting strategies. Useful background for steering a generative model from gesture features.",
+   "status": "current",
+   "issues": [
+    141
+   ]
+  },
+  {
+   "path": "docs/ROADMAP.md",
+   "title": "Thoremin roadmap",
+   "area": "architecture",
+   "abstract": "The project's roadmap: where the DAG instrument came from, the phases already delivered and the work planned next, with pointers to the tracking epics. It is the narrative companion to the open epics on GitHub; for the live state of each item the epics and their sub-issues are the source of truth, and the Horizon page of this guide reads them directly.",
+   "status": "current",
+   "issues": [
+    5,
+    101,
+    146
+   ]
+  }
+ ],
+ "experiments": [
+  {
+   "id": "hand-choice-one-hand-governor",
+   "title": "One hand allowed: does a governor keep the right hand and the saving?",
+   "area": "latency",
+   "verdict": "negative",
+   "number": "Wrong-hand rate 7% (one hand) vs 0.3% with a governor, but the governor costs 97-98 ms a frame vs 45 ms for one hand (two hands: 97 ms)",
+   "summary": "Three landmarkers on the same 450 frames of a conducting clip. Keeping the right hand cost the whole saving of one-hand mode, and dropping back early rebuilt the graph and picked the wrong hand (32%). Nothing wired into the app.",
+   "issues": [
+    634
+   ],
+   "prs": [
+    683
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "impact-template-bound",
+   "title": "Bound of a per-player stroke template for the impact predictor",
+   "area": "timing",
+   "verdict": "negative",
+   "number": "At most 0.6 ms (24 fps) and 0.8 ms (30 fps) of sd gained even with perfect knowledge of the approach",
+   "summary": "An oracle regression of prediction error on each stroke's true shape, on clips where each stroke draws its own fall and brake. The template is not built; a real-hand take (manual task) could change this.",
+   "issues": [
+    351,
+    234
+   ],
+   "prs": [
+    686
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "ar1-surrogate-pulse",
+   "title": "AR(1) surrogate test to separate red noise from a real pulse",
+   "area": "body",
+   "verdict": "negative",
+   "number": "alpha 0.05 cut red-noise trusts 7.16% to 2.53% but cut real dancers' trusted ticks by 40% (1750 to 1041); alpha 0.25 changed neither",
+   "summary": "Third discriminator tried for #339 item 2. A strict threshold removes two thirds of the false trusts and two fifths of the real ticks, a loose one does neither. Not shipped; the pace controller's 3 s persistence stays the defence.",
+   "issues": [
+    339
+   ],
+   "prs": [
+    646
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "red-noise-phase-harmonic",
+   "title": "Phase-coherence and harmonic tests against red noise in the pulse follower",
+   "area": "body",
+   "verdict": "negative",
+   "number": "Phase difference: real 0.1-0.3 rad (p99 0.32), red noise a=0.95 median 0.25, p90 0.70; harmonic ratio Que Calor 0.87 vs red noise 0.84",
+   "summary": "Two discriminators for slowly wandering channels trusted as a pulse (1.4% and 7.8% of ticks at a = 0.8 and 0.95). Both fail, because any threshold keeping the dancer passes most of the noise.",
+   "issues": [
+    339
+   ],
+   "prs": [
+    577
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "pulse-tempo-step",
+   "title": "Pulse follower tempo-step detector (4.5 s fast window)",
+   "area": "body",
+   "verdict": "positive",
+   "number": "Synthetic step 1.2 to 1.0 s: settle 10.6 s to 3.6 s, untrusted 4.9 s to 0.1 s; real streams: trusted fraction within half a point in 48 of 50 runs",
+   "summary": "The fast-window ACF follows a tempo step in about 4 s. Limits: steps of about 10% or less settle as slowly as before, levels of 1.5 s and over (Que Calor's 1.9 s bar) are out of reach, and no real fixture holds a tempo step, so the evidence is synthetic.",
+   "issues": [
+    339
+   ],
+   "prs": [
+    577
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "meter-from-hand-pattern",
+   "title": "Can the hand pattern say 2/4, 3/4 or 4/4?",
+   "area": "conductor",
+   "verdict": "negative",
+   "number": "1/3 clips classified above chance per source; vertical-approach feature 0/3; best N right in 7 of 18 cells, above chance in 3",
+   "summary": "Stroke strength folded by bar length against a 400-shuffle chance level, on three hand-tracker clips and three pose-wrist clips. No classifier added to ictus; bar length comes from the score or dial.",
+   "issues": [
+    187
+   ],
+   "prs": [
+    562
+   ],
+   "doc": "docs/research/conducting-meter.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "lead-offset-trunk",
+   "title": "Per-joint lead offset learned against a click (#427)",
+   "area": "conductor",
+   "verdict": "mixed",
+   "number": "Trunk lag 81 ms in the first half and 18 ms in the second of one clip; SE about 25 ms from 16 strokes; the take refuses the trunk on every clip; wrist offset under 15 ms",
+   "summary": "The subtraction works (the trunk-alone follower lands within 2 ms of the grid in-sample), but a take cannot measure the trunk's lag: an ungated offset moved the other half by as much as it corrected. The mechanism ships behind gates (lock, SE under 20 ms, halves within 40 ms).",
+   "issues": [
+    427,
+    504
+   ],
+   "prs": [
+    505
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "body-channels-by-level",
+   "title": "Which body channel carries the beat, at which level",
+   "area": "body",
+   "verdict": "mixed",
+   "number": "Conductor trunk centroid R 0.77 (4-pattern) and 0.68 (2-pattern), p < 1e-4, but 0.35 (p 0.08) on the 3-pattern; torso yaw at the bar R 0.98 and 0.84",
+   "summary": "11 channels x 4 events x 3 levels on five real clips plus a synthetic control. The turning point won 31 of 32 significant cells; the multi-joint envelope lost to the best single channel on every clip; the head is not a beat channel.",
+   "issues": [
+    373,
+    339
+   ],
+   "prs": [
+    419
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "two-levels-give-meter",
+   "title": "Two body levels at once give the meter",
+   "area": "body",
+   "verdict": "negative",
+   "number": "Lateral/vertical period ratio gave the meter on 2 of 3 conductor clips (3.73 and 2.04), nothing on the 3-pattern; synthetic control read 2 for a 4-beat bar",
+   "summary": "No significance floor for the reading and no dancer shows a beat-level vertical, so the bar period is taken from torso rotation and snapped to the score's stated meter instead of inferred.",
+   "issues": [
+    373,
+    379
+   ],
+   "prs": [
+    419
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "body-pulse-auto-channel",
+   "title": "body-pulse channel auto: do sway and yaw carry the pulse without feet?",
+   "area": "body",
+   "verdict": "negative",
+   "number": "Que Calor stride trusted 98%, sway 77%, yaw 14%, trunk height 0%; Budots (ankles out of frame): stride and sway never trusted, yaw 5% (noise)",
+   "summary": "The premise that sway and yaw carry the pulse for a player with the feet out of frame is not borne out by the 8 s causal ACF follower. Sway over the feet is a useful second channel; auto keeps the stride as default.",
+   "issues": [
+    416,
+    415
+   ],
+   "prs": [
+    575
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "dance-switch-resume",
+   "title": "Dance lead resumed after switching the leader away and back",
+   "area": "conductor",
+   "verdict": "positive",
+   "number": "Back to the dancer: via body 3.23 s to 1.17 s; via hands 8.93 s to 7.03 s (Que Calor replay)",
+   "summary": "Keeping the dance lead's ratio across a switch re-starts the piece on the dancer's next cycle with no new 3 s persistence. Via the hands the remaining 7 s is the cold pulse follower re-acquiring.",
+   "issues": [
+    506
+   ],
+   "prs": [
+    515
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "dance-tempo-handover",
+   "title": "Dance lead follows the dancer's period only once settled",
+   "area": "conductor",
+   "verdict": "positive",
+   "number": "Mean beat offset from the dancer's cycle starts 0.38 to 0.20 beat; beat-level R 0.5 to 0.71; start unchanged at 9.4 s",
+   "summary": "The follower's first period (1.75 s, confidence 0.3) settles to 1.95 s, and following it ran the score 7% fast. Starting only at confidence 0.4 started at 15.2 s (too late) and two other options were measured and rejected.",
+   "issues": [
+    464
+   ],
+   "prs": [
+    507
+   ],
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "pace-controller-real-grid",
+   "title": "Pace controller on a real tracker's beat grid vs a click track",
+   "area": "body",
+   "verdict": "positive",
+   "number": "Budots grid interval sd 2.1% of the period; followed rate sd 0.014-0.019 vs 0.014-0.022 for the click; R 0.69-0.71 vs 0.67-0.71",
+   "summary": "The controller's 8 s average leaves nothing material of a real tracker's jitter. A fixture and a test were added; no behaviour change.",
+   "issues": [
+    346
+   ],
+   "prs": [
+    580
+   ],
+   "doc": "docs/research/datasets.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "body-transport-upbeat-shape",
+   "title": "Upbeat read by shape instead of speed",
+   "area": "conductor",
+   "verdict": "mixed",
+   "number": "No speed or SNR threshold separates a slow adjustment from a real upbeat (third speed-based design rejected)",
+   "summary": "The shape rule (a rise of 0.12 torso lengths then a fall below the ready height, or a fast downward first stroke) ships as a dial; the default stays speed, and the call to switch is posted for the maintainer.",
+   "issues": [
+    461,
+    485
+   ],
+   "prs": [
+    652
+   ],
+   "date": "2026-10-19"
+  },
+  {
+   "id": "latency-budget",
+   "title": "Where the hand-to-sound lag is made, and whether Rust/WASM helps",
+   "area": "latency",
+   "verdict": "positive",
+   "number": "About 100 ms plus the camera: frame wait 16.7, inference 20.5, DAG tick 0.27, write to speaker 31.9, compressor 6.0, glide to half 20.8 ms",
+   "summary": "Stage-by-stage measurement on an M1 Max in Chrome 153. The tick is 0.3% of the budget, and the WASM CPU path for inference measured 42.4 ms against 21 ms on the GPU, so a language change would not help.",
+   "issues": [
+    227,
+    240
+   ],
+   "prs": [
+    241
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-09-26"
+  },
+  {
+   "id": "silent-latency-levers",
+   "title": "Delegate choice on a software renderer (silent latency levers)",
+   "area": "latency",
+   "verdict": "positive",
+   "number": "captureToTick mean 790 ms to 112 ms (30 fps), 780 to 423 ms (CPU x4), 1331 to 122 ms (15 fps) on SwiftShader",
+   "summary": "One hand frame costs 713 ms on the GPU delegate and 99 ms on the CPU delegate under SwiftShader, so the delegate is chosen by measuring the renderer. At 640x360 the CPU delegate found no hands (traced later to #324). On a real GPU nothing changes.",
+   "issues": [
+    240,
+    324
+   ],
+   "prs": [
+    328
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "hands-worker-runner",
+   "title": "Hand model in a Web Worker vs main thread",
+   "area": "latency",
+   "verdict": "mixed",
+   "number": "Tick period p50/p95/sd 108/165/51.7 ms on main vs 19/30/5.4 ms in the worker; capture to tick p50 120 ms vs 130 ms",
+   "summary": "A latency-for-regularity trade: the worker adds about 7 ms of copy, 7 ms of messaging and half a tick of wait. The plan's sd under 2 ms and p95 under 20 ms were not met on the headless CPU path; main stays the default pending a headed GPU run.",
+   "issues": [
+    326
+   ],
+   "prs": [
+    482
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "cpu-delegate-rescaled-frame",
+   "title": "CPU delegate on a rescaled camera frame",
+   "area": "latency",
+   "verdict": "positive",
+   "number": "CPU delegate with the video element found 0/25 frames at 320x180, 480x270 and 640x360; the 2D canvas copy found 25/25 at every size",
+   "summary": "On a software WebGL renderer Chromium's crop-and-scale upload holds the wrong region, so hands were missed or placed wrongly (960x540). A 2D copy of rescaled frames fixes it at about 12 ms a frame.",
+   "issues": [
+    324
+   ],
+   "prs": [
+    496
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "clock-stamp-shortfall",
+   "title": "Capture-lag shortfall of clock-derived stamps",
+   "area": "latency",
+   "verdict": "negative",
+   "number": "0.7 ms mean (p95 0.9) on Chromium at 30 and 15 fps",
+   "summary": "The frame callback's lag and the animation loop's were timed on the same frames. The shift is not a display period, so no change; Safari/WebKit is unmeasured and tracked as a manual task.",
+   "issues": [
+    545
+   ],
+   "prs": [
+    591
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "frame-pump-shared",
+   "title": "One shared frame pump per camera element",
+   "area": "latency",
+   "verdict": "inconclusive",
+   "number": "Copies per camera frame 0.59 before, 0.56 after (9.1 vs 10.0 ms each)",
+   "summary": "Headless SwiftShader drops most frames so duplicates were already rare. The benefit (identical stamps across models) is structural and needs a real camera to prove.",
+   "issues": [
+    570
+   ],
+   "prs": [
+    601
+   ],
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "categorizer-size-bound",
+   "title": "Categorizer size bound: merge and forest costs",
+   "area": "face",
+   "verdict": "mixed",
+   "number": "At 2000/3000 samples: model 113/129 ms, merge of a 40-hold take 241/317 ms, re-cut forest 315/867 ms",
+   "summary": "Measured the remaining stages and kept MAX_CATEGORIZER_SAMPLES at 2000 because merging was past the 200 ms target. A later PR moved merge and re-cut into a worker and raised the cap to 3000.",
+   "issues": [
+    587
+   ],
+   "prs": [
+    590,
+    633
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "categorizer-medoid-estimate",
+   "title": "Exemplar medoid: exact vs estimated past 300 members",
+   "area": "face",
+   "verdict": "positive",
+   "number": "2000 members from about 430 ms to 50 ms, 5000 from 2.8 s to 115 ms; estimated medoid within 0.3% of the exact total",
+   "summary": "The estimate uses 64 evenly strided members past 300 and is exact (bit for bit) below it. The cap stayed because the re-cut forest was still quadratic.",
+   "issues": [
+    398
+   ],
+   "prs": [
+    584
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "quadratic-recut",
+   "title": "Quadratic re-cut with a nearest-neighbour cache",
+   "area": "face",
+   "verdict": "positive",
+   "number": "Re-cut offered to 2000 holds instead of 600; same tree merge for merge, heights bit for bit",
+   "summary": "A per-row nearest-neighbour cache over a flat distance matrix replaced the cubic agglomeration.",
+   "issues": [
+    420
+   ],
+   "prs": [
+    498
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "carve-quality-vs-live",
+   "title": "Carve quality chips against the live readout",
+   "area": "face",
+   "verdict": "positive",
+   "number": "Chip ratio within about 0.2 of the frames' own separation at every hold length (before: overshoot 0.3 to 1.3); open smile read as itself 43-67% vs 90-93% for the smile",
+   "summary": "On video_face_expressions the supporting frames make the chips rank categories as the live readout does. One 3 s recording of one face, so a regression check on direction, not a calibration.",
+   "issues": [
+    553,
+    436,
+    564
+   ],
+   "prs": [
+    552,
+    565,
+    620
+   ],
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "share-past-reject-radius",
+   "title": "Share of supporting frames past the reject radius",
+   "area": "face",
+   "verdict": "positive",
+   "number": "Tracks the live \"none of these\" share within 0.15; flags the open smile at 33-57%, the smile at 7-10%; any line from 0.10 to 0.33 separates them",
+   "summary": "Reported per category and worded in the chip (sloppy over 0.25). The 0.25 line is provisional, chosen on one recording.",
+   "issues": [
+    564
+   ],
+   "prs": [
+    620
+   ],
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "face-lighting",
+   "title": "Lighting vs a personal face categorizer",
+   "area": "face",
+   "verdict": "negative",
+   "number": "Ordinary lighting shifts 6-13 NU (sensor noise alone 7.8) vs 104.7 NU between two expressions; best constant offset removes only 14-19% of the dim-room shift",
+   "summary": "Nine re-lit variants of one clip through the app's own face pipeline. No lighting dial; a \"too dark\" warning instead (dim and noisy -1.5 EV: 28.5 NU, 88% accuracy vs 92%).",
+   "issues": [
+    330,
+    348
+   ],
+   "prs": [
+    350,
+    711
+   ],
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "face-distance",
+   "title": "Camera distance vs a personal face categorizer",
+   "area": "face",
+   "verdict": "positive",
+   "number": "Dolly move 63.7 NU vs reject radius 52.7 NU; 27 of 67 features move over 3 NU; slope differs 1.3x to 6x between approach and retreat",
+   "summary": "Distance alone can carry a held face out of its category. A per-player slope against log face scale, kept only where r-squared is at least 0.5, is learned from the samples and subtracted live.",
+   "issues": [
+    330,
+    349
+   ],
+   "prs": [
+    350
+   ],
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "impact-predictor-vs-baseline",
+   "title": "Impact prediction vs the frame-snapped detector",
+   "area": "timing",
+   "verdict": "positive",
+   "number": "Surface predict sd 7.1 ms at +53 ms lead vs frame-snapped 10.8 ms; air sd 9.8 ms (vs 10.7), 259 misses of 3456",
+   "summary": "On the 288-clip synthetic benchmark a surface impact can be predicted about 50 ms early with less error than the detector has after it; air is predicted as early at about the baseline's error.",
+   "issues": [
+    234
+   ],
+   "prs": [
+    354
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "air-vertex-reference",
+   "title": "Three-sample vertex as the air learning reference",
+   "area": "timing",
+   "verdict": "positive",
+   "number": "Air predict sd 9.7 to 6.5 ms, mean -4.8 to +2.2 ms (surface unchanged, 7.3)",
+   "summary": "The learned lag was learned from a noisy departure-fit vertex at 24/30 fps and sat 9 ms short; the vertex reference fixes it.",
+   "issues": [
+    234
+   ],
+   "prs": [
+    354
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "late-mean-correction",
+   "title": "Learning the commit offset to correct the air prediction's late mean",
+   "area": "timing",
+   "verdict": "negative",
+   "number": "Air 30 ms lead: sd 6.5 to 6.2 but mean +2.2 to +3.5 and misses 263 to 266; no correction better everywhere",
+   "summary": "The error splits into commit crossing, vertex bias (about +3 ms at 24 and 30 fps) and lag trail. The one correction tried trades one column for another and is not shipped.",
+   "issues": [
+    352,
+    351
+   ],
+   "prs": [
+    526
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "stacked-pad-first-stroke",
+   "title": "Fall-based cue for a first stacked-pad stroke",
+   "area": "air",
+   "verdict": "negative",
+   "number": "No quantified headline in the PR; the cue does not move the first stroke and withholding the commit loses predictions on varied-start rows",
+   "summary": "Switching on depth does not help (the commit precedes the shallow floor, a fall's parabola vertex is its top). Not shipped; the air drum is byte-identical.",
+   "issues": [
+    538
+   ],
+   "prs": [
+    549
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "stacked-pads-by-start",
+   "title": "Stacked pads matched by where the stroke starts",
+   "area": "air",
+   "verdict": "positive",
+   "number": "Varied-height rows 15 of 16 on pad vs 9, 14, 14 on main; 7 of 16 soft snares silent on main, all 16 heard; demo take sounding MAE 20.5 to 17.9 ms",
+   "summary": "Matching a stroke by the top of its fall and the depth of the hand fixes stacked pads; a never-struck pad gets an expected floor.",
+   "issues": [
+    533,
+    530
+   ],
+   "prs": [
+    540
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "rhythm-prior-blend",
+   "title": "Blend of the oscillator and trend rhythm priors",
+   "area": "timing",
+   "verdict": "positive",
+   "number": "Accelerando grid MAE (surface/air) oscillator 68.1/77.2 ms, blend 18.3/20.0 ms, trend alone 16.4/16.8; 2/4 clip F 0.400 to 0.667",
+   "summary": "Steady players keep the oscillator (false triggers 14.7%, bound 15) and an accelerando hands the grid to the trend. The oscillator's lost-lock rule also restores the 2/4 lock.",
+   "issues": [
+    232
+   ],
+   "prs": [
+    310
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-13"
+  },
+  {
+   "id": "raw-sample-detector",
+   "title": "Detector times the raw samples (median prefilter dropped)",
+   "area": "timing",
+   "verdict": "positive",
+   "number": "Bench sd 12.4/10.9 ms with 30 missed to 7.3/5.5 ms with 0 missed; 15 fps misses 1732 to 0",
+   "summary": "The median-of-three prefilter cost 5 ms and a frame on every sharp turn. Confirmation latency on the real conducting_34 clip is 35-97 ms (mean 59).",
+   "issues": [
+    231
+   ],
+   "prs": [
+    305
+   ],
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "date": "2026-10-12"
+  },
+  {
+   "id": "embouchure-onset",
+   "title": "Does the mouth lead a flute note onset?",
+   "area": "air",
+   "verdict": "negative",
+   "number": "Mouth settles a median 110-130 ms before the sound with 100-300 ms spread; causal detector 48% recall at 10% precision; 181 notes, four players",
+   "summary": "Mouth moves a median 300 ms before the sound but as often up as down inside a phrase, so it carries no note. An arming signal, not a timing anchor.",
+   "issues": [
+    248
+   ],
+   "prs": [
+    252
+   ],
+   "doc": "docs/research/air-instruments.md",
+   "date": "2026-09-27"
+  },
+  {
+   "id": "chord-shape-cross-player",
+   "title": "Guitar chord shape from hand landmarks across players",
+   "area": "air",
+   "verdict": "negative",
+   "number": "96% within a player, 24% across players (31,000 labelled frames); 2 s of the player's own hand gives 90-98%",
+   "summary": "A chord is not a shape: players finger G differently and adding other players' data makes it worse. Hence per-player enrolment for the air guitar.",
+   "issues": [
+    249
+   ],
+   "prs": [
+    255
+   ],
+   "doc": "docs/research/air-instruments.md",
+   "date": "2026-09-27"
+  },
+  {
+   "id": "flute-fingering-and-bass",
+   "title": "Flute fingering and bass pitch from hand landmarks",
+   "area": "air",
+   "verdict": "negative",
+   "number": "Flute at chance across players, 27-45% with 10 s of own footage per note; bass 10% across players, 32% within",
+   "summary": "Key presses are under the tracker's angular noise floor and bass pitch is a fret and string, not a shape. The air flute uses large enrolled finger lifts and the air bass maps displacement to pitch.",
+   "issues": [
+    249
+   ],
+   "prs": [
+    258
+   ],
+   "doc": "docs/research/air-instruments.md",
+   "date": "2026-09-27"
+  },
+  {
+   "id": "drum-wrist-anchor",
+   "title": "Pose-model wrists as a drum stroke anchor",
+   "area": "air",
+   "verdict": "negative",
+   "number": "F at 70 ms raw 33.5-47.1% on real sources; wrists see about half a roll's hits and reverse about 50 ms after the sound",
+   "summary": "The stick and fingers move, the wrist does not, so the anchor source must be hand landmarks or the stick tip.",
+   "issues": [
+    246
+   ],
+   "prs": [
+    253
+   ],
+   "doc": "docs/research/air-instruments.md",
+   "date": "2026-09-27"
+  },
+  {
+   "id": "hand-crop-from-pose",
+   "title": "Pose-guided wrist crops for small hands",
+   "area": "datasets",
+   "verdict": "positive",
+   "number": "Hand detection Beethoven 32 to 49%, Budots 41 to 54%, twerk choreo 22 to 42%; conducting clips 91-100% to 92-100%; tiny-hand clips stay near 0-7%",
+   "summary": "Running the hand model on a square around the pose wrist raises detection where hands are small; very small or dark hands remain the footage's limit.",
+   "issues": [
+    527
+   ],
+   "prs": [
+    563
+   ],
+   "doc": "docs/research/datasets.md",
+   "date": "2026-10-14"
+  },
+  {
+   "id": "architecture-ratchet-baseline",
+   "title": "Architecture fitness ratchet baseline (S1 of #600)",
+   "area": "architecture",
+   "verdict": "positive",
+   "number": "Baseline: 43 node-implementation imports from outside src/nodes, 42 hand-written store-controls ports, 8 hand-wired reporters, 15 fold points, 7 import cycles (0 at runtime)",
+   "summary": "The numbers may only go down: a growing number fails and a shrinking one fails until the PR re-baselines. Later slices cut the fold points from 15 to 2.",
+   "issues": [
+    600
+   ],
+   "prs": [
+    604,
+    608
+   ],
+   "doc": "docs/design/vertical-slices.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "persisted-state-goldens",
+   "title": "Golden persisted state for every persist version (S2 of #600)",
+   "area": "architecture",
+   "verdict": "positive",
+   "number": "26 blobs (controls.v1 to v26) each run through the whole rehydrate, migrate, merge and heal chain",
+   "summary": "Tests and data only. Per-step unit tests existed but no test ran a real old blob through the whole chain; the guard exists before state moves between modules. S9 later added a written-back golden (30 tests).",
+   "issues": [
+    600
+   ],
+   "prs": [
+    605,
+    638,
+    641
+   ],
+   "doc": "docs/design/vertical-slices.md",
+   "date": "2026-10-19"
+  },
+  {
+   "id": "kth-final-ritard",
+   "title": "KTH final-ritard tempo prior where the gesture is unsure",
+   "area": "conductor",
+   "verdict": "inconclusive",
+   "number": "Pinned by unit tests only (curve starts at 1, ends at 0.35 of the tempo in the last 8 beats); no listening or live measurement",
+   "summary": "Shipped off by default behind a dial; whether it should be the default is the maintainer's call.",
+   "issues": [
+    333
+   ],
+   "prs": [
+    648
+   ],
+   "date": "2026-10-19"
+  },
+  {
+   "id": "lyria-bundle-cost",
+   "title": "Generative instruments: measured bundle costs",
+   "area": "generative",
+   "verdict": "mixed",
+   "number": "@google/genai 207 kB raw / 38 kB gz was in the main chunk; Magenta music_rnn 1251/298 kB with a second tfjs copy; checkpoints 11.6-133.8 MB",
+   "summary": "Led to lazy loading as a rule: the SDK left the main bundle in the lyria node PR.",
+   "issues": [
+    188
+   ],
+   "prs": [
+    195,
+    197
+   ],
+   "doc": "docs/design/generative-instruments.md",
+   "date": "2026-09-09"
+  }
+ ],
+ "decisions": [
+  {
+   "id": "adr:docs/design/command-dispatch.md",
+   "title": "Command dispatch: the single write path for param-mutations",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "Every discrete param mutation (key, palette, AI tool call, settings control, gesture) goes through one acture command registry in src/app/commands/. The one deliberate bypass is a range slider being dragged (Decision B), enforced by test/dials_write_path.test.ts.",
+   "path": "docs/design/command-dispatch.md",
+   "issue": 87,
+   "prs": [
+    97,
+    107,
+    98,
+    111
+   ],
+   "date": "2026-07"
+  },
+  {
+   "id": "adr:docs/design/component-model.md",
+   "title": "Component model: superseding the six layers",
+   "kind": "design",
+   "status": "accepted",
+   "decided": "The engine is a DAG, not a stack: components (nodes) carry roles, are composed of elements, expose options, are saved as presets, and swap through slots. Role is node metadata, kind belongs to ports, sub-components are toggled functions inside a node, and a role earns a swap dropdown only with two or more real implementations. Expands and supersedes the six-layers framing of Discussion #3 and the table in docs/ARCHITECTURE.md.",
+   "path": "docs/design/component-model.md",
+   "date": "2026-06-23"
+  },
+  {
+   "id": "adr:docs/design/feature-lab.md",
+   "title": "Feature Instrumentation Lab",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "A live measuring instrument for the 248 face and hand features, each on its own normalised meter, with a safe formula compiler to invent new ones. Implemented in #119, made reachable and moved out of the instrument in #136.",
+   "path": "docs/design/feature-lab.md",
+   "issue": 119,
+   "prs": [
+    122
+   ],
+   "date": "2026-07"
+  },
+  {
+   "id": "adr:docs/design/generative-instruments.md",
+   "title": "Generative AI inside instruments, and lazy loading as a pattern",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "Generative AI belongs inside an instrument as a mapping target for the same hand and face features, not beside it as a DJ: build the indirect-map to lyria branch now (cloud-backed), a music-generating node later, and generated timbres as lazily decoded samples rather than nodes. In-browser audio generation is judged unrealistic for now. Delivered as a five-PR plan.",
+   "path": "docs/design/generative-instruments.md",
+   "issue": 188,
+   "date": "2026-09-09"
+  },
+  {
+   "id": "adr:docs/design/harmonic-layers.md",
+   "title": "Harmonic layers: chord spaces, layouts, navigation and realization",
+   "kind": "design",
+   "status": "accepted",
+   "decided": "Splits every chord instrument into seven composable parts (chord, space of relations, harmonic state, layout, navigation, realization, rendering), each a pure library contract in @thoremin/sdk/harmony with strategies behind it. The chord map is the first instance; the eight open choices are on #614.",
+   "path": "docs/design/harmonic-layers.md",
+   "issue": 613,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "adr:docs/design/instrument-library.md",
+   "title": "Instrument library: favorites, tags, system tags, summaries",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "Metadata about instruments (favorites, tags, derived system tags, summaries) lives in src/app/library/, separate from the instruments themselves (named saved dials profiles). Fixes the vocabulary: sound is a timbre preset, instrument a saved dials profile, tag a keyword on an instrument, annotation a mark on a recording.",
+   "path": "docs/design/instrument-library.md",
+   "issue": 116,
+   "prs": [
+    121
+   ],
+   "date": "2026-07"
+  },
+  {
+   "id": "adr:docs/design/instruments-as-graphs-and-extensions.md",
+   "title": "ADR: instruments as declared graphs, and a core with extensions",
+   "kind": "adr",
+   "status": "implemented",
+   "decided": "An instrument becomes a declared graph: named branches composed onto a shared trunk by a pure composeGraph, described by an InstrumentSpec, so only what an instrument declares is wired, loaded and drawn. Extensions are one manifest (the Extension and ExtensionUi halves), and the repo becomes an npm-workspaces monorepo before it becomes several repos. The non-air class is named Field instruments (id field). Accepted after an independent adversarial review.",
+   "path": "docs/design/instruments-as-graphs-and-extensions.md",
+   "issue": 276,
+   "date": "2026-09-27"
+  },
+  {
+   "id": "adr:docs/design/lazy-extensions.md",
+   "title": "ADR: lazy extensions",
+   "kind": "adr",
+   "status": "implemented",
+   "decided": "An extension listed with a lazy entry in extensions.json ships only small eager stubs (dials, branches as data, seeds, provided node types) and loads its nodes, libraries, weights and panels by a build-generated import() the first time a composed graph names one of its node types. ASL is the first. Agreed between the ASL owner and the thoremin owner before the core code was written.",
+   "path": "docs/design/lazy-extensions.md",
+   "issue": 302,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "adr:docs/design/lazy-loading.md",
+   "title": "Lazy loading as a catalogued pattern",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "A heavy thing is never in the main chunk and never loaded before a player asks; the instrument keeps playing while it loads. Three hand-written copies of the same state machine are replaced by one pattern: a host-injectable loader seam, a status port with one phase vocabulary, and a status-dot UI affordance, implemented in packages/lazy.",
+   "path": "docs/design/lazy-loading.md",
+   "issue": 188,
+   "date": "2026-09-09"
+  },
+  {
+   "id": "adr:docs/design/recording-v2.md",
+   "title": "Recording v2: a session-based multi-stream recorder",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "A recording is a session (a config living outside the instrument) capturing any subset of six streams into one folder with a manifest.json as the alignment source of truth. Supersedes the audio-only PerformanceRecorder flow and is a superset of the earlier recording-settings work (#49).",
+   "path": "docs/design/recording-v2.md",
+   "issue": 88,
+   "date": "2026-07"
+  },
+  {
+   "id": "adr:docs/design/stream-applier.md",
+   "title": "Stream Applier: pluggable sources and batch or paced execution",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "Where data comes from, when the engine advances, and what happens to outputs become three independent choices; runHeadless and useEngine are both thin configs of one Applier. Requirements R1 to R6 are met (camera-free source, Clock with speed, source slot with typed replay, Applier, merge nodes) and epic #101 is closed.",
+   "path": "docs/design/stream-applier.md",
+   "issue": 101,
+   "prs": [
+    105,
+    106,
+    167,
+    184,
+    189,
+    191
+   ]
+  },
+  {
+   "id": "adr:docs/design/vertical-slices.md",
+   "title": "Architecture review: vertical slices and one extension contract",
+   "kind": "design",
+   "status": "accepted",
+   "decided": "The extension system is sound but the core is closed: the overlay is one 2,300-line node, built-in features (conductor, body, song) bypass the extension mechanism, and contracts live inside implementations. Decides to move built-in features into src/slices/<id>/ as ordinary extensions, open the overlay to contributed elements, split contracts from node implementations, and ratchet the architecture numbers down by test.",
+   "path": "docs/design/vertical-slices.md",
+   "issue": 600,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:168:Q1",
+   "title": "Yaw mirror in the live video (#146 section 1)",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Do not chase it; the trainer will supply the test material, and trainer-composed movement sequences that guide the user became part of #263's sequences.",
+   "issue": 168,
+   "date": "2026-08-23"
+  },
+  {
+   "id": "issue:168:Q2",
+   "title": "The frown channel (#146 section 1)",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Features are not fixed; the trainer learns the player's own categories. The characterisation test stays.",
+   "issue": 168,
+   "date": "2026-08-23"
+  },
+  {
+   "id": "issue:168:Q3",
+   "title": "MIDI mute semantics (#146 section 6)",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Answered 'progressive disclosure': shipped as the midi.muteFollowsMaster dial defaulting to today's behaviour (mute silences MIDI too).",
+   "issue": 168,
+   "prs": [
+    315
+   ],
+   "date": "2026-09-05"
+  },
+  {
+   "id": "issue:168:Q4",
+   "title": "Raise the handedness dwell above 0 (#148)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The handedness dwell shipped as the dial hands.handednessDwell (option c) defaulting to 0, the raw per-frame label. Open: whether 2 or 3 frames sounds better needs hands on a webcam; raise it by saying the number, or keep 0 and close.",
+   "issue": 168,
+   "prs": [
+    313
+   ]
+  },
+  {
+   "id": "issue:168:Q5",
+   "title": "Ratify or veto the #82 composition ADR",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Four design answers of 2026-08-11 (precedence with visible shadowing; scalars replace while overlay and handMap deep-merge; dangling refs degrade to a no-op layer with a warning; a free-form advisory axis tag) are unratified, so #82 phase 1 stays frozen.",
+   "issue": 168
+  },
+  {
+   "id": "issue:168:Q6",
+   "title": "#141 needs a Gemini key and ears (#146 B8)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The headless half of the generative layer is merged and live; what remains is the five-minute live run (B8.1 settles the API version, v1alpha against the SDK's v1beta; B8.5 is the ears question).",
+   "issue": 168
+  },
+  {
+   "id": "issue:168:D7",
+   "title": "Accept the amended 15 fps acceptance for #231",
+   "kind": "decision",
+   "status": "open",
+   "decided": "At 30 fps every conducting row equals or beats main; at 15 fps 4/4 F is -0.087 and 2/4 CMLt is -0.400 (main's lock was a wrong lock). Bench sd improves 12.4/10.9 to 7.3/5.5 ms, misses 30 to 0. Merged on the recommendation; the user may accept or ask for the 4/4 anchor to be chased.",
+   "issue": 168,
+   "prs": [
+    305
+   ],
+   "date": "2026-10-12"
+  },
+  {
+   "id": "issue:168:D8",
+   "title": "Narrowed 2/4 lock test in #231",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "The follower-lock assertion became an explicit it.fails naming #232 plus an assertion on the current state. Closed: #232 restored the lock and the pair are plain assertions again.",
+   "issue": 168,
+   "prs": [
+    305
+   ],
+   "date": "2026-10-12"
+  },
+  {
+   "id": "issue:168:D9",
+   "title": "Which grid the rhythm prior's blend reads, and who gets the blend",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The blend reads the oscillator's own emitted grid inside ictus (keeps the package pure) rather than the post-servo grid; saved instruments without a conductor.prior key migrate to the oscillator (v21), so only new instruments get the blend. Both shipped on the recommendation and are reversible in a line.",
+   "issue": 168,
+   "prs": [
+    310
+   ],
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:168:D10",
+   "title": "Soundfont hosting for the conductor's orchestra",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Rule from the maintainer: self-host the cut SF3 if under 15 MB, otherwise fetch at first use and cache. The cut MuseScore_General SF3 is 6.0 MB (MIT licence beside it), so it is self-hosted.",
+   "issue": 168,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:168:D11",
+   "title": "#240's audible latency levers: glide, compressor, latencyHint",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Three calls: (a) replace the 30 ms setTargetAtTime glide with a linear ramp over the measured frame period, clamped 8-50 ms, as a dial (recommend yes); (b) replace the 6 ms look-ahead compressor with a tanh soft clip (recommend yes); (c) latencyHint 0 as default (recommend not yet, keep opt-in until the glitch counter has run on real machines).",
+   "issue": 168,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:168:D12",
+   "title": "Should the orchestra follow the score's written dynamics",
+   "kind": "decision",
+   "status": "open",
+   "decided": "PR #399 adds an orchestra dynamics param, raw (default, today's sound) or written. Recommended: flip the default to written so the oscillators and the orchestra agree; alternatives are keep raw or make it a dial.",
+   "issue": 168,
+   "prs": [
+    399
+   ],
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:168:D13",
+   "title": "Should a one-hand instrument look for one hand",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Two calls from #325: (a) a one-hand instrument looks for one hand (about 40 percent cheaper; capture-to-tick p50 116 to 71 ms) with the risk the beat follows the other hand; recommended yes; (b) the skeleton overlay draws only tracked hands; recommended no longer forcing two. Later implemented as HAND_COUNT_POLICY.",
+   "issue": 168,
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:D14",
+   "title": "Run the hand model in a Web Worker by default",
+   "kind": "decision",
+   "status": "open",
+   "decided": "From #326: the worker makes the tick regular (p50 19 ms against 108 ms) at the cost of about 10 ms more capture-to-tick lead. Recommended yes, with the main thread as fallback, after one headed run on a Mac confirms the added lag is about 10 ms or less; the main thread stays the default until decided.",
+   "issue": 168,
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:D15",
+   "title": "Recognise the body conductor's upbeat by shape instead of a motion threshold",
+   "kind": "decision",
+   "status": "open",
+   "decided": "No speed threshold separates a slow raised-arm adjustment from a real upbeat (both about 0.3 torso lengths/s). Built as conductor.transport.upbeat (speed or shape), default speed; recommended to make shape the default after a live webcam check (#146 A5b).",
+   "issue": 168,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:168:D16",
+   "title": "Let a dancer at the edge of Follow within drift a little past it",
+   "kind": "decision",
+   "status": "open",
+   "decided": "After #464 the score follows the marked tempo until the pulse is trusted. Options: A keep as shipped, B allow phase correction alone up to 5 percent past the range, C revert to following the first period at once. Recommended A, B if a live edge dancer feels off.",
+   "issue": 168,
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:D17",
+   "title": "Pulse follower's tempo-step detector on by default",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The step detector (fastWindowS) ships on: a dancer-led song or orchestra follows a tempo step in about 4 s instead of about 10, steady dancers unchanged; levels of 1.5 s and over are not covered. Flip with fastWindowS 0; needs ears on #146.",
+   "issue": 168,
+   "prs": [
+    577
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:hold-fade",
+   "title": "Default hold fade for Conduct a recording",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The hold fade ships at 0 s (a cut) behind a Song-tool slider. Recommended default 0.4 s out and in, after ears on #146.",
+   "issue": 168,
+   "prs": [
+    574
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:auto-downbeats",
+   "title": "Automatic song downbeats for Conduct a recording",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Recommended not to build yet (Beat This! via onnxruntime-web costs 2-8 MB of weights plus a 10-20 MB wasm runtime); the manual start beat covers the use. The hold-fade slowdown ships off (holdSlow 0), recommended 0.5 once heard.",
+   "issue": 168,
+   "prs": [
+    583
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:torso-visibility",
+   "title": "Cannot-see-you from torso visibility, and trunk-relative shaping hand",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Two mechanisms built but off: wiring torsoVisibility (threshold 0.3) into the poses' cannot-see-you readout, and measuring the shaping hand's height against the trunk instead of the frame. Both recommended on, once a real take (#415) fixes the thresholds.",
+   "issue": 168,
+   "prs": [
+    597
+   ],
+   "date": "2026-10-14"
+  },
+  {
+   "id": "issue:168:kth-ritard",
+   "title": "KTH final ritard default (#333)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Shipped behind conductor.tempoPrior (none or kth-final-ritard), default none. Recommended to turn kth-final-ritard on after it has been heard on a real hesitant gesture into a cadence.",
+   "issue": 168,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:168:palm-orientation",
+   "title": "Palm orientation for hand-shape categorizers (#452)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Not built. Recommended no for now (no data that it separates shapes; it needs a second modality variant and a store swap); if yes, build it off by default after recording the same shapes at several orientations.",
+   "issue": 168,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:168:align-start",
+   "title": "Start on your step (song alignStart pref, #346)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "New per-device song pref alignStart, off by default, cues the song to its own beat minus the phase error on the first following tick. Recommended to keep it off until someone has tried it on a device.",
+   "issue": 168,
+   "prs": [
+    654
+   ],
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:168:radius-from",
+   "title": "Carve radius from frames (radiusFrom, #413)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Optional file field radiusFrom (holds default, or frames), off by default so saved categorizers classify as before; on the face recording none-of-these frames fall from 19 to 7 of 66. Making it the default for new carves is a one-line change.",
+   "issue": 168,
+   "prs": [
+    699
+   ],
+   "date": "2026-10-20"
+  },
+  {
+   "id": "issue:602:1",
+   "title": "Chord map: Hold or strum by default",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Ship both as two instruments, Chord Map (hold, with the melody hand) and Chord Map Strum; hold is the dial default because it is the video's tool.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:2",
+   "title": "Chord map: The video's emotion labels",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Do not copy the creator's labels; caption each edge with the move it makes ('4th up', '3rd down'), with an editable player-written set later.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:3",
+   "title": "Chord map: Default layout",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "The hex map by default; the rows (by fifths or in scale order) are in the layout menu.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:4",
+   "title": "Chord map: Beyond diatonic triads",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Triads only for now; if more is wanted, a modifier gesture (a pinch adds the seventh) so the map's geometry stays intact.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:5",
+   "title": "Chord map: Common-tone voice leading",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Add a voice-led voicing to the shared chord renderer so every chord instrument gains it, not only the chord map.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:6",
+   "title": "Chord map: The video itself (needs the user)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Optional: download the video on the Mac and drop it where an agent can read it; the server is refused by YouTube. Raised again on 2026-10-19 because the user asked for the transcript of the middle chapters.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:602:7",
+   "title": "Chord map: Live check with webcam and ears",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Play both instruments: is a chord change immediate enough (two frames of dwell), is the 0.12 cell-width hysteresis right, do strums land on time. Added to #146.",
+   "issue": 602,
+   "date": "2026-10-18"
+  },
+  {
+   "id": "issue:614:1",
+   "title": "Harmonic layers: Where the harmony slice lives",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "A slice of its own, package @thoremin/ext-harmony (extension id harmonic-layers), moved out of ext-air; done in #674.",
+   "issue": 614,
+   "date": "2026-10-19",
+   "prs": [
+    712
+   ]
+  },
+  {
+   "id": "issue:614:2",
+   "title": "Harmonic layers: The video's emotion labels",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Interval captions plus an editable player-written set; the framework can load any caption set (unchanged from #602 choice 2).",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:3",
+   "title": "Harmonic layers: Where transition statistics come from",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "A theory-derived prior first (H10); an open corpus only after its licence is confirmed; never a network call in the tick.",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:4",
+   "title": "Harmonic layers: What the face does by default in a combined instrument",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Existing face instruments keep choosing; new combined instruments default to colouring the chord, because a hand chooses more reliably than an expression does.",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:5",
+   "title": "Harmonic layers: Old chord nodes: wrappers or compositions",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Keep expression-chord, categorizer-chord, pose-chord and sign-chord as wrapper nodes over the shared libraries; re-express one only when an instrument needs a second navigator on its state.",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:6",
+   "title": "Harmonic layers: When a held chord changes with a clock running",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "At once by default; quantized('beat') as a per-instrument option, on by default only for rhythm instruments. Shipped as the chord map's commit = beat option (H9).",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:7",
+   "title": "Harmonic layers: Voice-led voicing as the default",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Only for the Harmonic Map and new instruments; existing instruments keep spread because their saved settings say so.",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:614:8",
+   "title": "Harmonic layers: MIDI and audio input",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Build both (H8), gated on capability as midi-out is, and say plainly in the panel when an input is unavailable; shipped as chordMap.follow = midi or audio.",
+   "issue": 614,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:181",
+   "title": "Which scope is #14, the patcher UI (S1 visualizer to S4 dev tool)",
+   "kind": "decision",
+   "status": "open",
+   "decided": "The four scopes: S1 read-only graph visualizer, S2 visualizer plus slot swapping, S3 full node-graph editor, S4 dev-only lab-style tool. Recommendation: split S1 out and build it now. A concrete v1 was proposed on 2026-10-19 (lazy extension tool, React Flow live graph, a param inspector editing through command dispatch; no rewiring or saving a GraphSpec) awaiting 'approve v1'. The build stays parked.",
+   "issue": 181,
+   "date": "2026-10-19"
+  },
+  {
+   "id": "issue:387:C1",
+   "title": "What neutral is, and which bins exist",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(b): a Neutral bin taught by example (a null class that plays nothing), a Set-aside bin, Delete with undo, and one 'a face I never taught reads as' switch; v1 files migrate to identical behaviour. Shipped as E5.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C2",
+   "title": "The unit a player moves: holds or frames",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(a): holds, one card per held face with supporting frames; the carve clusters holds (avoids dwell-time bias).",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C3",
+   "title": "Packaging the generalised carve tool",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(a): generalise packages/ext-faces in place, keeping its name and extension id; add the tools Your hand shapes and Your poses.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C4",
+   "title": "What a hand categorizer reads",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(a) first: one hand's shape, side-relative, with a per-categorizer which-hand option (left, right, either); joint two-hand vectors later; hand categorizers may be imported as air-guitar chords. Shipped as E8.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C5",
+   "title": "One collection for all personal models",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(a): fold the trainer's bound models and the face categorizers into one thoremin.categorizers collection keyed by modality, in expand, migrate, contract steps (E10 contracted).",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C6",
+   "title": "What gets measured, and where it goes",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "(a): local only, a quality and effort snapshot on each categorizer record and an exportable carve report; no telemetry.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:C7",
+   "title": "Pictures of the player",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(b): stills for face and hands; a stick figure by default for the body with camera stills opt-in.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B1",
+   "title": "Where the body conductor lives",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(A): the conductor node gains a body input and a source param; the AnchorDetector seam in ictus keeps separate leader nodes cheap if a third strict leader appears.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B2",
+   "title": "Who leads when several leaders are present",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "(A): fixed per instrument by a dial (conductor.source); no automatic switching and no blending.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B3",
+   "title": "The split role (body beat, hand dynamics)",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Offer it as conductor.expression, default same as the beat.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B4",
+   "title": "What level a body conductor marks",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Default the beat, a stated level as a param, auto by a held integer ratio, all through one relateLevel.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B5",
+   "title": "Transport gestures (start, fermata, cut-off)",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Rules by default, a pose category as a per-player override (A5 plus B4).",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B6",
+   "title": "Body without hands",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Allow a full-body instrument to shed hand inference, but only after the body conductor proves worth playing; a host change with a performance payoff.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B7",
+   "title": "Should the dancer lead the score and orchestra",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Yes, after A4, as a leader choice rather than a default; shipped as conductor.source = dancer (A8).",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B8",
+   "title": "Pose categories: static or dynamic",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Static only in this epic; dynamic gestures are a separate classifier and issue.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B9",
+   "title": "Default name vocabulary for poses",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Both a generic shape vocabulary and a conductor vocabulary, chosen by context (B3).",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:387:B10",
+   "title": "Mirror default",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Distinct by default (left arm up differs from right arm up), with a per-categorizer mirror toggle.",
+   "issue": 387,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:160:adr",
+   "title": "How a learned category binds to the sound (ADR)",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Option 1, a dispatcher: entering a learned category fires a bound command through the #87 registry under the gesture dispatcher's rules (hold, re-fire on re-entry, arming fires nothing); the model and bindings persist in a zodal collection. Rejected the dial-source and graph-node readings for v1 (the continuous reading became #323). Accepted for v1, reversible.",
+   "issue": 160,
+   "prs": [],
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:128",
+   "title": "Generative layer: port the Lyria AI-DJ into the DAG app, or retire it to ?engine=legacy",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Retired the legacy AI-DJ to ?engine=legacy (a status decision, fully reversible) and budgeted the real gesture-steered generative layer honestly as new work, #141, since the indirect-map had never run in a browser. Closed 2026-07-15; #141 shipped.",
+   "issue": 128,
+   "prs": [
+    142
+   ],
+   "date": "2026-07-15"
+  },
+  {
+   "id": "issue:148",
+   "title": "Adopt the handedness dwell in the sound path, or keep the divergence",
+   "kind": "decision",
+   "status": "implemented",
+   "decided": "Resolved by the user's answer to Q4 (option c): a dial, hands.handednessDwell, default 0.",
+   "issue": 148,
+   "date": "2026-10-13"
+  },
+  {
+   "id": "issue:180",
+   "title": "M5 conductor mode: wire it or retire it",
+   "kind": "decision",
+   "status": "accepted",
+   "decided": "Maintainer direction of 2026-09-08: Option A, wire it, together with the score and content pipeline, as the conductor epic #187.",
+   "issue": 180,
+   "date": "2026-09-08"
+  },
+  {
+   "id": "issue:82",
+   "title": "Configuration calculus for composable instruments: four design answers",
+   "kind": "decision",
+   "status": "proposed",
+   "decided": "Proposed by an unattended agent session on 2026-08-11 and never ratified: precedence-only conflict resolution with a visible origin badge; scalars replace while overlay and handMap deep-merge at leaf granularity; recipes reference fragments by immutable id and degrade to a no-op layer with a warning; free-form sparse layers with an advisory axis tag. Phase 1 stays frozen.",
+   "issue": 82,
+   "date": "2026-08-11"
+  },
+  {
+   "id": "issue:388",
+   "title": "CI gates merges: branch protection on main, and whether deploy waits for CI",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Needs the repo owner: (1) branch protection on main requiring the three CI checks (recommended now, leaving PR reviews off); (2) whether deploy.yml should wait for CI (a separate behaviour change).",
+   "issue": 388
+  },
+  {
+   "id": "issue:262",
+   "title": "Strategy: what to open-source and what to keep private",
+   "kind": "decision",
+   "status": "open",
+   "decided": "A business decision for the maintainer only; it decides the seams between repositories, licences and which repos run free public CI. Agents must not act on it.",
+   "issue": 262
+  },
+  {
+   "id": "issue:536",
+   "title": "Carve: a category merged into Neutral becomes its own Neutral prototype",
+   "kind": "decision",
+   "status": "open",
+   "decided": "Proposal from #444's review: holds that arrive in Neutral by a whole-category merge are exempt from the fold into the rest prototype (up to maxPrototypes). It changes classification, so it is held as a decision for #168.",
+   "issue": 536
+  }
+ ],
+ "ideas": [],
+ "themes": [
+  {
+   "id": "harmony",
+   "title": "Harmony and chord instruments",
+   "labels": [],
+   "keywords": [
+    "chord",
+    "harmon",
+    "key ",
+    "tension",
+    "voicing",
+    "lattice",
+    "scale"
+   ]
+  },
+  {
+   "id": "conductor",
+   "title": "Conductor, score and orchestra",
+   "keywords": [
+    "conduct",
+    "orchestra",
+    "score",
+    "fermata",
+    "beat"
+   ]
+  },
+  {
+   "id": "body",
+   "title": "Body, dance and poses",
+   "keywords": [
+    "body",
+    "pose",
+    "dance",
+    "dancer",
+    "pulse"
+   ]
+  },
+  {
+   "id": "face",
+   "title": "Face, carving and categorizers",
+   "keywords": [
+    "face",
+    "carve",
+    "categor",
+    "expression",
+    "neutral",
+    "gesture"
+   ]
+  },
+  {
+   "id": "air",
+   "title": "Air instruments",
+   "keywords": [
+    "air ",
+    "drum",
+    "guitar",
+    "bass",
+    "flute",
+    "strum",
+    "pluck",
+    "pad"
+   ]
+  },
+  {
+   "id": "timing",
+   "title": "Timing and latency",
+   "keywords": [
+    "timing",
+    "latency",
+    "stamp",
+    "clock",
+    "onset",
+    "impact",
+    "safari",
+    "webkit"
+   ]
+  },
+  {
+   "id": "arch",
+   "title": "Architecture, slices and engineering",
+   "keywords": [
+    "slice",
+    "extension",
+    "s1",
+    "ratchet",
+    "refactor",
+    "store",
+    "lazy",
+    "core",
+    "ci",
+    "test",
+    "smoke",
+    "bundle"
+   ]
+  },
+  {
+   "id": "ux",
+   "title": "Shell, tools and UX",
+   "keywords": [
+    "panel",
+    "tool",
+    "ui",
+    "guide",
+    "shell",
+    "palette",
+    "library",
+    "instruments view",
+    "button"
+   ]
+  },
+  {
+   "id": "data",
+   "title": "Data, fixtures and recording",
+   "keywords": [
+    "record",
+    "fixture",
+    "clip",
+    "dataset",
+    "licence",
+    "take",
+    "export"
+   ]
+  },
+  {
+   "id": "song",
+   "title": "Song and generative",
+   "keywords": [
+    "song",
+    "lyria",
+    "generative",
+    "stretch"
+   ]
+  }
+ ],
+ "epics": [
+  600,
+  613,
+  385,
+  386,
+  5,
+  101,
+  146
+ ],
+ "discussions": [
+  3,
+  4,
+  80,
+  81,
+  93,
+  271,
+  272
+ ],
+ "charts": [
+  {
+   "id": "body-beat",
+   "title": "Body channels at the beat level",
+   "caption": "Best F (onset match to the beat grid) per body channel at the beat level, over the conducting and Budots fixtures and every anchor event (docs/research/data/body-channels.csv).",
+   "csv": "docs/research/data/body-channels.csv",
+   "filter": {
+    "level": "beat"
+   },
+   "groupBy": "channel",
+   "value": "f",
+   "agg": "max",
+   "doc": "docs/research/body-conducting-and-pose-categories.md"
+  },
+  {
+   "id": "body-bar",
+   "title": "Body channels at the bar level",
+   "caption": "Best circular R per channel at the bar level (the same table).",
+   "csv": "docs/research/data/body-channels.csv",
+   "filter": {
+    "level": "bar"
+   },
+   "groupBy": "channel",
+   "value": "r",
+   "agg": "max",
+   "doc": "docs/research/body-conducting-and-pose-categories.md"
+  }
+ ],
+ "diagrams": [
+  {
+   "id": "arch",
+   "title": "How an instrument is put together",
+   "caption": "A trunk of sources and features, branches composed by the four rules of composeGraph, extensions contributing nodes, dials and UI through the two fold points; every write goes through the command registry.",
+   "mermaid": "flowchart TB\n  subgraph Sources\n    cam[webcam hands / face / body]\n    syn[synthetic and replay sources]\n    kb[keyboard, MIDI in, microphone]\n  end\n  subgraph Trunk\n    feat[feature vectors\\nface, hands, body]\n    ctl[store-controls\\nthe dials, live]\n  end\n  subgraph Branches[\"Branches (composed per instrument)\"]\n    map[mapping: voice-mapping, body-route]\n    air[air drum, bass, guitar, flute]\n    harm[chord map, wheel, chart]\n    cond[conductor + score]\n    cat[face / pose categorizers]\n  end\n  subgraph Output\n    synth[webaudio synth / orchestra / MIDI out / Lyria]\n    ov[canvas overlay\\ncontributed elements]\n  end\n  cam --> feat\n  syn --> feat\n  kb --> map\n  feat --> map & air & harm & cond & cat\n  ctl --> map & air & harm & cond\n  map --> synth\n  air --> synth\n  harm --> synth\n  cond --> synth\n  cat --> harm\n  feat --> ov\n  air --> ov\n  harm --> ov\n  ext[Extensions\\nmanifest + UI half] -. contribute .-> Branches\n  cmd[Command registry\\nthe single write path] --> ctl\n  ui[panels, palette, keys, assistant, gestures] --> cmd"
+  },
+  {
+   "id": "harmony",
+   "title": "Harmony as composable layers (#613)",
+   "caption": "Every chord instrument is a chord model, a space of named relations, a harmonic state, a layout, a navigation, and a realization pipeline with a seam per aspect.",
+   "mermaid": "flowchart TB\n  model[Chord model\\ntriads, sevenths, a scale's own chords]\n  rel[Space of relations\\nfifths, thirds, seconds, parallel, relative]\n  state[Harmonic state\\nkey, mode, current chord, clock]\n  layout[Layout\\nhex lattice, row by fifths, wheel]\n  nav[Navigation\\nhand pointing, MIDI in, microphone, conductor, face affect]\n  subgraph Realization\n    col[coloration] --> red[reduction] --> bass[bass] --> voi[voicing] --> fig[figuration]\n  end\n  render[Rendering\\nsynth, strum, pluck, orchestra]\n  model --> rel --> layout\n  nav --> state\n  layout --> nav\n  state --> col\n  fig --> render"
+  }
+ ],
+ "ignoreDocs": [
+  "docs/CATALOG.md",
+  "docs/CHANGELOG.md",
+  "docs/USER_GUIDE.md",
+  "docs/design/mocks/"
+ ]
+}
