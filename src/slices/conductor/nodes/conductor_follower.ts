@@ -312,8 +312,9 @@ export function createConductorFollower(p: ConductorDialParams) {
     tp.prepare(rulesOn(c.source, c.transport.rules, c.bodyPoint), c.transport, ctx.time, () => ictus !== null && ictus.state().state === 'running');
     if (ictus && key !== coreKey) {
       resetFollower();
-      // A held fermata stays held, and the new follower's first stroke releases it
-      // (its anchor count starts again from 0).
+      // A held fermata's beat stays where it stopped, and the new follower's first stroke
+      // releases it (its anchor count starts again from 0). Until that stroke the score is
+      // silent, as before any first stroke (`leadsScore`).
       fermata.anchors = 0;
     }
     if (!wasEnabled || !ictus) {

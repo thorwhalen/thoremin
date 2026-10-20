@@ -66,7 +66,7 @@ export interface ChordChartStatus {
   next: string | null;
   /** The beat the conductor is on. */
   beat: number | null;
-  /** The conductor leads the score (conducting is on, not leading a recording). */
+  /** Conducting the score is on (not leading a recording), stroke or not. */
   conducting: boolean;
 }
 
@@ -76,6 +76,12 @@ export const IDLE_CHORD_CHART_STATUS: ChordChartStatus = { enabled: false, hasCh
 function tonesOf(chord: Chord): number[] {
   const base = ROOT_BASE + chord.root;
   return pitchClasses(chord).map((p) => base + ((p - chord.root + 12) % 12));
+}
+
+/** The conductor's dial says it conducts the score (on, and not leading a recording). */
+function conductsScore(raw: unknown): boolean {
+  const c = raw && typeof raw === 'object' ? (raw as { enabled?: unknown; conducts?: unknown }) : null;
+  return c?.enabled === true && (c.conducts ?? 'score') === 'score';
 }
 
 export const chordChartNode = defineNode<Params>({
@@ -91,6 +97,9 @@ export const chordChartNode = defineNode<Params>({
     { name: 'doc', kind: 'score-doc' },
     // Whether the conductor leads the score now: the chart plays only with it, as the score does.
     { name: 'leads', kind: 'boolean', default: false },
+    // The conductor's dial: whether conducting the score is ON, which `leads` is not before the
+    // first stroke (the status says "conduct" then, not "turn conducting on").
+    { name: 'conductor', kind: 'conductor-config' },
     // The conductor's dynamics, as the orchestra reads them (1 = as set).
     { name: 'velocityScale', kind: 'number', default: 1 },
     { name: 'config', kind: 'chord-chart-config' },
@@ -158,7 +167,7 @@ export const chordChartNode = defineNode<Params>({
           running: beat !== null,
           chord: chord ? chordName(chord) : null,
           next: at?.next ? chordName(at.next.chord) : null,
-          conducting: leads,
+          conducting: leads || conductsScore(inputs.conductor),
           beat,
         };
         return { params: { voices } satisfies SynthParams, status, triad: tones };

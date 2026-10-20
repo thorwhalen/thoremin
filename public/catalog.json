@@ -1195,6 +1195,10 @@
         "default": false
       },
       {
+        "name": "conductor",
+        "kind": "conductor-config"
+      },
+      {
         "name": "velocityScale",
         "kind": "number",
         "default": 1

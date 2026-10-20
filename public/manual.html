@@ -595,7 +595,7 @@
       <p>Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.</p>
       <dl>
         <dt>roles</dt><dd>mapping, music</dd>
-        <dt>in</dt><dd>time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number</dd>
+        <dt>in</dt><dd>time:musical-time, doc:score-doc, leads:boolean, conductor:conductor-config, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number</dd>
         <dt>out</dt><dd>params:synth-params, status:chord-chart-status, triad:number[]</dd>
         <dt>params</dt><dd>enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)</dd>
       </dl>
