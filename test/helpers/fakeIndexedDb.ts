@@ -3,7 +3,7 @@
  * (`src/app/recording/idb.ts`) through the real global, in Node (which has none) or
  * jsdom (which has none either). It implements only what a one-store, key-value user
  * needs: `open` (with `onupgradeneeded`), one transaction, `put` / `get` / `delete`,
- * request `onsuccess` / `onerror` and transaction `oncomplete` / `onerror`.
+ * request `onsuccess` / `onerror` and transaction `oncomplete` / `onerror`; `getAll` and `getAllKeys`.
  *
  * `failWrites` makes every `put` and `delete` fail the way a full disk or a private
  * window does (`QuotaExceededError` on the request, then the transaction), so a test
@@ -138,6 +138,7 @@ export function installFakeIndexedDb({ failWrites = false }: { failWrites?: bool
             },
             get: (key: IDBValidKey) => settle(() => map.get(key), false, tx),
             getAll: () => settle(() => [...map.values()], false, tx),
+            getAllKeys: () => settle(() => [...map.keys()], false, tx),
             // `add` refuses a key that is taken, as a real store does (the key is the value's `id`).
             add: (value: { id: IDBValidKey }) =>
               settle(() => write(value.id, value), map.has(value.id) ? new DOMException('key exists', 'ConstraintError') : state.failWrites, tx),
