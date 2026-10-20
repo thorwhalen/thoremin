@@ -265,9 +265,6 @@
       "roman": true,
       "show": true
     },
-    "drumPads": {
-      "show": true
-    },
     "faceExpression": {
       "chordLabels": true,
       "exprLabels": true,
@@ -304,10 +301,6 @@
     "markers": {
       "show": true,
       "showNotes": true
-    },
-    "mouthCue": {
-      "position": "left",
-      "show": true
     },
     "scaleGuide": {
       "show": true,

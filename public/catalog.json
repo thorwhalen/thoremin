@@ -813,15 +813,15 @@
         "kind": "overlay-config"
       },
       {
-        "name": "categories",
-        "kind": "category-scores"
-      },
-      {
-        "name": "categoryCaptions",
+        "name": "elements",
         "kind": "string[]"
       },
       {
-        "name": "elements",
+        "name": "classifier1",
+        "kind": "category-scores"
+      },
+      {
+        "name": "classifier1Captions",
         "kind": "string[]"
       },
       {
@@ -949,22 +949,12 @@
         "default": {}
       },
       {
-        "name": "drumPads",
-        "type": "object",
-        "default": {}
-      },
-      {
         "name": "cellGrid",
         "type": "object",
         "default": {}
       },
       {
         "name": "timbreLevels",
-        "type": "object",
-        "default": {}
-      },
-      {
-        "name": "mouthCue",
         "type": "object",
         "default": {}
       },

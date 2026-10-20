@@ -101,11 +101,6 @@ const Params = z.object({
   faceLandmarks: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** The full-body skeleton (#186) — drawn when body tracking is on; shows the load state. */
   bodySkeleton: z.object({ show: z.boolean().default(true) }).prefault({}),
-  /** LEGACY (#600 S10, the expand step): the air drum's pads are the air extension's overlay
-   *  element now, and their show flag is `airDrum.padsOnVideo`, which a stored or saved value here
-   *  is moved into (the air drum dial's v1 -> v2 step). Still accepted on read until the contract
-   *  step removes it; marked `legacy`, so it is not a settable path (commands, palette, assistant). */
-  drumPads: z.object({ show: z.boolean().default(true) }).prefault({}).meta({ legacy: true }),
   /** LEGACY (#610 item 4, the expand step, as S10 did for the drum pads): the chord map's grid is
    *  the air extension's overlay element now, and its show flag is `chordMap.gridOnVideo`, which
    *  a stored or saved value here is moved into (the chord map dial's v1 -> v2 step). Still
@@ -114,11 +109,6 @@ const Params = z.object({
   cellGrid: z.object({ show: z.boolean().default(true) }).prefault({}).meta({ legacy: true }),
   /** Per-hand brightness/vibrato level bars (output feature). Opt-in. */
   timbreLevels: z.object({ show: z.boolean().default(false) }).prefault({}),
-  /** LEGACY (#600 S10, the expand step): the air flute's breath cue is the air extension's
-   *  overlay cue now, and its options are `airFlute.breathCue`, which a stored or saved value
-   *  here is moved into (the air flute dial's v1 -> v2 step). Still accepted on read until the
-   *  contract step removes it; marked `legacy`, so it is not a settable path. */
-  mouthCue: z.object({ show: z.boolean().default(true), position: CuePositionEnum.default('left') }).prefault({}).meta({ legacy: true }),
   /**
    * Face-expression bar graph (HUD cue): a bar + firing tick per emotion; the winner
    * is highlighted. Optional vertical x-axis labels (the expression name and/or the
