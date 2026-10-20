@@ -148,6 +148,14 @@ Weights depend on style. In Beethoven's quartets progressions are directed (V to
 
 Distances are a separate small module (`harmony/distance.ts`): `commonTones(a, b)`, `voiceLeadingCost(a, b)` (minimal total semitone motion, octave-equivalent, computed by trying the assignments of three or four voices), `lerdahlDistance(a, b, key)` (the chord-distance rule of tonal pitch space, R§3.1), `spiralDistance` (Chew's spiral array, R§3.2). Layouts, weights and tension models read them; nothing else does.
 
+#### Computed captions (#714)
+
+A third caption set beside the interval captions (the default, the relations' own labels) and a player's own words: `harmony/captions.ts` makes a move's caption from what can be measured about it. Its parts are the common tones (two or more "smooth", one "one held", none "open"), the change of colour by the third ("darker", "brighter", "to diminished", "to augmented", "suspended"), the expectedness by a named transition prior (Piston's USUALLY reads "expected", LESS OFTEN or unnamed "surprising", SOMETIMES says nothing), and, off by default, the tension direction by a named tension model ("resolving", "opening") and Lerdahl's chord distance ("δ 7"). C to Em reads "smooth, darker, surprising". A caption set is `{ id, name, models, caption(edge, relation, key) }`; `models` lists the names of the models its words come from, which a display shows beside the captions (the rule of §3 applies to words drawn from a model as to numbers). `annotated(space, set.caption)` takes it, the callback now receiving the key. The computed set is selectable and never the default (#614 choice 2): what a player sees does not change without their choice.
+
+#### Idiom paths (#713)
+
+`harmony/idioms.ts` is a small library of named chord paths as degree steps on the key's seven-note parent: the circle of fifths, Pachelbel, Gjerdingen's Romanesca, Monte and Fonte, descending thirds, the fifties progression, the deceptive cadence and, in a minor key, the Andalusian cadence. A step may be an applied dominant (`of`: Monte's V/IV and V/V, Fonte's V/ii) or another quality on a degree (the Andalusian's major V). `idiomPath(idiom, key)` realizes it and says per step which cell of a seven-chord map shows it: the key's own chord (`exact`) or another chord on that root (`root`: V/ii on vi's cell); a step whose root is not the key's is off the map. A follow cursor (`startFollow`, `followCommit`, `ahead`) is what a ghost trail and a follow mode read: committing the next step's cell advances, the current step's cell keeps the place, a cell further along rejoins there (a skip), any other cell leaves the path with the cursor kept, so the trail still shows the way back. Following suggests; it never sounds a chord the hands did not choose.
+
 ### 2.3 State: where the harmony is
 
 ```ts
