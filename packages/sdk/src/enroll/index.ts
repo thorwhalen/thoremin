@@ -307,6 +307,7 @@ export {
   recutRange,
   sampleIds,
   setNeutralTrained,
+  setRadiusFrom,
   setStrangers,
   splitCategory,
   type MoveOptions,

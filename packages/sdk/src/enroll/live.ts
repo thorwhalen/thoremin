@@ -43,7 +43,7 @@
  */
 import { z } from 'zod';
 import { createCategoryTracker, trainModel, type CategoryTracker } from './classify';
-import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, type PersonalCategorizer } from './categorizer';
+import { memberIndices, modelFromCategorizer, neutralSampleIndices, NO_REJECT_RADIUS, supportOption, type PersonalCategorizer } from './categorizer';
 import { liveMargin, type LiveMargin } from './quality';
 import type { FeatureVector, TrainedModel } from './types';
 import { createReader, inView, isNeutralLabel, type CarveModality } from './modality';
@@ -142,7 +142,7 @@ export function flooredRejectRadius(categorizer: PersonalCategorizer, model: Tra
     memberIndices(categorizer),
     model.features,
     model.weights,
-    { defaultRejectRadius: LIVE_DEFAULTS.minRadius, acceptQuantile: LIVE_DEFAULTS.acceptQuantile, renormalize: model.renormalize === true },
+    { defaultRejectRadius: LIVE_DEFAULTS.minRadius, acceptQuantile: LIVE_DEFAULTS.acceptQuantile, renormalize: model.renormalize === true, ...supportOption(categorizer) },
   ).rejectRadius;
   return Math.max(model.rejectRadius, floor, LIVE_DEFAULTS.minRadius);
 }

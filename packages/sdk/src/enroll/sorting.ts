@@ -39,6 +39,7 @@ import {
   memberIndices,
   neutralSampleIndices,
   sampleIndex,
+  supportOption,
   toSample,
   type CategorizerSample,
   type CategorizerStrangers,
@@ -525,6 +526,7 @@ export function recut(c: PersonalCategorizer, k: number, options: RecutOptions =
       const trained = trainModel(vectors, clusters, c.features, c.weights, {
         restVectors: options.rest ?? [],
         defaultRejectRadius: options.baseRejectRadius ?? c.rejectRadius,
+        ...supportOption(c),
       });
       extra = { rejectRadius: trained.rejectRadius };
     }
@@ -551,9 +553,20 @@ export function setStrangers(c: PersonalCategorizer, strangers: CategorizerStran
     const trained = trainModel(vectors, memberIndices(c), c.features, c.weights, {
       restVectors,
       defaultRejectRadius: options.baseRejectRadius ?? c.rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius,
+      ...supportOption(c),
     });
     return PersonalCategorizerSchema.parse({ ...rest, strangers, rejectRadius: trained.rejectRadius });
   });
+}
+
+/** Measure the categories' radii from the holds' supporting frames too, or from the still-points
+ *  only (#413). Only the field changes: the stored reject radius is left alone (a live reading
+ *  floors it on the frames anyway, `flooredRejectRadius`), so switching back restores the model. */
+export function setRadiusFrom(c: PersonalCategorizer, radiusFrom: 'holds' | 'frames'): SortResult {
+  if ((c.radiusFrom ?? 'holds') === radiusFrom) return { ok: true, categorizer: c };
+  const { radiusFrom: _r, ...rest } = c;
+  void _r;
+  return done(() => PersonalCategorizerSchema.parse(radiusFrom === 'frames' ? { ...rest, radiusFrom } : rest));
 }
 
 /** Train (or stop training) the Neutral holds as the null class (#385 E5): what an older file,

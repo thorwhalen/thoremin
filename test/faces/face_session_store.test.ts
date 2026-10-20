@@ -105,6 +105,15 @@ describe('the face session store', () => {
     s().redo();
     expect(s().working!.strangers).toBe('neutral');
 
+    // Radii from the holds' frames (#413): off in a fresh carve, one undoable edit each way.
+    expect(s().working!.radiusFrom).toBeUndefined();
+    expect(s().working!.samples.some((x) => x.support?.length)).toBe(true);
+    s().setRadiusFrom('frames');
+    expect(s().working!.radiusFrom).toBe('frames');
+    expect(s().working!.categories).toEqual(before.categories);
+    s().undo();
+    expect(s().working!.radiusFrom).toBeUndefined();
+
     // Re-cut k without recording again.
     s().setK(2);
     expect(s().view!.k).toBe(2);
