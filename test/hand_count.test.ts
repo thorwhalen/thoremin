@@ -120,7 +120,9 @@ describe('the shipped instruments', () => {
   // other conducting ones are the field instruments with the conductor on (they play both hands),
   // and ASL reads one hand (the higher) but declares nothing, so it is inferred as two until its
   // branch says `hands: 1` (a thoremin-asl change).
-  const ONE_HAND = new Set(['Conduct the Chords']);
+  // Conduct the Chords (Body) too: the conductor branch declares one hand whatever its source,
+  // though conducting with the body reads none (#793).
+  const ONE_HAND = new Set(['Conduct the Chords', 'Conduct the Chords (Body)']);
   it('all still look for every hand under D13 but the one-hand conductor, skeleton shown (its default)', () => {
     expect(settingsOf.size).toBe(SEED_INSTRUMENTS.length);
     for (const [name, settings] of settingsOf) {
