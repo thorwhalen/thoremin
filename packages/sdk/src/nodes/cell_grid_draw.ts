@@ -4,7 +4,7 @@
  * picture of a grid serves every layout. In the SDK because an extension may not import core. Pure canvas calls, the ones the recording
  * canvas of the overlay tests records (no `measureText`, no `closePath`).
  */
-import { CellGridSchema, type CellGrid, type GridCell } from './cell_grid';
+import { CellGridSchema, type CellGrid, type GridCell, type GridTrail } from './cell_grid';
 
 /** How strongly a cell is lit, per state: fill alpha, outline alpha, outline width (px). */
 const CELL_LOOK: Record<GridCell['state'], { fill: number; stroke: number; width: number }> = {
@@ -51,11 +51,49 @@ function cellPath(g: CanvasRenderingContext2D, cell: GridCell, W: number, H: num
   g.lineTo(cx, cy - hh);
 }
 
+/** A trail's look: its line's alpha, width and dash (px), and its numbered discs' radius. */
+const TRAIL_ALPHA = 0.55;
+const TRAIL_WIDTH = 3;
+const TRAIL_DASH = [6, 6];
+const TRAIL_DOT_R = 8;
+
+/** A ghost trail: a dashed line from its start through its points, a numbered disc on each. */
+function drawTrail(g: CanvasRenderingContext2D, W: number, H: number, trail: GridTrail): void {
+  if (trail.points.length === 0) return;
+  const pts = trail.from ? [trail.from, ...trail.points] : trail.points;
+  g.globalAlpha = TRAIL_ALPHA;
+  g.strokeStyle = trail.color;
+  g.lineWidth = TRAIL_WIDTH;
+  g.setLineDash(TRAIL_DASH);
+  g.beginPath();
+  g.moveTo(pts[0].x * W, pts[0].y * H);
+  for (const p of pts.slice(1)) g.lineTo(p.x * W, p.y * H);
+  g.stroke();
+  g.setLineDash([]);
+  g.font = 'bold 10px sans-serif';
+  trail.points.forEach((p, i) => {
+    g.globalAlpha = TRAIL_ALPHA + (1 - TRAIL_ALPHA) * (i === 0 ? 1 : 0);
+    g.fillStyle = trail.color;
+    g.beginPath();
+    g.arc(p.x * W, p.y * H, TRAIL_DOT_R, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#0f172a';
+    g.fillText(String(i + 1), p.x * W, p.y * H);
+  });
+  if (trail.label) {
+    const p = trail.points[0];
+    g.globalAlpha = 1;
+    g.fillStyle = trail.color;
+    g.font = '11px sans-serif';
+    g.fillText(trail.label, p.x * W, p.y * H - TRAIL_DOT_R - 8);
+  }
+}
+
 /**
  * A node's on-screen targets (the chord map, `CellGrid` in `@thoremin/sdk/nodes/cell_grid`):
  * each cell outlined in its colour and labelled, the one the hand is moving to brighter, the
- * one in force brightest; short captions on the grid (what a move does); a ring at each
- * pointing hand. Coordinates are fractions of the displayed, mirrored frame.
+ * one in force brightest; ghost trails (a path ahead); short captions on the grid (what a move
+ * does); a ring at each pointing hand. Coordinates are fractions of the displayed, mirrored frame.
  */
 export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, grid: CellGrid): void {
   g.save();
@@ -89,6 +127,7 @@ export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, 
       g.fillText(cell.sub, cell.x * W, cell.y * H + size * 0.6);
     }
   }
+  for (const trail of grid.trails ?? []) drawTrail(g, W, H, trail);
   g.font = '11px sans-serif';
   for (const c of grid.captions) {
     if (!c.text) continue;
