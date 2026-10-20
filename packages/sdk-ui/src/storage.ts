@@ -3,8 +3,8 @@
  * collection (core's and an extension's) defaults to its `DataProvider` through this seam, and an
  * extension reaches a store it declared through {@link storage}, so the app picks the storage
  * target once, in the shell ({@link provideStorage}), instead of each store constructing a
- * localStorage provider itself. A few stores still build their own localStorage provider (#659
- * lists them); a host swap leaves those where they are. An extension names the store it declared (`Extension.stores`,
+ * localStorage provider itself. The stores #659 lists that still build their own localStorage provider (tool pins, the
+ * legacy categorizer copies, the profiles and the persist stores) stay where they are on a host swap. An extension names the store it declared (`Extension.stores`,
  * a `StoreDecl`), never a provider.
  *
  * The default target, until a host provides another, is the browser's localStorage under the
