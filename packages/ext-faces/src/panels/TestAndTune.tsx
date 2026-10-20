@@ -351,7 +351,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
           );
         })}
       </ul>
-      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it into Neutral (it stops being one of your ${w.many}; doing it then reads as Neutral where Neutral is taught and it had enough holds, else as the nearest other).`}</p>
+      <p className={hint}>{`Kept with this categorizer when you save. A ${w.one} you missed: record more of it (hold B with its name), make it bigger, or merge it into Neutral (it stops being one of your ${w.many}; doing it then reads as Neutral where Neutral is taught, however few holds it had, else as the nearest other).`}</p>
       <div className="flex flex-wrap gap-2">
         {hits.length > 0 && (
           <button

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { classify, createCategoryTracker, trainModel, trainNeutral } from '@thoremin/sdk/enroll/classify';
 import { categorizerFromModel, modelFromCategorizer, NO_REJECT_RADIUS, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { mergeSession } from '@thoremin/sdk/enroll/from_model';
-import { setNeutralTrained, setStrangers } from '@thoremin/sdk/enroll/sorting';
+import { mergeCategories, moveHolds, setNeutralTrained, setStrangers } from '@thoremin/sdk/enroll/sorting';
 import type { FeatureVector, TrainedModel } from '@thoremin/sdk/enroll/types';
 
 const F = ['x', 'y'];
@@ -169,5 +169,65 @@ describe('the categorizer around it', () => {
     expect(modelFromCategorizer(old).neutral).toBeUndefined();
     const r = setNeutralTrained(old, true);
     expect(r.ok && modelFromCategorizer(r.categorizer).neutral?.length).toBe(1);
+  });
+});
+
+describe('holds a whole-category merge moved to Neutral are not folded away (#536)', () => {
+  // Eight resting holds around the origin, a big category at (4,0) and a one-hold category
+  // at (0,4): merging the small one into Neutral is the player's "this face means nothing".
+  function withSmallCategory(): PersonalCategorizer {
+    const points = [
+      v(4, 0), v(4.2, 0.1), v(3.9, -0.1), v(4.1, 0.2), // cat-1
+      v(3, 3), // cat-2, one hold
+      v(0, 0), v(0.1, 0.1), v(-0.1, 0), v(0, -0.1), v(0.1, -0.1), v(0.05, 0), v(-0.05, 0.05), v(0, 0.1), // neutral
+    ].map((vector, i) => ({ vector, t: i, cue: 'faces' }));
+    const model = trainModel(points.map((p) => p.vector), [[0, 1, 2, 3], [4]], F, W);
+    return categorizerFromModel(model, points, { name: 'toy', strangers: 'neutral' });
+  }
+  const merge = (c: PersonalCategorizer) => {
+    const r = mergeCategories(c, 'cat-2', 'neutral');
+    if (!r.ok) throw new Error(r.error);
+    return r.categorizer;
+  };
+
+  it('a merged hold is a Neutral prototype of its own; unmarked, the fold swallows it', () => {
+    const merged = merge(withSmallCategory());
+    expect(merged.mergedNeutral).toHaveLength(1);
+    const probe = v(3, 2.9);
+    const marked = modelFromCategorizer(merged);
+    expect(marked.neutral).toHaveLength(2);
+    expect(classify(marked, probe)).toMatchObject({ categoryId: null, neutral: true });
+    const { mergedNeutral: _m, ...unmarked } = merged;
+    void _m;
+    const folded = modelFromCategorizer(unmarked);
+    expect(folded.neutral).toHaveLength(1);
+    expect(classify(folded, probe).neutral).toBe(false);
+  });
+
+  it('the mark lasts only while the hold stays in Neutral', () => {
+    const merged = merge(withSmallCategory());
+    const id = merged.mergedNeutral![0];
+    const moved = moveHolds(merged, [id], 'cat-1');
+    expect(moved.ok && moved.categorizer.mergedNeutral).toBeFalsy();
+  });
+
+  it('a file with no merged holds classifies exactly as before (golden)', () => {
+    const c = file('neutral');
+    const vs = c.samples.map((s) => s.vector);
+    const idx = c.samples.flatMap((s, i) => (c.neutral.includes(s.id) ? [i] : []));
+    const cats = [{ radius: 0.2 }, { radius: 0.3 }];
+    expect(trainNeutral(vs, idx, F, W, cats, { merged: [] })).toEqual(trainNeutral(vs, idx, F, W, cats));
+    expect(c.mergedNeutral).toBeUndefined();
+    const model = modelFromCategorizer(c);
+    expect(model.neutral).toHaveLength(1);
+    expect(classify(model, v(1.5, 0))).toMatchObject({ categoryId: null, neutral: true });
+  });
+
+  it('is bounded: merged prototypes share maxPrototypes with the rest', () => {
+    const vs = [...Array.from({ length: 6 }, (_, i) => v(i * 0.01, 0)), ...Array.from({ length: 6 }, (_, i) => v(i * 10, 50))];
+    const idx = vs.map((_, i) => i);
+    const protos = trainNeutral(vs, idx, F, W, [{ radius: 0.2 }], { merged: [6, 7, 8, 9, 10, 11], maxPrototypes: 3 });
+    expect(protos.length).toBeLessThanOrEqual(3);
+    expect(protos.reduce((a, p) => a + p.size, 0)).toBe(12);
   });
 });

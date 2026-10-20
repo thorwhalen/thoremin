@@ -207,6 +207,11 @@ export interface NeutralOptions {
   splitSample?: number;
   minHolds?: number;
   minShare?: number;
+  /** Indices (into `vectors`, within `idxs`) of holds that a whole-category merge moved to
+   *  Neutral (#536). They are a deliberate act, so they are exempt from the fold: they form
+   *  prototypes of their own, within `maxPrototypes`, beside the rest of the class. With none,
+   *  the result is exactly as before. */
+  merged?: readonly number[];
 }
 
 /**
@@ -223,9 +228,30 @@ export function trainNeutral(
   categories: readonly Pick<Category, 'radius'>[],
   options: NeutralOptions = {},
 ): Category[] {
-  const o = { ...NEUTRAL_DEFAULTS, ...options };
+  const { merged, ...shape } = options;
   if (idxs.length === 0) return [];
+  const mergedSet = new Set(merged ?? []);
+  const own = idxs.filter((j) => mergedSet.has(j));
+  // Nothing but merged holds: all of them are exempt from the fold.
+  const o = { ...NEUTRAL_DEFAULTS, ...(own.length === idxs.length ? { minHolds: 1, minShare: 0 } : {}), ...shape };
   const dist = (a: FeatureVector, b: FeatureVector) => weightedDistance(a, b, features, weights);
+  const toPrototypes = (groups: readonly (readonly number[])[]): Category[] =>
+    groups
+      .map((g) => [...g].sort((a, b) => a - b))
+      .sort((a, b) => a[0] - b[0])
+      .map((members, i) => {
+        const centroid = meanVector(members.map((j) => vectors[j]), features);
+        const radius = members.reduce((acc, j) => acc + dist(vectors[j], centroid), 0) / members.length;
+        return { id: `neutral-${i + 1}`, label: '', centroid, size: members.length, radius, members };
+      });
+  if (own.length > 0 && own.length < idxs.length) {
+    const rest = idxs.filter((j) => !mergedSet.has(j));
+    const kept = trainNeutral(vectors, rest, features, weights, categories, { ...shape, maxPrototypes: Math.max(1, o.maxPrototypes - 1) });
+    // The merged holds are split by the same rule but never folded (a group of one is a group).
+    const room = Math.max(1, o.maxPrototypes - kept.length);
+    const apart = trainNeutral(vectors, own, features, weights, categories, { ...shape, maxPrototypes: room, minHolds: 1, minShare: 0 });
+    return toPrototypes([...kept, ...apart].map((p) => p.members));
+  }
   let groups: number[][] = [[...idxs]];
   const smallest = Math.max(o.minHolds, Math.ceil(o.minShare * idxs.length));
   if (idxs.length >= 2 * smallest && categories.length > 0 && o.maxPrototypes > 1) {
@@ -257,14 +283,7 @@ export function trainNeutral(
       }
     }
   }
-  return groups
-    .map((g) => [...g].sort((a, b) => a - b))
-    .sort((a, b) => a[0] - b[0])
-    .map((members, i) => {
-      const centroid = meanVector(members.map((j) => vectors[j]), features);
-      const radius = members.reduce((acc, j) => acc + dist(vectors[j], centroid), 0) / members.length;
-      return { id: `neutral-${i + 1}`, label: '', centroid, size: members.length, radius, members };
-    });
+  return toPrototypes(groups);
 }
 
 /** A category's distance under its size (#385 E7): `d x scale`; untouched without one, so a
