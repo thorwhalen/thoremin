@@ -76,8 +76,9 @@ describe('radius from supporting frames (#413)', () => {
     const framed = modelFromCategorizer(on.categorizer);
     framed.categories.forEach((c, k) => expect(c.radius).toBeGreaterThanOrEqual(before.categories[k].radius));
     expect(framed.categories[0].radius).toBeGreaterThan(before.categories[0].radius);
+    expect(on.categorizer.rejectRadius).toBe(file.rejectRadius);
     const off = setRadiusFrom(on.categorizer, 'holds');
-    expect(off.ok && off.categorizer.radiusFrom).toBeUndefined();
+    expect(off.ok && off.categorizer).toEqual(file);
     expect(off.ok && modelFromCategorizer(off.categorizer).categories.map((c) => c.radius)).toEqual(before.categories.map((c) => c.radius));
   });
 });

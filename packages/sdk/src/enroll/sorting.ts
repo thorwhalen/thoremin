@@ -560,23 +560,13 @@ export function setStrangers(c: PersonalCategorizer, strangers: CategorizerStran
 }
 
 /** Measure the categories' radii from the holds' supporting frames too, or from the still-points
- *  only (#413). The reject radius of a `neutral` categorizer is re-derived under the new setting
- *  (from its Neutral holds, floored to accept the categories' holds). */
+ *  only (#413). Only the field changes: the stored reject radius is left alone (a live reading
+ *  floors it on the frames anyway, `flooredRejectRadius`), so switching back restores the model. */
 export function setRadiusFrom(c: PersonalCategorizer, radiusFrom: 'holds' | 'frames'): SortResult {
   if ((c.radiusFrom ?? 'holds') === radiusFrom) return { ok: true, categorizer: c };
-  return done(() => {
-    const { radiusFrom: _r, ...rest } = c;
-    void _r;
-    const next = radiusFrom === 'frames' ? { ...rest, radiusFrom } : rest;
-    if (c.strangers !== 'neutral') return PersonalCategorizerSchema.parse(next);
-    const vectors = c.samples.map((x) => x.vector);
-    const trained = trainModel(vectors, memberIndices(c), c.features, c.weights, {
-      restVectors: neutralSampleIndices(c).map((i) => vectors[i]),
-      defaultRejectRadius: c.rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius,
-      ...supportOption(next as PersonalCategorizer),
-    });
-    return PersonalCategorizerSchema.parse({ ...next, rejectRadius: Math.max(trained.rejectRadius, c.rejectRadius ?? 0) });
-  });
+  const { radiusFrom: _r, ...rest } = c;
+  void _r;
+  return done(() => PersonalCategorizerSchema.parse(radiusFrom === 'frames' ? { ...rest, radiusFrom } : rest));
 }
 
 /** Train (or stop training) the Neutral holds as the null class (#385 E5): what an older file,
