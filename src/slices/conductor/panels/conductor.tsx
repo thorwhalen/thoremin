@@ -174,6 +174,15 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
         />
         Conduct the score
       </label>
+      {/* The beat ring on the video (#187; in the Overlay section until #600 S18c: the slice's own element). */}
+      <label className="flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={c.hudOnVideo?.show !== false}
+          onChange={(e) => dispatchDialSetIn('conductor.hudOnVideo.show', e.target.checked)}
+        />
+        Conductor beat on the video
+      </label>
       <label className="flex items-center justify-between gap-2 text-xs">
         Piece
         <select

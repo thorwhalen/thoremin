@@ -1,12 +1,15 @@
 /**
  * The conductor slice's branch (#187; a slice since #600 S18b): the conductor node, the score it
- * leads and the sampled orchestra, with the overlay's conductor readout. Its node ids and ports
+ * leads and the sampled orchestra, with its beat ring on the video (its own overlay element, #600 S18c). Its node ids and ports
  * (`conductor`, `time`, `leadsScore`, `velocityScale`, `recordingTime`, `transportPose`) are what
  * the song slice, the air extension's chord chart and the faces extension's pose transport name.
  */
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { DEMO_LOOP_BEATS, DEMO_SCALE_NOTES } from '@thoremin/sdk/score/demo';
+import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
+import { CONDUCTOR_EXTENSION_ID } from './id';
+import { CONDUCTOR_HUD_ELEMENT } from './nodes/overlay/conductor_hud';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
 const overlay = (port: string) => ({ node: TRUNK.overlay, port });
@@ -46,8 +49,8 @@ export const conductor = defineBranch({
     to(ui('scoreDoc'), { node: 'conductor', port: 'doc' }),
     // The player's lead offsets (#427, a per-device pref): read only on the body's path.
     to(ui('conductorLeadOffsets'), { node: 'conductor', port: 'leadOffsets' }),
-    to({ node: 'conductor', port: 'time' }, overlay('conductorTime')),
-    to({ node: 'conductor', port: 'enabled' }, overlay('conductorEnabled')),
+    to({ node: 'conductor', port: 'time' }, overlay(overlayPortName(CONDUCTOR_EXTENSION_ID, CONDUCTOR_HUD_ELEMENT, 'time'))),
+    to({ node: 'conductor', port: 'enabled' }, overlay(overlayPortName(CONDUCTOR_EXTENSION_ID, CONDUCTOR_HUD_ELEMENT, 'enabled'))),
     to({ node: 'conductor', port: 'time' }, { node: ORCHESTRA_NODE_ID, port: 'time' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: ORCHESTRA_NODE_ID, port: 'velocityScale' }),
     to({ node: 'conductor', port: 'articulation' }, { node: ORCHESTRA_NODE_ID, port: 'articulation' }),
@@ -58,7 +61,7 @@ export const conductor = defineBranch({
     to({ node: ORCHESTRA_NODE_ID, port: 'playing' }, { node: 'score', port: 'replaced' }),
   ],
   voices: [{ from: { node: 'score', port: 'params' }, role: 'score' }],
-  overlay: ['conductorHud'],
+  overlay: [overlayElementId(CONDUCTOR_EXTENSION_ID, CONDUCTOR_HUD_ELEMENT)],
   // One hand at a time: the beating hand (`pickHand`), or the shaping hand while the body
   // beats. Which one depends on the hands in view, so `HAND_COUNT_POLICY` decides (#325).
   // The split with the hands alone (#457) reads two at once: a dial, so the host says so

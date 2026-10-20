@@ -23,6 +23,8 @@ import { ChordWheelDialSchema } from './nodes/chord_wheel';
 import { ChordChartDialSchema } from './nodes/chord_chart';
 import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from './lib/fingering_prior';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
+// v1 -> v2 of a dial whose element moved out of core's overlay (#600 S10).
+import { movedFromOverlay } from '@thoremin/sdk/overlay/moved';
 
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id
  *  of a trained pattern, '' for none), which the node never sees as a param (the app resolves
@@ -58,19 +60,6 @@ export const AirFluteSettingsSchema = AirFluteDialSchema.extend({
   breathCue: BreathCueSchema,
 });
 
-/**
- * v1 -> v2 of a dial whose element moved out of core's overlay (#600 S10): the element's options,
- * stored until now at `overlay.<element>` in the same blob (or saved instrument), move to
- * `<dial>.<field>`. Idempotent: a value already there is kept; nothing to move leaves the field
- * for the schema's default. Returns a new value.
- */
-const movedFromOverlay = (element: string, field: string, schema: z.ZodTypeAny) => (old: unknown, stored: Readonly<Record<string, unknown>>): unknown => {
-  if (!old || typeof old !== 'object' || field in old) return old;
-  // Only a valid value moves: a corrupt one (`{ show: null }`) would fail the whole dial's heal
-  // and reset everything else in it; it is left behind, and the field takes its default.
-  const legacy = schema.safeParse((stored.overlay as Record<string, unknown> | undefined)?.[element]);
-  return legacy.success && (stored.overlay as Record<string, unknown> | undefined)?.[element] !== undefined ? { ...(old as object), [field]: legacy.data } : old;
-};
 export type AirFluteSettings = z.infer<typeof AirFluteSettingsSchema>;
 export const DEFAULT_AIR_FLUTE: AirFluteSettings = AirFluteSettingsSchema.parse({});
 

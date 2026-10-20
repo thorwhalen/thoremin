@@ -97,7 +97,7 @@ const needles = SHIPPED.flatMap((e) => [
 // A port KIND core still names as a string (the overlay reads the drum's config) is not code.
 // `"conductor"` is also a common word core says for other things (a tool id an entry point is
 // `from`, the SDK's chord clock and pose vocabulary), and the core `score` node still reads the
-// conductor dial's kind on its `config` port (#600 S18b; the score node is S19's to settle).
+// conductor dial's kind on its `config` port (#600 S18b).
 const allowed = new Set(['"air-drum-config"', '"conductor"', '"conductor-config"']);
 
 /** Fail when a build carries a shipped extension's module or identifier. */

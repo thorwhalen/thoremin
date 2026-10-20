@@ -38,7 +38,17 @@ const nodeKey = (n: NodeSpec): string => JSON.stringify([n.id, n.type, n.params 
  *  pads' config and hits, the flute's status for its breath cue. Each maps to exactly one new
  *  port, and the comparison is exact after that mapping, as for the merge's letters. */
 // The Feature Lab's vector taps moved with its element into the Lab slice (#600 S16b), the same way.
-const LEGACY_OVERLAY_PORT: Record<string, string> = { airDrumConfig: 'air.drumPads.config', drumHits: 'air.drumPads.hits', airFluteStatus: 'air.mouthCue.status', faceVector: 'feature-lab.meters.face', handVector: 'feature-lab.meters.hand', bodyVector: 'feature-lab.meters.body' };
+const LEGACY_OVERLAY_PORT: Record<string, string> = {
+  airDrumConfig: 'air.drumPads.config',
+  drumHits: 'air.drumPads.hits',
+  airFluteStatus: 'air.mouthCue.status',
+  faceVector: 'feature-lab.meters.face',
+  handVector: 'feature-lab.meters.hand',
+  bodyVector: 'feature-lab.meters.body',
+  // #600 S18c: the conductor's beat ring is the conductor slice's element, on its own ports.
+  conductorTime: 'conductor-tool.conductorHud.time',
+  conductorEnabled: 'conductor-tool.conductorHud.enabled',
+};
 
 function edgeKey(e: EdgeSpec): string {
   const port = e.to.node === 'merge' ? (LEGACY_MERGE_PORT[e.to.port] ?? e.to.port) : e.to.node === 'overlay' ? (LEGACY_OVERLAY_PORT[e.to.port] ?? e.to.port) : e.to.port;
@@ -117,6 +127,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // #600 S16b: the Feature Lab's config reaches its element on a port of its own (it rode the
   // overlay node's params before the Lab became a slice).
   ...(hasExtension('feature-lab') ? [{ from: { node: 'ui', port: 'featureLabConfig' }, to: { node: 'overlay', port: 'feature-lab.meters.lab' } }] : []),
+  // #600 S18c: the beat ring's options arrive from the conductor's dial (they were core's overlay's).
+  { from: { node: 'ui', port: 'conductor' }, to: { node: 'overlay', port: 'conductor-tool.conductorHud.config' } },
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */

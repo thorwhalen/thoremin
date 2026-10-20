@@ -372,6 +372,9 @@
       "palm": 0.4,
       "quietS": 2
     },
+    "hudOnVideo": {
+      "show": true
+    },
     "markLevel": "beat",
     "mirrorHandedness": true,
     "mirrorX": true,
@@ -633,9 +636,6 @@
       "nashville": false,
       "position": "top",
       "roman": true,
-      "show": true
-    },
-    "conductorHud": {
       "show": true
     },
     "drumPads": {

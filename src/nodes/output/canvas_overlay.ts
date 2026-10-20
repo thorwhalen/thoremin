@@ -22,7 +22,6 @@
  *
  * Canvas + video are injected via `ctx.resources`. Pure drawing; no port output.
  */
-import type { MusicalTime } from '@thoremin/ictus';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { OVERLAY_CORE_INPUTS, OverlayParamsSchema, captionsPort, categoryPool, categoryPoolInputs, type CategoryPoolSizes, type CuePosition, type OverlayCategory, type OverlayParams } from './canvas_overlay.schema';
@@ -75,8 +74,6 @@ const LEFT_COLOR = '#3b82f6';
 const FACE_COLOR = '#22d3ee'; // cyan — distinct from hands (emerald/blue) + chord (gold)
 /** The body skeleton's colour (#186): distinct from hands/face/chord. */
 const BODY_COLOR = '#7dd3fc';
-/** The conductor HUD's ring colour (#187). */
-const CONDUCTOR_COLOR = '#34d399';
 const CHORD_COLOR = '#f5d142'; // warm gold
 
 /** Everything an overlay element needs to draw a frame. */
@@ -101,9 +98,6 @@ export interface OverlayView {
     bodyFrame?: BodyFrame;
     /** The body model's lifecycle, so the skeleton element can say 'loading'. */
     bodyStatus?: BodyStatus;
-    /** The conductor's musical time (#187) and whether conducting is on, for the HUD. */
-    conductorTime?: MusicalTime;
-    conductorEnabled?: boolean;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
@@ -464,67 +458,6 @@ const faceMesh: OverlayElement = {
  * prints the state in the corner instead — the player's only feedback that the
  * body toggle did something, since the status has no React chip of its own.
  */
-/**
- * The conductor's beat (#187): a ring at the top centre that fills through the beat
- * (the phase), flashes white on the beat, and carries the beat-in-bar count with the
- * tempo under it; "waiting for your first beat" and "holding" as words when the
- * follower is not running. The same information the Conductor panel shows, on the
- * video, so a player conducting with the panel closed still sees the follower answer.
- */
-const conductorHud: OverlayElement = {
-  name: 'conductorHud',
-  category: 'output',
-  draw(g, { W, inputs, params }) {
-    if (!params.conductorHud.show) return;
-    if (!inputs.conductorEnabled) return;
-    const t = inputs.conductorTime;
-    if (!t) return;
-    const cx = W / 2;
-    const cy = 44;
-    const r = 18;
-    const running = t.state === 'running' && t.tempo > 0;
-    g.save();
-    g.lineWidth = 3;
-    g.strokeStyle = 'rgba(255,255,255,0.25)';
-    g.beginPath();
-    g.arc(cx, cy, r, 0, Math.PI * 2);
-    g.stroke();
-    if (running) {
-      // The phase arc, and a flash in the first tenth of the beat.
-      const phase = Math.max(0, Math.min(1, t.phase));
-      g.strokeStyle = CONDUCTOR_COLOR;
-      g.beginPath();
-      g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + phase * Math.PI * 2);
-      g.stroke();
-      if (phase < 0.1) {
-        g.globalAlpha = 1 - phase / 0.1;
-        g.fillStyle = 'white';
-        g.beginPath();
-        g.arc(cx, cy, r - 4, 0, Math.PI * 2);
-        g.fill();
-        g.globalAlpha = 1;
-      }
-    }
-    g.fillStyle = 'white';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.font = 'bold 13px system-ui, sans-serif';
-    const beat = ((Math.floor(t.beat) % t.beatsPerBar) + t.beatsPerBar) % t.beatsPerBar + 1;
-    g.fillText(running ? `${beat}` : t.state === 'hold' ? '||' : '…', cx, cy);
-    g.font = '11px system-ui, sans-serif';
-    g.fillStyle = 'rgba(255,255,255,0.75)';
-    const label = running
-      ? `${Math.round(t.tempo)} bpm · ${beat}/${t.beatsPerBar}`
-      : t.anchors === 0
-        ? 'waiting for your first beat'
-        : t.state === 'hold'
-          ? 'holding'
-          : 'finding your tempo';
-    g.fillText(label, cx, cy + r + 12);
-    g.restore();
-  },
-};
-
 const bodySkeleton: OverlayElement = {
   name: 'bodySkeleton',
   category: 'input',
@@ -1268,8 +1201,6 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   faceMesh,
   bodySkeleton,
   landmarkDots,
-  // The conductor's beat HUD (#187): an in-scene output element above the markers.
-  conductorHud,
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
@@ -1452,8 +1383,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               faceFrame: inputs.faceFrame as FaceFrame | undefined,
               bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
               bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
-              conductorTime: inputs.conductorTime as MusicalTime | undefined,
-              conductorEnabled: inputs.conductorEnabled === true,
               expression: inputs.expression as ExpressionScores | undefined,
               handMap: controls?.handMap,
               faceDegrees: controls?.faceExpr?.degrees,
