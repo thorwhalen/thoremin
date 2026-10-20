@@ -140,6 +140,7 @@ A **lazy** extension ([`docs/design/lazy-extensions.md`](../../docs/design/lazy-
 | `src/lib/carving.ts` | the grid for one carve: model at k in a mode, names, exemplars; a saved categorizer's grid |
 | `src/lib/synthetic.ts` | the scripted face |
 | `src/app/sessionStore.ts` | the session's state, every dependency injected |
+| `src/app/sessionStore/` | the store's shape (`state.ts`: phases, deps, state, defaults) and its closure-free helpers (`ops.ts`); `sessionStore.ts` re-exports them |
 | `src/app/faceSession.ts` | that store over the browser's dependencies |
 | `src/app/sources.ts` | the input seam: live (the trainer's tap and the raw camera) or synthetic |
 | `src/app/thumbnails.ts` | the stills: taken at capture from the live stream (cropped), keyed by hold id, and their IndexedDB store |
