@@ -42,7 +42,7 @@ describe('makeDebugHandle', () => {
   it('is frozen: no way to write through it', () => {
     const h = makeDebugHandle(fakeEngine(), {});
     expect(Object.isFrozen(h)).toBe(true);
-    expect(Object.keys(h).sort()).toEqual(['audio', 'getOutput', 'liveVectorTime']);
+    expect(Object.keys(h).sort()).toEqual(['audio', 'getOutput', 'level', 'liveVectorTime']);
   });
 });
 
