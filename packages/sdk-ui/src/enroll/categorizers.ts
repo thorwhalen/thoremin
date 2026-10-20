@@ -29,7 +29,9 @@
  * a record may hold two thousand samples of ~2 KB each, past the ~5 MB budget the whole app
  * shares. EXPAND/MIGRATE: the first time the collection is used on a device every record under
  * the localStorage key is copied into IndexedDB as stored, never over one already there, and a
- * flag says so. The localStorage key is left exactly as it was (nothing is deleted; the contract
+ * flag says so (a second record under an id already copied, or a record with no string id, stays
+ * in the localStorage key only: IndexedDB refuses both, and the copy must not abort on them). The
+ * localStorage key is left exactly as it was (nothing is deleted; the contract
  * step is later); it is also the store used where IndexedDB cannot be opened. A build from before
  * #412 reads that key on a rollback, so it sees the records as of the copy; what such a build
  * saves meanwhile is not copied forward (the copy is done once), so rolling forward again does

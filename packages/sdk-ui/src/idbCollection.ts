@@ -176,6 +176,27 @@ export function createIdbProvider<T extends { id: string }>({ dbName, storeName 
     },
     async importOnce(items) {
       const db = await open();
+      // The legacy collection can hold two records with one id (two saves of one name at
+      // once over a provider that checks nothing) or a record with no key at all; `add`
+      // refuses both and aborts the whole copy, on every page load, so the migration never
+      // takes effect on that device. The first record of an id is the one the player was
+      // shown (`getOne` finds the first); a keyless record stays in the legacy key, which
+      // the copy never touches, and is said.
+      const seen = new Set<string>();
+      const copy: Record<string, unknown>[] = [];
+      for (const item of items) {
+        const id = (item as { id?: unknown } | null)?.id;
+        if (typeof id !== 'string') {
+          console.warn('[thoremin] a stored record with no string id was left out of the IndexedDB copy', item);
+          continue;
+        }
+        if (seen.has(id)) {
+          console.warn(`[thoremin] a duplicated stored record (${id}) was left out of the IndexedDB copy; the first one is kept`);
+          continue;
+        }
+        seen.add(id);
+        copy.push(item as Record<string, unknown>);
+      }
       const attempt = () =>
         new Promise<boolean>((resolve, reject) => {
           const tx = db.transaction([storeName, META_STORE], 'readwrite');
@@ -184,7 +205,7 @@ export function createIdbProvider<T extends { id: string }>({ dbName, storeName 
           const mark = meta.get(MIGRATED_MARK);
           mark.onsuccess = () => {
             if (mark.result !== undefined) return;
-            for (const item of items) tx.objectStore(storeName).add(item);
+            for (const item of copy) tx.objectStore(storeName).add(item);
             meta.put(Date.now(), MIGRATED_MARK);
             stored = true;
           };

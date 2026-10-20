@@ -139,9 +139,18 @@ export function installFakeIndexedDb({ failWrites = false }: { failWrites?: bool
             get: (key: IDBValidKey) => settle(() => map.get(key), false, tx),
             getAll: () => settle(() => [...map.values()], false, tx),
             getAllKeys: () => settle(() => [...map.keys()], false, tx),
-            // `add` refuses a key that is taken, as a real store does (the key is the value's `id`).
-            add: (value: { id: IDBValidKey }) =>
-              settle(() => write(value.id, value), map.has(value.id) ? new DOMException('key exists', 'ConstraintError') : state.failWrites, tx),
+            // `add` refuses a key that is taken, as a real store does (the key is the value's `id`),
+            // and a value with no key at all (a real in-line keyPath store throws DataError).
+            add: (value: { id?: IDBValidKey }) =>
+              settle(
+                () => write(value.id as IDBValidKey, value),
+                value.id === undefined
+                  ? new DOMException('no key', 'DataError')
+                  : map.has(value.id)
+                    ? new DOMException('key exists', 'ConstraintError')
+                    : state.failWrites,
+                tx,
+              ),
             delete: (key: IDBValidKey) =>
               settle(
                 () => {
