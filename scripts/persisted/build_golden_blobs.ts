@@ -19,7 +19,7 @@
  *  - its VALUES are a player's: the shipped defaults with a few deliberate customisations, so a
  *    migration that dropped a choice would show in the golden (a bell timbre on the right hand,
  *    a C# root, a face mapping, an edited expression slider, an air drum turned on);
- *  - every documented SHAPE change (`CONTROLS_VERSION`'s history in `src/app/store.ts`) is undone
+ *  - every documented SHAPE change (`CONTROLS_VERSION`'s history in `src/app/store/migrations.ts`) is undone
  *    walking down from v26: a field a version added is absent below it, a renamed field has its
  *    old name, a default a step re-delivers has its old value.
  */

@@ -8,7 +8,7 @@ An extension does not import the app's hot store or its command registry. It cal
 
 | Seam | Extension calls | App installs it in |
 |---|---|---|
-| `controls()` | `get()` (its own dials and transient fields), `setTransient(field, value)`, `setHush(claimer, on)`, `subscribe(listener)`; `controlsStore<S>()` adapts it to `getState`/`subscribe` | `src/app/store.ts` (`provideControls`) |
+| `controls()` | `get()` (its own dials and transient fields), `setTransient(field, value)`, `setHush(claimer, on)`, `subscribe(listener)`; `controlsStore<S>()` adapts it to `getState`/`subscribe` | `src/app/store/index.ts` (`provideControls`) |
 | `dials` | `dispatchDialSet`, `dispatchDialSetIn`, `dispatchDialPatch` (the same three dispatchers core panels use, the write path the guard checks) | `src/app/dispatchDial.ts` (`provideDials`) |
 | dials form | `useDialsSettings()` | `src/app/dials/useDialsSettings.ts` (`provideDialsForm`) |
 

@@ -1,7 +1,7 @@
 /**
  * Tagging runtime store (#92) — the thoremin glue that binds the pure `taglog` core
  * to the live app. This is a DEDICATED zustand store, deliberately SEPARATE from
- * `src/app/store.ts`: it owns nothing the instrument persists and never bumps that
+ * `src/app/store/`: it owns nothing the instrument persists and never bumps that
  * store's persist version. Tag DEFINITIONS + config persist through the `taglog`
  * provider (localStorage, the zodal way); only live per-tick runtime state lives here
  * (read synchronously by the overlay + button stack, same discipline as `useControls`).

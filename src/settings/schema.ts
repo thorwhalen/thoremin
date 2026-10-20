@@ -5,7 +5,7 @@
  * storage target and UI are derived from it (zodal), so the shape lives in one
  * place. See docs/design/component-model.md ("Settings & persistence").
  *
- * The voice fields mirror the live zustand control store (src/app/store.ts) so
+ * The voice fields mirror the live zustand control store (src/app/store/) so
  * loading a preset can hydrate it without translation; the overlay field reuses
  * the overlay node's own params schema (canvas_overlay.ts) so it can never drift.
  */
@@ -162,7 +162,7 @@ export const HandsSettingsSchema = z.object({
 export type HandsSettings = z.infer<typeof HandsSettingsSchema>;
 export const DEFAULT_HANDS: HandsSettings = { handednessDwell: DEFAULT_HANDEDNESS_DWELL_FRAMES };
 
-/** One hand's musical settings — mirrors VoiceControl in src/app/store.ts. */
+/** One hand's musical settings — mirrors VoiceControl in src/app/store/state.ts. */
 export const VoiceSettingsSchema = z.object({
   root: z.number().int().min(0).max(11),
   type: ScaleTypeEnum,

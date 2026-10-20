@@ -1,10 +1,14 @@
 /**
  * The hot store's persist migration chain for its CORE fields (`thoremin-controls`'s global
  * version, zustand's `version` / `migrate`), out of `store.ts` since #600 S9, beside the
- * per-slice chains of the extensions' dials and prefs (`src/host/slices.ts`), which carry their
- * own versions in the blob's `sliceVersions`. `store.ts` wraps {@link migrateCoreControls} as its typed `migrateControls`.
+ * per-slice chains of the extensions' dials and prefs (`src/host/slices.ts`, gathered here as
+ * {@link SLICE_CHAINS}), which carry their own versions in the blob's `sliceVersions`. The store's
+ * typed `migrateControls` wraps {@link migrateCoreControls} (`src/app/store/`, #600 S19b).
  */
 import { legacyFaceToMapping } from '@thoremin/sdk/nodes/domain';
+import { CONTRIBUTIONS } from '@/host/contributions';
+import { sliceChains } from '@/host/slices';
+import type { ControlState } from './state';
 
 /** A copy of a settings sub-object with its legacy `instrument` timbre field renamed to
  *  `sound`, so a returning player keeps their selection after the rename. A copy, never an
@@ -13,7 +17,6 @@ function migrateInstrumentField(o: Record<string, unknown>): Record<string, unkn
   const { instrument, ...rest } = o;
   return instrument !== undefined && rest.sound === undefined ? { ...rest, sound: instrument } : rest;
 }
-
 
 /**
  * One step of the persist migration: a blob written at version `n` becomes a version `n + 1`
@@ -174,3 +177,16 @@ export function migrateCoreControls(persisted: unknown, version: number): Record
   for (const [from, step] of MIGRATION_CHAIN) if (version < from + 1) s = step(s);
   return s;
 }
+
+/**
+ * Persist migration of the CORE fields: every step whose target version is above the blob's,
+ * oldest first (the chain, the version and its history are above). The result
+ * is a new object; the caller's blob is never edited. Exported for direct testing.
+ */
+export function migrateControls(persisted: unknown, version: number): ControlState {
+  return migrateCoreControls(persisted, version) as unknown as ControlState;
+}
+
+/** Each extension dial's and pref's migration chain (#600 S9), run on rehydrate before the heal. */
+export const SLICE_CHAINS = sliceChains([...CONTRIBUTIONS.dialSlices, ...CONTRIBUTIONS.prefSlices]);
+

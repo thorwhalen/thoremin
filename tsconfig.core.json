@@ -23,7 +23,7 @@
     "src/app/enroll",
     "src/app/extensions/virtual.d.ts",
     "src/app/lab",
-    "src/app/store.ts",
+    "src/app/store",
     "src/app/dials/instruments.ts",
     "src/app/library/category.ts",
     "src/app/library/derive.ts",

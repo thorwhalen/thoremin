@@ -76,7 +76,7 @@ export type VoiceField = 'root' | 'type' | 'octaves' | 'baseOctave' | 'sound' | 
  * synced the addressed hand's FULL non-sound voice is mirrored onto the other hand
  * (which keeps its own sound). Mirroring the whole voice — not just the edited field
  * — means a single edit re-converges the hands even if a prior un-sync/edit had left
- * them diverged, matching `setVoice` (src/app/store.ts). Pure, so it is unit-tested
+ * them diverged, matching `setVoice` (src/app/store/index.ts). Pure, so it is unit-tested
  * directly (the panel just applies the returned writes in order).
  */
 export function voiceEditWrites(
