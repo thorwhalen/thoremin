@@ -16,12 +16,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
-import { SHELL_TOOLS } from '@/app/shellTools';
-import { TOOLS } from '@/app/tools';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
+import { SHELL_TOOLS } from '@/app/tools/shellTools';
+import { TOOLS } from '@/app/tools/tools';
 import { defaultGraph } from '@/app/graph';
 // The dial write path's host (the app installs it when these load).
 import { dialsStore } from '@/app/dials/settingsStore';
