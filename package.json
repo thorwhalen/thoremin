@@ -27,7 +27,8 @@
     "check:models": "tsx scripts/check_models.ts",
     "smoke": "npm run smoke:setup && npm run smoke:run",
     "smoke:setup": "npm --prefix smoke ci --no-audit --no-fund && npx --prefix smoke playwright install chromium",
-    "smoke:run": "npx --prefix smoke playwright test -c smoke/playwright.config.ts"
+    "smoke:run": "npx --prefix smoke playwright test -c smoke/playwright.config.ts",
+    "research-guide": "vite-node scripts/research_guide/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.12",
@@ -84,6 +85,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "jsdom": "^27.0.1",
+    "marked": "18.0.14",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
