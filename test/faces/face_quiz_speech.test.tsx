@@ -76,7 +76,7 @@ describe('the quiz says its prompts', () => {
     const { speech, said } = fakeSpeech();
     providePromptSpeech(speech);
     const { test } = opened();
-    const box = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const box = document.querySelector('input[type="checkbox"]:not([data-faces-map-checkbox])') as HTMLInputElement;
     expect(box).not.toBeNull();
     act(() => void fireEvent.click(box));
     expect(speech.enabled()).toBe(true);
@@ -101,7 +101,7 @@ describe('the quiz says its prompts', () => {
     cleanup();
     providePromptSpeech(null);
     opened();
-    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(document.querySelector('input[type="checkbox"]:not([data-faces-map-checkbox])')).toBeNull();
   });
 });
 
