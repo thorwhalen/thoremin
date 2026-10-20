@@ -11,8 +11,9 @@
  * loads. What differs is whose they are: the overlay elements are this slice's (`{id}/chordMap`),
  * the chord map's strum sink is its own node type (the SDK's plucked-string sink), and the libraries
  * it shared with the air guitar (the strum, the guitar voicing, the note events, the player's hands)
- * are the SDK's. Its catalog rows stay under the air extension's class, "Air instruments", for now
- * (a class of its own is #705).
+ * are the SDK's. Its catalog rows stay under the air extension's class, "Air instruments", for now,
+ * so a build that lists this slice lists `air` too: the fold refuses a row of an unknown class at
+ * load (`test/harmony/harmony_without_conductor.test.ts` pins it; a class of its own is #705).
  *
  * The package `@thoremin/ext-harmony` (`packages/ext-harmony`, named by `extensions.json`): `nodes/`,
  * `lib/` (the map's layouts and tracker, the chart's reduction, MIDI and microphone readings),

@@ -6,7 +6,7 @@ thoremin's chord instruments as an extension, the **harmony slice** (#674, H5 of
 - the **chord wheel**: the chord in force sits in the centre, with one move per wedge; push the hand toward a move. The face can steer it.
 - the **chord chart**: a conducted piece's chords, played voice-led on the conductor's beat. It needs the conductor slice, and a build without it withholds the chart (#697).
 
-It moved out of the air extension (`@thoremin/ext-air`), which keeps the drum, the bass, the guitar and the flute. Its dial keys (`chordMap`, `chordWheel`, `chordChart`), their versions, the branch ids and every node's params are what they were, so stored settings and saved instruments read back unchanged and every shipped instrument still loads. For now its catalog rows are listed under the air extension's class, "Air instruments"; a class of its own is #705.
+It moved out of the air extension (`@thoremin/ext-air`), which keeps the drum, the bass, the guitar and the flute. Its dial keys (`chordMap`, `chordWheel`, `chordChart`), their versions, the branch ids and every node's params are what they were, so stored settings and saved instruments read back unchanged and every shipped instrument still loads. For now its catalog rows are listed under the air extension's class, "Air instruments", so a build that lists this slice must list `air` too (the fold refuses a row of an unknown class, at load); a class of its own, which lifts that, is #705.
 
 It is one `Extension` (`src/index.ts`, pure: nodes, branches, dial slices, transients, overlay elements, shipped instruments, catalog rows, the branch derivation) and one `ExtensionUi` (`src/ui.tsx`: editor sections, status hooks, the MIDI and microphone listeners). It imports only packages:
 

@@ -1,6 +1,6 @@
 /**
  * The chord wheel in the real composed graph: the shipped instruments compose its branch; its
- * grid reaches the air extension's own overlay element (#600 S5: a generated overlay port, the
+ * grid reaches the harmony slice's own overlay element (#600 S5: a generated overlay port, the
  * element in the composed set, its config delivered by the host); the engine, ticking a scripted
  * hand, draws the wheel's chords on a recording canvas; its chord reaches the shared chord display.
  */

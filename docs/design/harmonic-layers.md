@@ -13,7 +13,7 @@ This design separates them into seven parts, each a pure library contract in a n
 | 1 | **Chord** (vocabulary) | what a chord is, before any notes | `theory.ts` (`ChordQuality`, `diatonicChord`), `guitar.ts` (a second `ChordQuality`), tonal in `chord.ts` |
 | 2 | **Space** (relations) | which chords there are and how they are related: a graph whose edges are named relations | implicit: "the seven degrees of a key", `moveText` in `chord_map.ts` |
 | 3 | **State** | where the harmony is: key, current chord, its function, history, what is pending and when | a local `lastDegree` in each node |
-| 4 | **Layout** | where each chord or move is on the screen, possibly as a function of the state | `layoutCells` in `ext-air/lib/chord_map.ts` |
+| 4 | **Layout** | where each chord or move is on the screen, possibly as a function of the state | `layoutCells` in `ext-harmony/lib/chord_map.ts` |
 | 5 | **Navigation** | how input features become a chosen chord or a move, and when the choice commits | `createCellTracker`, `yawToDegree`, the expression and category degree tables, `letterDegree`, the strum detector |
 | 6 | **Realization** | how a chord becomes notes: coloration, reduction, bass, voicing, figuration | `voicing.ts` (`VOICINGS`, `RENDERINGS`), `chord_render.ts`, `guitar.ts`, `pose_chord.ts`'s brow seventh |
 | 7 | **Rendering** | where notes and pictures go: synth voices, timed note events, MIDI, the orchestra, the overlay | each node's own output ports |
@@ -40,7 +40,7 @@ Everything in this section is pure TypeScript in `packages/sdk/src/harmony/` (no
 
 ### 2.1 Chord: one vocabulary
 
-Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `ext-air/lib/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts`. The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
+Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `sdk/music/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts`. The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
 
 ```ts
 // packages/sdk/src/harmony/chord.ts
@@ -265,7 +265,7 @@ export const TargetSchema = z.discriminatedUnion('kind', [
 
 The existing behaviours are all instances: the chord map is `point` + `hit` + `dwell(2, 0.12, 0.3)`; the pose chord is `scalar(headYaw)` + `quantize(7 degrees)` + `immediate`, gated by the mouth (`scalar(mouthOpen)` as a release threshold), with the brow as `control(addSeventh)`; the face chord is `category` + `table(expression -> degree)` + the categorizer's own hysteresis; the ASL chord is `category(letter)` + `table(letterDegree)`; the air guitar is `category(enrolled shape named "Em")` + `table(name -> chord)` + `gated(strum)` with `predicted`; the chord map's strum mode is `point` + `hit` + `gated(strum, predicted)`.
 
-The **commit time** is part of the intent (`at`), and only the commit policy decides it. "Immediate" is the next tick; "quantized" is the next grid line of the musical clock (the conductor's or the song's `musical-time`, which exists); "predicted" is the impact predictor's time, as for the strum today (`ext-air/lib/strum.ts`). The realizer honours `at`; it never invents its own timing for a chord change. That keeps one rule for "when does a change take effect" across all instruments (R§4.4).
+The **commit time** is part of the intent (`at`), and only the commit policy decides it. "Immediate" is the next tick; "quantized" is the next grid line of the musical clock (the conductor's or the song's `musical-time`, which exists); "predicted" is the impact predictor's time, as for the strum today (`sdk/gesture/strum.ts`). The realizer honours `at`; it never invents its own timing for a chord change. That keeps one rule for "when does a change take effect" across all instruments (R§4.4).
 
 ### 2.6 Realization: one seam per aspect
 
