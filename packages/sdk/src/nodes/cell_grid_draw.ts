@@ -24,6 +24,51 @@ const CELL_POINTER_R = 9;
 /** Approximate glyph width of the 11px captions (no measureText: the headless recording-canvas test). */
 const CELL_CAPTION_CHAR_W = 6;
 
+/** Height of one caption line, px. */
+const CAPTION_LINE_H = 14;
+/** A caption longer than this many characters wraps onto two lines at its comma (#805). */
+const CAPTION_WRAP_AT = 16;
+
+export interface CaptionBox { cx: number; cy: number; w: number; h: number; lines: string[] }
+
+/** A caption's lines: one, or two split at the comma nearest its middle when it is long (#805:
+ *  the computed captions run to four words and overlapped their neighbours on one line). */
+export function captionLines(text: string): string[] {
+  if (text.length <= CAPTION_WRAP_AT) return [text];
+  const commas = [...text.matchAll(/, /g)].map((m) => m.index as number);
+  if (commas.length === 0) return [text];
+  const at = commas.reduce((best, i) => (Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2) ? i : best));
+  return [text.slice(0, at + 1), text.slice(at + 2)];
+}
+
+const boxesOverlap = (a: CaptionBox, b: CaptionBox): boolean => Math.abs(a.cx - b.cx) < (a.w + b.w) / 2 && Math.abs(a.cy - b.cy) < (a.h + b.h) / 2;
+
+/**
+ * Where each caption's box goes: wrapped to its lines, kept on the canvas, and moved vertically
+ * (away from the box it hits, alternating sides) until it clears the ones placed before it, so a
+ * caption never covers another. A box that finds no clear place within a few tries stays where it
+ * last was rather than wandering off its move. Pure: pixel sizes in, boxes out.
+ */
+export function layoutCaptions(captions: readonly { x: number; y: number; text: string }[], W: number, H: number): CaptionBox[] {
+  const placed: CaptionBox[] = [];
+  for (const c of captions) {
+    if (!c.text) continue;
+    const lines = captionLines(c.text);
+    const w = Math.max(...lines.map((l) => l.length)) * CELL_CAPTION_CHAR_W + 8;
+    const h = lines.length * CAPTION_LINE_H + 2;
+    const clampY = (y: number) => Math.min(Math.max(y, h / 2), H - h / 2);
+    const box: CaptionBox = { cx: Math.min(Math.max(c.x * W, w / 2), W - w / 2), cy: clampY(c.y * H), w, h, lines };
+    for (let tries = 0; tries < 6; tries++) {
+      const hit = placed.find((p) => boxesOverlap(box, p));
+      if (!hit) break;
+      const down = tries % 2 === 0 ? box.cy >= hit.cy : box.cy < hit.cy;
+      box.cy = clampY(down ? hit.cy + (hit.h + h) / 2 + 1 : hit.cy - (hit.h + h) / 2 - 1);
+    }
+    placed.push(box);
+  }
+  return placed;
+}
+
 /** A valid grid, or null (a malformed one draws nothing rather than half a grid). */
 export function cellGridOf(raw: unknown): CellGrid | null {
   if (!raw) return null;
@@ -129,18 +174,13 @@ export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, 
   }
   for (const trail of grid.trails ?? []) drawTrail(g, W, H, trail);
   g.font = '11px sans-serif';
-  for (const c of grid.captions) {
-    if (!c.text) continue;
-    const w = c.text.length * CELL_CAPTION_CHAR_W + 8;
-    // Kept on the canvas: a long caption near an edge slides in rather than being cut.
-    const cx = Math.min(Math.max(c.x * W, w / 2), W - w / 2);
-    const cy = Math.min(Math.max(c.y * H, 8), H - 8);
+  for (const box of layoutCaptions(grid.captions, W, H)) {
     g.globalAlpha = 0.75;
     g.fillStyle = '#0f172a';
-    g.fillRect(cx - w / 2, cy - 8, w, 16);
+    g.fillRect(box.cx - box.w / 2, box.cy - box.h / 2, box.w, box.h);
     g.globalAlpha = 1;
     g.fillStyle = '#ffffff';
-    g.fillText(c.text, cx, cy);
+    box.lines.forEach((line, i) => g.fillText(line, box.cx, box.cy - box.h / 2 + CAPTION_LINE_H * (i + 0.5) + 1));
   }
   g.globalAlpha = 0.9;
   g.strokeStyle = '#ffffff';
