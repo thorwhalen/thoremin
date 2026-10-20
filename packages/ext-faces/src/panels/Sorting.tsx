@@ -22,6 +22,7 @@ import { NEW_CATEGORY } from '@thoremin/sdk/enroll/sorting';
 import { NEUTRAL_TARGET, QUALITY_DEFAULTS, type CategoryQuality } from '@thoremin/sdk/enroll/quality';
 import { reproducibilityOf, reproducibilityScore } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags } from '@thoremin/sdk/enroll/everyday';
+import { SortingMap } from './SortingMap';
 import type { FaceSessionState } from '../app/sessionStore';
 import type { CarvedCategory, SortingView } from '../lib/carving';
 
@@ -435,6 +436,8 @@ export function Sorting({ s }: { s: FaceSessionState }) {
   const view = s.view as SortingView;
   const ids = view.ids;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // The optional map of the holds (#434): off until asked for, never stored.
+  const [showMap, setShowMap] = useState(false);
   // A selection names holds by id: drop the ones an edit removed.
   useEffect(() => {
     const have = new Set(s.working?.samples.map((x) => x.id) ?? []);
@@ -491,6 +494,13 @@ export function Sorting({ s }: { s: FaceSessionState }) {
   return (
     <div className="space-y-2 outline-none" tabIndex={0} onKeyDown={onKeyDown} data-faces-sorting aria-label="Sorting: select holds, then press a category's number, N, S or Delete">
       {editable && <KControl s={s} view={view} />}
+      <div className="space-y-1.5" data-faces-map-toggle>
+        <label className="flex items-center gap-2 text-[11px] text-white/80">
+          <input type="checkbox" checked={showMap} onChange={(e) => setShowMap(e.target.checked)} data-faces-map-checkbox />
+          <span>Show a map of the holds</span>
+        </label>
+        {showMap && <SortingMap s={s} selected={selected} onSelect={setSelected} />}
+      </div>
       {editable && (
         <p className={hint}>Drag a picture onto a category or a bin, or select pictures and press a category's number, N, S or Delete. Every move is kept when you change how many.</p>
       )}

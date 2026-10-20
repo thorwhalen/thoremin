@@ -28,6 +28,7 @@
     "./enroll/session": "./src/enroll/session.ts",
     "./enroll/sorting": "./src/enroll/sorting.ts",
     "./enroll/live": "./src/enroll/live.ts",
+    "./enroll/lda": "./src/enroll/lda.ts",
     "./enroll/quality": "./src/enroll/quality.ts",
     "./enroll/record": "./src/enroll/record.ts",
     "./enroll/quiz": "./src/enroll/quiz.ts",

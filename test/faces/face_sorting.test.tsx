@@ -296,3 +296,17 @@ describe('one editable carve: the grid', () => {
     expect(s().working!.categories.map((c) => c.id)).not.toContain(next.id);
   });
 });
+
+describe('the optional map of the holds (#434)', () => {
+  it('is off until asked for, then draws a canvas; unticking removes it; nothing in the categorizer changes', async () => {
+    const store = await carved();
+    const before = JSON.stringify(store.getState().working);
+    render(<FaceSessionView store={store} test={faceTestStore()} />);
+    expect(document.querySelector('[data-faces-map]')).toBeNull();
+    fireEvent.click(document.querySelector('[data-faces-map-checkbox]')!);
+    expect(document.querySelector('[data-faces-map] canvas')).not.toBeNull();
+    fireEvent.click(document.querySelector('[data-faces-map-checkbox]')!);
+    expect(document.querySelector('[data-faces-map]')).toBeNull();
+    expect(JSON.stringify(store.getState().working)).toBe(before);
+  });
+});
