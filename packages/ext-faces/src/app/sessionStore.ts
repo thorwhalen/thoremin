@@ -77,9 +77,9 @@ import {
   type RecutOptions,
   type SortResult,
 } from '@thoremin/sdk/enroll/sorting';
-import { carveTake, fullMean, generalContextOf, nameCarve, sortingView, type NameSources } from '../lib/carving';
+import { carveTake, fullMean, generalContextOf, nameCarve, sortingView } from '../lib/carving';
 import { addSample, moveSample, type CorrectionResult } from '../lib/corrections';
-import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning, type Tuning } from '@thoremin/sdk/enroll/live';
+import { clampTuning, DEFAULT_TUNING, flooredRejectRadius, sameTuning } from '@thoremin/sdk/enroll/live';
 import { createFaceTake, vocabularyCue, type FaceTake } from '../lib/take';
 import { createReader, foreignModality, keepOnly, unknownVocabulary, type ModalityOptions } from '@thoremin/sdk/enroll/modality';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -87,12 +87,12 @@ import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { createLiveBars, liveStrip, type LiveBarsContext, type LiveBarsModel } from '@thoremin/sdk/enroll/bars';
 import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
 import type { CaptureState, CarveCaptureControl } from '@thoremin/sdk-ui/enroll/capture';
-import type { CategorizerChecks, FaceModelRecord } from './models';
-import type { FaceSource } from './sources';
-import { holdId, type LiveFrames } from './thumbnails';
+import type { FaceModelRecord } from './models';
+import { holdId } from './thumbnails';
 import { categoryEntries } from '../lib/vocabularyEntries';
-import { FACE_SESSION_DEFAULTS, isLive, isRecording, type BarFocus, type FacePhase, type FaceSessionDeps, type FaceSessionState, type FreshTake, type MergeSeed, type Snapshot, type StripCardView } from './sessionStore/state';
+import { FACE_SESSION_DEFAULTS, isLive, isRecording, type BarFocus, type FacePhase, type FaceSessionDeps, type FaceSessionState, type StripCardView } from './sessionStore/state';
 import { restStats, withHand } from './sessionStore/ops';
+import { createLocals, type MergeBase } from './sessionStore/locals';
 
 export * from './sessionStore/state';
 
@@ -101,98 +101,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
   /** Only the modality's keys: a saved sample keeps what its categorizer can use, not the hands
    *  and body that rode along in the live vector (it is stored in localStorage). */
   const modalityOnly = (v: FeatureVector): FeatureVector => keepOnly(modality, v);
-  let take: FaceTake | null = null;
-  /** The live bars over the take being read (null when nothing is read). */
-  let bars: LiveBarsModel | null = null;
-  /** Withdraws the capture control this store provided. */
-  let withdraw: (() => void) | null = null;
-  let source: FaceSource | null = null;
-  /** The source's stream, open for stills while recording (null: no pictures this take). */
-  let frames: LiveFrames | null = null;
-  /** The latest re-cut waiting for its forest (a later move of the k slider wins). */
-  let cutToken = 0;
-  let takeId: string | null = null;
-  /** Holds of the take whose still was asked for (the take's point count, as last seen). */
-  let stilled = 0;
-  /** The still of the burst under way (#385 E7), grabbed while the face is still being made (a
-   *  release is often the moment it changes); filed under the burst's hold id if it takes one. */
-  let burstStill: Promise<Blob | null> | null = null;
-  /** The latest live vector (where a still is cropped). */
-  let lastVector: FeatureVector | null = null;
-  /** Holds of the take deleted from the strip (#404), by index: left out of the carve. */
-  const dropped = new Set<number>();
-  /** Names given to holds in the strip (#404), by index ('' takes a burst's name off). */
-  const holdNames = new Map<number, string>();
-  /** The side each hold of a mirrored take was read on (#529), by index; the last frame's side. */
-  const holdSides = new Map<number, boolean>();
-  let lastMirrored: boolean | null = null;
-  /** The take's indices of the holds the bars carve (the ones not deleted), by position. */
-  let keptIdx: readonly number[] = [];
-  /** The strip as last shown (a key), and the stick figures drawn for it, by hold id. */
-  let stripKey = '';
-  const stripFigures = new Map<string, string>();
-  /** When the paused ghost was last carved (engine ms). */
-  let ghostAt = Number.NEGATIVE_INFINITY;
-  let timer: ReturnType<typeof setInterval> | null = null;
-  /** A fresh take's rest, while its carve is shown (phase `carved`): the frames the reject
-   *  radius is trained on, and the rest cloud (hold ids; null when there was too little rest to
-   *  say), which seeds Neutral in either setting of the strangers switch (#385 E5). */
-  let fresh: FreshTake | null = null;
-  /** The open categorizer's reject radius as opened: a re-cut floors from it, so k up and down
-   *  does not drift. */
-  let baseRadius: number | undefined;
-  /** How the working categorizer's names came about, by category id. */
-  let sources: NameSources = new Map();
-  /** The edit history: what undo and redo step through. */
-  let undoStack: Snapshot[] = [];
-  let redoStack: Snapshot[] = [];
-  /** The last edit was a change of k: the next one joins its undo step (a slider drag, or
-   *  several +, is one step). */
-  let lastWasK = false;
-  let openRecord: FaceModelRecord | null = null;
-  /** The categorizer a recording is being merged into, and what to restore if it is empty. */
-  /** Pause the take as soon as its rest is done (#435: "Show me on the bars"). */
-  let pauseOnCapture = false;
-  let mergeBase: {
-    seed: MergeSeed;
-    /** Where the take returns: a fresh carve (#421: "Add more" before it is saved) or the open one. */
-    phase: 'carved' | 'saved';
-    /** Whether the carve it returns to has pictures (a fresh carve's are its take's). */
-    hasStills: boolean;
-    working: PersonalCategorizer;
-    record: FaceModelRecord | null;
-    openId: string | null;
-    name: string;
-    tuning: Tuning;
-    checks: CategorizerChecks;
-    dirty: boolean;
-    /** Every hold of the take not named otherwise goes to this category (#435), pinned. */
-    holdsIn?: string;
-    /** The edit state the merge returns to (its history: the merge itself is one undoable edit). */
-    edits: { sources: NameSources; undo: Snapshot[]; redo: Snapshot[]; baseRadius: number | undefined; fresh: FreshTake | null };
-  } | null = null;
-  /** The hold ids of the samples shown, by index (the take's holds, or the open categorizer's
-   *  samples): what `thumbs` is keyed by. */
-  let shownIds: readonly string[] = [];
-  /** Whether this store holds the face-feature claim (and the hush). */
-  let claimed = false;
-  /** Bumped whenever the shown take changes, so a late result for an old one is dropped. */
-  let generation = 0;
-  /** Object URLs of the stills in hand, by hold id. */
-  const urls = new Map<string, string>();
-  /** The mirror the player chose for the next take (#382): the state shows an open categorizer's,
-   *  and a reset returns to this. */
-  let chosenMirror = false;
-  /** The vocabulary chosen for the next take (#383): a reset returns to it. */
-  let chosenVocabulary: string | null = null;
-  /** The shown samples' stick-figure pictures, by hold id (#382): where a hold has no still. */
-  const figureUrls = new Map<string, string>();
-  /** The stills taken this session, by hold id: in memory until a save files them in
-   *  IndexedDB, so a take nobody saves leaves nothing behind. Kept across a merge's take (the
-   *  base's in-memory stills stay shown) until `reset`. */
-  const stills = new Map<string, Blob>();
-  /** The stills still being encoded, so Save waits for them. */
-  const pending = new Set<Promise<void>>();
+  /** The store's working state outside the zustand state (never destructured: see `SessionLocals`). */
+  const loc = createLocals();
 
   /** A take id none of `samples`' ids is under (ids are random in the app; a test's clock-made
    *  ones could repeat), so a new hold never takes an old hold's id, or its still. */
@@ -205,32 +115,32 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
   const store = createStore<FaceSessionState>()((set, get) => {
     const dropUrls = () => {
-      for (const u of urls.values()) URL.revokeObjectURL(u);
-      urls.clear();
+      for (const u of loc.urls.values()) URL.revokeObjectURL(u);
+      loc.urls.clear();
     };
     const stopPolling = () => {
-      if (timer) clearInterval(timer);
-      timer = null;
+      if (loc.timer) clearInterval(loc.timer);
+      loc.timer = null;
     };
     const release = () => {
       stopPolling();
-      frames?.close();
-      frames = null;
-      if (claimed) deps.claim(false);
-      claimed = false;
-      source?.dispose();
-      source = null;
-      bars = null;
-      withdraw?.();
-      withdraw = null;
+      loc.frames?.close();
+      loc.frames = null;
+      if (loc.claimed) deps.claim(false);
+      loc.claimed = false;
+      loc.source?.dispose();
+      loc.source = null;
+      loc.bars = null;
+      loc.withdraw?.();
+      loc.withdraw = null;
     };
 
     /** `reset`, keeping the stills taken this session: a merge's take (or its cancel) returns to
      *  a working categorizer whose earlier merged holds have their pictures only in memory. */
     const resetKeepingStills = () => {
-      const kept = [...stills];
+      const kept = [...loc.stills];
       get().reset();
-      for (const [id, b] of kept) stills.set(id, b);
+      for (const [id, b] of kept) loc.stills.set(id, b);
     };
 
     /** The capture state the host's command sees (null when nothing is live). */
@@ -239,7 +149,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       return phase === 'explore' ? 'explore' : phase === 'rest' ? 'rest' : phase === 'faces' ? 'capturing' : phase === 'paused' ? 'paused' : null;
     };
     const provideCapture = () => {
-      if (withdraw || !deps.capture) return;
+      if (loc.withdraw || !deps.capture) return;
       const control: CarveCaptureControl = {
         what: modality.words.many,
         state: () => captureState() ?? 'explore',
@@ -254,7 +164,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return held;
         },
       };
-      withdraw = deps.capture(control);
+      loc.withdraw = deps.capture(control);
     };
 
     /** The bars' view of a take: its features, its noise unit, its rest once there is one, and
@@ -266,10 +176,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       let rest: { mean: FeatureVector; spread: Record<string, number> } | null = null;
       const context = (): LiveBarsContext => {
         const points = session.points();
-        if (points.length !== holds.n || dropped.size !== holds.gone) {
+        if (points.length !== holds.n || loc.dropped.size !== holds.gone) {
           // The holds deleted from the strip are not carved (#404): the cards say what Stop will.
-          keptIdx = points.flatMap((_, i) => (dropped.has(i) ? [] : [i]));
-          holds = { n: points.length, gone: dropped.size, vectors: keptIdx.map((i) => points[i].vector) };
+          loc.keptIdx = points.flatMap((_, i) => (loc.dropped.has(i) ? [] : [i]));
+          holds = { n: points.length, gone: loc.dropped.size, vectors: loc.keptIdx.map((i) => points[i].vector) };
         }
         if (!rest && t.facesStartedAt() !== null) rest = restStats(t.restVectors(), ids);
         const noise = session.noise();
@@ -282,11 +192,11 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       { get, set },
       { progressStep: FACE_SESSION_DEFAULTS.restProgressStep, movingAt: FACE_SESSION_DEFAULTS.restMovingAt, movingForMs: FACE_SESSION_DEFAULTS.restMovingForMs, movingHoldMs: FACE_SESSION_DEFAULTS.restMovingHoldMs },
     );
-    const light = createLightWatch({ get, set }, { everyMs: FACE_SESSION_DEFAULTS.lightMs, frames: () => frames, region: deps.region });
+    const light = createLightWatch({ get, set }, { everyMs: FACE_SESSION_DEFAULTS.lightMs, frames: () => loc.frames, region: deps.region });
 
     /** How the source is read: a merge reads with its base's hand, a fresh take with the chosen. */
     const readOptions = (): ModalityOptions =>
-      mergeBase ? { hand: mergeBase.working.hand ?? 'either', mirror: mergeBase.working.mirror === true } : { hand: get().hand, mirror: get().mirror };
+      loc.mergeBase ? { hand: loc.mergeBase.working.hand ?? 'either', mirror: loc.mergeBase.working.mirror === true } : { hand: get().hand, mirror: get().mirror };
     /** Read the source into the take every `pollMs`, telling the store only what a person can
      *  see change (the phase, the count of held faces, the ring, a coarse elapsed time). */
     const poll = (t0: number) => {
@@ -294,36 +204,36 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       let lastShown = -1;
       // The vector the carve works in (#385 E8): one hand made side-relative; the face as is. A
       // mirrored body take holds its side (#382), a merge chooses the side nearer its base.
-      const readLive = createReader(modality, readOptions(), mergeBase?.working.mirror ? modelFromCategorizer(mergeBase.working) : undefined);
-      timer = setInterval(() => {
-        if (!take || !source) return;
-        const read = source.read();
+      const readLive = createReader(modality, readOptions(), loc.mergeBase?.working.mirror ? modelFromCategorizer(loc.mergeBase.working) : undefined);
+      loc.timer = setInterval(() => {
+        if (!loc.take || !loc.source) return;
+        const read = loc.source.read();
         const live = read ? { ...read, vector: readLive(read.vector) } : null;
-        if (live) lastMirrored = readLive.mirrored();
+        if (live) loc.lastMirrored = readLive.mirrored();
         if (live) {
-          take.push(live.vector, live.t);
-          bars?.push(modality.read(live.vector), live.t);
-          lastVector = live.vector;
+          loc.take.push(live.vector, live.t);
+          loc.bars?.push(modality.read(live.vector), live.t);
+          loc.lastVector = live.vector;
           // A burst's still: once a few frames in, from the frame showing now.
-          const b = take.burst();
-          if (b && !burstStill && frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) burstStill = grabStill(live.vector);
+          const b = loc.take.burst();
+          if (b && !loc.burstStill && loc.frames && b.frames >= FACE_SESSION_DEFAULTS.burstStillAfter) loc.burstStill = grabStill(live.vector);
           stillNewHolds(live.vector);
         }
-        let tp = take.phase();
+        let tp = loc.take.phase();
         // "Show me on the bars" (#435): the rest done, the take waits paused for the rehearsal.
-        if (tp === 'faces' && pauseOnCapture) {
-          pauseOnCapture = false;
-          take.pause(deps.now());
-          tp = take.phase();
+        if (tp === 'faces' && loc.pauseOnCapture) {
+          loc.pauseOnCapture = false;
+          loc.take.pause(deps.now());
+          tp = loc.take.phase();
         }
         const phaseNow: FacePhase = tp === 'explore' || tp === 'rest' || tp === 'faces' || tp === 'paused' ? tp : get().phase;
         const elapsed = phaseNow === 'explore' ? 0 : Math.floor((deps.now() - t0) / 250) / 4;
-        const points = take.pointCount();
-        const hold = take.hold();
-        const step = take.setupStep();
+        const points = loc.take.pointCount();
+        const hold = loc.take.hold();
+        const step = loc.take.setupStep();
         if (step !== get().setupStep) set({ setupStep: step });
-        rest.watch(take.restProgress(), take.restMotion(), live?.t ?? deps.now());
-        const b = take.burst();
+        rest.watch(loc.take.restProgress(), loc.take.restMotion(), live?.t ?? deps.now());
+        const b = loc.take.burst();
         // The burst's frames coarsely (a person sees it grow, not every frame).
         const burst = b ? { label: b.label, frames: b.frames - (b.frames % FACE_SESSION_DEFAULTS.burstShowStep) } : null;
         const s = get();
@@ -334,58 +244,58 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         refreshStrip();
         refreshGhost(live?.vector ?? null, live?.t ?? deps.now());
-        light.watch(live?.vector ?? lastVector, deps.now());
+        light.watch(live?.vector ?? loc.lastVector, deps.now());
       }, deps.pollMs);
     };
     /** A new take's strip: nothing deleted, named or shown yet. */
     const clearStrip = () => {
-      dropped.clear();
-      holdNames.clear();
-      holdSides.clear();
-      lastMirrored = null;
-      keptIdx = [];
-      stripKey = '';
-      stripFigures.clear();
-      ghostAt = Number.NEGATIVE_INFINITY;
+      loc.dropped.clear();
+      loc.holdNames.clear();
+      loc.holdSides.clear();
+      loc.lastMirrored = null;
+      loc.keptIdx = [];
+      loc.stripKey = '';
+      loc.stripFigures.clear();
+      loc.ghostAt = Number.NEGATIVE_INFINITY;
       set({ strip: [], stripOnce: [], ghost: null });
     };
     /** A hold's picture for the strip: its still once encoded, else its stick figure. */
     const stripThumb = (index: number, id: string): string | null => {
-      let url = urls.get(id);
-      const still = url ? undefined : stills.get(id);
-      if (still) urls.set(id, (url = URL.createObjectURL(still)));
+      let url = loc.urls.get(id);
+      const still = url ? undefined : loc.stills.get(id);
+      if (still) loc.urls.set(id, (url = URL.createObjectURL(still)));
       if (url) return url;
-      if (!deps.figure || !modality.skeleton || !take) return null;
-      if (!stripFigures.has(id)) {
-        const point = take.session().points()[index];
+      if (!deps.figure || !modality.skeleton || !loc.take) return null;
+      if (!loc.stripFigures.has(id)) {
+        const point = loc.take.session().points()[index];
         const skeleton = point ? modality.skeleton(point.vector) : null;
         const fig = skeleton ? deps.figure(skeleton) : null;
         if (!fig) return null;
-        stripFigures.set(id, fig);
+        loc.stripFigures.set(id, fig);
       }
-      return stripFigures.get(id) ?? null;
+      return loc.stripFigures.get(id) ?? null;
     };
     /** The live strip (#404) from the bars' online carve, set only when what it shows changed. */
     const refreshStrip = () => {
       const phase = get().phase;
-      if (!take || !bars || !takeId || (phase !== 'faces' && phase !== 'paused')) {
-        if (stripKey !== '') {
-          stripKey = '';
+      if (!loc.take || !loc.bars || !loc.takeId || (phase !== 'faces' && phase !== 'paused')) {
+        if (loc.stripKey !== '') {
+          loc.stripKey = '';
           set({ strip: [], stripOnce: [] });
         }
         return;
       }
-      const tid = takeId;
-      const labels = take.labels();
-      const nameOf = (i: number): string => (holdNames.get(i) ?? labels.get(i) ?? '').trim();
+      const tid = loc.takeId;
+      const labels = loc.take.labels();
+      const nameOf = (i: number): string => (loc.holdNames.get(i) ?? labels.get(i) ?? '').trim();
       // A named hold goes where Stop puts it: with the holds of its name (pinned there), whatever
       // the carve says; the carve's groups keep the unnamed ones.
       const byName = new Map<string, number[]>();
-      const clusters = bars
+      const clusters = loc.bars
         .carve()
         .map((c) =>
           c.flatMap((p) => {
-            const i = keptIdx[p];
+            const i = loc.keptIdx[p];
             if (i === undefined) return [];
             const name = nameOf(i).toLowerCase();
             if (!name) return [i];
@@ -399,8 +309,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       const stripOnce = once.map((i) => i + 1);
       // The change key without the pictures' text (a stick figure is a data URL of kilobytes).
       const key = `${strip.map((c) => `${c.n}:${c.like ?? ''}:${c.name ?? ''}:${c.thumb ? c.thumb.length : 0}`).join('|')}/${stripOnce.join(',')}`;
-      if (key === stripKey) return;
-      stripKey = key;
+      if (key === loc.stripKey) return;
+      loc.stripKey = key;
       set({ strip, stripOnce });
     };
     /** While paused and a hold is forming, what it would be (#404), carved at most every
@@ -408,30 +318,30 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     const refreshGhost = (vector: FeatureVector | null, tMs: number) => {
       const s = get();
       const forming =
-        s.phase === 'paused' && (s.hold === 'settling' || s.hold === 'taken') && vector !== null && bars !== null && keptIdx.length > 0 && keptIdx.length <= FACE_SESSION_DEFAULTS.ghostUpTo;
+        s.phase === 'paused' && (s.hold === 'settling' || s.hold === 'taken') && vector !== null && loc.bars !== null && loc.keptIdx.length > 0 && loc.keptIdx.length <= FACE_SESSION_DEFAULTS.ghostUpTo;
       if (!forming) {
         if (s.ghost !== null) set({ ghost: null });
-        ghostAt = Number.NEGATIVE_INFINITY;
+        loc.ghostAt = Number.NEGATIVE_INFINITY;
         return;
       }
-      if (tMs - ghostAt < FACE_SESSION_DEFAULTS.ghostMs && s.ghost !== null) return;
-      ghostAt = tMs;
-      const joins = bars!.wouldBe(vector!);
+      if (tMs - loc.ghostAt < FACE_SESSION_DEFAULTS.ghostMs && s.ghost !== null) return;
+      loc.ghostAt = tMs;
+      const joins = loc.bars!.wouldBe(vector!);
       // Said in the strip's terms: the card it would join, by that card's group leader (one more
       // point can split a group, and the ghost must not contradict the cards).
-      const first = joins ? Math.min(...joins.map((p) => keptIdx[p])) + 1 : null;
+      const first = joins ? Math.min(...joins.map((p) => loc.keptIdx[p])) + 1 : null;
       const card = first === null ? undefined : s.strip.find((c) => c.n === first);
       const like = first === null ? null : (card?.like ?? first);
       if (s.ghost?.like !== like || s.ghost === null) set({ ghost: { like } });
     };
     const show = (gen: number) => {
-      if (gen !== generation) return;
+      if (gen !== loc.generation) return;
       const thumbs: Record<number, string> = {};
-      shownIds.forEach((id, i) => {
-        let url = urls.get(id);
-        const still = url ? undefined : stills.get(id);
-        if (still) urls.set(id, (url = URL.createObjectURL(still)));
-        url ??= figureUrls.get(id);
+      loc.shownIds.forEach((id, i) => {
+        let url = loc.urls.get(id);
+        const still = url ? undefined : loc.stills.get(id);
+        if (still) loc.urls.set(id, (url = URL.createObjectURL(still)));
+        url ??= loc.figureUrls.get(id);
         if (url) thumbs[i] = url;
       });
       set({ thumbs });
@@ -440,8 +350,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     /** The current frame as a still, cropped to the modality's region and overlaid with its lines,
      *  both from `vector` (projected). */
     const grabStill = (vector: FeatureVector): Promise<Blob | null> =>
-      frames
-        ? frames
+      loc.frames
+        ? loc.frames
             .grab(deps.region ? (size) => deps.region!({ vector, ...size }) : null, deps.overlay ? (size) => deps.overlay!({ vector, ...size }) : null)
             .catch(() => null)
         : Promise.resolve(null);
@@ -449,56 +359,56 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
      *  now (the hold was just taken, so the face is still held), cropped to the region the live
      *  vector places the part in. */
     const stillNewHolds = (vector: FeatureVector) => {
-      if (!take || !takeId) return;
-      const n = take.pointCount();
-      const tid = takeId;
-      for (; stilled < n; stilled++) {
-        const id = holdId(tid, stilled);
+      if (!loc.take || !loc.takeId) return;
+      const n = loc.take.pointCount();
+      const tid = loc.takeId;
+      for (; loc.stilled < n; loc.stilled++) {
+        const id = holdId(tid, loc.stilled);
         // The side it was read on (#529), from the frame showing as it was taken.
-        if (lastMirrored !== null) holdSides.set(stilled, lastMirrored);
-        if (!frames) continue;
-        const gen = generation;
+        if (loc.lastMirrored !== null) loc.holdSides.set(loc.stilled, loc.lastMirrored);
+        if (!loc.frames) continue;
+        const gen = loc.generation;
         // A burst's hold has its still already (taken mid-burst); any other is taken now.
-        const grabbed = burstStill ?? grabStill(vector);
-        burstStill = null;
+        const grabbed = loc.burstStill ?? grabStill(vector);
+        loc.burstStill = null;
         const job = grabbed
           .then((still) => {
             // Kept even if the take is no longer shown: the id is this hold's alone, and a merge
             // that ended a moment ago may be saved with it.
-            if (!still || stills.has(id)) return;
-            stills.set(id, still);
+            if (!still || loc.stills.has(id)) return;
+            loc.stills.set(id, still);
             show(gen);
-            if (gen === generation) refreshStrip();
+            if (gen === loc.generation) refreshStrip();
           })
-          .finally(() => pending.delete(job));
-        pending.add(job);
+          .finally(() => loc.pending.delete(job));
+        loc.pending.add(job);
       }
     };
     /** A burst just ended (released, or ended by a pause, a resume or Stop): its hold's still
      *  filed under its id, or dropped when it took no hold. */
     const afterBurst = () => {
-      if (!take || take.burst()) return;
-      if (lastVector) stillNewHolds(lastVector);
-      burstStill = null;
+      if (!loc.take || loc.take.burst()) return;
+      if (loc.lastVector) stillNewHolds(loc.lastVector);
+      loc.burstStill = null;
     };
     /** Every still being encoded, done. */
-    const stillsTaken = () => Promise.all([...pending]);
+    const stillsTaken = () => Promise.all([...loc.pending]);
     /** Stills for `ids` filed in IndexedDB (those not in hand). Returns whether any was found. */
     const loadThumbs = async (ids: readonly string[]): Promise<boolean> => {
-      const gen = generation;
+      const gen = loc.generation;
       let found = false;
       for (const id of new Set(ids)) {
-        if (urls.has(id)) {
+        if (loc.urls.has(id)) {
           found = true;
           continue;
         }
-        if (stills.has(id)) {
+        if (loc.stills.has(id)) {
           found = true;
           continue;
         }
         const b = await deps.thumbs.get(id).catch(() => null);
-        if (gen !== generation) return found;
-        if (b && !urls.has(id)) urls.set(id, URL.createObjectURL(b));
+        if (gen !== loc.generation) return found;
+        if (b && !loc.urls.has(id)) loc.urls.set(id, URL.createObjectURL(b));
         found ||= b !== null;
       }
       show(gen);
@@ -510,33 +420,33 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       t
         .session()
         .points()
-        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null, mirrored: holdSides.get(i) }));
+        .map((p, i) => ({ ...p, id: holdId(tid, i), vector: modalityOnly(p.vector), support: t.support(i), skeleton: modality.skeleton?.(p.vector) ?? null, mirrored: loc.holdSides.get(i) }));
 
     /** The take's labelled holds (#385 E7: bursts under a typed name), by name, as sample ids. */
     /** The take's holds by name: a burst's, or one given in the strip. */
     const holdNamesOf = (t: FaceTake): Map<number, string> => {
       // A name given in the strip (#404) is a burst's name given afterwards: it wins over one.
       const names = new Map(t.labels());
-      for (const [i, name] of holdNames) names.set(i, name);
+      for (const [i, name] of loc.holdNames) names.set(i, name);
       return names;
     };
-    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => labelledHoldsOf(holdNamesOf(t), dropped, tid);
+    const labelledHolds = (t: FaceTake, tid: string): LabelledHolds[] => labelledHoldsOf(holdNamesOf(t), loc.dropped, tid);
     /** `r` with each lean's holds (#349) put and pinned where the hold they leaned on is. */
     const withLeans = <R extends { categorizer: PersonalCategorizer }>(r: R, t: FaceTake, tid: string): R => {
-      const placed = placeWith(r.categorizer, leanPairs(t.leans(), dropped, tid));
+      const placed = placeWith(r.categorizer, leanPairs(t.leans(), loc.dropped, tid));
       return placed.ok ? { ...r, categorizer: placed.categorizer } : r;
     };
     /** `labelled` with every hold of the take that has no name of its own (and was not deleted in
      *  the strip) moved to category `id` and pinned there (#435). */
     const holdAllIn = (labelled: LabelledResult, t: FaceTake, tid: string, id: string): LabelledResult =>
-      holdAllInCategory(labelled, { names: holdNamesOf(t), dropped, count: t.pointCount(), takeId: tid, to: id });
+      holdAllInCategory(labelled, { names: holdNamesOf(t), dropped: loc.dropped, count: t.pointCount(), takeId: tid, to: id });
     /** `c` with the take's labelled holds placed and pinned (unchanged when there are none). */
     const withLabels = (c: PersonalCategorizer, groups: readonly LabelledHolds[]): LabelledResult =>
       withLabelsPlaced(c, groups, { neutralLabel: modality.words.neutral, maxCategories: FACE_SESSION_DEFAULTS.maxCategories });
 
     /** What a re-cut of the working categorizer trains its reject radius from. */
     const recutOptions = (): RecutOptions =>
-      fresh ? { rest: fresh.rest, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius } : { baseRejectRadius: baseRadius };
+      loc.fresh ? { rest: loc.fresh.rest, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius } : { baseRejectRadius: loc.baseRadius };
 
     /** Show `working` in the sorting grid: its view, its stills by sample id (in memory from this
      *  session's takes first, then filed in IndexedDB). An open categorizer learns whether it has
@@ -552,55 +462,55 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       // Past the pool whose suggestion is built here, the forest would be built by the first
       // re-cut: have a worker build it now (the cache is keyed on content, so a stale answer is harmless).
       if (recutable && bounds.pool > FACE_SESSION_DEFAULTS.suggestUpTo) void deps.forests?.prefetch(working, recutOptions());
-      const view = sortingView(working, { sources, range, neutralKnown: fresh ? fresh.cloud !== null : true, modality });
-      shownIds = working.samples.map((x) => x.id);
-      figureUrls.clear();
+      const view = sortingView(working, { sources: loc.sources, range, neutralKnown: loc.fresh ? loc.fresh.cloud !== null : true, modality });
+      loc.shownIds = working.samples.map((x) => x.id);
+      loc.figureUrls.clear();
       if (deps.figure) {
         for (const x of working.samples) {
           // The figure kept with the sample, else drawn from its vector (a file made without one).
           const skeleton = x.skeleton ?? modality.skeleton?.(x.vector) ?? null;
           const url = skeleton ? deps.figure(skeleton) : null;
-          if (url) figureUrls.set(x.id, url);
+          if (url) loc.figureUrls.set(x.id, url);
         }
       }
-      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', mirror: working.mirror === true, vocabulary: working.vocabulary ?? null, k: view.k, history: { undo: undoStack.length, redo: redoStack.length }, ...patch });
-      const gen = generation;
-      void loadThumbs(shownIds).then((found) => {
-        if (gen === generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
+      set({ working, view, strangers: working.strangers, hand: working.hand ?? 'either', mirror: working.mirror === true, vocabulary: working.vocabulary ?? null, k: view.k, history: { undo: loc.undoStack.length, redo: loc.redoStack.length }, ...patch });
+      const gen = loc.generation;
+      void loadThumbs(loc.shownIds).then((found) => {
+        if (gen === loc.generation && get().working === working && get().phase === 'saved') set({ hasStills: found });
       });
     };
     /** Show an opened categorizer (phase `saved`): a fresh history, its names as saved. */
     const showOpened = (opened: PersonalCategorizer, patch: Partial<FaceSessionState> = {}) => {
       const working = consistentPins(opened);
-      fresh = null;
-      lastWasK = false;
-      baseRadius = working.rejectRadius;
-      sources = new Map();
-      undoStack = [];
-      redoStack = [];
+      loc.fresh = null;
+      loc.lastWasK = false;
+      loc.baseRadius = working.rejectRadius;
+      loc.sources = new Map();
+      loc.undoStack = [];
+      loc.redoStack = [];
       showDoc(working, { phase: 'saved', ...patch });
     };
     /** Put back the edit state a merge take left (its history, names and radius). */
-    const restoreEdits = (e: NonNullable<typeof mergeBase>['edits']) => {
+    const restoreEdits = (e: MergeBase['edits']) => {
       // A fresh carve keeps its first take's rest (#421): the reject radius and Neutral's seed.
-      fresh = e.fresh;
-      sources = e.sources;
-      undoStack = e.undo;
-      redoStack = e.redo;
-      baseRadius = e.baseRadius;
-      lastWasK = false;
+      loc.fresh = e.fresh;
+      loc.sources = e.sources;
+      loc.undoStack = e.undo;
+      loc.redoStack = e.redo;
+      loc.baseRadius = e.baseRadius;
+      loc.lastWasK = false;
     };
     /** Make `next` the working categorizer, as one undoable edit: its unnamed categories named. */
     const commit = (next: PersonalCategorizer, patch: Partial<FaceSessionState> = {}, { k = false }: { k?: boolean } = {}) => {
       const cur = get().working;
-      const joins = k && lastWasK && undoStack.length > 0;
-      lastWasK = k;
+      const joins = k && loc.lastWasK && loc.undoStack.length > 0;
+      loc.lastWasK = k;
       if (cur && !joins) {
-        undoStack = [...undoStack, { working: cur, sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
-        redoStack = [];
+        loc.undoStack = [...loc.undoStack, { working: cur, sources: loc.sources }].slice(-FACE_SESSION_DEFAULTS.undoDepth);
+        loc.redoStack = [];
       }
-      const named = nameCarve(next, { modality, sources, restCloud: fresh?.cloud ?? undefined });
-      sources = named.sources;
+      const named = nameCarve(next, { modality, sources: loc.sources, restCloud: loc.fresh?.cloud ?? undefined });
+      loc.sources = named.sources;
       showDoc(named.categorizer, { dirty: true, notice: null, ...patch });
     };
     /** Apply an edit of the working categorizer (in either phase), or say why not. */
@@ -623,10 +533,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
     /** Carve the fresh take `base` (`carveTake`: the rest cloud in Neutral) and show it. */
     const carveFresh = (base: PersonalCategorizer) => {
-      if (!fresh) return;
+      if (!loc.fresh) return;
       const { result, allNearRest, movedToNeutral } = carveTake(
         base,
-        { ...fresh, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius, maxCategories: FACE_SESSION_DEFAULTS.maxCategories },
+        { ...loc.fresh, baseRejectRadius: TRAIN_DEFAULTS.defaultRejectRadius, maxCategories: FACE_SESSION_DEFAULTS.maxCategories },
         { neutralLabel: modality.words.neutral },
       );
       if (!result.ok) {
@@ -639,8 +549,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         : allNearRest
         ? `Every held ${one} was close to your resting ${one}, so none was put in Neutral: all are carved. Move the resting ones to Neutral, or record again with stronger ${many}.`
         : null;
-      const named = nameCarve(result.categorizer, { modality, sources, restCloud: fresh.cloud ?? undefined });
-      sources = named.sources;
+      const named = nameCarve(result.categorizer, { modality, sources: loc.sources, restCloud: loc.fresh.cloud ?? undefined });
+      loc.sources = named.sources;
       showDoc(named.categorizer, { dirty: true, notice });
     };
 
@@ -697,12 +607,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       explore() {
         if (isLive(get().phase)) return;
         get().reset();
-        source = deps.source();
-        take = createFaceTake({ modality });
-        bars = barsFor(take);
+        loc.source = deps.source();
+        loc.take = createFaceTake({ modality });
+        loc.bars = barsFor(loc.take);
         deps.claim(true);
-        claimed = true;
-        take.explore(deps.now());
+        loc.claimed = true;
+        loc.take.explore(deps.now());
         set({ phase: 'explore', points: 0, elapsed: 0, hold: 'open', notice: null, view: null, thumbs: {}, openId: null, name: '', merging: null, focus: null, holdsAs: null });
         provideCapture();
         poll(deps.now());
@@ -711,66 +621,66 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       dropHold(n) {
         const phase = get().phase;
         const i = n - 1;
-        if (!take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= take.pointCount() || dropped.has(i)) return;
-        dropped.add(i);
+        if (!loc.take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= loc.take.pointCount() || loc.dropped.has(i)) return;
+        loc.dropped.add(i);
         refreshStrip();
       },
 
       nameHold(n, name) {
         const phase = get().phase;
         const i = n - 1;
-        if (!take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= take.pointCount() || dropped.has(i)) return;
-        holdNames.set(i, name.trim());
+        if (!loc.take || (phase !== 'faces' && phase !== 'paused') || !Number.isInteger(i) || i < 0 || i >= loc.take.pointCount() || loc.dropped.has(i)) return;
+        loc.holdNames.set(i, name.trim());
         refreshStrip();
       },
 
       start() {
-        const exploring = get().phase === 'explore' && take !== null && source !== null;
+        const exploring = get().phase === 'explore' && loc.take !== null && loc.source !== null;
         if (isRecording(get().phase)) return;
-        const merge = mergeBase;
+        const merge = loc.mergeBase;
         if (!exploring) {
           if (merge) resetKeepingStills();
           else get().reset();
-          mergeBase = merge;
-          source = deps.source();
+          loc.mergeBase = merge;
+          loc.source = deps.source();
           // A merge keeps its base's features and weights, so it has no use for the nuisances.
-          take = createFaceTake({ modality, nuisance: !merge });
-          bars = barsFor(take);
+          loc.take = createFaceTake({ modality, nuisance: !merge });
+          loc.bars = barsFor(loc.take);
           deps.claim(true);
-          claimed = true;
+          loc.claimed = true;
         }
         else {
           // A fresh source for the capture: the live one is stateless (the tap and the camera
           // stay), and the scripted one starts its script, rest first, when the capture does.
-          source!.dispose();
-          source = deps.source();
+          loc.source!.dispose();
+          loc.source = deps.source();
         }
-        takeId = freshTakeId(merge?.working.samples ?? []);
-        stilled = 0;
+        loc.takeId = freshTakeId(merge?.working.samples ?? []);
+        loc.stilled = 0;
         clearStrip();
-        const stream = get().keepStills ? source!.video() : null;
-        frames = stream ? deps.frames(stream) : null;
+        const stream = get().keepStills ? loc.source!.video() : null;
+        loc.frames = stream ? deps.frames(stream) : null;
         light.reset();
         const t0 = deps.now();
-        take!.start(t0);
+        loc.take!.start(t0);
         rest.reset();
-        set({ phase: 'rest', setupStep: 0, restProgress: 0, restMoving: false, tooDark: false, points: 0, elapsed: 0, hold: 'open', hasStills: frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
+        set({ phase: 'rest', setupStep: 0, restProgress: 0, restMoving: false, tooDark: false, points: 0, elapsed: 0, hold: 'open', hasStills: loc.frames !== null, notice: null, view: null, thumbs: {}, openId: null, name: merge?.name ?? '', merging: merge?.seed ?? null });
         provideCapture();
         poll(t0);
       },
 
       pause() {
-        if (get().phase !== 'faces' || !take) return;
-        take.pause(deps.now());
+        if (get().phase !== 'faces' || !loc.take) return;
+        loc.take.pause(deps.now());
         afterBurst();
-        set({ phase: 'paused', hold: take.hold(), burst: null, points: take.pointCount() });
+        set({ phase: 'paused', hold: loc.take.hold(), burst: null, points: loc.take.pointCount() });
       },
 
       resume() {
-        if (get().phase !== 'paused' || !take) return;
-        take.resume(deps.now());
+        if (get().phase !== 'paused' || !loc.take) return;
+        loc.take.resume(deps.now());
         afterBurst();
-        set({ phase: 'faces', hold: take.hold(), burst: null, points: take.pointCount() });
+        set({ phase: 'faces', hold: loc.take.hold(), burst: null, points: loc.take.pointCount() });
       },
 
       toggleCapture() {
@@ -786,29 +696,29 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       beginBurst(lean = false) {
         const phase = get().phase;
-        if (!take || (phase !== 'faces' && phase !== 'paused')) return;
-        if (take.beginBurst(deps.now(), lean ? '' : get().burstName, { lean })) set({ burst: { label: get().burstName.trim(), frames: 0 }, hold: take.hold(), notice: null });
+        if (!loc.take || (phase !== 'faces' && phase !== 'paused')) return;
+        if (loc.take.beginBurst(deps.now(), lean ? '' : get().burstName, { lean })) set({ burst: { label: get().burstName.trim(), frames: 0 }, hold: loc.take.hold(), notice: null });
       },
 
       endBurst() {
-        if (!take || !take.burst()) return;
-        const took = take.endBurst(deps.now());
+        if (!loc.take || !loc.take.burst()) return;
+        const took = loc.take.endBurst(deps.now());
         afterBurst();
         set({
           burst: null,
-          hold: take.hold(),
-          points: take.pointCount(),
+          hold: loc.take.hold(),
+          points: loc.take.pointCount(),
           ...(took ? {} : { notice: `That burst was too short to take: hold the key for a moment while you make the ${modality.words.one}.` }),
         });
       },
 
       live(options = {}) {
-        if (!bars || !isLive(get().phase) || get().phase === 'stopping') return null;
+        if (!loc.bars || !isLive(get().phase) || get().phase === 'stopping') return null;
         const focus = get().focus;
-        if (!focus) return bars.snapshot(options);
+        if (!focus) return loc.bars.snapshot(options);
         // The hint's features first, then the player's own pins; the two centres marked.
         const pinned = [...focus.features, ...(options.pinned ?? []).filter((id) => !focus.features.includes(id))];
-        return bars.snapshot({ ...options, pinned, marks: focus.marks });
+        return loc.bars.snapshot({ ...options, pinned, marks: focus.marks });
       },
 
       async stop() {
@@ -817,8 +727,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // Synchronously out of the recording phases: a second Stop, or the panel's cleanup, now
         // sees a take being stopped, not one to stop again.
         set({ phase: 'stopping', restProgress: null, restMoving: false });
-        const myTake = take!;
-        const hadStills = frames !== null;
+        const myTake = loc.take!;
+        const hadStills = loc.frames !== null;
         let built = false;
         try {
           // A burst held through Stop is a hold like a released one, with its still.
@@ -831,10 +741,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         } finally {
           release();
         }
-        const merge = mergeBase;
-        mergeBase = null;
+        const merge = loc.mergeBase;
+        loc.mergeBase = null;
         if (merge) {
-          openRecord = merge.record;
+          loc.openRecord = merge.record;
           // The name a "Record more X" gave the bursts belongs to that take only.
           const restore = { openId: merge.openId, name: merge.name, tuning: merge.tuning, checks: merge.checks, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' };
           // Back to the categorizer the take was adding to, its edit history and all.
@@ -848,7 +758,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
             return;
           }
           // The holds deleted from the strip (#404) are not merged.
-          const added = takeSamples(myTake, takeId!).filter((_, i) => !dropped.has(i));
+          const added = takeSamples(myTake, loc.takeId!).filter((_, i) => !loc.dropped.has(i));
           if (added.length === 0) {
             set({ notice: `Every held ${modality.words.one} was deleted. Nothing was merged.` });
             return;
@@ -873,10 +783,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           }
           // Bursts recorded under a name go to the category of that name (or a new one), pinned
           // (#385 E7): "Record more frown" lands in frown, whatever is nearest.
-          const named = withLeans(withLabels(result.categorizer, labelledHolds(myTake, takeId!)), myTake, takeId!);
+          const named = withLeans(withLabels(result.categorizer, labelledHolds(myTake, loc.takeId!)), myTake, loc.takeId!);
           // "Record more" (#435): every hold not named otherwise goes to its category, by id.
-          const labelled = merge.holdsIn ? holdAllIn(named, myTake, takeId!, merge.holdsIn) : named;
-          for (const id of labelled.named) if (!sources.has(id)) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
+          const labelled = merge.holdsIn ? holdAllIn(named, myTake, loc.takeId!, merge.holdsIn) : named;
+          for (const id of labelled.named) if (!loc.sources.has(id)) loc.sources = new Map([...loc.sources, [id, { source: 'edited', matched: null }]]);
           // Every sample keeps its id (the base's, and the new holds' `<takeId>:<n>`), so every
           // still stays filed where it is: the new ones are filed on Save, nothing is re-filed.
           const joined = result.assigned.filter((a) => a >= 0).length;
@@ -906,26 +816,26 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // The take becomes the working categorizer at once (#385 E4): every hold with its id, all
         // in one category, then carved at the suggested k, the rest cloud in Neutral.
         const session = myTake.session();
-        const samples = takeSamples(myTake, takeId!);
+        const samples = takeSamples(myTake, loc.takeId!);
         const rest = myTake.restVectors();
         const cloud = neutralIndices(session.points().map((p) => p.vector), rest, session.features(), session.weights());
         const strangers = get().strangers;
         const unlabelled = categorizerFromModel(session.modelFor([samples.map((_, i) => i)]), samples, { name: '', strangers, modality: modality.id, hand: get().hand, mirror: get().mirror, vocabulary: get().vocabulary ?? undefined, createdAt: deps.isoNow() });
         // One take's choice: the categorizer keeps it, the next take starts from coverage again.
-        chosenVocabulary = null;
+        loc.chosenVocabulary = null;
         // Bursts recorded under a name are pinned to a category of that name before the carve, so
         // the re-cut keeps them together (must-link) at every k (#385 E7).
-        const labelled = withLeans(withLabels(unlabelled, labelledHolds(myTake, takeId!)), myTake, takeId!);
+        const labelled = withLeans(withLabels(unlabelled, labelledHolds(myTake, loc.takeId!)), myTake, loc.takeId!);
         // The holds deleted from the strip (#404) go before the carve, so it never sees them.
-        const gone = samples.flatMap((x, i) => (dropped.has(i) ? [x.id] : []));
+        const gone = samples.flatMap((x, i) => (loc.dropped.has(i) ? [x.id] : []));
         const kept = gone.length > 0 ? deleteHoldsFrom(labelled.categorizer, gone) : { ok: true as const, categorizer: labelled.categorizer };
         if (!kept.ok) {
           set({ phase: 'empty', burst: null, notice: `Every held ${modality.words.one} was deleted, so there is nothing to carve. Record again.` });
           return;
         }
-        fresh = { rest, cloud: cloud ? new Set(cloud.flatMap((i) => (dropped.has(i) ? [] : [samples[i].id]))) : null };
+        loc.fresh = { rest, cloud: cloud ? new Set(cloud.flatMap((i) => (loc.dropped.has(i) ? [] : [samples[i].id]))) : null };
         // The typed names are the player's: kept as theirs (the general model never renames them).
-        for (const id of labelled.named) sources = new Map([...sources, [id, { source: 'edited', matched: null }]]);
+        for (const id of labelled.named) loc.sources = new Map([...loc.sources, [id, { source: 'edited', matched: null }]]);
         set({ phase: 'carved', hasStills: hadStills, name: '', dirty: true, burst: null });
         carveFresh(kept.categorizer);
         if (labelled.error) set({ notice: `The named holds were carved like the others: ${labelled.error}.` });
@@ -980,21 +890,21 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const [leaving, arriving] = on ? [plainLabels, mirroredLabels] : [mirroredLabels, plainLabels];
           const stale = [...leaving].filter((l) => !arriving.has(l));
           const carry = (cat: PersonalCategorizer['categories'][number]) =>
-            ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '' && !stale.includes(cat.label.trim().toLowerCase());
+            ['kept', 'edited'].includes(loc.sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '' && !stale.includes(cat.label.trim().toLowerCase());
           const tools = { image, side, skeleton: modality.skeleton ? (v: FeatureVector) => modality.skeleton!(v) : undefined };
           const turn = on ? mirrorOn : mirrorOff;
           edit((w) => turn(w, tools, { ...recutOptions(), carry, maxCategories: FACE_SESSION_DEFAULTS.maxCategories }));
           return;
         }
         if (phase !== 'idle' && phase !== 'empty') return;
-        chosenMirror = on;
+        loc.chosenMirror = on;
         set({ mirror: on });
       },
 
       setVocabulary(vocabulary) {
         // Read when a take becomes a categorizer, so any time before that is in time.
         if (get().working) return;
-        chosenVocabulary = vocabulary;
+        loc.chosenVocabulary = vocabulary;
         set({ vocabulary });
       },
 
@@ -1003,9 +913,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       skipSetup() {
-        if (get().phase !== 'rest' || !take) return;
-        take.skipSetup(deps.now());
-        set({ setupStep: take.setupStep() });
+        if (get().phase !== 'rest' || !loc.take) return;
+        loc.take.skipSetup(deps.now());
+        set({ setupStep: loc.take.setupStep() });
       },
 
       teachNeutral() { return edit((w) => setNeutralTrained(w, true)); },
@@ -1021,7 +931,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         }
         // A name saved before pins existed (or kept from the file) is the player's: anchored
         // first, so the re-cut keeps it (the general model's proposals are not).
-        const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
+        const kept = (cat: PersonalCategorizer['categories'][number]) => ['kept', 'edited'].includes(loc.sources.get(cat.id)?.source ?? 'kept') && cat.label.trim() !== '';
         const cut = () => edit((w) => recut(anchorNames(w, kept), want, recutOptions()), { k: true });
         // A pool past the suggestion's size has its forest built in the worker after each edit
         // (#499): wait for that build rather than race it onto the page, and let a later move of
@@ -1031,9 +941,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           cut();
           return;
         }
-        const mine = ++cutToken;
+        const mine = ++loc.cutToken;
         void wait.then(() => {
-          if (mine === cutToken && get().working === working) cut();
+          if (mine === loc.cutToken && get().working === working) cut();
         });
       },
 
@@ -1043,7 +953,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         if (!working || !name) return;
         const same = (x: string) => x.trim().toLowerCase() === name.toLowerCase();
         const clash = working.categories.find((c) => c.id !== id && same(c.label));
-        const yields = clash && !['edited', 'kept'].includes(sources.get(clash.id)?.source ?? 'kept');
+        const yields = clash && !['edited', 'kept'].includes(loc.sources.get(clash.id)?.source ?? 'kept');
         if (clash && !yields) {
           set({ notice: `Another category is already called "${clash.label}".` });
           return;
@@ -1052,7 +962,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // own names, and an opened categorizer's, do not.
         const cleared = yields ? { ...working, categories: working.categories.map((c) => (c.id === clash.id ? { ...c, label: '' } : c)) } : working;
         if (edit(() => nameCategory(cleared, id, name))) {
-          sources = new Map(sources).set(id, { source: 'edited', matched: null });
+          loc.sources = new Map(loc.sources).set(id, { source: 'edited', matched: null });
           showDoc(get().working!);
         }
       },
@@ -1075,23 +985,23 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
 
       undo() {
         const cur = get().working;
-        const prev = undoStack.at(-1);
+        const prev = loc.undoStack.at(-1);
         if (!cur || !prev) return;
-        undoStack = undoStack.slice(0, -1);
-        redoStack = [...redoStack, { working: cur, sources }];
-        lastWasK = false;
-        sources = prev.sources;
+        loc.undoStack = loc.undoStack.slice(0, -1);
+        loc.redoStack = [...loc.redoStack, { working: cur, sources: loc.sources }];
+        loc.lastWasK = false;
+        loc.sources = prev.sources;
         showDoc(prev.working, { dirty: true, notice: null });
       },
 
       redo() {
         const cur = get().working;
-        const next = redoStack.at(-1);
+        const next = loc.redoStack.at(-1);
         if (!cur || !next) return;
-        redoStack = redoStack.slice(0, -1);
-        undoStack = [...undoStack, { working: cur, sources }];
-        lastWasK = false;
-        sources = next.sources;
+        loc.redoStack = loc.redoStack.slice(0, -1);
+        loc.undoStack = [...loc.undoStack, { working: cur, sources: loc.sources }];
+        loc.lastWasK = false;
+        loc.sources = next.sources;
         showDoc(next.working, { dirty: true, notice: null });
       },
 
@@ -1100,7 +1010,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         const trimmed = name.trim();
         if (!view || !trimmed || saving || view.k === 0) return false;
         if (phase !== 'carved' && phase !== 'saved') return false;
-        const gen = generation;
+        const gen = loc.generation;
         set({ saving: true });
         /** The stills this save filed (removed again if the record is not saved). */
         const filed: string[] = [];
@@ -1115,9 +1025,9 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           // right after Stop must not file a categorizer whose pictures were still being taken).
           // Stills already filed (a saved base's) stay where they are.
           await stillsTaken();
-          if (gen !== generation) return false;
+          if (gen !== loc.generation) return false;
           for (const x of categorizer.samples) {
-            const still = stills.get(x.id);
+            const still = loc.stills.get(x.id);
             if (still && (await deps.thumbs.put(x.id, still).then(() => true, () => false))) filed.push(x.id);
           }
           // Saving under a name that already exists replaces that record: its stills go too,
@@ -1133,12 +1043,12 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           const record = await deps.models.save(trimmed, { categorizer, ...(phase === 'saved' ? { tuning, ...(hasChecks ? { checks } : {}) } : {}) });
           const replaced = before.get(record.id);
           if (replaced) await dropStillsIfOrphaned(replaced);
-          if (gen === generation) {
+          if (gen === loc.generation) {
             // An edit made while the save was in flight (a correction, a tuning, a re-cut) is kept,
             // and still unsaved: what was saved is the state when Save was pressed.
             const changed = get().view !== view || get().tuning !== tuningAtStart || get().checks !== checksAtStart;
             set({ notice: `Saved "${record.name}".${changed ? ' Changes made since are not saved yet.' : ''}`, name: record.name, dirty: changed, ...(phase === 'saved' ? { openId: record.id, working: changed && get().working ? { ...get().working!, name: record.name } : record.model.categorizer } : {}) });
-            if (phase === 'saved') openRecord = record;
+            if (phase === 'saved') loc.openRecord = record;
           }
           await get().refreshSaved();
           return true;
@@ -1164,7 +1074,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         get().reset();
-        openRecord = record;
+        loc.openRecord = record;
         showOpened(record.model.categorizer, { openId: id, name: record.name, hasStills: true, tuning: clampTuning(record.model.tuning ?? {}), checks: record.model.checks ?? {}, dirty: false });
       },
 
@@ -1177,40 +1087,40 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       },
 
       reset() {
-        generation++;
-        pauseOnCapture = false;
+        loc.generation++;
+        loc.pauseOnCapture = false;
         release();
-        take = null;
-        takeId = null;
-        stilled = 0;
-        burstStill = null;
-        lastVector = null;
-        fresh = null;
-        baseRadius = undefined;
-        sources = new Map();
-        undoStack = [];
-        redoStack = [];
-        lastWasK = false;
-        openRecord = null;
-        mergeBase = null;
-        shownIds = [];
-        figureUrls.clear();
-        stills.clear();
-        pending.clear();
+        loc.take = null;
+        loc.takeId = null;
+        loc.stilled = 0;
+        loc.burstStill = null;
+        loc.lastVector = null;
+        loc.fresh = null;
+        loc.baseRadius = undefined;
+        loc.sources = new Map();
+        loc.undoStack = [];
+        loc.redoStack = [];
+        loc.lastWasK = false;
+        loc.openRecord = null;
+        loc.mergeBase = null;
+        loc.shownIds = [];
+        loc.figureUrls.clear();
+        loc.stills.clear();
+        loc.pending.clear();
         dropUrls();
         clearStrip();
-        set({ phase: 'idle', restProgress: null, restMoving: false, tooDark: false, mirror: chosenMirror, vocabulary: chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' });
+        set({ phase: 'idle', restProgress: null, restMoving: false, tooDark: false, mirror: loc.chosenMirror, vocabulary: loc.chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' });
       },
 
       cancelRecording() {
-        const merge = mergeBase;
+        const merge = loc.mergeBase;
         if (!isRecording(get().phase) || !merge) {
           if (isLive(get().phase)) get().reset();
           return;
         }
         // A merge take abandoned: back to the categorizer it was adding to, unsaved work and all.
         resetKeepingStills();
-        openRecord = merge.record;
+        loc.openRecord = merge.record;
         restoreEdits(merge.edits);
         showDoc(merge.working, {
           phase: merge.phase,
@@ -1253,8 +1163,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         // A fresh carve too (#421): the same document, so the new holds are added to it, its
         // pins kept, and its first take's rest kept for the reject radius.
         if ((phase !== 'saved' && phase !== 'carved') || !working) return;
-        mergeBase = { seed, phase, hasStills, working, record: openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, ...(options.holdsIn ? { holdsIn: options.holdsIn } : {}), edits: { sources, undo: undoStack, redo: redoStack, baseRadius, fresh } };
-        pauseOnCapture = false;
+        loc.mergeBase = { seed, phase, hasStills, working, record: loc.openRecord, openId, name: options.name ?? name, tuning, checks, dirty: get().dirty, ...(options.holdsIn ? { holdsIn: options.holdsIn } : {}), edits: { sources: loc.sources, undo: loc.undoStack, redo: loc.redoStack, baseRadius: loc.baseRadius, fresh: loc.fresh } };
+        loc.pauseOnCapture = false;
         get().start();
         // After the start (which resets): the take's bursts carry this name.
         const into = options.holdsIn ? working.categories.find((c) => c.id === options.holdsIn) : undefined;
@@ -1290,7 +1200,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           ],
         };
         if (!get().recordMore(id)) return false;
-        pauseOnCapture = true;
+        loc.pauseOnCapture = true;
         set({ focus });
         return true;
       },
