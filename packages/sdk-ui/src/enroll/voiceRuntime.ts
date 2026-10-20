@@ -13,14 +13,15 @@
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import { hostValues, noopValues } from '../storage';
 import { addGuidanceSink } from './guidance';
 import { clipFor, type VoiceManifest } from './speakable';
 import { createAudioElementPlayer, createVoiceSink, type AudioElementPlayer, type VoiceSink } from './voice';
 
-// localStorage in the browser; a no-op elsewhere (the Node test runtime), so the
-// persist middleware never warns about a missing window (the same guard as store.ts).
-const noopStorage: StateStorage = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
-const prefStorage = (): StateStorage => (typeof window !== 'undefined' && window.localStorage ? window.localStorage : noopStorage);
+// The host's key-value target (the storage seam, #659: localStorage in the browser); a no-op
+// where the host has none (the Node test runtime), so the persist middleware never warns about a
+// missing window (the same choice as the hot store's).
+const prefStorage = (): StateStorage => hostValues(noopValues);
 
 interface VoiceState {
   enabled: boolean;

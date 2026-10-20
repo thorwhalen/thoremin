@@ -36,7 +36,7 @@ const CORE_DIRS = ['src', 'packages/sdk/src', 'packages/sdk-ui/src', 'packages/t
 const LEGACY = [/^src\/App\.tsx$/, /^src\/components\//, /^src\/hooks\//, /^src\/plugins\/ai-dj\//, /^src\/plugins\/PluginProvider\.tsx$/];
 
 /** A file that touches browser storage. */
-const STORAGE_API = /\blocalStorage\b|\bindexedDB\b|\bpersist\(|createJSONStorage|createLocalStorageProvider|localStorageCollectionProvider|createNamedCollectionStore|createLocalStorageProfileStorage|localStorageFlag|createIdbProvider|useLocalStorage|hostCollection\(|storage\(\)/;
+const STORAGE_API = /\blocalStorage\b|\bindexedDB\b|\bpersist\(|createJSONStorage|createLocalStorageProvider|localStorageCollectionProvider|createNamedCollectionStore|createLocalStorageProfileStorage|localStorageFlag|createIdbProvider|useLocalStorage|hostCollection\(|hostValues\(|storage\(\)/;
 /** What the app's keys look like. */
 const KEY_LIKE = /^(thoremin[-.:]|taglog\.|recording\.)/;
 /** The declarations: the registry and each extension's `stores.ts`. */

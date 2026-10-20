@@ -9,7 +9,8 @@
  * before moving to the next cue, instead of deciding for itself.
  */
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { hostValues, noopValues } from '@thoremin/sdk-ui/storage';
 import { TRAINER_STORES } from '../stores';
 
 interface TrainerPrefs {
@@ -33,6 +34,8 @@ export const useTrainerPrefs = create<TrainerPrefs>()(
       manualAdvance: false,
       setManualAdvance: (on) => set({ manualAdvance: on }),
     }),
-    { name: TRAINER_STORES.prefs.legacyKey },
+    // The host's key-value target (the storage seam, #659: localStorage in the browser, as
+    // zustand's default was); a no-op where the host has none (Node).
+    { name: TRAINER_STORES.prefs.legacyKey, storage: createJSONStorage(() => hostValues(noopValues)) },
   ),
 );

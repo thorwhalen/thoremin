@@ -3,9 +3,11 @@
  * collection (core's and an extension's) defaults to its `DataProvider` through this seam, and an
  * extension reaches a store it declared through {@link storage}, so the app picks the storage
  * target once, in the shell ({@link provideStorage}), instead of each store constructing a
- * localStorage provider itself. The stores #659 lists that still build their own localStorage provider (tool pins, the
- * legacy categorizer copies, the profiles and the persist stores) stay where they are on a host swap. An extension names the store it declared (`Extension.stores`,
- * a `StoreDecl`), never a provider.
+ * localStorage provider itself. A store that is not a collection (a zustand `persist` store, the
+ * instrument profiles, a single JSON blob) reaches the host's KEY-VALUE target instead,
+ * {@link hostValues}: the same choice, made in the same place. The legacy categorizer copies and
+ * bound sets (migration sources, #659) stay where they are on a host swap. An extension names the
+ * store it declared (`Extension.stores`, a `StoreDecl`), never a provider.
  *
  * The default target, until a host provides another, is the browser's localStorage under the
  * store's key, which is exactly what every store used before this seam: nothing moves. A store
@@ -25,9 +27,23 @@ export interface StoreKey {
   legacyKey: string;
 }
 
-/** What the shell provides: a collection's provider for a store key. */
+/** A synchronous string store by key: the shape zustand's `persist` reads (`StateStorage`) and
+ *  `localStorage` already has. */
+export interface ValueStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+/** What the shell provides: a collection's provider for a store key, and the key-value target
+ *  (`null` where it has none, e.g. plain Node: each store then uses its own fallback). A host that
+ *  leaves `values` out keeps the default key-value target (localStorage), never nothing: a host
+ *  that swaps only the collections must not silently drop the instruments and the controls.
+ *  A host whose key-value target is not localStorage must be installed before the persist stores
+ *  are created (they hydrate once, then): the shell's is the first import of `src/app/App.tsx`. */
 export interface StorageHost {
   collection<T extends StoredRecord>(key: string): DataProvider<T>;
+  values?(): ValueStorage | null;
 }
 
 /** A collection in the browser's localStorage under `storageKey`, searchable by name: the default
@@ -36,7 +52,20 @@ export function localStorageCollectionProvider<T extends StoredRecord>(storageKe
   return createLocalStorageProvider<T & Record<string, unknown>>({ storageKey, searchFields: ['name'] }) as DataProvider<T>;
 }
 
-const LOCAL_STORAGE: StorageHost = { collection: localStorageCollectionProvider };
+/** The global `localStorage` (the browser's; whatever a test installed in its place), or `null`
+ *  where there is none (plain Node) or reading it throws (storage disabled): the default
+ *  key-value target, and the one the shell installs today. Read on every call, as the stores
+ *  that used the global directly did. */
+export function localStorageValues(): ValueStorage | null {
+  try {
+    const ls = (globalThis as { localStorage?: ValueStorage | null }).localStorage;
+    return ls ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const LOCAL_STORAGE: StorageHost = { collection: localStorageCollectionProvider, values: localStorageValues };
 let host: StorageHost = LOCAL_STORAGE;
 
 /** Install the app's storage target (the shell, once); `null` restores the default. Returns the
@@ -96,4 +125,37 @@ export function hostCollection<T extends StoredRecord>(key: string): DataProvide
 /** The storage seam as an extension reads it: the collection of a store it declared. */
 export function storage(): { collection<T extends StoredRecord>(store: StoreKey): DataProvider<T> } {
   return { collection: <T extends StoredRecord>(store: StoreKey) => hostCollection<T>(store.legacyKey) };
+}
+
+/** A key-value store that keeps nothing: a fallback for a store that must not persist off the browser. */
+export const noopValues: ValueStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+
+/** A key-value store in memory: a fallback for a store that keeps its writes for the session. */
+export function memoryValues(): ValueStorage {
+  const m = new Map<string, string>();
+  return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
+}
+
+/**
+ * The host's key-value target, resolved on EVERY call (so a store made at module load, before the
+ * shell installed its target, still follows the shell), or `fallback` while the host has none.
+ * A zustand store passes it to `createJSONStorage(() => hostValues(fallback))`.
+ */
+export function hostValues(fallback: ValueStorage): ValueStorage {
+  const target = (): ValueStorage => currentValues() ?? fallback;
+  return {
+    getItem: (key) => target().getItem(key),
+    setItem: (key, value) => target().setItem(key, value),
+    removeItem: (key) => target().removeItem(key),
+  };
+}
+
+/** Whether the host has a key-value target now (false in plain Node with the default host). */
+export function hasHostValues(): boolean {
+  return currentValues() !== null;
+}
+
+/** The installed host's key-value target; the default one when the host declares none. */
+function currentValues(): ValueStorage | null {
+  return host.values ? host.values() : localStorageValues();
 }

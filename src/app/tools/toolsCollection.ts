@@ -22,7 +22,7 @@
 import { z } from 'zod';
 import { defineCollection } from '@zodal/core';
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { createLocalStorageProvider } from '@zodal/store-localstorage';
+import { hostCollection } from '@thoremin/sdk-ui/storage';
 import { ToolSchema, TOOLS, type Tool } from './tools';
 
 /** The fields a launcher search matches (the text a player reads on the row). */
@@ -84,14 +84,15 @@ export const toolPinsCollection = defineCollection(ToolPinSchema, {
 /** localStorage key (the browser default target). */
 export const TOOL_PINS_STORAGE_KEY = 'thoremin.toolPins';
 
-/** The pins' provider: localStorage in the browser; pass any other `DataProvider` (in
- *  memory in tests, files or cloud later) without touching a caller. */
+/** The pins' provider: the host's storage target in the browser (the SDK's storage seam, #659:
+ *  localStorage under this key today); pass any other `DataProvider` (in memory in tests)
+ *  without touching a caller. */
 export function createToolPinsProvider(): DataProvider<ToolPin> {
   // The adapter only touches localStorage when it reads or writes, so ask up front: a
   // non-browser host (plain Node) gets an in-memory store rather than a throw per write.
   return typeof localStorage === 'undefined'
     ? createInMemoryProvider<ToolPin>([], { idField: 'id' })
-    : createLocalStorageProvider<ToolPin>({ storageKey: TOOL_PINS_STORAGE_KEY, idField: 'id' });
+    : hostCollection<ToolPin>(TOOL_PINS_STORAGE_KEY);
 }
 
 /** Write one pin choice: the provider's `upsert` when it has one (it is optional in the

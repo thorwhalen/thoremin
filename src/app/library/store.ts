@@ -10,8 +10,8 @@
  *    for a collection, exercised end-to-end here.
  *  - **Per-instrument metadata** (a favorite flag + applied custom-tag ids, keyed by
  *    instrument name) is an attribute map, not a browsable list, so it is a single
- *    Zod-validated JSON blob behind a tiny localStorage seam (mirroring how the existing
- *    `getDefaultName`/selected-name scalars persist in `@/app/dials/instruments`). The
+ *    Zod-validated JSON blob in the storage seam's key-value target (#659; localStorage
+ *    today, like the `getDefaultName`/selected-name scalars in `@/app/dials/instruments`). The
  *    single **default** pointer stays where it already lives (that module).
  *
  * Everything here is framework-agnostic and unit-tested (the pure map helpers directly;
@@ -19,7 +19,7 @@
  * ({@link ./useLibrary}) stays a thin adapter.
  */
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { hostCollection } from '@thoremin/sdk-ui/storage';
+import { hasHostValues, hostCollection, hostValues, noopValues } from '@thoremin/sdk-ui/storage';
 import {
   TagSchema,
   InstrumentMetaSchema,
@@ -142,9 +142,9 @@ export async function deleteTag(id: string): Promise<InstrumentMetaMap> {
 
 /** Read the per-instrument metadata map (empty + healed if absent/corrupt). */
 export async function readInstrumentMeta(): Promise<InstrumentMetaMap> {
-  if (!hasLocalStorage()) return { ...memoryMeta };
+  if (!hasHostValues()) return { ...memoryMeta };
   try {
-    const raw = localStorage.getItem(META_KEY);
+    const raw = metaValues.getItem(META_KEY);
     if (!raw) return {};
     return healInstrumentMetaMap(JSON.parse(raw));
   } catch {
@@ -171,12 +171,12 @@ export function healInstrumentMetaMap(raw: unknown): InstrumentMetaMap {
 /** Persist the per-instrument metadata map. */
 export async function writeInstrumentMeta(map: InstrumentMetaMap): Promise<void> {
   const validated = InstrumentMetaMapSchema.parse(map);
-  if (!hasLocalStorage()) {
+  if (!hasHostValues()) {
     memoryMeta = { ...validated };
     return;
   }
   try {
-    localStorage.setItem(META_KEY, JSON.stringify(validated));
+    metaValues.setItem(META_KEY, JSON.stringify(validated));
   } catch {
     /* storage full / disabled — metadata is best-effort */
   }
@@ -184,6 +184,10 @@ export async function writeInstrumentMeta(map: InstrumentMetaMap): Promise<void>
 
 /** In-memory fallback for the meta blob (Node runtime / disabled storage). */
 let memoryMeta: InstrumentMetaMap = {};
+
+/** The meta blob's target: the host's key-value store (the SDK's storage seam, #659; localStorage
+ *  under its key today), used only while the host has one (else {@link memoryMeta}). */
+const metaValues = hostValues(noopValues);
 
 // --- Pure map helpers (unit-tested directly) --------------------------------------
 

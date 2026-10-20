@@ -4,6 +4,7 @@
  * that heals a rehydrated one, and the storage (localStorage in a browser, nothing elsewhere).
  */
 import type { StateStorage } from 'zustand/middleware';
+import { hostValues, noopValues } from '@thoremin/sdk-ui/storage';
 import { FACE_MAPPINGS, legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { extensionTransientDefaults } from '@/settings/schema';
 import { assertNoCoreClash, CONTRIBUTIONS } from '@/host/contributions';
@@ -84,13 +85,8 @@ function keptTransients(current: ControlState): Partial<ControlState> {
   return Object.fromEntries(Object.keys(extensionTransientDefaults()).map((f) => [f, c[f]])) as Partial<ControlState>;
 }
 
-// localStorage in the browser; a no-op elsewhere (Node test runtime) so the
-// persist middleware never references a missing `window`/`localStorage`.
-const noopStorage: StateStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {},
-};
-export const controlsStorage = (): StateStorage =>
-  typeof window !== 'undefined' && window.localStorage ? window.localStorage : noopStorage;
+// The host's key-value target (the SDK's storage seam, #659: localStorage in the browser, under
+// this store's key); a no-op where the host has none (Node test runtime), so the persist
+// middleware never references a missing `window`/`localStorage`.
+export const controlsStorage = (): StateStorage => hostValues(noopValues);
 
