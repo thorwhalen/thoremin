@@ -84,7 +84,7 @@ import type { AudioHeard } from '../lib/audio_heard';
 import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
-import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
+import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;

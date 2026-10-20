@@ -11,7 +11,7 @@ import { describeChordWheelLive, useChordWheelStatus } from '../app/chordWheelSt
 import { DEFAULT_FACE_MOVES, WHEEL_MOVES, WHEEL_MOVE_SETS, WHEEL_STEER, type ChordWheelDialParams } from '../nodes/chord_wheel';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { EMOTIONS, type Emotion } from '@thoremin/sdk/music/expression';
-import { PLAYER_HANDS } from '../nodes/air_bass';
+import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
 
 const STEER_LABEL: Record<ChordWheelDialParams['steer'], string> = {
   hand: 'the hand (push toward a move)',

@@ -43,7 +43,7 @@ import type { FaceFeatures, HandsFrame, SynthParams, VoiceParams } from '@thorem
 import { EMPTY_CELL_GRID, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
-import { PLAYER_HANDS, labelFor } from './air_bass';
+import { PLAYER_HANDS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 import { CHORD_MAP_POINTS, displayPoint } from './chord_map';
 
 /** The moves each wheel offers, clockwise from the top. The diatonic wheel puts each move

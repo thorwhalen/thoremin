@@ -1,27 +1,29 @@
 /**
- * A build that ships the air extension and not the conductor slice (#697): the chord chart needs
+ * A build that ships the harmony slice and not the conductor slice (#697): the chord chart needs
  * the conductor's beat and piece, so its catalog row, its editor section and the seed "Conduct the
  * Chords" are withheld, the derivation leaves the `chord-chart` branch out when its dial is on, and
- * every instrument the air extension still seeds composes. The build is folded from the air
- * manifest alone, as `extensions.json` would list it.
+ * every instrument the air extension and the harmony slice still seed composes. The build is
+ * folded from those two manifests alone, as `extensions.json` would list them (the harmony slice's
+ * rows are listed under the air extension's class, #705).
  */
 import { describe, expect, it } from 'vitest';
 import AIR_EXTENSION from '@thoremin/ext-air';
+import HARMONY_EXTENSION from '@thoremin/ext-harmony';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { foldContributions } from '@/host/contributions';
 import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { composeGraph } from '@/instruments';
 import { deriveBranchIds, type DerivationSettings, type DerivationTable } from '@/instruments/derive';
 import { CATEGORY_TARGET, CHORD_TARGET, MERGE_TARGET, resolveSlots } from '@/app/graph';
-import { AIR } from '../helpers/extensions';
+import { AIR, HARMONY } from '../helpers/extensions';
 
-const fold = foldContributions([AIR_EXTENSION as unknown as Extension]);
+const fold = foldContributions([AIR_EXTENSION, HARMONY_EXTENSION] as unknown as Extension[]);
 const library = [...CORE_BRANCHES, ...fold.branches];
 const table: DerivationTable = { knownBranchIds: new Set(library.map((b) => b.id)), extensions: fold.extensions, implying: library };
 const compose = (settings: DerivationSettings) =>
   composeGraph(['trunk', ...deriveBranchIds(settings, {}, table)], library, { slots: resolveSlots(), merge: MERGE_TARGET, chords: CHORD_TARGET, categories: CATEGORY_TARGET });
 
-describe.runIf(AIR)('air without the conductor slice (#697)', () => {
+describe.runIf(AIR && HARMONY)('the chord instruments without the conductor slice (#697)', () => {
   it('withholds the chord chart: its catalog row, its seed', () => {
     expect(fold.withheld.catalog).toEqual(['chart']);
     expect(fold.withheld.instruments).toEqual(['Conduct the Chords']);
@@ -37,7 +39,7 @@ describe.runIf(AIR)('air without the conductor slice (#697)', () => {
     expect(deriveBranchIds(settings, { explicit: ['field-voices', 'chord-chart'] }, table)).toEqual(['field-voices']);
   });
 
-  it('every instrument it still seeds composes', () => {
+  it('every instrument they still seed composes', () => {
     expect(fold.instruments.length).toBeGreaterThan(0);
     for (const { name, patch } of fold.instruments) expect(() => compose(patch as DerivationSettings), name).not.toThrow();
   });

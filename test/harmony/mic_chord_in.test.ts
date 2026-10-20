@@ -4,8 +4,8 @@
  * said apart.
  */
 import { describe, it, expect } from 'vitest';
-import { magnitudesOf, startMicChordIn, type MicLike } from '@thoremin/ext-air/app/micChordIn';
-import type { AudioHeard } from '@thoremin/ext-air/lib/audio_heard';
+import { magnitudesOf, startMicChordIn, type MicLike } from '@thoremin/ext-harmony/app/micChordIn';
+import type { AudioHeard } from '@thoremin/ext-harmony/lib/audio_heard';
 
 const store = (follow: string) => {
   let state = { chordMap: { enabled: true, follow } };

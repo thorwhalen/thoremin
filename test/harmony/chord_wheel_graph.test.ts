@@ -12,14 +12,14 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { useControls } from '@/app/store';
 import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
-import { DEFAULT_CHORD_WHEEL } from '@thoremin/ext-air/dials';
+import { DEFAULT_CHORD_WHEEL } from '@thoremin/ext-harmony/dials';
 import { makeRecordingCanvas } from '../helpers/canvas';
 import { palmAt, W, H } from './synthetic_chord_map';
-import { wheelRegion } from '@thoremin/ext-air/nodes/chord_wheel';
+import { wheelRegion } from '@thoremin/ext-harmony/nodes/chord_wheel';
 import { radial } from '@thoremin/sdk/harmony/layout';
-import { AIR } from '../helpers/extensions';
+import { HARMONY } from '../helpers/extensions';
 
-describe.runIf(AIR)('the chord wheel in the composed graph', () => {
+describe.runIf(HARMONY)('the chord wheel in the composed graph', () => {
   it('the shipped chord wheels compose its branch', () => {
     for (const name of ['Chord Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel']) {
       const settings = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === name)!.layer);

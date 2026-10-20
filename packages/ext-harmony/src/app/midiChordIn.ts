@@ -9,7 +9,7 @@
  * per input and channel; a held sustain pedal keeps released notes held, as a pianist expects.
  * The `startPatternPlaySync` pattern.
  */
-import { airControls } from './controls';
+import { harmonyControls } from './controls';
 
 import { createHeldNotes, type MidiHeld } from '../lib/midi_held';
 
@@ -39,8 +39,8 @@ const browserRequest = (): (() => Promise<MidiAccessLike>) | null => {
 
 /** Start watching the dial; listens only while the map follows MIDI. Returns the unsubscribe. */
 export function startMidiChordIn(deps: MidiChordInDeps = {}): () => void {
-  const store = deps.store ?? (airControls.store() as unknown as NonNullable<MidiChordInDeps['store']>);
-  const publish = deps.publish ?? ((held) => airControls.setTransient('chordMapMidi', held));
+  const store = deps.store ?? (harmonyControls.store() as unknown as NonNullable<MidiChordInDeps['store']>);
+  const publish = deps.publish ?? ((held) => harmonyControls.setTransient('chordMapMidi', held));
   const request = deps.request === undefined ? browserRequest() : deps.request;
   let access: MidiAccessLike | null = null;
   let listening = false;

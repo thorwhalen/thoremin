@@ -6,8 +6,8 @@
  * seventh chords held, named and strummed.
  */
 import { describe, it, expect } from 'vitest';
-import { diatonicChords, melodyNotesFor, pentatonicOf, scaleOf, setForTilt, setLadder, layoutCells } from '@thoremin/ext-air/lib/chord_map';
-import { chordMapNode, chordMapRegions, handTilt, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE, type ChordMapStatus } from '@thoremin/ext-air/nodes/chord_map';
+import { diatonicChords, melodyNotesFor, pentatonicOf, scaleOf, setForTilt, setLadder, layoutCells } from '@thoremin/ext-harmony/lib/chord_map';
+import { chordMapNode, chordMapRegions, handTilt, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE, type ChordMapStatus } from '@thoremin/ext-harmony/nodes/chord_map';
 import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi, midiToName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { makeHandKeypoints, type Hand, type HandsFrame, type SynthParams } from '@thoremin/sdk/nodes/domain';

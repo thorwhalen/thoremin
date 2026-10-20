@@ -12,19 +12,19 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { DEFAULT_CHORD_MAP } from '@thoremin/ext-air/dials';
-import { chordMapRegions, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-air/nodes/chord_map';
-import { layoutCells } from '@thoremin/ext-air/lib/chord_map';
+import { DEFAULT_CHORD_MAP } from '@thoremin/ext-harmony/dials';
+import { chordMapRegions, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE } from '@thoremin/ext-harmony/nodes/chord_map';
+import { layoutCells } from '@thoremin/ext-harmony/lib/chord_map';
 import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { chordMapTake, W, H } from './synthetic_chord_map';
-import { AIR } from '../helpers/extensions';
+import { HARMONY } from '../helpers/extensions';
 
 const VOICE = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
 const tonic = () => layoutCells('harmonic', chordMapRegions('left', 0.65).chords, { aspect: W / H, cellSize: 0.2 }).find((c) => c.q === 0 && c.r === 0)!;
 
-describe.runIf(AIR)('the chord map in the default graph', () => {
+describe.runIf(HARMONY)('the chord map in the default graph', () => {
   it('wires the dial, the key, the chord settings, the octave shift, the hands, the strums, the voices and the grid', () => {
     const g = defaultGraph();
     const has = (fn: string, fp: string, tn: string, tp: string) =>

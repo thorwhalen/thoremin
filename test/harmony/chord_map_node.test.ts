@@ -7,9 +7,9 @@
  * overlay draws.
  */
 import { describe, it, expect } from 'vitest';
-import { chordMapNode, chordMapRegions, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE, type ChordMapStatus } from '@thoremin/ext-air/nodes/chord_map';
+import { chordMapNode, chordMapRegions, CHORD_MAP_MELODY_VOICE_ID, CHORD_MAP_VOICE_ID_BASE, type ChordMapStatus } from '@thoremin/ext-harmony/nodes/chord_map';
 import type { NoteEvent } from '@thoremin/sdk/nodes/note_events';
-import { diatonicChords, layoutCells, melodyLadder, type ChordMapLayoutId } from '@thoremin/ext-air/lib/chord_map';
+import { diatonicChords, layoutCells, melodyLadder, type ChordMapLayoutId } from '@thoremin/ext-harmony/lib/chord_map';
 import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { ABSENT_FACE, type FaceFeatures, type HandsFrame, type SynthParams } from '@thoremin/sdk/nodes/domain';

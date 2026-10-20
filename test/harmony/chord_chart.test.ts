@@ -7,12 +7,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { loadScore } from '@/slices/conductor/score/load';
-import { chartAt, chartOfScore } from '@thoremin/ext-air/lib/chord_chart';
-import { chordChartNode, CHORD_CHART_VOICE_ID_BASE, type ChordChartStatus } from '@thoremin/ext-air/nodes/chord_chart';
+import { chartAt, chartOfScore } from '@thoremin/ext-harmony/lib/chord_chart';
+import { chordChartNode, CHORD_CHART_VOICE_ID_BASE, type ChordChartStatus } from '@thoremin/ext-harmony/nodes/chord_chart';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import { AIR } from '../helpers/extensions';
+import { CONDUCTOR, HARMONY } from '../helpers/extensions';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
@@ -34,7 +34,7 @@ const DOC = {
   lengthBeats: 8,
 } as unknown as ScoreDoc;
 
-describe.runIf(AIR)('the chord chart', () => {
+describe.runIf(HARMONY)('the chord chart', () => {
   it('reads a score\'s chords beat by beat, passing tones and drums aside, and walks it', () => {
     const chart = chartOfScore(DOC);
     expect(chart.segments.map((s) => [s.beat, s.chord.root, s.chord.quality])).toEqual([
@@ -61,7 +61,7 @@ describe.runIf(AIR)('the chord chart', () => {
   });
 });
 
-describe.runIf(AIR)('the chord-chart node', () => {
+describe.runIf(HARMONY)('the chord-chart node', () => {
   interface Out {
     params: SynthParams;
     status: ChordChartStatus;
@@ -108,7 +108,8 @@ describe.runIf(AIR)('the chord-chart node', () => {
   });
 });
 
-describe.runIf(AIR)('Conduct the Chords', () => {
+// The seed conducts: it is shipped only with the conductor slice (#697).
+describe.runIf(HARMONY && CONDUCTOR)('Conduct the Chords', () => {
   it('composes the chart with the conductor, the piece and the beat wired in', () => {
     const settings = settingsFromLayer(SEED_INSTRUMENTS.find((s) => s.name === 'Conduct the Chords')!.layer);
     expect(settings.chordChart.enabled).toBe(true);

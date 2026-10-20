@@ -1,0 +1,40 @@
+{
+  "name": "@thoremin/ext-harmony",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's chord instruments (the chord map, the chord wheel, the chord chart) as an extension: the harmony slice. Imports only the SDK packages. TypeScript source, consumed through the workspace.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app/chordChartStatus": "./src/app/chordChartStatus.ts",
+    "./app/chordMapStatus": "./src/app/chordMapStatus.ts",
+    "./app/chordWheelStatus": "./src/app/chordWheelStatus.ts",
+    "./app/controls": "./src/app/controls.ts",
+    "./app/micChordIn": "./src/app/micChordIn.ts",
+    "./app/midiChordIn": "./src/app/midiChordIn.ts",
+    "./branches": "./src/branches.ts",
+    "./dials": "./src/dials.ts",
+    "./id": "./src/id.ts",
+    "./lib/audio_heard": "./src/lib/audio_heard.ts",
+    "./lib/chord_chart": "./src/lib/chord_chart.ts",
+    "./lib/chord_map": "./src/lib/chord_map.ts",
+    "./lib/midi_held": "./src/lib/midi_held.ts",
+    "./nodes/chord_chart": "./src/nodes/chord_chart.ts",
+    "./nodes/chord_map": "./src/nodes/chord_map.ts",
+    "./nodes/chord_wheel": "./src/nodes/chord_wheel.ts",
+    "./panels/chordChart": "./src/panels/chordChart.tsx",
+    "./panels/chordMap": "./src/panels/chordMap.tsx",
+    "./panels/chordWheel": "./src/panels/chordWheel.tsx",
+    "./ui": "./src/ui.tsx"
+  },
+  "dependencies": {
+    "@thoremin/dag": "*",
+    "@thoremin/sdk": "*",
+    "@thoremin/sdk-ui": "*",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "peerDependencies": {
+    "react": "*"
+  }
+}

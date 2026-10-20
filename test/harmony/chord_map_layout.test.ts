@@ -1,5 +1,5 @@
 /**
- * The chord map's layouts (`@thoremin/ext-air/lib/chord_map`): a key's chords, spelled in the
+ * The chord map's layouts (`@thoremin/ext-harmony/lib/chord_map`): a key's chords, spelled in the
  * key; the harmonic map's three axes (a fourth across, a third and a second on the diagonals)
  * and its neighbourhoods (every other chord of the key exactly once around each cell); the one-
  * row layouts' orders; the geometry in display fractions; choosing a cell with hysteresis, a
@@ -25,7 +25,7 @@ import {
   sharedTones,
   type MapCell,
   type Region,
-} from '@thoremin/ext-air/lib/chord_map';
+} from '@thoremin/ext-harmony/lib/chord_map';
 import { midiToName, type ScaleSpec } from '@thoremin/sdk/music/theory';
 
 const key = (root: number, type: ScaleSpec['type']): ScaleSpec => ({ root, type, octaves: 2, baseOctave: 3 });
