@@ -42,7 +42,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
   const ALL_ELEMENTS = withContributed<OverlayElement>(OVERLAY_ELEMENTS, adapted, drawBeforeOf(contributed));
   const ALL_NAMES: ReadonlySet<string> = new Set(ALL_ELEMENTS.map((e) => e.name));
   const contributedPorts = contributed.flatMap((c) => Object.entries(c.ports).map(([input, port]) => ({ name: port, kind: c.kinds[input] })));
-  // The category pools (#600 S10b): the legacy ASL ports first, as a classifier ahead of the pool.
+  // The category pools (#600 S10b): the composer allocates a slot per reader a branch declares.
   const classifierSlots = categoryPool('classifier', categoryPools.classifier);
   const categorizerSlots = categoryPool('categorizer', categoryPools.categorizer);
   return defineNode<Params>({
@@ -124,10 +124,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               tagOverlay,
               trainerHud: trainerHudSnapshot,
               ...pickCategories(
-                [
-                  { scores: inputs.categories as CategoryScores | null | undefined, captions: inputs.categoryCaptions as readonly string[] | null | undefined },
-                  ...classifierSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined, captions: inputs[captionsPort(slot)] as readonly string[] | null | undefined })),
-                ],
+                classifierSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined, captions: inputs[captionsPort(slot)] as readonly string[] | null | undefined })),
                 categorizerSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined })),
               ),
             },

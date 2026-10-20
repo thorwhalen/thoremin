@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
-import { canvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
+import { makeCanvasOverlayNode, OVERLAY_ELEMENTS } from '@/nodes/output/canvas_overlay';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 
 interface Call {
@@ -28,9 +28,11 @@ const only = (names: string[], extra: Record<string, unknown> = {}) => ({
 
 function run(categories: CategoryScores | null, captions: string[] | null = null, params = only(['categoryLabel', 'categoryBars'])) {
   const rc = makeCanvas();
-  const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(params));
+  // The reader sits in the overlay's classifier pool, as the composer wires a branch's `categories`.
+  const node = makeCanvasOverlayNode([], { classifier: 1, categorizer: 0 });
+  const handlers = node.make(node.params.parse(params));
   const ctx: NodeContext = { tick: 0, time: 1, dt: 0, resources: { canvas: rc.canvas } };
-  handlers.process({ categories, categoryCaptions: captions }, ctx);
+  handlers.process({ classifier1: categories, classifier1Captions: captions }, ctx);
   return rc;
 }
 
