@@ -262,6 +262,8 @@ export const UNSTAMPED_SOURCE = 'none';
 export const AGE_EW_GAIN = 0.1;
 /** Gain of the exponentially weighted pair reading. */
 export const PAIR_EW_GAIN = 0.1;
+/** The longest schedule-to-speaker the pair is believed to say (seconds); a longer one is stale. */
+export const MAX_PAIR_S = 1;
 /** The delivered rate needs at least this many capture-stamped frames in the window. */
 export const MIN_FRAMES_FOR_RATE = 8;
 
@@ -395,7 +397,11 @@ export class TimingTracker implements Tap {
       this.cached = null;
     }
     const pair = pairScheduleToSpeaker(ac, now);
-    if (!Number.isFinite(pair)) return;
+    // A pair no output stage can produce is not a sample: a context resumed from a suspend
+    // can hand back the pair it had before it (its performance time seconds old against a
+    // context clock that did not move), which reads as minus the suspended time; right after
+    // an epoch reset that one reading would BE the estimate for the next eighty ticks.
+    if (!Number.isFinite(pair) || pair < 0 || pair > MAX_PAIR_S) return;
     this.pairEw = ewUpdate(this.pairEw, pair, PAIR_EW_GAIN);
     this.cached = null;
   }
