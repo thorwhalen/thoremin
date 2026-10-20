@@ -39,6 +39,7 @@ import {
   memberIndices,
   neutralSampleIndices,
   sampleIndex,
+  supportOption,
   toSample,
   type CategorizerSample,
   type CategorizerStrangers,
@@ -525,6 +526,7 @@ export function recut(c: PersonalCategorizer, k: number, options: RecutOptions =
       const trained = trainModel(vectors, clusters, c.features, c.weights, {
         restVectors: options.rest ?? [],
         defaultRejectRadius: options.baseRejectRadius ?? c.rejectRadius,
+        ...supportOption(c),
       });
       extra = { rejectRadius: trained.rejectRadius };
     }
@@ -551,8 +553,29 @@ export function setStrangers(c: PersonalCategorizer, strangers: CategorizerStran
     const trained = trainModel(vectors, memberIndices(c), c.features, c.weights, {
       restVectors,
       defaultRejectRadius: options.baseRejectRadius ?? c.rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius,
+      ...supportOption(c),
     });
     return PersonalCategorizerSchema.parse({ ...rest, strangers, rejectRadius: trained.rejectRadius });
+  });
+}
+
+/** Measure the categories' radii from the holds' supporting frames too, or from the still-points
+ *  only (#413). The reject radius of a `neutral` categorizer is re-derived under the new setting
+ *  (from its Neutral holds, floored to accept the categories' holds). */
+export function setRadiusFrom(c: PersonalCategorizer, radiusFrom: 'holds' | 'frames'): SortResult {
+  if ((c.radiusFrom ?? 'holds') === radiusFrom) return { ok: true, categorizer: c };
+  return done(() => {
+    const { radiusFrom: _r, ...rest } = c;
+    void _r;
+    const next = radiusFrom === 'frames' ? { ...rest, radiusFrom } : rest;
+    if (c.strangers !== 'neutral') return PersonalCategorizerSchema.parse(next);
+    const vectors = c.samples.map((x) => x.vector);
+    const trained = trainModel(vectors, memberIndices(c), c.features, c.weights, {
+      restVectors: neutralSampleIndices(c).map((i) => vectors[i]),
+      defaultRejectRadius: c.rejectRadius ?? TRAIN_DEFAULTS.defaultRejectRadius,
+      ...supportOption(next as PersonalCategorizer),
+    });
+    return PersonalCategorizerSchema.parse({ ...next, rejectRadius: Math.max(trained.rejectRadius, c.rejectRadius ?? 0) });
   });
 }
 

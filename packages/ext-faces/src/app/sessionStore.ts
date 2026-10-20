@@ -72,6 +72,7 @@ import {
   recutBounds,
   recutRange,
   setNeutralTrained,
+  setRadiusFrom as setRadiusFromOf,
   setStrangers as setStrangersOf,
   splitCategory,
   type Place,
@@ -325,6 +326,7 @@ export interface FaceSessionState {
   skipSetup(): void;
   /** Train the Neutral holds of an older categorizer (migrated with them untrained). Undoable. */
   teachNeutral(): boolean;
+  setRadiusFrom(from: 'holds' | 'frames'): boolean; // radii from the holds' frames too (#413), undoable
   setK(k: number): void;
   rename(id: string, label: string): void;
   save(name: string): Promise<boolean>;
@@ -1290,8 +1292,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
           return;
         }
         if (strangers === working.strangers) return;
-        // Neutral is taught by example in both settings, so the switch moves no hold and re-cuts
-        // nothing: it says only what a face far from every category reads as.
+        // Neutral is taught by example in both settings: the switch moves no hold, re-cuts nothing.
         edit((w) => setStrangersOf(w, strangers, recutOptions()));
       },
 
@@ -1361,9 +1362,8 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
         set({ setupStep: take.setupStep() });
       },
 
-      teachNeutral() {
-        return edit((w) => setNeutralTrained(w, true));
-      },
+      teachNeutral() { return edit((w) => setNeutralTrained(w, true)); },
+      setRadiusFrom(from) { return edit((w) => setRadiusFromOf(w, from)); },
 
       setK(k) {
         const { working, view } = get();

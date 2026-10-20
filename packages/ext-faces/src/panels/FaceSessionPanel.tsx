@@ -119,6 +119,15 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
   return (
     <div className="space-y-3">
       <StrangersSwitch strangers={view.strangers} setStrangers={s.setStrangers} words={words} />
+      {s.working?.samples.some((x) => x.support?.length) && (
+        <div className="space-y-0.5" data-faces-radius-from>
+          <label className="flex items-center gap-2 text-[11px] text-white/80">
+            <input type="checkbox" checked={s.working.radiusFrom === 'frames'} onChange={(e) => s.setRadiusFrom(e.target.checked ? 'frames' : 'holds')} data-faces-radius-frames />
+            <span>{`Measure how far each category reaches from every frame of every ${words.one}, not just its average`}</span>
+          </label>
+          <p className={hint}>{`Wider and steadier: a ${words.one} that wobbles while you hold it stops reading as none of these. Undo puts it back.`}</p>
+        </div>
+      )}
       {s.modality.id === 'hand' && <HandChoiceSelect value={s.hand} onChange={s.setHand} />}
       {s.modality.id === 'body' && (
         <div className="space-y-0.5" data-poses-mirror>

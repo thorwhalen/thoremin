@@ -83,6 +83,14 @@ export interface TrainOptions {
    * still never rejects the holds it was trained on, a hold with features missing included.
    */
   renormalize?: boolean;
+  /**
+   * Each vector's supporting frames (the dwell its still-point was averaged from), aligned with
+   * `vectors` (#413). When given, a category's radius is the mean over its holds of the hold's mean
+   * frame distance from the centre (a hold without frames counts its still-point), and the reject
+   * floor counts every frame: the jitter inside a hold is part of what the category accepts. The
+   * centre and the clustering still use the still-points. Absent: today's radii, byte for byte.
+   */
+  supports?: readonly (readonly FeatureVector[] | undefined)[];
 }
 
 /** What `trainModel` uses when not told otherwise (a re-cut with no rest take starts from the
@@ -105,13 +113,22 @@ export function trainModel(
   const o = { ...TRAIN_DEFAULTS, ...options };
   const measure = o.renormalize ? presentDistance : weightedDistance;
   const categories: Category[] = [];
+  /** A hold's distance from a centre: its still-point's, or the mean of its frames' (#413). */
+  const frameDistances = (j: number, centre: FeatureVector): number[] => {
+    const frames = o.supports?.[j];
+    return frames && frames.length > 0 ? frames.map((f) => measure(f, centre, features, weights)) : [measure(vectors[j], centre, features, weights)];
+  };
+  const holdDistance = (j: number, centre: FeatureVector): number => {
+    if (!o.supports) return measure(vectors[j], centre, features, weights);
+    const d = frameDistances(j, centre);
+    return d.reduce((a, b) => a + b, 0) / d.length;
+  };
   clusters.forEach((idxs, i) => {
     if (idxs.length === 0) return;
     const members = idxs.map((j) => vectors[j]);
     const centroid = meanVector(members, features);
     const radius =
-      members.reduce((s, m) => s + measure(m, centroid, features, weights), 0) /
-      members.length;
+      idxs.reduce((s, j) => s + holdDistance(j, centroid), 0) / idxs.length;
     categories.push({
       id: `cat-${i + 1}`,
       label: '',
@@ -143,7 +160,10 @@ export function trainModel(
   clusters.forEach((idxs, i) => {
     const c = categories.find((x) => x.id === `cat-${i + 1}`);
     if (!c) return;
-    for (const j of idxs) memberDistances.push(measure(vectors[j], c.centroid, features, weights));
+    for (const j of idxs) {
+      if (o.supports) memberDistances.push(...frameDistances(j, c.centroid));
+      else memberDistances.push(measure(vectors[j], c.centroid, features, weights));
+    }
   });
   if (memberDistances.length > 0) {
     memberDistances.sort((a, b) => a - b);

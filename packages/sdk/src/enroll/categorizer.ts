@@ -134,7 +134,7 @@ const SampleSchema = z.object({
    *  with `features` (null where the feature was not measurable), rounded to
    *  {@link SUPPORT_DECIMALS} places: keyed vectors would repeat every feature's name per frame
    *  and multiply a saved record's size for evidence. An edit that changes `features` must
-   *  re-project or drop them. Evidence only: the derived model does not read them yet. */
+   *  re-project or drop them. The derived model reads them only when `radiusFrom` is `frames` (#413). */
   support: z.array(z.array(z.number().nullable())).max(MAX_SAMPLE_SUPPORT).optional(),
   /** The hold's stick figure (#382: a body pose's picture, which shows no one), drawn from its
    *  vector at capture by the modality and kept here so an imported or shared file still shows
@@ -177,6 +177,10 @@ export const PersonalCategorizerSchema = z
     /** The default-name vocabulary it was made for (#383): the body's `conductor` when made from
      *  the Conductor tool. Absent: chosen by coverage. Optional and additive, like `hand`. */
     vocabulary: z.string().min(1).optional(),
+    /** Where a category's radius is measured (#413): `holds` (absent; the still-points only, as every
+     *  file before it classified) or `frames` (the holds' supporting frames too, which also floors the
+     *  reject radius on every frame). Optional and additive: a build before it reads `holds`. */
+    radiusFrom: z.enum(['holds', 'frames']).optional(),
     /** ISO time of creation. Informational. */
     createdAt: z.string().optional(),
     /** The feature space: the ids distances use, in order. */
@@ -354,6 +358,23 @@ export function categorizerFromModel(
   });
 }
 
+/** `trainModel`'s `supports` option for a categorizer that measures its radii from frames (#413);
+ *  empty for one that does not, so its model is the one it always had. */
+export function supportOption(c: Pick<PersonalCategorizer, 'samples' | 'features' | 'radiusFrom'>): { supports?: (FeatureVector[] | undefined)[] } {
+  if (c.radiusFrom !== 'frames') return {};
+  return {
+    supports: c.samples.map((s) =>
+      s.support?.map((row) => {
+        const v: FeatureVector = {};
+        c.features.forEach((f, i) => {
+          if (row[i] !== null && row[i] !== undefined) v[f] = row[i]!;
+        });
+        return v;
+      }),
+    ),
+  };
+}
+
 /**
  * The live model a categorizer describes: centroids and radii recomputed from its samples,
  * its ids and labels kept, its cue counts filled, its reject radius from `strangers`, its
@@ -367,7 +388,7 @@ export function modelFromCategorizer(input: PersonalCategorizer, { renormalize =
   const vectors = c.samples.map((s) => s.vector);
   const members = memberIndices(c);
   // `renormalize` (#458): the radii measured as the live model reads (the body's poses).
-  const trained = trainModel(vectors, members, c.features, c.weights, renormalize ? { renormalize } : {});
+  const trained = trainModel(vectors, members, c.features, c.weights, { ...(renormalize ? { renormalize } : {}), ...supportOption(c) });
   // No category is empty (the schema refuses it), so `trainModel` kept them all, in order.
   const categories = trained.categories.map((cat, i) => {
     // Counted in a Map: a cue named `toString` would read as present on a `{}` (#338).
