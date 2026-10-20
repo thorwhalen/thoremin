@@ -30,6 +30,10 @@ export interface ThoreminDebugHandle {
   liveVectorTime(): number;
   /** The host audio graph, if the player has tapped to play. */
   audio(): { state: AudioContextState | null; masterGain: number | null };
+  /** The loudest sample (0..1) of the last ~46 ms at the master output, or null before audio is up:
+   *  what a smoke asserts for "this instrument is not silent". The analyser it reads through is
+   *  attached to the master gain on first use and only listens. */
+  level(): number | null;
 }
 
 export const DEBUG_HANDLE_KEY = 'thoremin';
@@ -42,9 +46,25 @@ declare global {
 
 /** Build the handle over an engine and the host resources bag. Pure; testable. */
 export function makeDebugHandle(engine: OutputReader, resources: Record<string, unknown>): ThoreminDebugHandle {
+  let analyser: AnalyserNode | null = null;
+  let buffer: Float32Array<ArrayBuffer> | null = null;
   return Object.freeze({
     getOutput: (nodeId: string, port: string) => engine.getOutput(nodeId, port),
     liveVectorTime: () => readLiveVector()?.t ?? 0,
+    level: () => {
+      const master = resources.masterGain as GainNode | undefined;
+      const ac = resources.audioContext as AudioContext | undefined;
+      if (!master || !ac || ac.state !== 'running') return null;
+      if (!analyser) {
+        analyser = ac.createAnalyser();
+        buffer = new Float32Array(analyser.fftSize);
+        master.connect(analyser);
+      }
+      analyser.getFloatTimeDomainData(buffer!);
+      let peak = 0;
+      for (const x of buffer!) peak = Math.max(peak, Math.abs(x));
+      return peak;
+    },
     audio: () => {
       const ac = resources.audioContext as AudioContext | undefined;
       const master = resources.masterGain as GainNode | undefined;

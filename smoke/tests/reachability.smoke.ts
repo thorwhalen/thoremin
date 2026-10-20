@@ -15,24 +15,11 @@
  *   - every settings section of the instrument editor expands to real controls,
  *     reached the way a player reaches it: instruments list → Edit → section.
  *
- * `tools.ts` and the extensions' tool modules are imported from the source (plain data with
- * no runtime imports), so the list of tools here can never drift from the one the shell renders.
+ * The list is `helpers/allTools.ts`, shared with the occlusion sweep, so it can never drift from the
+ * one the shell renders.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { TOOLS } from '../../src/app/tools';
-import { SONG_TOOL } from '../../src/slices/song/tool';
-import { CONDUCTOR_TOOL } from '../../src/slices/conductor/tool';
-import { LAB_TOOL } from '../../src/slices/lab/tool';
-import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from '../../packages/ext-faces/src/tools';
-
-/** A tool as the sweep needs it: core's entries, and an extension's (always a panel). */
-type SweptTool = Pick<(typeof TOOLS)[number], 'id' | 'label' | 'kind' | 'defaultPinned'>;
-
-/** Every shipped extension's tools (each a panel the shell frames). A slice that brings a tool adds
- *  its data module here; the launcher check below fails until it does. */
-const EXTENSION_TOOLS: readonly SweptTool[] = [CONDUCTOR_TOOL, SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({ id: t.id, label: t.label, kind: 'panel' as const, defaultPinned: t.defaultPinned }));
-
-const ALL_TOOLS: readonly SweptTool[] = [...TOOLS, ...EXTENSION_TOOLS];
+import { ALL_TOOLS, type SweptTool } from './helpers/allTools';
 
 const SYNTHETIC = '?slot.source=synthetic-hands';
 
