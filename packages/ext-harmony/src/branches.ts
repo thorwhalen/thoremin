@@ -120,6 +120,20 @@ export const chordWheelCategorizer = defineBranch({
 });
 
 /**
+ * Signs choose the chord map's chord: ASL's reading into the map, a letter A..G held lighting its
+ * chord. Composed only while the map follows signs; requires the ASL plugin's reader (left out of
+ * a build without the plugin, #697), whose own dial must be on for it to read.
+ */
+export const chordMapSigns = defineBranch({
+  id: 'chord-map-signs',
+  description: "Signs choose the chord map's chord: a fingerspelled letter A..G held a moment lights its chord, the other hand plays over it.",
+  requires: ['chord-map', 'asl-signs'],
+  nodes: [],
+  // The ASL plugin's reader node (`aslSigns`) and its category port.
+  edges: [to({ node: 'aslSigns', port: 'signs' }, { node: 'chordMap', port: 'signs' })],
+});
+
+/**
  * The face colours the chord map (H7 of #613): the face's smoothed controls into the map, whose
  * valence turns the key to its parallel major or minor and whose arousal adds tensions. Its own
  * branch, composed only while the face colours, so a hands-only map never loads the face model.
@@ -167,4 +181,4 @@ export const chordChart = defineBranch({
   chords: [{ from: { node: 'chordChart', port: 'triad' }, priority: 7 }],
 });
 
-export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordWheel, chordWheelFace, chordWheelSigns, chordWheelCategorizer, chordWheelAffect, chordChart] as const;
+export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordMapSigns, chordWheel, chordWheelFace, chordWheelSigns, chordWheelCategorizer, chordWheelAffect, chordChart] as const;

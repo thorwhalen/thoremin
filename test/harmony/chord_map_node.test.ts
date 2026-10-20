@@ -490,3 +490,38 @@ describe('the chord-map node, off', () => {
     expect(outs[outs.length - 1].out.status.chord).toBe('C');
   });
 });
+
+describe('the chord-map node, chords from signs', () => {
+  const D_MAJOR: ScaleSpec = { root: 2, type: 'major', octaves: 2, baseOctave: 3 };
+  const LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'L'];
+  function playSigns(signAt: (t: number) => string | null | undefined, config: Record<string, unknown> = {}, duration = 3) {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    return chordMapTake({ duration, chordAt: () => null, otherAt: () => ({ x: 0.85, y: 0.5 }) }).map((fr) => {
+      const label = signAt(fr.t!);
+      const signs = label === undefined ? { present: false, label: null, labels: LABELS, scores: [] } : { present: true, label, labels: LABELS, scores: [] };
+      return { t: fr.t!, out: h.process({ hands: fr, config: { ...ON, follow: 'signs', ...config }, spec: D_MAJOR, octaveShift: 0, signs }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out };
+    });
+  }
+  const at = (outs: { t: number; out: Out }[], t: number) => outs.find((o) => o.t >= t)!.out;
+
+  it("a letter held lights the key's chord on that letter, and the harmony stays through other shapes", () => {
+    const outs = playSigns((t) => (t < 1 ? 'F' : t < 2 ? 'L' : 'C'));
+    expect(at(outs, 0.6).status).toMatchObject({ chord: 'F#m', signs: 'reading', sign: 'F' });
+    expect(at(outs, 0.6).grid.cells.filter((c) => c.state === 'active').map((c) => c.label)).toContain('F#m');
+    expect(at(outs, 1.6).status.chord).toBe('F#m');
+    expect(at(outs, 2.6).status.chord).toBe('C#°');
+  });
+
+  it('a flicker shorter than the dwell changes nothing; nothing is lit before a letter', () => {
+    const outs = playSigns((t) => (t < 1 ? null : t < 1.1 ? 'G' : null));
+    expect(at(outs, 0.5).status).toMatchObject({ chord: null, signs: 'reading' });
+    expect(at(outs, 2).status.chord).toBeNull();
+    expect(playSigns(() => undefined).at(-1)!.out.status.signs).toBe('waiting');
+  });
+
+  it('the other hand plays the melody over the signed chord', () => {
+    const outs = playSigns(() => 'A', { melody: true });
+    expect(at(outs, 1).status.chord).toBe('A');
+    expect(melody(at(outs, 1).params).present).toBe(true);
+  });
+});

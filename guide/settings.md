@@ -49,7 +49,7 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 - **Which hand points**, and with what: the palm or a fingertip. **Chord size**: bigger chords are easier to hit, smaller ones show more of the map.
 - **Melody**: on or off, its notes (the chord's tones, a pentatonic, the whole scale, or chosen by tilting the hand), its volume and range. **Seventh chords** turns the key's chords into sevenths.
 - **Face**: whether your face colours the chords (a smile major, a frown minor; an open mouth with raised brows adds a seventh, then a ninth), and whether it is read against your face at rest.
-- **What chooses the chords**: your hand, a MIDI keyboard (Chrome or Edge), or the microphone. **Chords from**: the key's seven, or a pentatonic's own five.
+- **What chooses the chords**: your hand, a MIDI keyboard (Chrome or Edge), the microphone, or your signs: fingerspell a letter A to G and that letter's chord in the key lights up while your other hand plays over it (turn on **Sign language** too). **Chords from**: the key's seven, or a pentatonic's own five.
 - **Timing**: what keeps the beat (the Chord sound's tempo, or a song loaded in the Song tool), and whether a new chord waits for the next beat.
 - **Grid on the video**: draw the map over the video, or play it undrawn.
 
