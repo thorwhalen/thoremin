@@ -1,90 +1,90 @@
 {
  "hands/conducting_44/default": {
-  "hash": "f396062a6893624875be7c539915a0a84cf9bf9b50841429708cbccdbd4acacf",
+  "hash": "9dc090cf7d9d75c64e93132ab1574b4c101e7decaa3fc754a333e030fc6914ee",
   "ticks": 405,
   "running": 316,
   "holds": 31,
   "endBeat": 13.217
  },
  "hands/conducting_44/doc-fermata": {
-  "hash": "25a7cfec56d3c5485ae5017f3f5417f218664131095d7e405611134d669a3f7b",
+  "hash": "0f6a0adab7cb97464783cb4fc5d8304c734b74c38a28f97070185ceeb5d15ca9",
   "ticks": 405,
   "running": 284,
   "holds": 63,
   "endBeat": 12.215
  },
  "hands/conducting_34/default": {
-  "hash": "37b1e771ff05a88d9c17854a36f507db6a802041aae3d514f96e93ced6f2ede3",
+  "hash": "6f31647adb93f54a3047be21cc7891a0517c297c277913e4c3ac8e4a9873afd6",
   "ticks": 435,
   "running": 332,
   "holds": 67,
   "endBeat": 14.991
  },
  "hands/conducting_34/doc-fermata": {
-  "hash": "ea4b7da378ab977aa5f88b66484d2bb77207eb0c6e228d5bb82b15fbd21b0ae3",
+  "hash": "64ef44b94ccb109f78b5534c0a05010d95a23599c70a845abef228106ff89b2b",
   "ticks": 435,
   "running": 302,
   "holds": 97,
   "endBeat": 13.991
  },
  "hands/conducting_24/default": {
-  "hash": "b283e91d0fccce032178c31b19f4d146a83c14d78bb801ddcfdec55e460c9dbf",
+  "hash": "8a1e80481ddb079bb07358f5612419a0ca4ef36cc6a33dcaa467365d5e3dffa3",
   "ticks": 324,
   "running": 205,
   "holds": 82,
   "endBeat": 10.788
  },
  "hands/conducting_24/doc-fermata": {
-  "hash": "5a76b18c327ed81a18a071560a5688374cabcafd9ca427cb46ba89c9dd3c986b",
+  "hash": "d49a8fb35b836bb5f2c3dd6cb79a0d9dc3879abf61219ea394d78275d015d0cb",
   "ticks": 324,
   "running": 188,
   "holds": 99,
   "endBeat": 9.916
  },
  "hands/44/prior-oscillator": {
-  "hash": "a717b763a348151333b13431b3368f01e0e06c06ce12ca3b2a5836feab6a6d50",
+  "hash": "4905a49e699c3f36e0cfa09b8148946c7a402143df9a0c530ac35421b8e7713e",
   "ticks": 405,
   "running": 316,
   "holds": 31,
   "endBeat": 13.217
  },
  "hands/44/prior-trend": {
-  "hash": "dcf96aa762d479acdba6c1d3b1d8d05b9383c04e9a644ebea46ac6b98d8d8d45",
+  "hash": "a8d7e06a8e329352513f9d6579742f15ee8f8277c22528b2a0f624e26ce99640",
   "ticks": 405,
   "running": 318,
   "holds": 29,
   "endBeat": 13.818
  },
  "hands/44/prior-blend": {
-  "hash": "f396062a6893624875be7c539915a0a84cf9bf9b50841429708cbccdbd4acacf",
+  "hash": "9dc090cf7d9d75c64e93132ab1574b4c101e7decaa3fc754a333e030fc6914ee",
   "ticks": 405,
   "running": 316,
   "holds": 31,
   "endBeat": 13.217
  },
  "hands/44/servo-3-point-index": {
-  "hash": "c0553a5f26e77817907169b0641bdf57b28a1d5a0e2f5e89aff081932f3ca9e7",
+  "hash": "6e5c325b1a52aa829d3eac5086224b38c6ebdeafb1bcaf2a4a7b0c8ca30d1e20",
   "ticks": 405,
   "running": 319,
   "holds": 27,
   "endBeat": 13.29
  },
  "hands/44/mark-half": {
-  "hash": "428ba7a3015f9cd6b1cf150e017e2c139a6d872eea92220f2a2d9cf9ea6b38ce",
+  "hash": "4f3b6d7c8f6b580f91c2b56993c8f183797d443cfe56b3f891c1f345c9b1027a",
   "ticks": 405,
   "running": 316,
   "holds": 31,
   "endBeat": 24.418
  },
  "hands/44/mark-bar": {
-  "hash": "36490d794365591de1f324fb037d7a836a04ee4a133a06e7ea322492f93a2f68",
+  "hash": "c785966566d5de1d7796b2435a78c70664cc86864cd2dbb84479f56cd5d68d18",
   "ticks": 405,
   "running": 255,
   "holds": 92,
   "endBeat": 40.814
  },
  "hands/44/mark-auto": {
-  "hash": "25a7cfec56d3c5485ae5017f3f5417f218664131095d7e405611134d669a3f7b",
+  "hash": "0f6a0adab7cb97464783cb4fc5d8304c734b74c38a28f97070185ceeb5d15ca9",
   "ticks": 405,
   "running": 284,
   "holds": 63,
@@ -98,7 +98,7 @@
   "endBeat": 13.217
  },
  "hands/44/left-hand": {
-  "hash": "25e3b11c7eae4ce93d9efb6522c79a4441b218fa05791abd0b62df450ee2f914",
+  "hash": "6a887a4615b32d5eb14a3b93ea39c2ef90a3218590e71d3d0b4feb69a7ea34d6",
   "ticks": 405,
   "running": 340,
   "holds": 5,
@@ -112,28 +112,28 @@
   "endBeat": 0
  },
  "hands/44/config-toggle": {
-  "hash": "9ea3bc71777f8eddc5970eae9d5a0b22a14d6256ce3db1cd799293394e98b82c",
+  "hash": "06fce5855533cadda882a6698386f39093e9cdc2c2a16bb911f66d9e28bb884d",
   "ticks": 405,
   "running": 112,
   "holds": 28,
   "endBeat": 3.115
  },
  "hands/44/no-hand-then-hand": {
-  "hash": "e2ef9975bb4096b229c9c3cce8019c923403bd91dae8c2fa703fc823ef6044b3",
+  "hash": "6110921d19ddd0050f43914d5c47d5ce02b4d30ef1aea743922cfbd84ca22983",
   "ticks": 405,
   "running": 271,
   "holds": 30,
   "endBeat": 11.259
  },
  "hands/two/split-left-shapes": {
-  "hash": "2b74902eed34f5a8711a707ce6be3d60eb073f83ff8ba11e8d47c49e66981046",
+  "hash": "84f98ee838d78bed5a2a4985b0275f89b5f27878e24d31d4d2a9ae2cdaae461e",
   "ticks": 405,
   "running": 307,
   "holds": 65,
   "endBeat": 16.466
  },
  "hands/two/split-right-shapes": {
-  "hash": "6870789641a49aa7b719eae5d4c9d776c936f93d7622f45145b95b9b271f57a6",
+  "hash": "c866549785fc7d64450c324f25d0647c17c86e08f73b904d08aaed4a0dd8db0b",
   "ticks": 405,
   "running": 338,
   "holds": 35,
@@ -189,21 +189,21 @@
   "endBeat": 32.999
  },
  "body/44/point-head": {
-  "hash": "ed755ea8170e51c9c927596b99793da4bdbafcb1f6dab728505dd62ceffef39f",
+  "hash": "8d295c31f17e3701cdfe2c2a7ae36653dc9c09e37ff86b481f53ce886801622c",
   "ticks": 720,
   "running": 366,
   "holds": 326,
   "endBeat": 24.201
  },
  "body/44/point-hips": {
-  "hash": "4d2133192ce9f48404a2ac7cb50a3818df9e0860a2f023d0c9330effc8abb52d",
+  "hash": "19e2098b417926ca740c9ce702c8ecf7d2d6169e0f3a983dcceaf364f719c45e",
   "ticks": 720,
   "running": 665,
   "holds": 45,
   "endBeat": 43.754
  },
  "body/44/point-com": {
-  "hash": "223212b5bf842bc66beb2638f616694c875fd86d42ac5546e3f91a05f4b8160b",
+  "hash": "e319d0b8f8f378e8ea691fb40b65e6ab82f204efb8cf4e84772ffae752273d88",
   "ticks": 720,
   "running": 631,
   "holds": 61,
@@ -217,7 +217,7 @@
   "endBeat": 30
  },
  "body/44/transport-rules-off": {
-  "hash": "33ef47e313e09823f919869669c3fb3fe0a430dad8a95b052c343d9d25f1d3e5",
+  "hash": "8d9beb3e4f12de0d284a4a5bbac2bf4624c52c17fc5ba9f0c0ce1809914f6165",
   "ticks": 720,
   "running": 654,
   "holds": 39,
@@ -301,7 +301,7 @@
   "endBeat": 22.014
  },
  "dancer/switch-away-and-back": {
-  "hash": "622b2fb28f892e0833a548d84637d3ba95c0750fba95667adf40b1ec3c3ce3ed",
+  "hash": "4f88d9c8b24402ee7a1358c1bf43470c76be0594789238eeae5017f11eb4ead8",
   "ticks": 600,
   "running": 144,
   "holds": 0,
