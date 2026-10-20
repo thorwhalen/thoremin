@@ -22,9 +22,6 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   // The body branch (#186): the latest pose + the model's load state, for the skeleton.
   { name: 'bodyFrame', kind: 'body-frame' },
   { name: 'bodyStatus', kind: 'body-status' },
-  // The conductor (#187): its musical time + enable flag, for the beat HUD.
-  { name: 'conductorTime', kind: 'musical-time' },
-  { name: 'conductorEnabled', kind: 'boolean', default: false },
   { name: 'expression', kind: 'face-expression' },
   // A personal categorizer's per-category degrees (#330 P4), for its bars' chord names.
   { name: 'categoryDegrees', kind: 'category-degrees' },
@@ -109,10 +106,6 @@ const Params = z.object({
   faceLandmarks: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** The full-body skeleton (#186) — drawn when body tracking is on; shows the load state. */
   bodySkeleton: z.object({ show: z.boolean().default(true) }).prefault({}),
-  /** The conductor's beat over the video (#187): a phase ring that fills through each
-   *  beat and flashes on it, the beat-in-bar count, the tempo, and the follower's state
-   *  (waiting / holding). Draws only while conducting is on. */
-  conductorHud: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** LEGACY (#600 S10, the expand step): the air drum's pads are the air extension's overlay
    *  element now, and their show flag is `airDrum.padsOnVideo`, which a stored or saved value here
    *  is moved into (the air drum dial's v1 -> v2 step). Still accepted on read until the contract
@@ -284,7 +277,6 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   faceLandmarks: 'input',
   bodySkeleton: 'input',
   landmarks: 'input',
-  conductorHud: 'output',
   markers: 'output',
   fingerLines: 'output',
   timbreLevels: 'output',

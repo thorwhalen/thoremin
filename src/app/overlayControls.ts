@@ -70,7 +70,6 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   { name: 'landmarks', label: 'Hand landmarks' },
   { name: 'faceLandmarks', label: 'Face mesh', needsFace: true },
   { name: 'bodySkeleton', label: 'Body skeleton' },
-  { name: 'conductorHud', label: 'Conductor beat' },
   // (The Feature Lab's meters and correlation matrix were here, `surface: 'lab'`: the Lab slice's
   // element since #600 S16b, configured by its own panel.)
   { name: 'markers', label: 'Control markers', toggles: [{ key: 'showNotes', label: 'Note names' }] },

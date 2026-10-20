@@ -28,7 +28,7 @@ import {
 } from '@thoremin/sdk/nodes/domain';
 import { makeRecordingCanvas, type RecordingCanvas } from './helpers/canvas';
 import { DEFAULT_PADS_SET } from '@thoremin/sdk/nodes/music/drum_pads';
-import { AIR } from './helpers/extensions';
+import { AIR, CONDUCTOR } from './helpers/extensions';
 
 function fullInputs() {
   const frame: HandsFrame = {
@@ -116,6 +116,19 @@ function drawGrid(grid: unknown, config: Record<string, unknown> = {}) {
   const handlers = node.make(node.params.parse(onlyElement('none')));
   const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
   handlers.process({ ...fullInputs(), 'air.chordMap.grid': grid, 'air.chordMap.config': { enabled: true, ...config } }, ctx);
+  return rc;
+}
+
+/** The conductor's beat ring, the conductor slice's element since #600 S18c (core's `conductorHud`
+ *  before): every core element off, the inputs these tests were written with on its ports
+ *  (`conductorTime` -> `.time`, `conductorEnabled` -> `.enabled`), its dial on `.config`. */
+function drawHud(inputs: { conductorTime?: unknown; conductorEnabled?: boolean }, config: Record<string, unknown> = {}) {
+  const rc = makeRecordingCanvas();
+  const node = makeCanvasOverlayNode(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'conductor-tool'));
+  const handlers = node.make(node.params.parse(onlyElement('none')));
+  const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } };
+  const port = (input: string) => `conductor-tool.conductorHud.${input}`;
+  handlers.process({ ...fullInputs(), [port('time')]: inputs.conductorTime, [port('enabled')]: inputs.conductorEnabled, [port('config')]: config }, ctx);
   return rc;
 }
 
@@ -298,20 +311,22 @@ describe('canvas-overlay composable elements', () => {
     expect(drawChord([49]).count('stroke')).toBe(0);
   });
 
-  it('conductorHud (Output, #187): a phase ring + count + tempo while conducting; nothing when off', () => {
+  it.runIf(CONDUCTOR)('the conductor\'s beat ring (Output, #187; the conductor slice\'s since #600 S18c): a phase ring + count + tempo while conducting; nothing when off or hidden', () => {
     const running = { t: 1, beat: 5.25, phase: 0.25, tempo: 70, period: 60 / 70, confidence: 0.8, nextBeatAt: 1.6, beatsPerBar: 4, beatInBar: 1, state: 'running', anchors: 6 };
-    const rc = drawWith(onlyElement('conductorHud'), { conductorTime: running, conductorEnabled: true });
+    const rc = drawHud({ conductorTime: running, conductorEnabled: true });
     const arcs = rc.calls.filter((c) => c.m === 'arc');
     expect(arcs.length).toBeGreaterThanOrEqual(2); // the ring and the phase arc
     const texts = rc.calls.filter((c) => c.m === 'fillText').map((c) => String(c.args[0]));
     expect(texts).toContain('2'); // beat 5 in 4/4 is the second beat of the bar
     expect(texts.some((t) => /70 bpm/.test(t))).toBe(true);
     // Holding: the words say so, no phase arc.
-    const held = drawWith(onlyElement('conductorHud'), { conductorTime: { ...running, state: 'hold', tempo: 0 }, conductorEnabled: true });
+    const held = drawHud({ conductorTime: { ...running, state: 'hold', tempo: 0 }, conductorEnabled: true });
     expect(held.calls.filter((c) => c.m === 'fillText').map((c) => String(c.args[0]))).toContain('holding');
     // Off: nothing at all.
-    expect(drawWith(onlyElement('conductorHud'), { conductorTime: running, conductorEnabled: false }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
-    expect(drawWith(onlyElement('conductorHud'), { conductorEnabled: true }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    expect(drawHud({ conductorTime: running, conductorEnabled: false }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    expect(drawHud({ conductorEnabled: true }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
+    // Hidden by its dial (`conductor.hudOnVideo.show`, the overlay's `conductorHud.show` before).
+    expect(drawHud({ conductorTime: running, conductorEnabled: true }, { hudOnVideo: { show: false } }).calls.filter((c) => c.m === 'arc')).toHaveLength(0);
   });
 
   it.runIf(AIR)('drumPads (Guide, #245): each pad on, in its colour, where it is struck; brighter when just hit; nothing when the drum is off', () => {

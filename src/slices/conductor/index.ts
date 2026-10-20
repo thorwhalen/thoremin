@@ -27,7 +27,9 @@ import { orchestraNode } from './nodes/orchestra';
 import { conductorReadsTwoHands } from './nodes/conductor.schema';
 import { conductor } from './branches';
 import { CONDUCTOR_STORES } from './stores';
-import { ConductorPrefsSchema, ConductorSettingsSchema, DEFAULT_CONDUCTOR, DEFAULT_CONDUCTOR_PREFS, migrateConductorV1, type ConductorPrefs, type ConductorSettings } from './schema';
+import { CONDUCTOR_EXTENSION_ID } from './id';
+import { CONDUCTOR_HUD_ELEMENT, conductorHudElement } from './nodes/overlay/conductor_hud';
+import { ConductorPrefsSchema, ConductorSettingsSchema, DEFAULT_CONDUCTOR, DEFAULT_CONDUCTOR_PREFS, migrateConductorV1, migrateConductorV2, type ConductorPrefs, type ConductorSettings } from './schema';
 
 export const CONDUCTOR_BRANCH_ID = 'conductor';
 /** The feature groups the body conductor reads (#375): the pose stream, by what measures it. */
@@ -49,19 +51,32 @@ const conducting = (c: Partial<ConductorSettings> | undefined): boolean => on(c)
 const dialOf = (s: Readonly<Record<string, unknown>>) => s.conductor as Partial<ConductorSettings> | undefined;
 
 export const CONDUCTOR_EXTENSION = defineExtension({
-  // The id names what it is: not `conductor` (its node, branch and dial key, which core and three
-  // extensions name by contract), so the ratchet counts only what really names the slice.
-  id: 'conductor-tool',
+  id: CONDUCTOR_EXTENSION_ID,
   nodes: [conductorNode, orchestraNode] as unknown as NodeDef<unknown>[],
   branches: [conductor],
+  // Its beat ring on the video (#600 S18c; core's `conductorHud` before): beneath the markers, where
+  // core drew it, configured by its own dial (`conductor.hudOnVideo`).
+  overlay: [
+    {
+      name: CONDUCTOR_HUD_ELEMENT,
+      category: 'output',
+      drawBefore: 'markers',
+      inputs: [
+        { name: 'time', kind: 'musical-time' },
+        { name: 'enabled', kind: 'boolean' },
+      ],
+      config: { dialKey: 'conductor' },
+    },
+  ],
+  overlayElements: [conductorHudElement],
   dials: [
     dialSlice({
       key: 'conductor',
       schema: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
       kind: 'conductor-config',
       meta: { facets: ['Conductor'], title: 'Conductor', description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat' },
-      version: 2,
-      migrations: { 1: migrateConductorV1 },
+      version: 3,
+      migrations: { 1: migrateConductorV1, 2: migrateConductorV2 },
     }),
   ] as const,
   prefs: [

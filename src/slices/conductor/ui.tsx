@@ -11,6 +11,7 @@ import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { dispatchDialSetIn } from '@thoremin/sdk-ui/dials';
 import { controls } from '@thoremin/sdk-ui/host';
 import { CONDUCTOR_TOOL } from './tool';
+import { CONDUCTOR_EXTENSION_ID } from './id';
 import ConductorPanel from './panels/ConductorPanel';
 import { ConductorControls } from './panels/conductor';
 import { makeConductorReporter, useConductorStatus, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './app/conductorStatus';
@@ -32,7 +33,7 @@ provideOrchestraEngine(async (opts) => (await import('./app/orchestra_engine')).
 const conductorOn = (): boolean => ((controls().get().conductor ?? {}) as Partial<ConductorSettings>).enabled === true;
 
 export const CONDUCTOR_UI: ExtensionUi = {
-  id: 'conductor-tool',
+  id: CONDUCTOR_EXTENSION_ID,
   panels: [{ instrumentId: 'conductor', section: 'Conductor', Controls: ConductorControls, Readout: () => null, readoutOn: () => false }],
   tools: [
     {

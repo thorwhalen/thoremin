@@ -305,10 +305,12 @@ describe('production app graph', () => {
     // could be loaded but never played is the #120 failure mode again.
     expect(has('ui', 'scoreDoc', 'score', 'doc')).toBe(true);
     // PR 4: the piece's meter and fermatas reach the conductor; the conductor's musical
-    // time and enable flag reach the overlay's beat HUD (a HUD nothing feeds draws nothing).
+    // time and enable flag reach its beat ring on the overlay (a HUD nothing feeds draws nothing;
+    // the conductor slice's own element since #600 S18c).
     expect(has('ui', 'scoreDoc', 'conductor', 'doc')).toBe(true);
-    expect(has('conductor', 'time', 'overlay', 'conductorTime')).toBe(true);
-    expect(has('conductor', 'enabled', 'overlay', 'conductorEnabled')).toBe(true);
+    expect(has('conductor', 'time', 'overlay', 'conductor-tool.conductorHud.time')).toBe(true);
+    expect(has('conductor', 'enabled', 'overlay', 'conductor-tool.conductorHud.enabled')).toBe(true);
+    expect(has('ui', 'conductor', 'overlay', 'conductor-tool.conductorHud.config')).toBe(true);
     const inbound = edges.filter((e) => e.to.node === 'conductor').map((e) => e.to.port);
     expect(inbound).toContain('config');
     expect(inbound).toContain('hands');
