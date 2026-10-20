@@ -58,3 +58,20 @@ describe('installDebugHandle', () => {
     expect(window[DEBUG_HANDLE_KEY]).toBeUndefined();
   });
 });
+
+describe('makeDebugHandle().level (the seed sweep\'s "not silent")', () => {
+  it('is null until audio runs, then the loudest recent sample at the master output', () => {
+    const samples = [0.1, -0.4, 0.2];
+    let connected = 0;
+    const analyser = { fftSize: 3, getFloatTimeDomainData: (b: Float32Array) => b.set(samples) };
+    const ac = { state: 'suspended', createAnalyser: () => analyser };
+    const master = { gain: { value: 1 }, connect: () => void connected++ };
+    const h = makeDebugHandle(fakeEngine(), { audioContext: ac, masterGain: master });
+    expect(makeDebugHandle(fakeEngine(), {}).level()).toBeNull();
+    expect(h.level()).toBeNull();
+    ac.state = 'running';
+    expect(h.level()).toBeCloseTo(0.4);
+    expect(h.level()).toBeCloseTo(0.4);
+    expect(connected).toBe(1);
+  });
+});

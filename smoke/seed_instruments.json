@@ -1,0 +1,134 @@
+{
+  "seeds": [
+    {
+      "name": "Pentatonic",
+      "body": false
+    },
+    {
+      "name": "Wrist Theremin",
+      "body": false
+    },
+    {
+      "name": "Open Air Pad",
+      "body": false
+    },
+    {
+      "name": "Finger FX",
+      "body": false
+    },
+    {
+      "name": "Pitch Bender",
+      "body": false
+    },
+    {
+      "name": "Finger Gate",
+      "body": false
+    },
+    {
+      "name": "Trigger Octaves",
+      "body": false
+    },
+    {
+      "name": "Split Voices",
+      "body": false
+    },
+    {
+      "name": "Bell & Strings",
+      "body": false
+    },
+    {
+      "name": "Glass Bells",
+      "body": false
+    },
+    {
+      "name": "Pulse Organ",
+      "body": false
+    },
+    {
+      "name": "Finger Cues",
+      "body": false
+    },
+    {
+      "name": "Everything",
+      "body": false
+    },
+    {
+      "name": "Air Drum",
+      "body": false
+    },
+    {
+      "name": "Air Bass",
+      "body": false,
+      "silent": "plucks need the fretting hand and an enrolled pluck; the synthetic hands do not play it"
+    },
+    {
+      "name": "Air Guitar",
+      "body": false,
+      "silent": "strums need two hands and enrolled chord shapes; the synthetic hands enrol none"
+    },
+    {
+      "name": "Air Flute",
+      "body": false,
+      "silent": "notes need enrolled finger lifts and a blowing mouth; nothing is enrolled"
+    },
+    {
+      "name": "Chord Map",
+      "body": false
+    },
+    {
+      "name": "Chord Map + Face",
+      "body": false
+    },
+    {
+      "name": "Pentatonic Map",
+      "body": false
+    },
+    {
+      "name": "Play Along (MIDI)",
+      "body": false
+    },
+    {
+      "name": "Play Along (microphone)",
+      "body": false,
+      "silent": "listens to the microphone; the smoke has no audio input"
+    },
+    {
+      "name": "Chord Wheel",
+      "body": false
+    },
+    {
+      "name": "Face Wheel",
+      "body": false
+    },
+    {
+      "name": "Tonnetz Wheel",
+      "body": false
+    },
+    {
+      "name": "Wheel Walk",
+      "body": false
+    },
+    {
+      "name": "Next-Chord Wheel",
+      "body": false
+    },
+    {
+      "name": "Conduct the Chords",
+      "body": false
+    },
+    {
+      "name": "Chord Map Strum",
+      "body": false
+    },
+    {
+      "name": "ASL Viewer",
+      "body": false,
+      "silent": "reads signs from the hands; the synthetic hands sign nothing"
+    },
+    {
+      "name": "ASL Chords",
+      "body": false,
+      "silent": "plays a chord per recognised sign; the synthetic hands sign nothing"
+    }
+  ]
+}
