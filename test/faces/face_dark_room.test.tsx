@@ -72,3 +72,38 @@ describe('the dark-room status line', () => {
     expect(screen.queryByText(DARK_ROOM_MESSAGE)).toBeNull();
   });
 });
+
+describe('the dark-room status line in the live test (#348)', () => {
+  it('follows the light while the test runs, is cleared when it stops, and is absent without frames', async () => {
+    const { createFaceTestStore } = await import('@thoremin/ext-faces/app/testStore');
+    const { liveModel } = await import('@thoremin/sdk/enroll/live');
+    const { SYNTHETIC_TIMELINE } = await import('@thoremin/ext-faces/lib/synthetic');
+    vi.useFakeTimers();
+    const session = createFaceSessionStore({ ...deps(), source: () => ({ ...syntheticSource(() => clock), video: () => null }), frames: () => null });
+    act(() => session.getState().start());
+    await run(SYNTHETIC_TIMELINE.restMs + 12 * (SYNTHETIC_TIMELINE.holdMs + SYNTHETIC_TIMELINE.glideMs));
+    await act(async () => void (await session.getState().stop()));
+    const working = session.getState().working!;
+    const base = { source: () => ({ ...syntheticSource(() => clock), video: () => ({}) as MediaStream }), claim: () => undefined, now: () => clock, pollMs: FRAME_MS, publishMs: 100 };
+    const test = createFaceTestStore({ ...base, frames: () => ({ grab: async () => null, luma: () => luma, close: () => undefined }) });
+    const bare = createFaceTestStore(base);
+    luma = 120;
+    test.getState().start(liveModel(working));
+    bare.getState().start(liveModel(working));
+    await run(2500);
+    expect(test.getState().tooDark).toBe(false);
+    luma = 40;
+    await run(4500);
+    expect(test.getState().tooDark).toBe(true);
+    expect(bare.getState().tooDark).toBe(false);
+    luma = 130;
+    await run(4500);
+    expect(test.getState().tooDark).toBe(false);
+    luma = 40;
+    await run(4500);
+    expect(test.getState().tooDark).toBe(true);
+    test.getState().stop();
+    expect(test.getState().tooDark).toBe(false);
+    bare.getState().stop();
+  }, 60_000);
+});

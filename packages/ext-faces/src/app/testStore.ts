@@ -23,6 +23,8 @@ import { createQuiz, quizOrder, type Quiz, type QuizOptions, type QuizStep, type
 import { createEverydayCheck, EVERYDAY_DEFAULTS, type EverydayCheck } from '@thoremin/sdk/enroll/everyday';
 import { createLiveReader, type LiveModel, type LiveReader, type LiveReading } from '@thoremin/sdk/enroll/live';
 import type { FaceSource } from './sources';
+import type { FrameOpener, LiveFrames } from './thumbnails';
+import { createLightWatch } from './sessionWatches';
 
 export interface FaceTestDeps {
   source: () => FaceSource;
@@ -32,9 +34,15 @@ export interface FaceTestDeps {
   now: () => number;
   pollMs: number;
   publishMs: number;
+  /** Opens the source's stream to read the room's light from (#348); absent: no warning. */
+  frames?: FrameOpener;
+  /** Where the part sits in a frame, for the light reading's crop (the session's `region`). */
+  region?: Parameters<typeof createLightWatch>[1]['region'];
 }
 
 export const FACE_TEST_DEFAULTS = {
+  /** How often the room's light is read (ms): the session's own cadence. */
+  lightMs: 1000,
   pollMs: 33,
   publishMs: 100,
   /** Frames averaged into a correction ("this face is X"): about a quarter second. */
@@ -74,6 +82,8 @@ export interface FaceTestState {
   reading: LiveReading | null;
   /** No face in the latest frame (the readout says so instead of guessing). */
   noFace: boolean;
+  /** The room reads too dark to test in (#348): a status line, the same as the take's. */
+  tooDark: boolean;
   /** Start reading live faces against `live`. */
   start(live: LiveModel): void;
   /** Swap in a re-tuned or corrected model without stopping. */
@@ -110,6 +120,7 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
   let source: FaceSource | null = null;
   let reader: LiveReader | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let frames: LiveFrames | null = null;
   let claimed = false;
   let lastPublish = -Infinity;
   const recent: FeatureVector[] = [];
@@ -117,9 +128,11 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
   let everyday: { run: EverydayCheck; durationMs: number; onDone?: EverydayStart['onDone']; told: boolean } | null = null;
 
   return createStore<FaceTestState>()((set, get) => {
+    const light = createLightWatch({ get, set }, { everyMs: FACE_TEST_DEFAULTS.lightMs, frames: () => frames, region: deps.region });
     const tick = () => {
       if (!source || !reader) return;
       const read = source.read();
+      light.watch(read?.vector ?? null, deps.now());
       // As the categorizer reads it (#385 E8: a hand categorizer's one hand, side-relative).
       const live = read ? { ...read, vector: reader.live.project(read.vector) } : null;
       const now = deps.now();
@@ -177,6 +190,7 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
       running: false,
       reading: null,
       noFace: false,
+      tooDark: false,
       quiz: null,
       everyday: null,
 
@@ -211,13 +225,16 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
       start(live) {
         get().stop();
         source = deps.source();
+        const video = deps.frames ? source.video() : null;
+        frames = video && deps.frames ? deps.frames(video) : null;
+        light.reset();
         reader = createLiveReader(live);
         deps.claim(true);
         claimed = true;
         recent.length = 0;
         lastPublish = -Infinity;
         timer = setInterval(tick, deps.pollMs);
-        set({ running: true, reading: null, noFace: false });
+        set({ running: true, reading: null, noFace: false, tooDark: false });
       },
 
       retune(live) {
@@ -235,13 +252,15 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
         timer = null;
         if (claimed) deps.claim(false);
         claimed = false;
+        frames?.close();
+        frames = null;
         source?.dispose();
         source = null;
         reader = null;
         recent.length = 0;
         quiz = null;
         everyday = null;
-        if (get().running || get().quiz || get().everyday) set({ running: false, reading: null, noFace: false, quiz: null, everyday: null });
+        if (get().running || get().quiz || get().everyday || get().tooDark) set({ running: false, reading: null, noFace: false, tooDark: false, quiz: null, everyday: null });
       },
 
       capture() {
