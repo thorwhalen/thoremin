@@ -38,19 +38,27 @@ export async function saveBlob(
   const { allowPicker = true } = opts;
   const picker = (globalThis as unknown as SaveFilePicker).showSaveFilePicker;
   if (allowPicker && typeof picker === 'function') {
+    let handle: Awaited<ReturnType<NonNullable<SaveFilePicker['showSaveFilePicker']>>> | null = null;
     try {
-      const handle = await picker({ suggestedName });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return { filename: handle.name ?? suggestedName, viaPicker: true };
+      handle = await picker({ suggestedName });
     } catch (e) {
-      // User dismissed the picker → not an error; report cancellation.
+      // User dismissed the picker: not an error; report cancellation. Only the picker's own
+      // AbortError means that: a write or close the browser aborts is a failed save, below.
       if (e instanceof DOMException && e.name === 'AbortError') return null;
-      // Any other picker failure (permission revoked, disk full, lost user
-      // activation): log it — consistent with the rest of the app's error
-      // handling — then fall back to a plain download so the take is never lost.
-      console.warn('[thoremin] file picker save failed; falling back to download', e);
+      console.warn('[thoremin] file picker failed; falling back to download', e);
+    }
+    if (handle) {
+      try {
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return { filename: handle.name ?? suggestedName, viaPicker: true };
+      } catch (e) {
+        // Permission revoked, disk full, the stream torn down: log it, consistent with the
+        // rest of the app's error handling, then fall back to a plain download so the take
+        // is never lost.
+        console.warn('[thoremin] file picker save failed; falling back to download', e);
+      }
     }
   }
   downloadBlob(blob, suggestedName);
