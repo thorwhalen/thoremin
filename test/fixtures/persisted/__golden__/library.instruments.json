@@ -338,6 +338,7 @@
       },
       "chordWheel": {
         "bpm": 100,
+        "categoryMoves": {},
         "clock": "tempo",
         "dead": 0.07,
         "enabled": false,
@@ -1010,6 +1011,7 @@
       },
       "chordWheel": {
         "bpm": 100,
+        "categoryMoves": {},
         "clock": "tempo",
         "dead": 0.07,
         "enabled": false,
