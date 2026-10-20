@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createHandRunner,
   workerHandRunner,
+  MAIN_REPLACEMENT_RETRIES,
   type FromWorker,
   type HandLandmarkerLike,
   type HandResult,
@@ -182,5 +183,75 @@ describe('the frames dropped while the worker was busy', () => {
     w.reply({ type: 'result', id: w.frames()[1]!.id, result: HAND });
     expect(results.map((r) => r.stamp.tMs)).toEqual([100, 200]);
     expect(results[1]!.stamp.skipped).toBe(2);
+  });
+});
+
+describe('a main-thread replacement that fails to load after a worker death (#737)', () => {
+  it('is tried again, spaced out, and the hands come back once a load succeeds', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const timers: (() => void)[] = [];
+    const w = new FakeWorker();
+    let loads = 0;
+    const loadMain = vi.fn(async (_o: LandmarkerOptions) => {
+      loads++;
+      if (loads <= 2) throw new Error('offline');
+      return mainLandmarker();
+    });
+    const results: HandResult[] = [];
+    const runner = await createHandRunner('auto', OPTIONS, (r) => results.push(r), { loadMain, worker: deps(w, timers) });
+    const armedBefore = timers.length;
+    w.onerror!(new Event('error'));
+    await flush();
+    expect(loadMain).toHaveBeenCalledTimes(1);
+    expect(runner.offer(video, stamp(100))).toBe(false); // nothing runs yet
+    // The first retry, armed after the failure, fails too; the second succeeds.
+    expect(timers.length).toBe(armedBefore + 1);
+    timers[armedBefore]!();
+    await flush();
+    expect(loadMain).toHaveBeenCalledTimes(2);
+    expect(timers.length).toBe(armedBefore + 2);
+    timers[armedBefore + 1]!();
+    await flush();
+    expect(loadMain).toHaveBeenCalledTimes(3);
+    expect(runner.where).toBe('main');
+    expect(runner.offer(video, stamp(133))).toBe(true);
+    expect(results.map((r) => r.stamp.tMs)).toEqual([133]);
+    warn.mockRestore();
+  });
+
+  it('gives up after the last retry, and never retries a closed runner', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const timers: (() => void)[] = [];
+    const w = new FakeWorker();
+    const loadMain = vi.fn(async (_o: LandmarkerOptions) => {
+      throw new Error('offline');
+    });
+    const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w, timers) });
+    const armedBefore = timers.length;
+    w.onerror!(new Event('error'));
+    await flush();
+    for (let i = 0; i < MAIN_REPLACEMENT_RETRIES; i++) {
+      timers[armedBefore + i]!();
+      await flush();
+    }
+    expect(loadMain).toHaveBeenCalledTimes(1 + MAIN_REPLACEMENT_RETRIES);
+    expect(timers.length).toBe(armedBefore + MAIN_REPLACEMENT_RETRIES); // no further timer
+    expect(error).toHaveBeenCalledTimes(1);
+    // A closed runner: the pending retry does nothing.
+    const w2 = new FakeWorker();
+    const timers2: (() => void)[] = [];
+    loadMain.mockClear();
+    const runner2 = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w2, timers2) });
+    const before2 = timers2.length;
+    w2.onerror!(new Event('error'));
+    await flush();
+    runner2.close();
+    timers2[before2]!();
+    await flush();
+    expect(loadMain).toHaveBeenCalledTimes(1);
+    expect(runner.where).toBe('main'); // the facade's default while nothing runs
+    warn.mockRestore();
+    error.mockRestore();
   });
 });
