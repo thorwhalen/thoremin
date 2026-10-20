@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { createLocalStorageProvider } from '@zodal/store-localstorage';
+import { hostCollection } from '@thoremin/sdk-ui/storage';
 import { instrumentsCollection } from './instrumentsCollection';
 
 /** The single record's id (the view has one set of choices per browser). */
@@ -39,7 +39,7 @@ export const INSTRUMENTS_VIEW_STORAGE_KEY = 'thoremin.instrumentsView';
 export function createInstrumentsViewProvider(): DataProvider<InstrumentsViewPrefs> {
   return typeof localStorage === 'undefined'
     ? createInMemoryProvider<InstrumentsViewPrefs>([], { idField: 'id' })
-    : createLocalStorageProvider<InstrumentsViewPrefs>({ storageKey: INSTRUMENTS_VIEW_STORAGE_KEY, idField: 'id' });
+    : hostCollection<InstrumentsViewPrefs>(INSTRUMENTS_VIEW_STORAGE_KEY);
 }
 
 /** Collapsed on a first visit? The collection's declared default (`groupBy.defaultState`). */

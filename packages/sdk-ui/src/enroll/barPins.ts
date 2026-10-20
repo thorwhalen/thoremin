@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { createLocalStorageProvider } from '@zodal/store-localstorage';
+import { hostCollection } from '../storage';
 import { BARS_DEFAULTS } from '@thoremin/sdk/enroll/bars';
 
 export const BAR_PINS_DEFAULTS = {
@@ -27,14 +27,14 @@ export const BarPinsSchema = z.object({
 });
 export type BarPins = z.infer<typeof BarPinsSchema>;
 
-/** localStorage key (the browser default target). */
+/** The storage key (the shell's storage target decides where it lives, #659). */
 export const BAR_PINS_STORAGE_KEY = 'thoremin.barPins';
 
-/** The pins' provider: localStorage in the browser, in memory where there is none. */
+/** The pins' provider: the shell's storage target, in memory where there is no storage. */
 export function createBarPinsProvider(): DataProvider<BarPins> {
   return typeof localStorage === 'undefined'
     ? createInMemoryProvider<BarPins>([], { idField: 'id' })
-    : createLocalStorageProvider<BarPins>({ storageKey: BAR_PINS_STORAGE_KEY, idField: 'id' });
+    : hostCollection<BarPins>(BAR_PINS_STORAGE_KEY);
 }
 
 const NONE: readonly string[] = Object.freeze([]);
