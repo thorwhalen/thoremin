@@ -74,6 +74,22 @@ const MAX_VIBRATO_CENTS = 35;
  */
 export const ABSENT_VOICE_REAP_S = 2;
 const REAP_RELEASES = 10;
+
+/**
+ * How many voice ids the pitch memory (`lastFreq`) keeps (#801). A score emits one voice id per
+ * note, so an unbounded memory grew by an entry per note for the whole session. A looped pass
+ * reuses its ids within a piece, a few hundred notes apart at most, and a sounding voice
+ * refreshes its id every tick, so evicting the id set longest ago never touches one that plays.
+ */
+export const PITCH_MEMORY_CAP = 512;
+
+/** Remember `freq` as `id`'s last pitch, most recent last, dropping the id set longest ago past
+ *  `cap` (a `Map` keeps insertion order, so re-inserting moves an id to the end). */
+export function rememberPitch(memory: Map<number, number>, id: number, freq: number, cap = PITCH_MEMORY_CAP): void {
+  memory.delete(id);
+  memory.set(id, freq);
+  while (memory.size > cap) memory.delete(memory.keys().next().value!);
+}
 const DFLT_VIBRATO_HZ = 5.5;
 
 /** Total vibrato depth (cents) from a preset base + a live amount (0..1). NaN-safe. */
@@ -289,7 +305,8 @@ export const webAudioSynthNode = defineNode<Params>({
   params: Params,
   make(p) {
     const voices = new Map<number, Voice>();
-    /** The last pitch each id was asked for, kept past the voice itself (see the reaper). */
+    /** The last pitch each id was asked for, kept past the voice itself (see the reaper), for
+     *  the {@link PITCH_MEMORY_CAP} ids set most recently. */
     const lastFreq = new Map<number, number>();
     let bus: Bus | null = null;
 
@@ -350,7 +367,7 @@ export const webAudioSynthNode = defineNode<Params>({
               voice = buildVoice(ac, bus, v, p, lastFreq.get(v.id));
               voices.set(v.id, voice);
             }
-            lastFreq.set(v.id, v.freq);
+            rememberPitch(lastFreq, v.id, v.freq);
             for (const part of voice.partials) {
               part.osc.frequency.setTargetAtTime(v.freq * part.ratio, now, p.freqGlide);
             }
