@@ -1,6 +1,6 @@
 /**
  * Any category reader steers the chord wheel (`steer` = `signs` or `categorizer`): ASL's sign
- * reading or the player's pose categorizer on the wheel's `categories` input. A signed letter A..G
+ * reading (`signs` input) or the player's pose categorizer (`poses` input). A signed letter A..G
  * goes to the chord of the key spelled on it, a categorizer's categories make the wheel's moves in
  * wedge order, a player's table overrides either, letters follow one another with no rest between,
  * the hand pushes no wedge meanwhile, and each reader's branch is composed only while it steers.
@@ -33,7 +33,7 @@ function play(labels: string[], script: (string | null)[], config: Record<string
       const palm = palms?.[n];
       const frame: HandsFrame = { t, width: W, height: H, hands: palm ? [palmAt(palm, 'Left')] : [] };
       const out = h.process(
-        { hands: frame, config: { enabled: true, mirrorHandedness: false, ...config }, spec: D, categories: reading(labels, label) },
+        { hands: frame, config: { enabled: true, mirrorHandedness: false, ...config }, spec: D, signs: reading(labels, label), poses: reading(labels, label) },
         { time: t, dt: 1 / 30, tick: i, resources: {} } as never,
       ) as unknown as { status: ChordWheelStatus; params: { voices: { present: boolean }[] } };
       statuses.push(out.status);
@@ -109,12 +109,12 @@ describe.runIf(HARMONY)('category readers in the graph', () => {
     expect(branchIdsFor(settings('signs'))).toEqual(expect.arrayContaining(['chord-wheel', 'chord-wheel-signs']));
     expect(branchIdsFor(settings('hand'))).not.toContain('chord-wheel-signs');
     const { spec } = composeInstrumentGraph(['chord-wheel-signs'], { source: 'synthetic-hands' }, createAppRegistry());
-    expect(spec.edges).toContainEqual({ from: { node: 'aslSigns', port: 'signs' }, to: { node: 'chordWheel', port: 'categories' } });
+    expect(spec.edges).toContainEqual({ from: { node: 'aslSigns', port: 'signs' }, to: { node: 'chordWheel', port: 'signs' } });
   });
 
   it.runIf(FACES)("categorizer: the pose categorizer's reading into the wheel", () => {
     expect(branchIdsFor(settings('categorizer'))).toEqual(expect.arrayContaining(['chord-wheel', 'chord-wheel-categorizer']));
     const { spec } = composeInstrumentGraph(['chord-wheel-categorizer'], { source: 'synthetic-hands' }, createAppRegistry());
-    expect(spec.edges).toContainEqual({ from: { node: 'poseCat', port: 'category' }, to: { node: 'chordWheel', port: 'categories' } });
+    expect(spec.edges).toContainEqual({ from: { node: 'poseCat', port: 'category' }, to: { node: 'chordWheel', port: 'poses' } });
   });
 });

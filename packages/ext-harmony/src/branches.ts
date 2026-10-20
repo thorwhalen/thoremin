@@ -102,7 +102,7 @@ export const chordWheelSigns = defineBranch({
   requires: ['chord-wheel', 'asl-signs'],
   nodes: [],
   // The ASL plugin's reader node (`aslSigns`) and its category port.
-  edges: [to({ node: 'aslSigns', port: 'signs' }, { node: 'chordWheel', port: 'categories' })],
+  edges: [to({ node: 'aslSigns', port: 'signs' }, { node: 'chordWheel', port: 'signs' })],
 });
 
 /**
@@ -116,7 +116,7 @@ export const chordWheelCategorizer = defineBranch({
   requires: ['chord-wheel', 'pose-categorizer'],
   nodes: [],
   // The faces extension's pose categorizer node (`poseCat`) and its category port.
-  edges: [to({ node: 'poseCat', port: 'category' }, { node: 'chordWheel', port: 'categories' })],
+  edges: [to({ node: 'poseCat', port: 'category' }, { node: 'chordWheel', port: 'poses' })],
 });
 
 /**

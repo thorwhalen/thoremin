@@ -20,7 +20,8 @@
  * third the cycle of thirds, a held second the scale. Leaving the wedge stops the walk.
  *
  * Any reader of categories can steer it too (`steer` = `signs` or `categorizer`): ASL's sign
- * reading or the player's pose categorizer, on the `categories` input. A category held a moment
+ * reading on the `signs` input, or the player's pose categorizer on the `poses` input (two ports,
+ * so composing both branches never feeds one port twice). A category held a moment
  * makes its move (`categoryMoves`, by the category's label), or, for a signed letter A..G, goes
  * straight to the chord of the key spelled on that letter (the ASL chords' rule, `letterDegree`), so
  * the wheel recentres there and shows the moves from it. A different category held makes its own
@@ -66,7 +67,7 @@ export const WHEEL_MOVE_SETS = Object.keys(WHEEL_MOVES) as [WheelMovesId, ...Whe
  *  of categories: ASL's signs, or the player's pose categorizer. */
 export const WHEEL_STEER = ['hand', 'face', 'both', 'signs', 'categorizer'] as const;
 export type WheelSteer = (typeof WHEEL_STEER)[number];
-/** The steers that read the `categories` input. */
+/** The steers that read a category reader (`signs` reads the `signs` input, `categorizer` the `poses`). */
 export const CATEGORY_STEERS: readonly WheelSteer[] = ['signs', 'categorizer'];
 
 /** A category's target: '' its default, 'none' no move, a relation id a move, `chord` (a letter
@@ -279,9 +280,10 @@ export const chordWheelNode = defineNode<Params>({
     { name: 'conductorTime', kind: 'musical-time' },
     // The face's controls, while the face sets the surprise (`surpriseFrom`).
     { name: 'face', kind: 'face-features' },
-    // A category reader (ASL's signs, a pose categorizer), while categories steer: an optional
-    // edge, composed only then.
-    { name: 'categories', kind: 'category-scores' },
+    // ASL's sign reading, while signs steer; the pose categorizer's reading, while it steers.
+    // Optional edges, composed only then.
+    { name: 'signs', kind: 'category-scores' },
+    { name: 'poses', kind: 'category-scores' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -465,7 +467,7 @@ export const chordWheelNode = defineNode<Params>({
             categoryStepper = createCategoryStepper({ enterFrames: c.faceFrames, rest: null, rearm: 'change' });
             categoryFrames = c.faceFrames;
           }
-          const read = inputs.categories as CategoryScores | undefined;
+          const read = (c.steer === 'signs' ? inputs.signs : inputs.poses) as CategoryScores | undefined;
           if (read?.present) lastCategory = ctx.time;
           category = read?.present ? read.label : null;
           const target = category !== null ? categoryTargetFor(c.steer, c.moves, c.categoryMoves[category], category, read!.labels.indexOf(category)) : null;
