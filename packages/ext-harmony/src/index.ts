@@ -157,6 +157,9 @@ export const HARMONY_EXTENSION = defineExtension({
       // The face model is composed only while the face steers.
       const steer = (settings.chordWheel as { steer?: string }).steer;
       if (steer === 'face' || steer === 'both') ids.push('chord-wheel-face');
+      // A category reader, composed only while it steers (each requires its reader's branch).
+      if (steer === 'signs') ids.push('chord-wheel-signs');
+      if (steer === 'categorizer') ids.push('chord-wheel-categorizer');
       // The face model, too, while the face sets the surprise.
       // (only while the wheel is ranked: the key's moves, likeliest on top).
       const wheel = settings.chordWheel as { surpriseFrom?: string; order?: string; moves?: string };

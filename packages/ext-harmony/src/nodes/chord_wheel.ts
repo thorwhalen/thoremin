@@ -19,6 +19,13 @@
  * the arpeggio plays: a held fourth walks the cycle of fourths through all seven chords, a held
  * third the cycle of thirds, a held second the scale. Leaving the wedge stops the walk.
  *
+ * Any reader of categories can steer it too (`steer` = `signs` or `categorizer`): ASL's sign
+ * reading or the player's pose categorizer, on the `categories` input. A category held a moment
+ * makes its move (`categoryMoves`, by the category's label), or, for a signed letter A..G, goes
+ * straight to the chord of the key spelled on that letter (the ASL chords' rule, `letterDegree`), so
+ * the wheel recentres there and shows the moves from it. A different category held makes its own
+ * move at once (no rest needed between letters); while categories steer, the hand does not.
+ *
  * The chord sounds while the chord hand is seen, and a moment after it is lost. Off by default;
  * pure and Node-safe.
  */
@@ -36,10 +43,10 @@ import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
 import { arousalOf, createLevelTracker, createRestBaseline } from '@thoremin/sdk/harmony/affect';
 import { CLOCKS, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/harmony/state';
-import { letterChordSpec, scalePitchClasses, type ScaleSpec } from '@thoremin/sdk/music/theory';
+import { letterChordSpec, letterDegree, NOTE_LETTERS, scalePitchClasses, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import type { FaceFeatures, HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import type { CategoryScores, FaceFeatures, HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
@@ -55,8 +62,35 @@ export const WHEEL_MOVES = {
 export type WheelMovesId = keyof typeof WHEEL_MOVES;
 export const WHEEL_MOVE_SETS = Object.keys(WHEEL_MOVES) as [WheelMovesId, ...WheelMovesId[]];
 
-/** Who steers the wheel: the hand's push, the face's expressions (each a move), or both. */
-export const WHEEL_STEER = ['hand', 'face', 'both'] as const;
+/** Who steers the wheel: the hand's push, the face's expressions (each a move), both, or a reader
+ *  of categories: ASL's signs, or the player's pose categorizer. */
+export const WHEEL_STEER = ['hand', 'face', 'both', 'signs', 'categorizer'] as const;
+export type WheelSteer = (typeof WHEEL_STEER)[number];
+/** The steers that read the `categories` input. */
+export const CATEGORY_STEERS: readonly WheelSteer[] = ['signs', 'categorizer'];
+
+/** A category's target: '' its default, 'none' no move, a relation id a move, `chord` (a letter
+ *  A..G only) the chord of the key spelled on that letter. */
+export const LETTER_CHORD = 'chord';
+export type CategoryTarget = { kind: 'move'; relation: string } | { kind: 'letter'; letter: NoteLetter };
+
+const isLetter = (label: string): label is NoteLetter => (NOTE_LETTERS as readonly string[]).includes(label);
+
+/**
+ * What a category does on the wheel: the player's choice (`chosen`, by its label), else its
+ * default. A signed letter A..G goes to its chord by default and any other sign makes no move; a
+ * categorizer's categories make the wheel's moves in wedge order (the first category the first
+ * move), so any categorizer steers with no setup.
+ */
+export function categoryTargetFor(steer: WheelSteer, set: WheelMovesId, chosen: string | undefined, label: string, index: number): CategoryTarget | null {
+  const id = chosen ?? '';
+  if (id === 'none') return null;
+  if (id === LETTER_CHORD) return isLetter(label) ? { kind: 'letter', letter: label } : null;
+  if (id !== '') return { kind: 'move', relation: id };
+  if (steer === 'signs') return isLetter(label) ? { kind: 'letter', letter: label } : null;
+  const moves = WHEEL_MOVES[set];
+  return index >= 0 ? { kind: 'move', relation: moves[index % moves.length] } : null;
+}
 
 /**
  * The move each expression makes by default, per moves set (the face as harmonic expression,
@@ -119,7 +153,9 @@ const Params = z.object({
   faceMoves: z
     .object(Object.fromEntries(EMOTIONS.map((e) => [e, z.string().default('')])) as Record<Emotion, z.ZodDefault<z.ZodString>>)
     .prefault({}),
-  /** Readings in a row an expression must hold before its move is made. */
+  /** What each category makes, by its label, while categories steer (`categoryTargetFor`). */
+  categoryMoves: z.record(z.string(), z.string()).default({}),
+  /** Readings in a row an expression (or a category) must hold before its move is made. */
   faceFrames: z.number().int().min(1).max(30).default(6),
   /** Hold a push out and the wheel keeps making that move, one per beat (the tempo's). */
   walk: z.boolean().default(false),
@@ -172,12 +208,14 @@ export interface ChordWheelStatus {
   rejected: string | null;
   /** The face's expression now, when the face steers (null: none read, or the hand alone). */
   face: string | null;
-  steer: (typeof WHEEL_STEER)[number];
+  /** The category read now, when categories steer (a sign, a pose; null: none). */
+  category: string | null;
+  steer: WheelSteer;
   /** A held push is walking its move on the beat. */
   walking: boolean;
 }
 
-export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, steer: 'hand', walking: false };
+export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, category: null, steer: 'hand', walking: false };
 
 /** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
 function diatonicTarget(d: number, relation: string): number | null {
@@ -241,6 +279,9 @@ export const chordWheelNode = defineNode<Params>({
     { name: 'conductorTime', kind: 'musical-time' },
     // The face's controls, while the face sets the surprise (`surpriseFrom`).
     { name: 'face', kind: 'face-features' },
+    // A category reader (ASL's signs, a pose categorizer), while categories steer: an optional
+    // edge, composed only then.
+    { name: 'categories', kind: 'category-scores' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -260,6 +301,9 @@ export const chordWheelNode = defineNode<Params>({
     let faceStepper: CategoryStepper | null = null;
     let faceFrames = 0;
     let lastFace = -Infinity;
+    let categoryStepper: CategoryStepper | null = null;
+    let categoryFrames = 0;
+    let lastCategory = -Infinity;
     let stepperKey = '';
     let lastFrame: HandsFrame | undefined;
     let lastSeen = -Infinity;
@@ -293,6 +337,8 @@ export const chordWheelNode = defineNode<Params>({
       stepperKey = '';
       faceStepper = null;
       lastFace = -Infinity;
+      categoryStepper = null;
+      lastCategory = -Infinity;
       lastFrame = undefined;
       lastSeen = -Infinity;
       pointer = null;
@@ -351,6 +397,7 @@ export const chordWheelNode = defineNode<Params>({
           walker.reset();
         }
 
+        const byCategories = CATEGORY_STEERS.includes(c.steer);
         const frame = inputs.hands as HandsFrame | undefined;
         const aspect = frame && frame.height > 0 && frame.width > 0 ? frame.width / frame.height : 0;
         const region = wheelRegion(c.hand);
@@ -364,7 +411,8 @@ export const chordWheelNode = defineNode<Params>({
           pointer = hand ? displayPoint(hand, frame, c.point) : null;
           if (pointer) lastSeen = t;
           const centre = cells[0];
-          const choice = stepper.push(pointer ? { dx: (pointer.x - centre.x) * aspect, dy: pointer.y - centre.y } : null);
+          // While categories steer, the hand only signs or is read: it pushes no wedge.
+          const choice = stepper.push(pointer && !byCategories ? { dx: (pointer.x - centre.x) * aspect, dy: pointer.y - centre.y } : null);
           pointing = choice.pointing;
           committed = choice.committed;
           // The other hand's height, while it sets the surprise (a hand not seen keeps the last).
@@ -410,8 +458,28 @@ export const chordWheelNode = defineNode<Params>({
           }
         }
 
-        // Sounding while the steering hand (or face) is seen, and a moment after it is lost.
-        const seen = c.steer === 'face' ? lastFace : c.steer === 'both' ? Math.max(lastSeen, lastFace) : lastSeen;
+        // A category reader: each category held a moment makes its move or goes to its letter's chord.
+        let category: string | null = null;
+        if (byCategories) {
+          if (!categoryStepper || categoryFrames !== c.faceFrames) {
+            categoryStepper = createCategoryStepper({ enterFrames: c.faceFrames, rest: null, rearm: 'change' });
+            categoryFrames = c.faceFrames;
+          }
+          const read = inputs.categories as CategoryScores | undefined;
+          if (read?.present) lastCategory = ctx.time;
+          category = read?.present ? read.label : null;
+          const target = category !== null ? categoryTargetFor(c.steer, c.moves, c.categoryMoves[category], category, read!.labels.indexOf(category)) : null;
+          // A category with nothing to do is a rest: the next one held commits.
+          const made = categoryStepper.push(target ? category : null);
+          if (made !== null && target) {
+            const before = state.chord;
+            state = applyIntents(state, [target.kind === 'letter' ? { kind: 'function', fn: { degree: letterDegree(rawSpec!, target.letter) }, at: ctx.time } : { kind: 'step', relation: target.relation, at: ctx.time }]);
+            if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: target.kind === 'letter' ? target.letter : (RELATIONS.get(target.relation)?.label ?? target.relation) };
+          }
+        }
+
+        // Sounding while the steering hand (or face, or category reader) is seen, and a moment after it is lost.
+        const seen = byCategories ? lastCategory : c.steer === 'face' ? lastFace : c.steer === 'both' ? Math.max(lastSeen, lastFace) : lastSeen;
         const sounding = ctx.time - seen <= c.releaseS ? state.chord : null;
         const { voices } = render(sounding);
         const chord = state.chord;
@@ -468,6 +536,7 @@ export const chordWheelNode = defineNode<Params>({
           numeral: state.fn?.numeral ?? '',
           rejected: state.rejected,
           face,
+          category,
           steer: c.steer,
         };
         return { params: { voices } satisfies SynthParams, grid, status, triad: sounding ? tonesOf(sounding, spec) : [] };
