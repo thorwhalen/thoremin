@@ -17,9 +17,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import DialsControlsPanel from '@/app/dials/DialsControlsPanel';
+import { loadExtensionUi } from '@/app/extensions';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { useControls } from '@/app/store';
 import { branchIdsFor } from '@/app/graph';
@@ -86,6 +87,15 @@ afterEach(() => {
 
 // Each test waits up to LOAD_MS for the lazy section, so its own limit must exceed it (vitest's 5 s default made the wait unreachable).
 describe.runIf(FACES)('the face categorizer section of the instrument editor', { timeout: LOAD_MS + 5000 }, () => {
+  // The section's panel is the faces extension's LAZY React half. Its first import is cold (the
+  // extension's whole UI chunk, seconds on a loaded machine) and used to land inside the first
+  // test, under the test's own timeout (#797). Load it once here, with a timeout of its own: the
+  // panel's loader is cached, so every test below opens the section on a warm import and waits
+  // only for what it is testing.
+  beforeAll(async () => {
+    await loadExtensionUi('faces');
+  }, LOAD_MS);
+
   it('is a section of the editor, closed until opened, offering the general model and the shared ones', async () => {
     render(<DialsControlsPanel />);
     expect(screen.getByText('Face categorizer')).toBeTruthy();
