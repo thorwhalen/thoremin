@@ -155,7 +155,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
   it('useEngine installs the HUD resource under the key the overlay reads', () => {
     const engine = readFileSync(resolve(process.cwd(), 'src/app/useEngine.ts'), 'utf8');
     expect(engine).toMatch(/resources\.trainerHud\s*=\s*trainerHudResource/);
-    const overlay = readFileSync(resolve(process.cwd(), 'src/nodes/output/canvas_overlay.ts'), 'utf8');
+    const overlay = readFileSync(resolve(process.cwd(), 'src/nodes/output/overlay/node.ts'), 'utf8'); // the node's code since #600 S19a
     expect(overlay).toMatch(/ctx\.resources\.trainerHud/);
   });
 });
