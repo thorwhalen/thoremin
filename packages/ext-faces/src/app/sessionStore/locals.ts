@@ -13,7 +13,9 @@ import type { FaceTake } from '../../lib/take';
 import type { CategorizerChecks, FaceModelRecord } from '../models';
 import type { FaceSource } from '../sources';
 import type { LiveFrames } from '../thumbnails';
-import type { FreshTake, MergeSeed, Snapshot } from './state';
+import type { StoreApi } from 'zustand/vanilla';
+import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import type { FaceSessionDeps, FaceSessionState, FreshTake, MergeSeed, Snapshot } from './state';
 
 /** The categorizer a recording is being merged into, and what to restore if it is empty. */
 export type MergeBase = {
@@ -154,4 +156,18 @@ export function createLocals(): SessionLocals {
     stills: new Map<string, Blob>(),
     pending: new Set<Promise<void>>(),
   };
+}
+
+/** What every concern of the store is built from: the store's own `set` and `get`, its
+ *  dependencies, its modality, and the shared working state. */
+export interface SessionCtx {
+  set: StoreApi<FaceSessionState>['setState'];
+  get: StoreApi<FaceSessionState>['getState'];
+  deps: FaceSessionDeps;
+  modality: CarveModality;
+  /** Only the modality's keys of a vector (what a saved sample keeps). */
+  modalityOnly: (v: FeatureVector) => FeatureVector;
+  /** A take id none of `samples`' ids is under. */
+  freshTakeId: (samples: readonly { id: string }[]) => string;
+  loc: SessionLocals;
 }

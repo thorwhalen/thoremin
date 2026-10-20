@@ -20,10 +20,10 @@
   "importCycles": 0,
   "runtimeImportCycles": 0,
   "largestFiles": {
-    "packages/ext-faces/src/app/sessionStore.ts": 1395,
     "src/app/dials/InstrumentsPanel.tsx": 846,
     "packages/ext-air/src/nodes/air_drum.ts": 824,
     "packages/ext-faces/src/panels/FaceSessionPanel.tsx": 785,
-    "packages/sdk/src/enroll/sorting.ts": 783
+    "packages/sdk/src/enroll/sorting.ts": 783,
+    "packages/ext-harmony/src/nodes/chord_map.ts": 757
   }
 }
