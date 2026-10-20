@@ -28,7 +28,7 @@
  */
 import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { prefillName } from '@thoremin/sdk-ui/recording/naming';
-import { FEATURE_VECTOR_EDGES } from './liveVector';
+import { FEATURE_VECTOR_EDGES } from '@thoremin/sdk-ui/enroll/liveVector';
 import type { Cue } from '@thoremin/sdk/enroll';
 
 /** The instrument label a training take is filed under. */

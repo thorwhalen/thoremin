@@ -2,16 +2,17 @@
   "//": "The architecture ratchet's baseline (#600 S1): test/architecture_ratchet.test.ts compares the tree with it. A number may only go down; the PR that lowers one runs `npm run ratchet:arch -- --update` and commits this file. What each number counts: scripts/lib_architecture.ts.",
   "nodeImplementationImports": 0,
   "extensionNamesInCore": {
-    "air": 7,
+    "air": 6,
     "harmonic-layers": 0,
     "asl": 0,
     "midi-output": 0,
     "generative-layer": 0,
     "song-tool": 0,
     "body-tracking": 0,
+    "trainer-tool": 1,
     "conductor-tool": 1,
     "feature-lab": 1,
-    "faces": 3
+    "faces": 0
   },
   "storeControlsPorts": 23,
   "useEngineReporters": 3,
@@ -22,7 +23,7 @@
     "packages/ext-faces/src/app/sessionStore.ts": 1765,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
     "packages/ictus/src/impact.ts": 904,
-    "src/app/dials/InstrumentsPanel.tsx": 850,
+    "src/app/dials/InstrumentsPanel.tsx": 846,
     "packages/sdk/src/nodes/domain.ts": 809
   }
 }

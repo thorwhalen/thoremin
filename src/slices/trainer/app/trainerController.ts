@@ -1,15 +1,16 @@
 /**
- * The Trainer panel's controller (#600 S16c): every store the panel reads and every write it
- * makes, so `TrainerPanel.tsx` only renders. The panel reads ONE view (`useTrainerView`), calls
- * named actions (`trainerActions`), and runs the open panel's effects through one hook
- * (`useTrainerSession`: load on open, the hush, the sampling poll, Enter, stop on close).
+ * The Trainer panel's controller (#600 S16c; the Trainer slice's since S16d): every store the
+ * panel reads and every write it makes, so `TrainerPanel.tsx` only renders. The panel reads ONE
+ * view (`useTrainerView`), calls named actions (`trainerActions`), and runs the open panel's
+ * effects through one hook (`useTrainerSession`: load on open, the hush, the sampling poll, Enter,
+ * stop on close). The host mounts the panel only while the tool is open, so mounting is opening.
  *
- * What it reaches outside the Trainer's own stores, it reaches through the SDK's app half where a
- * seam exists: the recording config and the take's destination (`@thoremin/sdk-ui/recording`),
- * the recording commands (`dispatchCommand`), the hush (`controls().setHush`) and the category
- * binder (`categoryBinder()`: save the model, the default name, the saved list). What is left on
- * the app's own stores (the open tool and the HUD pref) is named here, in one place, for the move
- * into the Trainer's slice (S16d).
+ * What it reaches outside the Trainer's own stores, it reaches through the SDK's app half: the
+ * recording config and the take's destination (`@thoremin/sdk-ui/recording`), the recording
+ * commands (`dispatchCommand`), the hush and the HUD pref (`controls()`), the voice
+ * (`@thoremin/sdk-ui/enroll/voiceRuntime`) and the category binder (`categoryBinder()`: save the
+ * model, the default name, the saved list). Closing and opening another tool are the host's panel
+ * props.
  */
 import { useEffect, useRef } from 'react';
 import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
@@ -20,17 +21,16 @@ import { dispatchCommand } from '@thoremin/sdk-ui/dials';
 import { categoryBinder, type CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { useRecordingConfig } from '@thoremin/sdk-ui/recording/config';
 import { describeTakeDestination, folderPickerSupported } from '@thoremin/sdk-ui/recording/destination';
-import { readLiveVector } from './liveVector';
+import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
 import { useTrainer } from './store';
 import { useTrainerPrefs } from './prefs';
-import { installVoice, useVoice } from './voiceRuntime';
+import { installVoice, useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 import { routineRecordsPerformance } from './realVsAirCues';
-import { useTools } from '../toolsStore';
-import { useControls } from '../store';
-import { toolById } from '../tools';
+import { setTrainerHud, useTrainerHud } from './hud';
+import { TRAINER_TOOL } from '../tool';
 
 /** The tool id, and the id of the Trainer's hush claim (see `controls().setHush`). */
-export const TRAINER_TOOL_ID = 'trainer';
+export const TRAINER_TOOL_ID = TRAINER_TOOL.id;
 /** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
  *  that the panel is not doing frame-rate work. */
 const SAMPLE_INTERVAL_MS = 33;
@@ -41,11 +41,9 @@ export const nowMs = (): number => readLiveVector()?.t ?? performance.now();
 
 /** Everything the panel shows, read reactively. */
 export function useTrainerView() {
-  const open = useTools((s) => s.open) === TRAINER_TOOL_ID;
   const routine = useTrainer((s) => s.routine);
   const status = useTrainer((s) => s.status);
   const view = {
-    open,
     routine,
     routineName: useTrainer((s) => s.routineName),
     missing: useTrainer((s) => s.missing),
@@ -65,7 +63,7 @@ export function useTrainerView() {
     lastEndSay: useTrainer((s) => s.lastEndSay),
     recording: useTrainer((s) => s.recording),
     notice: useTrainer((s) => s.notice),
-    hudShow: useControls((s) => s.trainerHud.show),
+    hudShow: useTrainerHud().show,
     recordTake: useTrainerPrefs((s) => s.recordTake),
     manualAdvance: useTrainerPrefs((s) => s.manualAdvance),
     voiceOn: useVoice((s) => s.enabled),
@@ -77,8 +75,8 @@ export function useTrainerView() {
       supported: folderPickerSupported(),
       remembered: useRecordingConfig((s) => s.folderRemembered),
     }),
-    /** The tool's registry entry (its strapline). */
-    tool: toolById(TRAINER_TOOL_ID),
+    /** The tool's data (its strapline). */
+    tool: TRAINER_TOOL,
   };
   const running = status === 'running' || status === 'between';
   return {
@@ -93,7 +91,6 @@ export function useTrainerView() {
 
 /** Every write the panel makes. */
 export const trainerActions = {
-  close: () => useTools.getState().close(),
   /** Start the take; `unlockClick` (a clicked routine) lets the click's audio context start, so
    *  call it inside the gesture. */
   startTake: ({ unlockClick = false }: { unlockClick?: boolean } = {}) => {
@@ -113,14 +110,12 @@ export const trainerActions = {
   /** Whether the take has something to carve: a routine that ended with every vocabulary cue
    *  skipped or `cannot` is "done" and still has no still-points. */
   canBuild: () => useTrainer.getState().session().ready(),
-  setHudShow: (show: boolean) => useControls.getState().setTrainerHud({ show }),
+  setHudShow: (show: boolean) => setTrainerHud({ show }),
   setRecordTake: (on: boolean) => useTrainerPrefs.getState().setRecordTake(on),
   setManualAdvance: (on: boolean) => useTrainerPrefs.getState().setManualAdvance(on),
   setVoice: (on: boolean) => useVoice.getState().setEnabled(on),
   chooseFolder: () => void dispatchCommand('recording.folder.choose', {}),
   useDownloads: () => void dispatchCommand('recording.location.set', { location: 'downloads' }),
-  /** Where *Save and bind* goes next: the Gestures tool, where each category gets a command. */
-  openBindings: () => useTools.getState().openTool('gestures'),
 };
 
 /** The routine chooser's reads. */
@@ -144,28 +139,26 @@ export function useProjection() {
 }
 
 /**
- * The open panel's effects. Read the cue and routine stores once the panel is first opened and
- * register the spoken channel; hush the instrument while it is open; poll the live vector into the
- * runner while it runs; Enter completes the running cue; closing the panel stops a running routine.
+ * The open panel's effects (the panel is mounted only while open). Read the cue and routine stores
+ * and register the spoken channel; hush the instrument while it is open; poll the live vector into
+ * the runner while it runs; Enter completes the running cue; closing the panel stops a running
+ * routine.
  */
-export function useTrainerSession(open: boolean, running: boolean): void {
+export function useTrainerSession(running: boolean): void {
   // The spoken channel fetches its clip manifest lazily and says nothing until it has one.
   useEffect(() => {
-    if (open) {
-      void useTrainer.getState().load();
-      installVoice();
-      void useRecordingConfig.getState().refreshFolder();
-    }
-  }, [open]);
+    void useTrainer.getState().load();
+    installVoice();
+    void useRecordingConfig.getState().refreshFolder();
+  }, []);
 
   // Hush the instrument while the panel is open: a theremin sounding under the click and
   // the spoken cues drowned both. A claim, not the player's mute, so closing the panel
   // restores exactly what was there (a player who had muted stays muted).
   useEffect(() => {
-    if (!open) return;
     controls().setHush(TRAINER_TOOL_ID, true);
     return () => controls().setHush(TRAINER_TOOL_ID, false);
-  }, [open]);
+  }, []);
 
   // Poll the live vector into the runner while it runs. The interval is recreated only
   // when `running` flips, so it is not restarted every render.
@@ -187,7 +180,6 @@ export function useTrainerSession(open: boolean, running: boolean): void {
   // interactive element is focused: a focused button (Done/Skip/Stop) already activates
   // on Enter, so handling it here too would fire complete() twice and skip a cue.
   useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Enter') return;
       // One advance per physical press, never per auto-repeat: holding Enter would else
@@ -203,14 +195,17 @@ export function useTrainerSession(open: boolean, running: boolean): void {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, []);
 
   // Closing the panel (the X, or switching tools) must stop a running routine: otherwise
   // the poll keeps sampling and the feature-demand claim (#163) keeps the catalog
-  // computing every tick, with nothing on screen to say so.
-  useEffect(() => {
-    if (!open && running) useTrainer.getState().stop(nowMs());
-  }, [open, running]);
+  // computing every tick, with nothing on screen to say so. Closing unmounts the panel.
+  useEffect(
+    () => () => {
+      if (runningRef.current) useTrainer.getState().stop(nowMs());
+    },
+    [],
+  );
 }
 
 /** The default name for a kept model: the active set's when it is a Trainer's (retraining the
@@ -226,10 +221,13 @@ export function keepReplaces(saved: readonly { id: string; name: string }[], nam
   return saved.find((s) => s.id === trainedId(name));
 }
 
+/** The tool *Save and bind* opens next: the Gestures tool, where each category gets a command. */
+export const BINDINGS_TOOL = 'gestures';
+
 /** Keep the model under `name` (carrying bindings by category name), then open the bindings. */
-export async function keepModel(binder: CategoryBinder, name: string, model: TrainedModel): Promise<void> {
+export async function keepModel(binder: CategoryBinder, name: string, model: TrainedModel, openTool: (id: string) => void): Promise<void> {
   await binder.saveModel(name, model);
-  trainerActions.openBindings();
+  openTool(BINDINGS_TOOL);
 }
 
 export { categoryBinder };

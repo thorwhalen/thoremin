@@ -1,14 +1,33 @@
 /**
- * The trainer's on-video guidance.
- *
- * Part of the `canvas-overlay` node (`../../canvas_overlay.ts` is its public face; split into these
- * files by #600 S19a, the drawing unchanged).
+ * The trainer's guidance on the video (#163 §5), the Trainer slice's contributed overlay cue since
+ * #600 S16d (core's `trainerHud` element before; the drawing code moved unchanged). It reads the
+ * HUD pref (`config`: a derived port of the slice's `trainerHud` pref) and the snapshot of what the
+ * trainer is saying (`snapshot`: the slice's transient), and draws only while a routine runs and the
+ * player asked for the words in the video.
  */
-import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
-import { CUE_MARGIN, type OverlayElement, type OverlayView } from '../view';
+import type { OverlayElementDecl, OverlayElementImpl, OverlayFrame } from '@thoremin/sdk/instruments/extension';
+import { wrapLines, type TrainerHudSnapshot } from '../lib/hud';
+import { defaultTrainerHud, type TrainerHudParams } from '../schema';
 
-// ---- Trainer guidance on the video (#163 §5) --------------------------------------
-// A self-contained additive block, like the tag HUD. Draws only while a routine runs.
+export const TRAINER_HUD_ELEMENT = 'hud';
+
+/** What it reads: the HUD pref and the snapshot. */
+export const TRAINER_HUD_DECL: OverlayElementDecl = {
+  name: TRAINER_HUD_ELEMENT,
+  category: 'guide',
+  cue: true,
+  inputs: [
+    { name: 'hud', kind: 'trainer-hud-config' },
+    { name: 'snapshot', kind: 'trainer-hud-snapshot' },
+  ],
+  // Where core's element was: above the other cues, below `fingerBars` (the topmost).
+  drawBefore: 'fingerBars',
+};
+
+/** The gap between a cue and the canvas edge (the shared cue layout's margin), for the fallback
+ *  origin before the layout places the banner. */
+const CUE_MARGIN = 12;
+
 const TRAINER_HUD_PAD = 16;
 const TRAINER_HUD_BIG = 22; // px, the instruction
 const TRAINER_HUD_SMALL = 15; // px, the guidance + the cue label
@@ -26,7 +45,7 @@ const TRAINER_HUD_MAX_LINES = 3;
 
 /** The banner's geometry for this snapshot at this width — shared by `measure` (the
  *  layout pass) and `draw`, so what is reserved is what is painted. */
-function trainerHudBox(view: OverlayView, hud: TrainerHudSnapshot) {
+function trainerHudBox(view: OverlayFrame, hud: TrainerHudSnapshot) {
   const boxW = Math.max(200, Math.min(view.W - 2 * TRAINER_HUD_SIDE, TRAINER_HUD_MAX_W));
   const maxChars = Math.max(12, Math.floor((boxW - 2 * TRAINER_HUD_PAD) / TRAINER_HUD_BIG_CHAR_W));
   const lines = clipLines(wrapLines(hud.say, maxChars), TRAINER_HUD_MAX_LINES, maxChars);
@@ -53,9 +72,9 @@ function clipText(text: string, maxChars: number): string {
 /** Paint the guidance banner at its laid-out origin: cue label, the instruction
  *  (wrapped), the latest nudge, and a coverage bar along the bottom edge. fillRect /
  *  fillText only. */
-function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: TrainerHudSnapshot): void {
+function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayFrame, hud: TrainerHudSnapshot): void {
   const { boxW, boxH, lines, label, guidance, lineH } = trainerHudBox(view, hud);
-  const origin = view.layout.trainerHud ?? { x: (view.W - boxW) / 2, y: view.H - boxH - CUE_MARGIN };
+  const origin = view.origin ?? { x: (view.W - boxW) / 2, y: view.H - boxH - CUE_MARGIN };
   const x0 = origin.x;
   const y0 = origin.y;
 
@@ -96,20 +115,23 @@ function drawTrainerHud(g: CanvasRenderingContext2D, view: OverlayView, hud: Tra
   g.restore();
 }
 
-export const trainerHud: OverlayElement = {
-  name: 'trainerHud',
-  category: 'guide',
-  cue: true,
-  positionOf: (view) => view.params.trainerHud.position,
-  measure(view) {
-    const hud = view.inputs.trainerHud;
-    if (!hud || !view.params.trainerHud.show) return null;
-    const { boxW, boxH } = trainerHudBox(view, hud);
+const configOf = (inputs: Readonly<Record<string, unknown>>): TrainerHudParams => (inputs.hud as TrainerHudParams | undefined) ?? defaultTrainerHud();
+const shown = (inputs: Readonly<Record<string, unknown>>): TrainerHudSnapshot | null => {
+  const hud = inputs.snapshot as TrainerHudSnapshot | null | undefined;
+  return hud && configOf(inputs).show ? hud : null;
+};
+
+export const trainerHudElement: OverlayElementImpl = {
+  name: TRAINER_HUD_ELEMENT,
+  positionOf: (_frame, inputs) => configOf(inputs).position,
+  measure(frame, inputs) {
+    const hud = shown(inputs);
+    if (!hud) return null;
+    const { boxW, boxH } = trainerHudBox(frame, hud);
     return { w: boxW, h: boxH };
   },
-  draw(g, view) {
-    const hud = view.inputs.trainerHud;
-    if (!hud || !view.params.trainerHud.show) return;
-    drawTrainerHud(g, view, hud);
+  draw(g, frame, inputs) {
+    const hud = shown(inputs);
+    if (hud) drawTrainerHud(g, frame, hud);
   },
 };

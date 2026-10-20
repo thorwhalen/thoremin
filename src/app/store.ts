@@ -18,7 +18,7 @@ import { provideControls } from '@thoremin/sdk-ui/host';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
-import { OverlayDialSchema, TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
+import { OverlayDialSchema, type OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
 import { GesturePrefsSchema, defaultGesturePrefs, type GesturePrefs } from './gesturePrefs';
 import { FACE_MAPPINGS, legacyFaceToMapping, type VoiceParams, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import {
@@ -181,13 +181,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
    * edited from the Gestures shell tool.
    */
   gestures: GesturePrefs;
-  /**
-   * The trainer's on-video guidance HUD (#163): shown, and on which edge. A per-DEVICE
-   * tooling pref like {@link faceCalibration} — the trainer is a shell tool, so hiding its
-   * banner must not mark the instrument edited nor flip when an instrument loads.
-   * `store-controls` composes it into the overlay node's params each tick.
-   */
-  trainerHud: TrainerHudParams;
   /** The per-device audio pref (#240): `lowLatency` asks for `latencyHint: 0` when the
    *  audio context is created (the first tap). Persisted with the tooling prefs, not a
    *  preset field: the hint belongs to the machine's audio device, not an instrument. */
@@ -224,8 +217,6 @@ export interface ControlState extends ExtensionDials, ExtensionTransients {
   /** Shallow-patch the gesture-dispatch prefs (e.g. setGestures({ enabled: true }),
    *  or a whole new `bindings` record for a binding change). */
   setGestures(patch: Partial<GesturePrefs>): void;
-  /** Shallow-patch the trainer HUD pref (e.g. setTrainerHud({ show: false })). */
-  setTrainerHud(patch: Partial<TrainerHudParams>): void;
   /** Shallow-patch the per-device audio pref (#240; e.g. setAudioPrefs({ lowLatency: true })). */
   setAudioPrefs(patch: Partial<AudioPrefs>): void;
   /** Replace an extension's per-device pref (#600 S9), validated by its slice's schema (an
@@ -323,8 +314,6 @@ export const HEAL_RULES: CoreHealRules = {
   // Fills defaults for overlay elements added since the blob was written (e.g. `chordGuide`
   // in #64, whose absence would otherwise throw in `overlay.chordGuide.show`).
   overlay: { schema: OverlayDialSchema },
-  // The trainer HUD pref (#163).
-  trainerHud: { schema: TrainerHudParamsSchema },
   // Completed from the defaults, then validated, so a UI control never binds to an
   // undefined/corrupt field (parity with overlay).
   faceChord: { schema: FaceChordSchema, complete: overDefaults(DEFAULT_FACE_CHORD) },
@@ -415,7 +404,7 @@ export function withExtensionPrefs<S extends object>(state: S, prefSlices: reado
  * prefs (core's below and every extension's pref slice: persisted, never in an instrument), and
  * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
  */
-const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'gestures', 'trainerHud', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
+const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'gestures', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
 const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
 
 /** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
@@ -510,7 +499,6 @@ export const useControls = create<ControlState>()(
       ...extensionTransientDefaults(),
       faceCalibration: null,
       gestures: defaultGesturePrefs(),
-      trainerHud: TrainerHudParamsSchema.parse({}),
       audioPrefs: { ...DEFAULT_AUDIO_PREFS },
       setVoice: (side, patch) =>
         set((s) => {
@@ -557,7 +545,6 @@ export const useControls = create<ControlState>()(
       setHandMap: (patch) => set((s) => ({ handMap: { ...s.handMap, ...patch } })),
       setFaceCalibration: (map) => set({ faceCalibration: map ? { ...map } : null }),
       setGestures: (patch) => set((s) => ({ gestures: { ...s.gestures, ...patch } })),
-      setTrainerHud: (patch) => set((s) => ({ trainerHud: { ...s.trainerHud, ...patch } })),
       setAudioPrefs: (patch) => set((s) => ({ audioPrefs: { ...s.audioPrefs, ...patch } })),
       setPref: (key, value) => {
         const slice = CONTRIBUTIONS.prefSlices.find((p) => p.key === key);

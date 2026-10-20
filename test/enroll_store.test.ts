@@ -10,11 +10,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { CueSpecSchema, categoryKey, type CueRecord, type FeatureVector, type RoutineRecord } from '@thoremin/sdk/enroll';
-import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
-import { useTrainer, useTrainerStores } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { DEFAULT_ROUTINE_CUE_IDS } from '@/app/enroll/starterCues';
-import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
+import { createCueStore, createRoutineStore } from '@/slices/trainer/app/cueStore';
+import { useTrainer, useTrainerStores } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
+import { DEFAULT_ROUTINE_CUE_IDS } from '@/slices/trainer/app/starterCues';
+import { ALL_STARTER_CUES } from '@/slices/trainer/app/cueStore';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 const stores = () => ({

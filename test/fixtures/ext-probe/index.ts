@@ -28,6 +28,9 @@ export const PROBE_NODE_TYPE = 'probe-tone';
 export const PROBE_NODE_ID = 'probe';
 export const PROBE_BRANCH_ID = 'probe-branch';
 export const PROBE_TOOL_ID = 'probe-tool';
+/** A probe tool that draws its own frame and hushes the instrument while open (#600 S16d). */
+export const PROBE_OWN_FRAME_TOOL_ID = 'probe-own-frame';
+export const PROBE_OWN_FRAME_HUSH = 'while the probe frames itself';
 export const PROBE_INSTRUMENT = 'Probe Instrument';
 /** The voice id the probe plays on: far from the trunk's 0 and 1 and the air instruments'. */
 export const PROBE_VOICE_ID = 9001;

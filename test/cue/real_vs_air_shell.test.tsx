@@ -9,16 +9,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import TrainerPanel from '@/app/TrainerPanel';
+// The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
-import { useTrainer, useTrainerStores } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
-import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
+import { useTrainer, useTrainerStores } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
+import { createCueStore, createRoutineStore } from '@/slices/trainer/app/cueStore';
+import { STARTER_ROUTINES } from '@/slices/trainer/app/realVsAirCues';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { registerRecordingController, type RecordingController } from '@thoremin/sdk-ui/recording/controller';
 import type { RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { createInMemoryProvider } from '@zodal/store';
+import { TRAINER } from '../helpers/extensions';
 
 const TAPS = STARTER_ROUTINES[0];
 
@@ -62,7 +64,7 @@ async function openAndChoose() {
   render(
     <>
       <ToolsBar />
-      <TrainerPanel />
+      <ExtensionToolPanels />
     </>,
   );
   fireEvent.click(screen.getByText('Trainer'));
@@ -71,7 +73,7 @@ async function openAndChoose() {
   });
 }
 
-describe('the real-vs-air routine from a cold load (#247)', () => {
+describe.runIf(TRAINER)('the real-vs-air routine from a cold load (#247)', () => {
   it('is offered by the routine chooser and loads with what the player needs', async () => {
     await openAndChoose();
     expect(useTrainer.getState().routineName).toBe(TAPS.name);

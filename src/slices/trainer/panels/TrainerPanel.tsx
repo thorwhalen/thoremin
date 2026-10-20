@@ -53,11 +53,12 @@
 import { useEffect, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
 import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
-import RoutinePicker from './enroll/RoutinePicker';
-import ProjectionView from './enroll/ProjectionView';
-import { unlockVoice } from './enroll/voiceRuntime';
-import { STARTER_ROUTINES, starterRoutineById } from './enroll/realVsAirCues';
+import RoutinePicker from './RoutinePicker';
+import ProjectionView from './ProjectionView';
+import { unlockVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
+import { STARTER_ROUTINES, starterRoutineById } from '../app/realVsAirCues';
 import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
+import type { ExtensionToolPanelProps } from '@thoremin/sdk-ui/types';
 import {
   TRAINER_TOOL_ID,
   categoryBinder,
@@ -70,7 +71,7 @@ import {
   useRoutineChoice,
   useTrainerSession,
   useTrainerView,
-} from './enroll/trainerController';
+} from '../app/trainerController';
 
 /** The tool id, and the id of the Trainer's hush claim. */
 export const TOOL_ID = TRAINER_TOOL_ID;
@@ -116,13 +117,13 @@ const DEFAULT_CATEGORIES_NAME = 'My categories';
 
 /** Keep the categories (#160): save the model under a name and go bind it. The binding
  *  itself happens in the Gestures tool, where the instrument is audible again. */
-function KeepCategories(props: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
+function KeepCategories(props: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string>; openTool: (id: string) => void }) {
   // Through the host's binder (#600 S16c); a build with no category bindings offers no keep.
   const binder = categoryBinder();
   return binder ? <KeepForm binder={binder} {...props} /> : null;
 }
 
-function KeepForm({ binder, model, labels, cueNames }: { binder: CategoryBinder; model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
+function KeepForm({ binder, model, labels, cueNames, openTool }: { binder: CategoryBinder; model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string>; openTool: (id: string) => void }) {
   // Default to the active Trainer set's name (`defaultKeepName`).
   const [name, setName] = useState(() => defaultKeepName(binder, DEFAULT_CATEGORIES_NAME));
   const saved = binder.useSaved();
@@ -138,7 +139,7 @@ function KeepForm({ binder, model, labels, cueNames }: { binder: CategoryBinder;
     setBusy(true);
     setError(null);
     try {
-      await keepModel(binder, saveName, labelledModel(model, labels, cueNames));
+      await keepModel(binder, saveName, labelledModel(model, labels, cueNames), openTool);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -301,12 +302,13 @@ function ProjectionSection() {
   );
 }
 
-export default function TrainerPanel() {
-  const { open, routine, routineName, missing, status, index, samples, coverage, say, outcomes, transcript, built, k, suggestedK, model, categorySource, labels, lastEndSay, recording, notice, hudShow, recordTake, manualAdvance, voiceOn, destination, tool, running, pairRoutine, hasVocabulary } = useTrainerView();
-  const { close, setHudShow, setRecordTake, setManualAdvance, setVoice } = trainerActions;
-  useTrainerSession(open, running);
+/** The Trainer's panel: the host mounts it only while the tool is open, and it draws its own frame
+ *  (`frame: 'own'`): a banner above every panel while a routine runs, the full panel otherwise. */
+export default function TrainerPanel({ close, openTool }: ExtensionToolPanelProps) {
+  const { routine, routineName, missing, status, index, samples, coverage, say, outcomes, transcript, built, k, suggestedK, model, categorySource, labels, lastEndSay, recording, notice, hudShow, recordTake, manualAdvance, voiceOn, destination, tool, running, pairRoutine, hasVocabulary } = useTrainerView();
+  const { setHudShow, setRecordTake, setManualAdvance, setVoice } = trainerActions;
+  useTrainerSession(running);
 
-  if (!open) return null;
   const activeCue = index >= 0 ? routine[index] : null;
   // The instruction stays up for the whole cue; a variation ("a bit further") is the
   // runner's LAST utterance and goes beneath it, never in its place.
@@ -623,7 +625,7 @@ export default function TrainerPanel() {
               {routine.some((c, i) => c.produces === 'nuisance' && outcomes[i] === 'enough') &&
                 ' Anything that moved during the "should not matter" cue was quieted.'}
             </p>
-            <KeepCategories model={model} labels={labels} cueNames={cueNames} />
+            <KeepCategories model={model} labels={labels} cueNames={cueNames} openTool={openTool} />
           </div>
         )}
 

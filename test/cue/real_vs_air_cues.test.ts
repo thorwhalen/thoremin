@@ -6,10 +6,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { CueSpecSchema, clickPlan, createRunner, createSession, cueCoverage, type Cue, type CueSpecInput, type RunnerEvent } from '@thoremin/sdk/enroll';
-import { REAL_VS_AIR_CUES, routineRecordsPerformance } from '@/app/enroll/realVsAirCues';
-import { STARTER_CUES } from '@/app/enroll/starterCues';
-import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
-import { trainerTakeMeta, trainerTakeSession } from '@/app/enroll/takeSession';
+import { REAL_VS_AIR_CUES, routineRecordsPerformance } from '@/slices/trainer/app/realVsAirCues';
+import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
+import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/slices/trainer/app/annotations';
+import { trainerTakeMeta, trainerTakeSession } from '@/slices/trainer/app/takeSession';
 import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import { planRecording } from '@/app/recording/plan';
 import { activeStreamLabels } from '@/app/recording/session';

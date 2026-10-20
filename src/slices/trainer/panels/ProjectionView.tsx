@@ -12,8 +12,8 @@
  * embedding, polled at UI rate off the same live vector the runner samples.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { readLiveVector } from './liveVector';
-import { useTrainer } from './store';
+import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
+import { useTrainer } from '../app/store';
 import { selectInRect, type Point2 } from '@thoremin/sdk/enroll';
 
 const W = 340;

@@ -10,6 +10,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { TRAINER_STORES } from '../stores';
 
 interface TrainerPrefs {
   /** Record the take (clean camera + features + cue annotations). Default ON. */
@@ -32,6 +33,6 @@ export const useTrainerPrefs = create<TrainerPrefs>()(
       manualAdvance: false,
       setManualAdvance: (on) => set({ manualAdvance: on }),
     }),
-    { name: 'thoremin-trainer-prefs' },
+    { name: TRAINER_STORES.prefs.legacyKey },
   ),
 );

@@ -27,7 +27,7 @@ import {
   type Cue,
   type FeatureVector,
 } from '@thoremin/sdk/enroll';
-import { starterCueById } from '@/app/enroll/starterCues';
+import { starterCueById } from '@/slices/trainer/app/starterCues';
 import { matrixToHeadPose } from '@thoremin/sdk/nodes/domain';
 import { loadStream } from './helpers/fixtures';
 

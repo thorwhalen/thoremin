@@ -21,6 +21,7 @@
  */
 import type { DataProvider } from '@zodal/store';
 import { ALL_FEATURES, FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
+import { TRAINER_STORES } from '../stores';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import {
   CueRecordSchema,
@@ -41,9 +42,9 @@ import { REAL_VS_AIR_CUES, starterRoutineById } from './realVsAirCues';
  *  (#247). The merge below keeps this order. */
 export const ALL_STARTER_CUES: readonly Cue[] = [...STARTER_CUES, ...REAL_VS_AIR_CUES];
 
-/** localStorage keys (the browser default target). */
-export const CUES_STORAGE_KEY = 'thoremin-cues';
-export const ROUTINES_STORAGE_KEY = 'thoremin-routines';
+/** localStorage keys (the browser default target), the slice's declared stores. */
+export const CUES_STORAGE_KEY = TRAINER_STORES.cues.legacyKey;
+export const ROUTINES_STORAGE_KEY = TRAINER_STORES.routines.legacyKey;
 
 export type CueStore = NamedCollectionStore<CueRecord, CueSpec>;
 export type RoutineStore = NamedCollectionStore<RoutineRecord, RoutineSpec>;

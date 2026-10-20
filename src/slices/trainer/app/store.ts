@@ -63,7 +63,7 @@ import { clickPlan, type Click } from '@thoremin/sdk/enroll';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { routineRecordsPerformance } from './realVsAirCues';
 import { ALL_STARTER_CUES } from './cueStore';
-import { recordingConfig } from '../recording/configStore';
+import { recordingConfig } from '@thoremin/sdk-ui/recording/config';
 import { emitGuidance, emitGuidanceStop } from '@thoremin/sdk-ui/enroll/guidance';
 import { DEFAULT_ROUTINE_CUE_IDS, STARTER_CUES } from './starterCues';
 

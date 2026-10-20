@@ -40,6 +40,8 @@ export default function ExtensionToolPanels() {
   const tool = shellToolById(entry.id);
   const label = tool?.label ?? entry.id;
   const { Panel } = entry;
+  // A tool that draws its own frame (#600 S16d: the Trainer's banner) gets its content bare.
+  if (entry.frame === 'own') return <Panel close={close} {...helpersFor(entry.id)} />;
   const Icon = TOOL_ICONS[entry.id] ?? Puzzle;
   return (
     <div

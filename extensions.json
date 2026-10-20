@@ -8,6 +8,7 @@
     { "id": "generative-layer", "module": "@/slices/generative", "ui": "@/slices/generative/ui" },
     { "id": "song-tool", "module": "@/slices/song", "ui": "@/slices/song/ui" },
     { "id": "body-tracking", "module": "@/slices/body", "ui": "@/slices/body/ui" },
+    { "id": "trainer-tool", "module": "@/slices/trainer", "ui": "@/slices/trainer/ui" },
     { "id": "conductor-tool", "module": "@/slices/conductor", "ui": "@/slices/conductor/ui" },
     { "id": "feature-lab", "module": "@/slices/lab", "ui": "@/slices/lab/ui" },
     { "id": "faces", "module": "@thoremin/ext-faces", "ui": "@thoremin/ext-faces/ui", "lazy": { "module": "@thoremin/ext-faces/lazy", "ui": "@thoremin/ext-faces/lazy_ui" } }

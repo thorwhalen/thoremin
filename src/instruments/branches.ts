@@ -79,7 +79,7 @@ export const trunk = defineBranch({
     // `store-controls` emits it, the overlay draws only these. Data on a port, not a param.
     to(ui('graphElements'), overlay('elements')),
   ],
-  overlay: ['video', 'landmarks', 'tagHud', 'trainerHud'],
+  overlay: ['video', 'landmarks', 'tagHud'],
 });
 
 export const fieldVoices = defineBranch({

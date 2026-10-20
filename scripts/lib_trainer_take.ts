@@ -49,7 +49,7 @@ import { join, basename } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
 import type { EdgeEvent, ResolvedInterval, TagKind, TagStatus } from '@thoremin/taglog/affordances/schema';
-import { FACE_OMIT } from '@/app/enroll/starterCues';
+import { FACE_OMIT } from '@/slices/trainer/app/starterCues';
 import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 
 /** Gzip anything at or above this many bytes, mirroring the existing committed fixtures. */

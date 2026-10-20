@@ -33,8 +33,8 @@
  * When play still fails, the failure is swallowed (the sink contract: never throw,
  * never block) and the text channel carries on.
  */
-import type { GuidanceSink } from '@thoremin/sdk-ui/enroll/guidance';
-import type { TranscriptLine } from './store';
+import type { GuidanceSink } from './guidance';
+import type { TranscriptLine } from './guidance';
 import { clipFor, type VoiceManifest } from './speakable';
 
 /** Something that plays one URL to completion; `signal` aborts it early. Injectable

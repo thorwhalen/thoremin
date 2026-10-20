@@ -19,7 +19,7 @@ import { legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domai
 import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ExtensionDials, ExtensionTransients } from '@/settings/schema';
-import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
+import type { OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
 
 export interface VoiceControlSnapshot {
   root: number;
@@ -50,12 +50,8 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   /** Tool surfaces holding the instrument quiet (the store's `hushedBy`); see
    *  {@link hushOf}. Absent → nobody. */
   hushedBy?: readonly string[];
-  /** Live overlay element config (the INSTRUMENT's overlay). Composed with the trainer HUD
-   *  pref into canvas-overlay's `overlayConfig`. */
+  /** Live overlay element config (the INSTRUMENT's overlay): canvas-overlay's `overlayConfig`. */
   overlay?: OverlayDialParams;
-  /** The trainer's guidance HUD pref (#163) — per-device; composed into
-   *  the overlay node's params here. */
-  trainerHud?: TrainerHudParams;
   /** Legacy face on/off flag; superseded by {@link faceMapping}. Kept so older
    *  hosts / saved data still gate the `webcam-face` model load. */
   faceEnabled?: boolean;
@@ -289,15 +285,10 @@ function defineStoreControls(extensions: readonly Extension[]) {
           out.expressionDegrees = c.faceExpr.degrees;
           out.expressionTargets = c.faceExpr.targets ?? {};
         }
-        // Recompose the overlay node's params: the instrument's overlay elements plus the
-        // per-device trainer HUD pref, owned outside the instrument (#136). (The Feature Lab's
-        // config was composed here too; its element reads it from its slice's port, #600 S16b.)
-        if (c.overlay) {
-          out.overlay = {
-            ...c.overlay,
-            trainerHud: c.trainerHud ?? TrainerHudParamsSchema.parse({}),
-          };
-        }
+        // The overlay node's params are the instrument's overlay elements. (The per-device Feature
+        // Lab config and trainer HUD pref were composed in here; each is its slice's element now,
+        // fed by a port its pref derives, #600 S16b / S16d.)
+        if (c.overlay) out.overlay = c.overlay;
         return out;
       },
     };

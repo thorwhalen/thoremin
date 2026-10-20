@@ -21,9 +21,9 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay.schema';
  * `'instrument'` — the Overlay section of the per-instrument settings panel: the
  * element is a property of the instrument, saved and loaded with it.
  *
- * `'trainer'` — the Trainer's panel, a TOOLING surface reached from the app shell's tools bar.
- * Its element's config is per-device, not per-instrument. (The Feature Lab's `'lab'` surface was
- * the first; its element is the Lab slice's since #600 S16b.)
+ * A tool's own surface was the other value: the Feature Lab's `'lab'` and the Trainer's
+ * `'trainer'`, per-device element configs a tool's panel set. Both elements are their slices'
+ * since #600 S16b / S16d, and set from their own panels, so only the instrument surface is left.
  *
  * This field exists because the old invariant ("every element has a descriptor") was
  * satisfied while the Feature Lab was, in practice, unreachable (#136): a descriptor
@@ -31,7 +31,7 @@ import type { OverlayParams } from '@/nodes/output/canvas_overlay.schema';
  * surface named here must be reachable from the app shell — `tools.ts` is the registry
  * of shell surfaces and a test ties the two together.
  */
-export type OverlaySurface = 'instrument' | 'trainer';
+export type OverlaySurface = 'instrument';
 
 export interface OverlayControlDesc {
   /** The overlay ELEMENT this descriptor controls. Usually also the params key — see
@@ -127,9 +127,6 @@ export const OVERLAY_CONTROLS: OverlayControlDesc[] = [
   // Live tagging (#92): the burned-in corner HUD (open tags + timecode) that composits
   // into the recorded video. Shown only while a take records; toggle to hide the burn-in.
   { name: 'tagHud', label: 'Annotation HUD (recorded)' },
-  // Trainer guidance on the video (#163): the instruction + nudges while a routine
-  // runs. Shown only then; toggle to keep the video clean during training.
-  { name: 'trainerHud', label: 'Trainer guidance', surface: 'trainer' },
 ];
 
 /** The descriptors rendered by a given UI surface. `surface` is optional on a

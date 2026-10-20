@@ -23,7 +23,7 @@ import {
   findStem,
   stripRawPositions,
 } from '../scripts/lib_trainer_take';
-import { FACE_OMIT } from '@/app/enroll/starterCues';
+import { FACE_OMIT } from '@/slices/trainer/app/starterCues';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';
 import { valuesFromNDJSON } from '@thoremin/dag';
 

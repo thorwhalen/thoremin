@@ -37,7 +37,7 @@ import {
 } from '@thoremin/sdk/enroll';
 import { BLENDSHAPE_NAME_BY_FEATURE, FACE_FEATURES } from '@thoremin/sdk/features/face_catalog';
 import { blendshapesOf, generalFaceLabeling } from '@thoremin/sdk/features/face_labels';
-import { starterCueById } from '@/app/enroll/starterCues';
+import { starterCueById } from '@/slices/trainer/app/starterCues';
 import { loadStream } from './helpers/fixtures';
 
 /** A small deterministic PRNG (mulberry32), so the brute-force comparisons are stable. */

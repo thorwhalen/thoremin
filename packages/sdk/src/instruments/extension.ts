@@ -407,7 +407,7 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   transient?: Tr;
   /** The instruments it ships, appended to core's seeds in this order. */
   instruments?: readonly ExtensionInstrument[];
-  /** Its training routes, tried before core's Trainer tool. */
+  /** Its training routes; a `fallback` one answers for an instrument no branch leads elsewhere (the Trainer's). */
   training?: ExtensionTraining;
   /** The commands it contributes, as data (#600 S11); listed before a lazy extension loads. */
   commandDecls?: readonly CommandDecl[];

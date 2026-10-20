@@ -19,7 +19,7 @@ import { syntheticSource } from '@thoremin/ext-faces/app/sources';
 import { syntheticExpressionVector } from '@thoremin/ext-faces/lib/synthetic';
 import { FaceSessionView } from '@thoremin/ext-faces/panels/FaceSessionPanel';
 import { createPromptSpeech } from '@/app/enroll/promptSpeech';
-import { useVoice } from '@/app/enroll/voiceRuntime';
+import { useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 import '@/app/dials/useDialsSettings';
 
 let clock = 1000;

@@ -14,14 +14,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import TrainerPanel from '@/app/TrainerPanel';
+// The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
-import { useTrainer } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainer } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
 import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import type { FsDirHandle } from '@/app/recording/folder';
 import { installFakeIndexedDb, type FakeIndexedDb } from './helpers/fakeIndexedDb';
+import { TRAINER } from './helpers/extensions';
 
 const g = globalThis as unknown as { showDirectoryPicker?: unknown };
 
@@ -51,12 +53,12 @@ afterEach(() => {
   delete g.showDirectoryPicker;
 });
 
-describe('the Trainer when IndexedDB cannot keep the chosen folder', () => {
+describe.runIf(TRAINER)('the Trainer when IndexedDB cannot keep the chosen folder', () => {
   it('names the folder for this page but does not claim it was remembered (#393 item 6)', async () => {
     render(
       <>
         <ToolsBar />
-        <TrainerPanel />
+        <ExtensionToolPanels />
       </>,
     );
     fireEvent.click(screen.getByText('Trainer'));

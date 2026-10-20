@@ -11,11 +11,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
 import { trainModel, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
-import TrainerPanel from '@/app/TrainerPanel';
+// The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import GesturesPanel from '@/app/GesturesPanel';
 import { useTools } from '@/app/toolsStore';
-import { useTrainer } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainer } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import {
   CATEGORY_PREFS_STORAGE_KEY,
   MAX_CATEGORY_HOLD_MS,
@@ -24,6 +25,7 @@ import {
   useCategoryBinding,
   type SavedCategoriesStore,
 } from '@/app/enroll/categoryBinding';
+import { TRAINER } from './helpers/extensions';
 
 function model(ids: [string, string] = ['cat-1', 'cat-2'], labels: [string, string] = ['', '']): TrainedModel {
   const vectors: FeatureVector[] = [0, 0.02, 0.01, 1, 0.98, 1.01].map((x) => ({ x }));
@@ -133,13 +135,13 @@ describe('useCategoryBinding: the persisted hold is validated on rehydrate', () 
   }
 });
 
-describe('TrainerPanel: "Save and bind" warns before it replaces a saved set', () => {
+describe.runIf(TRAINER)('TrainerPanel: "Save and bind" warns before it replaces a saved set', () => {
   async function renderWithSaved() {
     await useCategoryBinding.getState().saveModel('My categories', model());
     useCategoryBinding.setState({ active: null, activeId: null });
     useTrainer.setState({ built: true, model: model(), labels: {}, categorySource: 'cut', k: 2, suggestedK: 2 });
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     const input = screen.getByLabelText('Name for these categories') as HTMLInputElement;
     await waitFor(() => expect(useCategoryBinding.getState().saved).toHaveLength(1));
     return input;

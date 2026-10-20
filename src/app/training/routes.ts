@@ -23,18 +23,9 @@ import { CONTRIBUTIONS } from '@/host/contributions';
 
 export type { TrainingRoute };
 
-/** Every route: the extensions' own (their instruments train in their settings sections),
- *  then core's Trainer tool, the fallback (`fallback`: whoever offers it, #600 S16c). */
-export const TRAINING_ROUTES: readonly TrainingRoute[] = [
-  ...CONTRIBUTIONS.trainingRoutes,
-  {
-    id: 'trainer',
-    label: 'Open the Trainer',
-    hint: 'A guided take of the faces or moves you can make; the instrument learns your own categories.',
-    tool: 'trainer',
-    fallback: true,
-  },
-];
+/** Every route: the extensions' own (their instruments train in their settings sections, or in
+ *  a tool), the Trainer slice's among them as the `fallback` (#600 S16d; core's before). */
+export const TRAINING_ROUTES: readonly TrainingRoute[] = CONTRIBUTIONS.trainingRoutes;
 
 export const routeById = (id: string): TrainingRoute | undefined => TRAINING_ROUTES.find((r) => r.id === id);
 

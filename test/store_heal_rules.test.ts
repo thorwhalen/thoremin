@@ -13,7 +13,6 @@ import { EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
 
 const CORE_HEALED = [
   'overlay',
-  'trainerHud',
   'faceChord',
   'faceExpr',
   'handMap',
@@ -31,7 +30,7 @@ const CORE_HEALED = [
 const MERGE_EXPLICIT = ['faceMapping'];
 
 describe('the heal table', () => {
-  it('heals exactly the nine core whole-object fields (the generative `steer` is its slice\'s since #600 S14, the song\'s `songPrefs` since S15, the Lab\'s `featureLab` since S16b, `body` and `bodyMap` the body slice\'s since S17b, `conductor` and `conductorPrefs` the conductor slice\'s since S18b)', () => {
+  it('heals exactly the eight core whole-object fields (the generative `steer` is its slice\'s since #600 S14, the song\'s `songPrefs` since S15, the Lab\'s `featureLab` since S16b and the Trainer\'s `trainerHud` since S16d, `body` and `bodyMap` the body slice\'s since S17b, `conductor` and `conductorPrefs` the conductor slice\'s since S18b)', () => {
     expect(Object.keys(HEAL_RULES).sort()).toEqual([...CORE_HEALED].sort());
   });
 

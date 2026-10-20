@@ -873,6 +873,14 @@
         "kind": "chord-map-config"
       },
       {
+        "name": "trainer-tool.hud.hud",
+        "kind": "trainer-hud-config"
+      },
+      {
+        "name": "trainer-tool.hud.snapshot",
+        "kind": "trainer-hud-snapshot"
+      },
+      {
         "name": "conductor-tool.conductorHud.time",
         "kind": "musical-time"
       },
@@ -990,11 +998,6 @@
       },
       {
         "name": "tagHud",
-        "type": "object",
-        "default": {}
-      },
-      {
-        "name": "trainerHud",
         "type": "object",
         "default": {}
       }
@@ -4108,6 +4111,10 @@
         "kind": "number"
       },
       {
+        "name": "trainerHudConfig",
+        "kind": "trainer-hud-config"
+      },
+      {
         "name": "conductorLeadOffsets",
         "kind": "lead-offsets"
       },
@@ -4158,6 +4165,10 @@
       {
         "name": "songStartBeat",
         "kind": "number"
+      },
+      {
+        "name": "trainerHudSnapshot",
+        "kind": "trainer-hud-snapshot"
       },
       {
         "name": "scoreDoc",
@@ -4393,6 +4404,21 @@
         "name": "strikePeriod",
         "type": "number",
         "default": 0.9
+      },
+      {
+        "name": "conduct",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "conductPeriod",
+        "type": "number",
+        "default": 0.75
+      },
+      {
+        "name": "conductDrop",
+        "type": "number",
+        "default": 0.12
       }
     ]
   },
