@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { AIR_EXTENSION } from '@thoremin/ext-air';
+import { HARMONY_EXTENSION } from '@thoremin/ext-harmony';
 import { ASL_EXTENSION } from '@thoremin/ext-asl';
 import { FACES_EXTENSION } from '@thoremin/ext-faces';
 import { MIDI_EXTENSION } from '../src/slices/midi';
@@ -36,7 +37,7 @@ import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, HARMONY_EXTENSION as unknown as Extension, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);

@@ -837,14 +837,6 @@
         "kind": "category-scores"
       },
       {
-        "name": "air.chordWheel.grid",
-        "kind": "cell-grid"
-      },
-      {
-        "name": "air.chordWheel.config",
-        "kind": "chord-wheel-config"
-      },
-      {
         "name": "air.drumPads.hits",
         "kind": "drum-hits"
       },
@@ -857,20 +849,28 @@
         "kind": "air-drum-config"
       },
       {
-        "name": "air.chordMap.grid",
-        "kind": "cell-grid"
-      },
-      {
-        "name": "air.chordMap.config",
-        "kind": "chord-map-config"
-      },
-      {
         "name": "air.mouthCue.status",
         "kind": "air-flute-status"
       },
       {
         "name": "air.mouthCue.config",
         "kind": "air-flute-config"
+      },
+      {
+        "name": "harmonic-layers.chordWheel.grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "harmonic-layers.chordWheel.config",
+        "kind": "chord-wheel-config"
+      },
+      {
+        "name": "harmonic-layers.chordMap.grid",
+        "kind": "cell-grid"
+      },
+      {
+        "name": "harmonic-layers.chordMap.config",
+        "kind": "chord-map-config"
       },
       {
         "name": "conductor-tool.conductorHud.time",
@@ -1596,6 +1596,38 @@
       }
     ],
     "params": []
+  },
+  {
+    "type": "chord-strum-out",
+    "title": "Chord strum out",
+    "description": "Sounds the chord map's strums (the chord's guitar voicing) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
+      }
+    ],
+    "outputs": [],
+    "params": [
+      {
+        "name": "timbre",
+        "type": "enum(bass | guitar)",
+        "default": "bass"
+      },
+      {
+        "name": "mono",
+        "type": "boolean",
+        "default": true
+      }
+    ]
   },
   {
     "type": "chord-wheel",
@@ -3306,7 +3338,7 @@
   {
     "type": "pluck-out",
     "title": "Pluck out",
-    "description": "Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).",
+    "description": "Sounds plucked-string note events (the air bass and guitar) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).",
     "roles": [
       "synth"
     ],
