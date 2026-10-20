@@ -1,6 +1,6 @@
 # The research guide (private)
 
-`npm run research-guide -- --publish` rebuilds the owner's private guide to thoremin's research, experiments, ADRs and horizon, prints what changed since the last build, and republishes it to annals (in place, under one stable link, once annals supports `--replace`).
+`npm run research-guide -- --publish` rebuilds the owner's private guide to thoremin's research, experiments, ADRs and horizon, prints what changed since the last build, and republishes it to annals in place (`annals publish --replace`), so the owner keeps one link. The link is remembered in the guide's `state.json`; on a machine with no state yet pass `--replace <link>` once (or set `THOREMIN_GUIDE_ANNALS`).
 
 The site is built OUTSIDE the repo (default `~/.local/share/thoremin/research-guide/site`, or `THOREMIN_GUIDE_HOME`) because it renders private working notes too. Never commit its output.
 

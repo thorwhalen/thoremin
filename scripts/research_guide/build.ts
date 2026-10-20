@@ -103,10 +103,12 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
   return { out: cfg.out, lines: reportLines(report), state: next, cfg };
 }
 
-/** Publish the built site to annals: in place (`--replace`) when annals supports it and the guide was published before. */
-export function publish({ out, state, cfg }: BuildResult): { url: string; id?: string } {
+/** Publish the built site to annals: in place (`--replace`) when annals supports it and the guide was published before, so the owner keeps one link. */
+export function publish({ out, state, cfg }: BuildResult, { replace: target }: { replace?: string } = {}): { url: string; id?: string } {
   const help = execFileSync('annals', ['publish', '--help'], { encoding: 'utf8' });
-  const replace = state.annalsId && help.includes('--replace') ? ['--replace', state.annalsId] : [];
+  // The document to replace: named by the caller, else by the environment (a machine with no state yet), else the last publish.
+  const existing = target ?? process.env.THOREMIN_GUIDE_ANNALS ?? state.annalsUrl ?? state.annalsId;
+  const replace = existing && help.includes('--replace') ? ['--replace', existing] : [];
   const args = ['publish', out, '--session', cfg.session, '--title', 'thoremin research guide', '--tags', 'thoremin,research-guide', ...replace];
   const printed = execFileSync('annals', args, { encoding: 'utf8' });
   const url = printed.match(/https?:\/\/\S+/)?.[0] ?? printed.trim();
