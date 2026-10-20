@@ -89,7 +89,7 @@
  */
 import { median, median3 } from '@thoremin/stats';
 import type { Anchor, Sample } from './types';
-import { fitQuadratic } from './impact';
+import { fitQuadratic } from './impact_fit';
 
 /** What is done to the samples before the turning point is looked for. */
 export type Prefilter =
