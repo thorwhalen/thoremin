@@ -21,6 +21,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { TOOLS } from '../../src/app/tools';
 import { SONG_TOOL } from '../../src/slices/song/tool';
+import { CONDUCTOR_TOOL } from '../../src/slices/conductor/tool';
 import { LAB_TOOL } from '../../src/slices/lab/tool';
 import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from '../../packages/ext-faces/src/tools';
 
@@ -29,7 +30,7 @@ type SweptTool = Pick<(typeof TOOLS)[number], 'id' | 'label' | 'kind' | 'default
 
 /** Every shipped extension's tools (each a panel the shell frames). A slice that brings a tool adds
  *  its data module here; the launcher check below fails until it does. */
-const EXTENSION_TOOLS: readonly SweptTool[] = [SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({ id: t.id, label: t.label, kind: 'panel' as const, defaultPinned: t.defaultPinned }));
+const EXTENSION_TOOLS: readonly SweptTool[] = [CONDUCTOR_TOOL, SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({ id: t.id, label: t.label, kind: 'panel' as const, defaultPinned: t.defaultPinned }));
 
 const ALL_TOOLS: readonly SweptTool[] = [...TOOLS, ...EXTENSION_TOOLS];
 

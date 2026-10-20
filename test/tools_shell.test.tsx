@@ -22,7 +22,7 @@ import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
-import { CONDUCTOR } from './helpers/extensions';
+import { CONDUCTOR, LAB, SONG } from './helpers/extensions';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
@@ -45,7 +45,6 @@ import { defaultFeatureLab } from '@/slices/lab/schema';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
 import { labConfig, setLab } from '@/slices/lab/app/state';
-import { LAB } from './helpers/extensions';
 
 /** The bar and its launcher, as the shell mounts them. */
 const Shell = () => (
@@ -809,8 +808,10 @@ const detachedTools = SHELL_TOOLS.filter((t) => t.runsDetached);
 describe('a tool that keeps running after its panel closes', () => {
   it('declares at least one such tool, and each has a harness here', () => {
     // If this fails you added `runsDetached` without teaching this file how to drive
-    // it — which would let the rest of the block silently cover nothing.
-    expect(detachedTools.length).toBeGreaterThan(0);
+    // it — which would let the rest of the block silently cover nothing. Every detached tool is an
+    // extension's since #600 S16b (the Lab was core's last), so core alone declares none.
+    if (LAB || SONG || CONDUCTOR) expect(detachedTools.length).toBeGreaterThan(0);
+    else expect(detachedTools).toEqual([]);
     for (const t of detachedTools) {
       expect(DETACHED[t.id], `no start/running harness for tool '${t.id}'`).toBeTruthy();
     }

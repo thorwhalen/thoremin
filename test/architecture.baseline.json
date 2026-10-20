@@ -9,6 +9,7 @@
     "song-tool": 0,
     "body-tracking": 0,
     "conductor-tool": 4,
+    "feature-lab": 1,
     "faces": 3
   },
   "storeControlsPorts": 23,
@@ -17,8 +18,8 @@
   "importCycles": 0,
   "runtimeImportCycles": 0,
   "largestFiles": {
-    "src/nodes/output/canvas_overlay.ts": 1869,
     "packages/ext-faces/src/app/sessionStore.ts": 1765,
+    "src/nodes/output/canvas_overlay.ts": 1521,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
     "packages/ictus/src/impact.ts": 904,
     "src/app/dials/InstrumentsPanel.tsx": 850

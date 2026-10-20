@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import LabPanel from '@/slices/lab/panels/LabPanel';
+import { toolPanelProps } from './helpers/toolPanel';
 import { useTools } from '@/app/toolsStore';
 // The app's hot store, which installs the controls host the Lab's state reads.
 import '@/app/store';
@@ -24,7 +25,7 @@ afterEach(cleanup);
 describe.runIf(LAB)('the Segment directions group in the Feature Lab', () => {
   it('is listed once the meters start, and checking it claims body.dir and wants the body', async () => {
     useTools.setState({ open: 'lab' });
-    render(<LabPanel close={() => undefined} />);
+    render(<LabPanel {...toolPanelProps()} />);
     await act(async () => {
       fireEvent.click(screen.getByText(/Start measuring/i));
     });
