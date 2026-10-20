@@ -51,10 +51,18 @@ permissions:
   contents: read
 
 jobs:
+  # The suite runs in three shards side by side (Playwright's --shard: whole files, balanced by
+  # test count), each building and serving its own bundle, so no one job comes near the timeout
+  # as the suite grows (one job took 14 min of 20 after the behaviour tests landed). The job
+  # below them keeps the one check name a reader or a script waits on.
   smoke:
-    name: built bundle, headless Chromium
+    name: built bundle, headless Chromium (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
 
@@ -75,7 +83,7 @@ jobs:
           npx --prefix smoke playwright install --with-deps chromium
 
       - name: Build, serve and smoke the bundle
-        run: npm run smoke:run
+        run: npm run smoke:run -- --shard=${{ matrix.shard }}/3
         env:
           CI: "1"
 
@@ -83,8 +91,21 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-report
+          name: smoke-report-shard-${{ matrix.shard }}
           path: |
             smoke/playwright-report
             smoke/test-results
           retention-days: 7
+
+  # The single result of the three shards, under the job name the smoke always had.
+  result:
+    name: built bundle, headless Chromium
+    needs: smoke
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed
+        run: |
+          echo "shards: ${{ needs.smoke.result }}"
+          test "${{ needs.smoke.result }}" = success
