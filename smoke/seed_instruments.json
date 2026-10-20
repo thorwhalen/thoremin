@@ -121,6 +121,11 @@
       "body": false
     },
     {
+      "name": "Conduct the Chords (Body)",
+      "body": true,
+      "silent": "waits for the first beat; the synthetic body does not conduct"
+    },
+    {
       "name": "Sign Wheel",
       "body": false,
       "silent": "a chord sounds only after a letter A..G is read, which the synthetic hands do only by chance"
