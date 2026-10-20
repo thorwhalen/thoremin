@@ -84,6 +84,7 @@ import {
 } from '../lib/chord_map';
 import { createStrumDetector, type StrumDetector } from '@thoremin/sdk/gesture/strum';
 import { heardChordTones, samePitchClasses, strummable } from '../lib/heard_chord';
+import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
 import { createPathFollower, type IdiomStatus } from '../lib/map_paths';
 import { CAPTION_SET_IDS } from '@thoremin/sdk/harmony/captions';
 import { IDIOM_IDS } from '@thoremin/sdk/harmony/idioms';
@@ -371,6 +372,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'midi', kind: 'held-notes' },
     // The microphone's chroma, while the map follows the microphone (`follow`).
     { name: 'audio', kind: 'audio-chroma' },
+    // The player's ratings of the moves (#715): what the `mine` caption set says.
+    { name: 'ratings', kind: 'move-ratings' },
     // The face's smoothed controls, while the face colours the map (`face`).
     { name: 'face', kind: 'face-features' },
     // ASL's sign reading, while the map follows signs (`follow`): an optional edge.
@@ -721,7 +724,7 @@ export const chordMapNode = defineNode<Params>({
           tension: !ownScale && tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
         // The idiom's trail and the caption set's words (#713, #714; `lib/map_paths.ts`).
-        const { trail, moveText, idiom: idiomStatus } = paths.push({ idiom: c.idiom, captionSet: c.captionSet, trailSteps: c.trailSteps, spec, chords, shown });
+        const { trail, moveText, idiom: idiomStatus } = paths.push({ idiom: c.idiom, captionSet: c.captionSet, trailSteps: c.trailSteps, spec, chords, shown, ratings: (inputs.ratings as RatingsTable | null | undefined) ?? undefined });
         status = { ...status, idiom: idiomStatus };
         const marks =
           anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;

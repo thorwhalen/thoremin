@@ -40,6 +40,7 @@ export const chordMap = defineBranch({
     to(ui('octaveShift'), { node: 'chordMap', port: 'octaveShift' }),
     to(ui('chordMapMidi'), { node: 'chordMap', port: 'midi' }),
     to(ui('chordMapAudio'), { node: 'chordMap', port: 'audio' }),
+    to(ui('chordMapRatings'), { node: 'chordMap', port: 'ratings' }),
     // The song's beat (H9 of #613), read while the map keeps time with the song (an optional edge:
     // the song slice's player, present when the build lists it, #600 S15).
     to({ node: SONG_PLAYER, port: 'songTime' }, { node: 'chordMap', port: 'time' }, true),

@@ -16,6 +16,7 @@ import { CHORD_MAP_PLAY, CHORD_MAP_POINTS, MELODY_NOTES, type ChordMapDialParams
 import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
 import { CAPTION_SET_IDS, captionSet } from '@thoremin/sdk/harmony/captions';
 import { IDIOMS } from '@thoremin/sdk/harmony/idioms';
+import { RateThisMove } from './rateMove';
 
 const PLAY_LABEL: Record<ChordMapDialParams['play'], string> = {
   hold: 'hold the chord, melody with the other hand',
@@ -184,7 +185,7 @@ export function ChordMapControls() {
         </label>
       )}
       {layout === 'harmonic' && captions && (
-        <label className="flex items-center justify-between gap-2 text-xs" title={`What the words on each move say. ${captionSet('computed').name}: the notes it keeps, whether it turns darker or brighter, and how expected it is (after ${captionSet('computed').models.join(', ')}).`}>
+        <label className="flex items-center justify-between gap-2 text-xs" title={`What the words on each move say. ${captionSet('computed').name}: the notes it keeps, whether it turns darker or brighter, and how expected it is (after ${captionSet('computed').models.join(', ')}). ${captionSet('mine').name}: the words your ratings give the moves (Rate this move, below).`}>
           Move captions
           <select className={selectCls} value={captionSetId} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.captionSet', e.target.value)}>
             {CAPTION_SET_IDS.map((id) => (
@@ -195,6 +196,7 @@ export function ChordMapControls() {
           </select>
         </label>
       )}
+      <RateThisMove />
       <label className="flex items-center justify-between gap-2 text-xs" title="A known chord path drawn ahead of the chord you play as a dashed trail; it follows you along the path, and waits where you left it if you wander off.">
         Trail to follow
         <select className={selectCls} value={idiom} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.idiom', e.target.value)}>

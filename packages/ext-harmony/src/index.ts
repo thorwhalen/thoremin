@@ -24,6 +24,8 @@
  */
 import type { NodeDef } from '@thoremin/dag';
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
+import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
+import { HARMONY_STORES } from './stores';
 import { drawCellGrid, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
 import { makePluckOutNode } from '@thoremin/sdk/nodes/pluck_out';
 import { chordMapNode } from './nodes/chord_map';
@@ -98,11 +100,14 @@ export const HARMONY_EXTENSION = defineExtension({
   nodes: [chordMapNode, chordWheelNode, chordChartNode, chordStrumOutNode] as unknown as NodeDef<unknown>[],
   branches: HARMONY_BRANCHES,
   dials: HARMONY_DIAL_SLICES,
+  stores: Object.values(HARMONY_STORES),
   transient: [
     // H8 of #613: the notes a MIDI keyboard holds, while the chord map follows one.
     transientPort<MidiHeld>()('chordMapMidi', 'held-notes'),
     // H8 of #613: the microphone's chroma, while the chord map follows the microphone.
     transientPort<AudioHeard>()('chordMapAudio', 'audio-chroma'),
+    // #715: the player's ratings of the moves, for the map's own caption set (`mine`).
+    transientPort<RatingsTable>()('chordMapRatings', 'move-ratings'),
   ],
   // The chord instruments, seeded after the air instruments, in the order they always were.
   instruments: [
