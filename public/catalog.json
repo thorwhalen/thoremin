@@ -1404,6 +1404,21 @@
         "default": true
       },
       {
+        "name": "captionSet",
+        "type": "enum(interval | computed)",
+        "default": "interval"
+      },
+      {
+        "name": "idiom",
+        "type": "enum(none | circle | pachelbel | romanesca | monte | fonte | thirds | fifties | deceptive | andalusian)",
+        "default": "none"
+      },
+      {
+        "name": "trailSteps",
+        "type": "number",
+        "default": 3
+      },
+      {
         "name": "melody",
         "type": "boolean",
         "default": true

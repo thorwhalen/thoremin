@@ -300,6 +300,7 @@
         "audioDwellS": 0.25,
         "bpm": 100,
         "captions": true,
+        "captionSet": "interval",
         "cellSize": 0.2,
         "chordHand": "left",
         "chordsFrom": "key",
@@ -318,6 +319,7 @@
           "show": true
         },
         "hysteresis": 0.12,
+        "idiom": "none",
         "layout": "harmonic",
         "melody": true,
         "melodyNotes": "chord",
@@ -340,6 +342,7 @@
         "split": 0.65,
         "strumPoint": "wrist",
         "strumSpread": 0.012,
+        "trailSteps": 3,
         "voicing": "spread",
         "volume": 0.7
       },
@@ -974,6 +977,7 @@
         "audioDwellS": 0.25,
         "bpm": 100,
         "captions": true,
+        "captionSet": "interval",
         "cellSize": 0.2,
         "chordHand": "left",
         "chordsFrom": "key",
@@ -992,6 +996,7 @@
           "show": true
         },
         "hysteresis": 0.12,
+        "idiom": "none",
         "layout": "harmonic",
         "melody": true,
         "melodyNotes": "chord",
@@ -1014,6 +1019,7 @@
         "split": 0.65,
         "strumPoint": "wrist",
         "strumSpread": 0.012,
+        "trailSteps": 3,
         "voicing": "spread",
         "volume": 0.7
       },
