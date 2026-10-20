@@ -91,6 +91,20 @@ describe.runIf(CONDUCTOR)('Conductor: the tempo sense (prior) and the orchestra'
     expect(conductor().enabled).toBe(false);
   });
 
+  it('the beat ring on the video (#600 S18c: the Overlay section\'s until then) is shown by default; its toggle writes conductor.hudOnVideo.show', async () => {
+    render(<ConductorControls />);
+    const ring = screen.getByLabelText('Conductor beat on the video') as HTMLInputElement;
+    expect(ring.checked).toBe(true);
+    fireEvent.click(ring);
+    await drain();
+    expect(conductor().hudOnVideo.show).toBe(false);
+    expect(useControls.getState().conductor.hudOnVideo.show).toBe(false);
+    expect(ring.checked).toBe(false);
+    fireEvent.click(ring);
+    await drain();
+    expect(conductor().hudOnVideo.show).toBe(true);
+  });
+
   it('the orchestra toggle shows its levels; the volume and a section level write the dial and the hot store', async () => {
     render(<ConductorControls />);
     expect(screen.queryByTestId('orchestra-volume')).toBeNull();

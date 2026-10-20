@@ -54,8 +54,9 @@ export const CONDUCTOR_EXTENSION = defineExtension({
   id: CONDUCTOR_EXTENSION_ID,
   nodes: [conductorNode, orchestraNode] as unknown as NodeDef<unknown>[],
   branches: [conductor],
-  // Its beat ring on the video (#600 S18c; core's `conductorHud` before): beneath the markers, where
-  // core drew it, configured by its own dial (`conductor.hudOnVideo`).
+  // Its beat ring on the video (#600 S18c; core's `conductorHud` before): beneath the markers, as core
+  // drew it, and now above the air extension's pads and grid (contributed elements before the same
+  // core element keep the extension list's order); configured by its own dial (`conductor.hudOnVideo`).
   overlay: [
     {
       name: CONDUCTOR_HUD_ELEMENT,
