@@ -1,0 +1,30 @@
+{
+  "name": "@thoremin/ext-patcher",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's patcher extension (#14, v1 scope on #181): a shell tool that draws the LIVE composed instrument graph with React Flow and inspects a node's settings through the dials form, writing them only by command dispatch. A LAZY, tool-only extension: React Flow and the panel load the first time the tool opens. TypeScript source, consumed through the workspace.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.ts",
+    "./tools": "./src/tools.ts",
+    "./lazy": "./src/lazy.ts",
+    "./lazy_ui": "./src/lazy_ui.tsx",
+    "./lib/layout": "./src/lib/layout.ts",
+    "./lib/inspect": "./src/lib/inspect.ts",
+    "./app/liveGraph": "./src/app/liveGraph.ts",
+    "./panels/PatcherPanel": "./src/panels/PatcherPanel.tsx",
+    "./panels/NodeInspector": "./src/panels/NodeInspector.tsx"
+  },
+  "dependencies": {
+    "@thoremin/dag": "*",
+    "@thoremin/sdk": "*",
+    "@thoremin/sdk-ui": "*",
+    "@xyflow/react": "12.12.0",
+    "zustand": "^5.0.14"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-dom": "*"
+  }
+}
