@@ -339,6 +339,12 @@ export function workerHandRunner(
   });
 }
 
+/** How often, and how far apart, the main-thread replacement for a dead worker is tried again
+ *  when it fails to load (#737): three more tries over about a minute cover a dropped connection
+ *  coming back, without a reload storm. */
+export const MAIN_REPLACEMENT_RETRIES = 3;
+export const MAIN_REPLACEMENT_RETRY_MS = 20_000;
+
 /** Whether this browser can host the worker runner at all (WebGL2 is checked inside it). */
 export function canHostHandWorker(g: typeof globalThis = globalThis): boolean {
   return typeof g.Worker === 'function' && typeof g.createImageBitmap === 'function' && typeof g.OffscreenCanvas === 'function';
@@ -399,9 +405,11 @@ export async function createHandRunner(
   };
   /** The replacement for a worker that ran with `o`: the GPU cascade may have left a CPU
    *  worker running after the main thread's GPU failed, and that GPU is not tried again. */
-  const onDeadFor = (o: LandmarkerOptions) => (reason: unknown): void => {
-    console.warn('[thoremin] the hand worker stopped; the hand model moves to the main thread', reason);
-    current = null;
+  const setTimer = deps.worker?.setTimeout ?? ((cb, ms) => setTimeout(cb, ms));
+  /** Load the main-thread replacement; a load that fails (offline: the model is fetched again
+   *  on this thread; a wasm refused here) is tried again a few times, spaced out, rather than
+   *  leaving the hands frozen for the session with only a console line (#737). */
+  const replaceOnMain = (o: LandmarkerOptions, attempt: number): void => {
     const loading = numHands;
     void deps
       .loadMain({ ...o, numHands: loading })
@@ -416,7 +424,22 @@ export async function createHandRunner(
         if (numHands !== loading)
           void replacement.setNumHands(numHands).catch((err) => console.warn('[thoremin] the hand model could not change its hand count', err));
       })
-      .catch((err) => console.error('[thoremin] the hand model could not load on the main thread either', err));
+      .catch((err) => {
+        if (closed) return;
+        if (attempt >= MAIN_REPLACEMENT_RETRIES) {
+          console.error('[thoremin] the hand model could not load on the main thread either; the hands stay off', err);
+          return;
+        }
+        console.warn(`[thoremin] the hand model could not load on the main thread (retry ${attempt + 1} of ${MAIN_REPLACEMENT_RETRIES} in ${MAIN_REPLACEMENT_RETRY_MS} ms)`, err);
+        setTimer(() => {
+          if (!closed && current === null) replaceOnMain(o, attempt + 1);
+        }, MAIN_REPLACEMENT_RETRY_MS);
+      });
+  };
+  const onDeadFor = (o: LandmarkerOptions) => (reason: unknown): void => {
+    console.warn('[thoremin] the hand worker stopped; the hand model moves to the main thread', reason);
+    current = null;
+    replaceOnMain(o, 0);
   };
   const inWorker = async (o: LandmarkerOptions): Promise<HandRunner> => {
     const r = await workerHandRunner(o, onResult, deps.worker!, onDeadFor(o));
