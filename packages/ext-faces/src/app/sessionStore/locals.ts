@@ -87,7 +87,6 @@ export interface SessionLocals {
    *  several +, is one step). */
   lastWasK: boolean;
   openRecord: FaceModelRecord | null;
-  /** The categorizer a recording is being merged into, and what to restore if it is empty. */
   /** Pause the take as soon as its rest is done (#435: "Show me on the bars"). */
   pauseOnCapture: boolean;
   mergeBase: MergeBase | null;
