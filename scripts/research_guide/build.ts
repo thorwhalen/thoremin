@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, type GuideConfig } from './config';
 import { renderChart } from './charts';
 import { GuideDataSchema, PrivateDataSchema, type DocEntry, type GuideData, type PrivateData } from './schema';
-import { docPage, renderDecisions, renderDoc, renderExperiments, renderHorizon, renderIndex, renderResearch, slugOf, type GuideModel } from './render';
+import { docPage, esc, renderDecisions, renderDoc, renderExperiments, renderHorizon, renderIndex, renderResearch, renderTimeline, slugOf, type GuideModel } from './render';
 import { loadGitHub, privateDocs, repoDocs, resolveDocPath } from './sources';
 import { readState, reportLines, staleness, writeState, type GuideState } from './staleness';
 
@@ -73,6 +73,7 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     disk, entries, decisions: data.decisions, gh, ignore: [...data.ignoreDocs, ...priv.ignoreDocs],
   });
 
+  const charts = [...data.charts, ...priv.charts];
   rmSync(cfg.out, { recursive: true, force: true });
   mkdirSync(join(cfg.out, 'doc'), { recursive: true });
   const model: GuideModel = {
@@ -81,7 +82,9 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     experiments: [...data.experiments, ...priv.experiments],
     ideas: [...data.ideas, ...priv.ideas],
     disk: new Map(disk.map((d) => [d.path, d])),
-    charts: new Map(data.charts.map((c) => [c.id, `<figure>${renderChart(c)}<figcaption class="meta">${c.caption}</figcaption></figure>`])),
+    charts,
+    chartHtml: new Map(charts.map((c) => [c.id, `<figure>${renderChart(c)}<figcaption class="meta">${esc(c.caption)}</figcaption></figure>`])),
+    diagrams: [...data.diagrams, ...priv.diagrams],
     annals: priv.annals,
     figures: copyFigures(entries, cfg, cfg.out),
     builtAt: next.builtAt!,
@@ -91,6 +94,7 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     'research.html': renderResearch(model),
     'experiments.html': renderExperiments(model),
     'decisions.html': renderDecisions(model),
+    'timeline.html': renderTimeline(model),
     'horizon.html': renderHorizon(model),
   };
   for (const d of disk) pages[docPage(d.path)] = renderDoc(model, d, readFileSync(d.abs, 'utf8'));

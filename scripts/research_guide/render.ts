@@ -9,7 +9,8 @@
  */
 import { Marked } from 'marked';
 import { GITHUB } from './config';
-import type { Decision, DocEntry, Experiment, GuideData, Idea } from './schema';
+import { measureSvg } from './charts';
+import type { Chart, Decision, Diagram, DocEntry, Experiment, GuideData, Idea } from './schema';
 import type { DiskDoc, GhData, GhIssue } from './sources';
 import type { StaleReport } from './staleness';
 
@@ -22,7 +23,10 @@ export interface GuideModel {
   disk: Map<string, DiskDoc>;
   gh: GhData;
   report: StaleReport;
-  charts: Map<string, string>;
+  /** Every chart (public and private) and its rendered figure, by id. */
+  charts: Chart[];
+  chartHtml: Map<string, string>;
+  diagrams: Diagram[];
   annals: Record<string, string>;
   /** Doc path -> the site-relative files of its figures (copied into the site). */
   figures: Map<string, string[]>;
@@ -60,7 +64,7 @@ function refLinks(m: GuideModel, { issues = [], prs = [] }: { issues?: number[];
 
 const NAV: Array<[string, string]> = [
   ['index.html', 'Overview'], ['research.html', 'Research'], ['experiments.html', 'Experiments'],
-  ['decisions.html', 'Decisions'], ['horizon.html', 'Horizon'],
+  ['decisions.html', 'Decisions'], ['timeline.html', 'Timeline'], ['horizon.html', 'Horizon'],
 ];
 
 const CSS = `
@@ -79,7 +83,11 @@ main{max-width:1100px;margin:0 auto;padding:16px}h1{font-size:1.6rem;margin:.4em
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-decoration:none;color:var(--fg)}.tile b{font-size:1.6rem;display:block}
 .needs{border-left:4px solid var(--warn)}.progress{height:8px;background:var(--chip);border-radius:4px;overflow:hidden}.progress span{display:block;height:100%;background:var(--ok)}
 details>summary{cursor:pointer;font-weight:600}details{margin:.4em 0}table{border-collapse:collapse;width:100%;font-size:.92rem}td,th{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
-.chart{width:100%;max-width:460px}.ch-label,.ch-value,.ch-axis{font-size:11px;fill:var(--fg)}.ch-axis{fill:var(--muted)}.ch-bar{fill:var(--bar)}.ch-top{fill:var(--top)}
+.chart{width:100%;max-width:460px}.ch-label,.ch-value,.ch-axis{font-size:13px;fill:var(--fg)}.ch-axis{fill:var(--muted)}.ch-bar{fill:var(--bar)}.ch-pass{fill:var(--ok)}.ch-fail{fill:var(--neg)}.ch-base{fill:var(--line)}.ch-ref{stroke:var(--warn);stroke-width:2;stroke-dasharray:4 3}
+.media{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:8px 0}.media figure{margin:0}.media img,.media video{width:100%;border-radius:10px;border:1px solid var(--line)}
+.pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:12px;margin:10px 0}.pic{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}.pic h4{margin:0 0 4px}
+.tl{list-style:none;padding:0;margin:0;border-left:2px solid var(--line)}.tl li{position:relative;padding:4px 0 4px 16px}.tl li::before{content:"";position:absolute;left:-6px;top:11px;width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.tl li.k-doc::before{background:var(--info)}.tl li.k-decision::before{background:var(--warn)}.tl li.k-experiment::before{background:var(--ok)}.tl li.k-pr::before{background:var(--bar)}.tl .when{color:var(--muted);font-size:.8rem;margin-right:6px}.ch-top{fill:var(--top)}
 .doc{max-width:760px}.doc img{max-width:100%}.doc pre{overflow-x:auto;background:var(--chip);padding:8px;border-radius:8px}.doc table{display:block;overflow-x:auto}
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}.gallery img{width:100%;border-radius:8px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.filters label{background:var(--chip);padding:3px 10px;border-radius:999px;font-size:.88rem}
@@ -105,12 +113,14 @@ function docCard(m: GuideModel, e: DocEntry): string {
   const d = m.disk.get(e.path);
   const dates = d ? `${d.created && d.created !== d.updated ? `${d.created} → ` : ''}${d.updated}` : 'missing on disk';
   const annals = e.annals ?? m.annals[e.path];
+  const pictures = m.diagrams.filter((g) => g.doc === e.path).length;
   const links = [
     d ? `<a href="${docPage(e.path)}">Read</a>` : '',
     e.path.startsWith('private:') ? '<span class="muted">private note</span>' : `<a href="${githubBlob(e.path)}">GitHub</a>`,
     annals ? `<a href="${esc(annals)}">annals page</a>` : '',
+    pictures ? `<a href="#pics-${e.area}">${pictures} diagram${pictures > 1 ? 's' : ''}</a>` : '',
   ].filter(Boolean).join(' · ');
-  const chart = [...m.data.charts].filter((c) => c.doc === e.path).map((c) => m.charts.get(c.id) ?? '').join('');
+  const chart = m.charts.filter((c) => c.doc === e.path).map((c) => m.chartHtml.get(c.id) ?? '').join('');
   const figs = (m.figures.get(e.path) ?? []).filter((f) => /\.(png|jpe?g|webp|gif)$/i.test(f)).slice(0, 3)
     .map((f) => `<img src="${f}" alt="" loading="lazy">`).join('');
   return `<article class="card" id="${slugOf(e.path)}"><h3>${esc(e.title)}</h3>`
@@ -154,6 +164,7 @@ export function renderIndex(m: GuideModel): string {
     ['research.html', entries.length, 'research and design docs'],
     ['experiments.html', m.experiments.length, `experiments (${neg} measured negative)`],
     ['decisions.html', m.data.decisions.length, `decisions (${m.data.decisions.filter((d) => d.status === 'open').length} open)`],
+    ['timeline.html', m.gh.prs.length, 'merged PRs on the timeline'],
     ['horizon.html', openIssues, 'open issues'],
     ['horizon.html#needs', nd.count, 'waiting on you'],
   ].map(([href, n, label]) => `<a class="tile" href="${href}"><b>${n}</b>${label}</a>`).join('');
@@ -162,7 +173,7 @@ export function renderIndex(m: GuideModel): string {
     const x = m.experiments.filter((e) => e.area === a.id).length;
     return `<a class="tile" href="research.html#area-${a.id}"><strong>${esc(a.title)}</strong><br><span class="meta">${n} docs · ${x} experiments</span></a>`;
   }).join('');
-  const diagrams = m.data.diagrams.map((d) => `<h3>${esc(d.title)}</h3><p class="meta">${esc(d.caption)}</p><pre class="mermaid">${esc(d.mermaid)}</pre>`).join('');
+  const diagrams = m.diagrams.filter((d) => !d.area).map((d) => `<h3>${esc(d.title)}</h3><p class="meta">${esc(d.caption)}</p><pre class="mermaid">${esc(d.mermaid)}</pre>`).join('');
   const body = `<h1>thoremin: research, decisions, horizon</h1><p class="lede">Everything thoremin has researched, measured and decided, and what is planned. Private to you; rebuilt from the repo, GitHub and the working notes.</p>`
     + `<div class="tiles">${tiles}</div><div class="grid" style="margin-top:12px">${nd.html}${changedSince(m)}</div>`
     + `<h2>By area</h2><div class="tiles">${areas}</div>`
@@ -170,19 +181,40 @@ export function renderIndex(m: GuideModel): string {
   return page(m, { file: 'index.html', title: 'thoremin research guide', body, mermaid: !!diagrams });
 }
 
+/** An area's diagrams and its charts not shown on a card: the pictures strip above the cards. */
+function areaPictures(m: GuideModel, area: string): string {
+  const title = (path?: string) => (path ? m.entries.get(path)?.title ?? path : '');
+  const from = (path?: string) => (path && m.entries.has(path) ? `<p class="meta">From <a href="#${slugOf(path)}">${esc(title(path))}</a></p>` : '');
+  const diagrams = m.diagrams.filter((d) => d.area === area).map((d) =>
+    `<div class="pic"><h4>${esc(d.title)}</h4><p class="meta">${esc(d.caption)}</p><pre class="mermaid">${esc(d.mermaid)}</pre>${from(d.doc)}</div>`);
+  const charts = m.charts.filter((c) => c.area === area && !(c.doc && m.entries.has(c.doc))).map((c) =>
+    `<div class="pic"><h4>${esc(c.title)}</h4>${m.chartHtml.get(c.id) ?? ''}${from(c.doc)}</div>`);
+  const all = [...diagrams, ...charts];
+  return all.length ? `<div class="pics" id="pics-${area}">${all.join('')}</div>` : '';
+}
+
 export function renderResearch(m: GuideModel): string {
   const entries = [...m.entries.values()];
   const sections = m.data.areas.map((a) => {
-    const cards = entries.filter((e) => e.area === a.id && !['adr'].includes(e.status));
-    if (!cards.length) return '';
-    return `<h2 id="area-${a.id}">${esc(a.title)}</h2><p class="lede">${esc(a.blurb)}</p><div class="grid">${cards.map((e) => docCard(m, e)).join('')}</div>`;
+    const cards = entries.filter((e) => e.area === a.id);
+    const pics = areaPictures(m, a.id);
+    if (!cards.length && !pics) return '';
+    const guide = a.guide ? `<p><a href="${esc(a.guide.url)}">${esc(a.guide.label)}</a> (the player guide)</p>` : '';
+    // Served by the app (the player guide): a picture not deployed yet hides itself rather than showing a broken image.
+    const media = a.media.length ? `<div class="media">${a.media.map((x) => {
+      const el = x.kind === 'video'
+        ? `<video src="${esc(x.src)}" muted loop playsinline autoplay preload="metadata" aria-label="${esc(x.alt)}" onerror="this.closest('figure').hidden=true"></video>`
+        : `<img src="${esc(x.src)}" alt="${esc(x.alt)}" loading="lazy" onerror="this.closest('figure').hidden=true">`;
+      return `<figure>${x.href ? `<a href="${esc(x.href)}">${el}</a>` : el}<figcaption class="meta">${esc(x.alt)}</figcaption></figure>`;
+    }).join('')}</div>` : '';
+    return `<h2 id="area-${a.id}">${esc(a.title)}</h2><p class="lede">${esc(a.blurb)}</p>${guide}${media}${pics}<div class="grid">${cards.map((e) => docCard(m, e)).join('')}</div>`;
   }).join('');
   const unc = m.report.uncurated.length
     ? `<h2 id="uncurated">New, needs an abstract</h2><p class="lede">On disk but not in the curation file yet. Add an entry to <code>scripts/research_guide/guide.json</code> (repo docs) or to the private overlay (private docs).</p><ul>`
       + m.report.uncurated.map((d) => `<li><a href="${docPage(d.path)}">${esc(d.title)}</a> <span class="meta">${esc(d.path)} · ${esc(d.updated)}</span></li>`).join('') + '</ul>'
     : '';
   const toc = m.data.areas.filter((a) => entries.some((e) => e.area === a.id)).map((a) => `<a href="#area-${a.id}">${esc(a.title)}</a>`).join(' · ');
-  return page(m, { file: 'research.html', title: 'Research · thoremin', body: `<h1>Research</h1><p class="lede">One card per research map, measurement write-up and design record, by area. "Read" opens the doc here; GitHub opens it in the repo.</p><p>${toc}</p>${unc}${sections}` });
+  return page(m, { file: 'research.html', title: 'Research · thoremin', mermaid: m.diagrams.some((d) => d.area), body: `<h1>Research</h1><p class="lede">One card per research map, measurement write-up and design record, by area. "Read" opens the doc here; GitHub opens it in the repo.</p><p>${toc}</p>${unc}${sections}` });
 }
 
 export function renderExperiments(m: GuideModel): string {
@@ -193,7 +225,7 @@ export function renderExperiments(m: GuideModel): string {
     if (!xs.length) return '';
     return `<h2>${esc(a.title)}</h2><div class="grid">` + xs.map((e) => `<article class="card x" data-v="${e.verdict}"><h3>${esc(e.title)}</h3>`
       + `<div class="meta">${badge(e.verdict)} ${esc(e.date ?? '')}${e.source ? ' · from a working note' : ''}</div>`
-      + `<p><strong>${esc(e.number)}</strong></p><p>${esc(e.summary)}</p><div class="links">`
+      + `<p><strong>${esc(e.number)}</strong></p>${e.measure ? measureSvg(e.measure) : ''}<p>${esc(e.summary)}</p><div class="links">`
       + (e.doc && m.disk.has(e.doc) ? `<a href="${docPage(e.doc)}">doc</a>` : '') + ` ${refLinks(m, e)}</div></article>`).join('') + '</div>';
   }).join('');
   const js = `<script>document.querySelectorAll('.filters input').forEach(c=>c.addEventListener('change',()=>{const on=[...document.querySelectorAll('.filters input:checked')].map(i=>i.dataset.v);document.querySelectorAll('.x').forEach(x=>x.style.display=on.includes(x.dataset.v)?'':'none')}))</script>`;
@@ -217,6 +249,42 @@ export function renderDecisions(m: GuideModel): string {
     return `<details${open ? ' open' : ''}><summary>${n ? `#${n} ` : ''}${esc(i?.title ?? 'Other decisions')} <span class="meta">(${ds.length}${open ? `, ${open} open` : ''})</span></summary>${n ? `<p><a href="${GITHUB}/issues/${n}">Open the issue</a></p>` : ''}${table(ds)}</details>`;
   }).join('');
   return page(m, { file: 'decisions.html', title: 'Decisions · thoremin', body: `<h1>ADRs, design records and decisions</h1><p class="lede">The design documents (each the single source of truth for its subsystem), then the decisions taken on issues, one row per choice.</p><h2>Design documents and ADRs</h2>${table(adrs)}<h2>Decisions on issues</h2>${groups}` });
+}
+
+export interface TimelineItem { date: string; kind: 'doc' | 'decision' | 'experiment' | 'pr'; html: string; area?: string }
+
+/** Research, decisions, experiments and merges on one dated line, newest first. */
+export function timelineItems(m: GuideModel): TimelineItem[] {
+  const items: TimelineItem[] = [];
+  for (const e of m.entries.values()) {
+    const d = m.disk.get(e.path);
+    if (d?.created) items.push({ date: d.created, kind: 'doc', area: e.area, html: `Research: <a href="${docPage(e.path)}">${esc(e.title)}</a>` });
+    else if (d) items.push({ date: d.updated, kind: 'doc', area: e.area, html: `Note: <a href="${docPage(e.path)}">${esc(e.title)}</a>` });
+  }
+  const issueBy = new Map(m.gh.issues.map((i) => [i.number, i]));
+  for (const d of m.data.decisions) {
+    const disk = d.path ? m.disk.get(d.path) : undefined;
+    const date = d.date ?? disk?.created ?? (d.issue ? issueBy.get(d.issue)?.createdAt.slice(0, 10) : undefined);
+    if (date) items.push({ date, kind: 'decision', html: `Decision ${badge(d.status)} ${d.issue ? `<a href="${GITHUB}/issues/${d.issue}">${esc(d.title)}</a>` : esc(d.title)}` });
+  }
+  for (const x of m.experiments) if (x.date) items.push({ date: x.date, kind: 'experiment', area: x.area, html: `Measured ${badge(x.verdict)} <a href="experiments.html">${esc(x.title)}</a>: ${esc(x.number)}` });
+  for (const p of m.gh.prs) items.push({ date: p.mergedAt.slice(0, 10), kind: 'pr', html: `Merged <a href="${p.url}">#${p.number}</a> ${esc(p.title)}` });
+  return items.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export function renderTimeline(m: GuideModel): string {
+  const items = timelineItems(m);
+  const kinds: Array<[TimelineItem['kind'], string]> = [['doc', 'research'], ['decision', 'decisions'], ['experiment', 'experiments'], ['pr', 'merged PRs']];
+  const filters = kinds.map(([k, label]) => `<label><input type="checkbox" data-k="${k}"${k === 'pr' ? '' : ' checked'}> ${label} (${items.filter((i) => i.kind === k).length})</label>`).join('');
+  const months = new Map<string, TimelineItem[]>();
+  for (const i of items) months.set(i.date.slice(0, 7), [...(months.get(i.date.slice(0, 7)) ?? []), i]);
+  const body = [...months].map(([month, is], n) => {
+    const counts = kinds.map(([k, label]) => [is.filter((i) => i.kind === k).length, label] as const).filter(([c]) => c).map(([c, l]) => `${c} ${l}`).join(', ');
+    return `<details${n < 2 ? ' open' : ''}><summary>${month} <span class="meta">(${counts})</span></summary><ul class="tl">`
+      + is.map((i) => `<li class="k-${i.kind}" data-k="${i.kind}"${i.kind === 'pr' ? ' style="display:none"' : ''}><span class="when">${i.date}</span>${i.html}</li>`).join('') + '</ul></details>';
+  }).join('');
+  const js = `<script>const f=()=>{const on=[...document.querySelectorAll('.filters input:checked')].map(i=>i.dataset.k);document.querySelectorAll('.tl li').forEach(l=>l.style.display=on.includes(l.dataset.k)?'':'none')};document.querySelectorAll('.filters input').forEach(c=>c.addEventListener('change',f))</script>`;
+  return page(m, { file: 'timeline.html', title: 'Timeline · thoremin', body: `<h1>Timeline</h1><p class="lede">Research written, decisions taken, experiments measured and pull requests merged, by month, newest first. Merged PRs are hidden until you tick them.</p><div class="filters">${filters}</div>${body}${js}` });
 }
 
 function themeOf(m: GuideModel, i: GhIssue): string {

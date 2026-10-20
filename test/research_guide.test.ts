@@ -8,9 +8,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadGuideData, GUIDE_DATA_PATH } from '../scripts/research_guide/build';
-import { aggregate, barSvg, parseCsv } from '../scripts/research_guide/charts';
+import { aggregate, barSvg, measureSvg, parseCsv, renderChart } from '../scripts/research_guide/charts';
 import { REPO_ROOT } from '../scripts/research_guide/config';
-import { slugOf } from '../scripts/research_guide/render';
+import { slugOf, timelineItems, type GuideModel } from '../scripts/research_guide/render';
 import { reportLines, staleness } from '../scripts/research_guide/staleness';
 import type { DiskDoc, GhData } from '../scripts/research_guide/sources';
 
@@ -32,7 +32,7 @@ describe('guide.json (the committed curation)', () => {
     const paths = [
       ...data.docs.map((d) => d.path),
       ...data.decisions.flatMap((d) => (d.path ? [d.path] : [])),
-      ...data.charts.map((c) => c.csv),
+      ...data.charts.flatMap((c) => (c.csv ? [c.csv] : [])),
       ...data.docs.flatMap((d) => d.figures ?? []),
     ];
     expect(paths.filter((p) => !existsSync(join(REPO_ROOT, p)))).toEqual([]);
@@ -89,7 +89,7 @@ describe('staleness', () => {
 describe('charts and slugs', () => {
   it('aggregates a CSV per group, filtered, largest first', () => {
     const rows = parseCsv('ch,level,f\na,beat,0.2\na,beat,0.5\nb,beat,0.4\nb,bar,0.9\n');
-    const bars = aggregate(rows, { id: 'x', title: '', caption: '', csv: '', groupBy: 'ch', value: 'f', agg: 'max', filter: { level: 'beat' } });
+    const bars = aggregate(rows, { groupBy: 'ch', value: 'f', agg: 'max', filter: { level: 'beat' } });
     expect(bars).toEqual([{ key: 'a', value: 0.5 }, { key: 'b', value: 0.4 }]);
     expect(barSvg(bars, { label: 'max f' })).toMatch(/^<svg[\s\S]*ch-top[\s\S]*<\/svg>$/);
   });
@@ -97,5 +97,38 @@ describe('charts and slugs', () => {
   it('gives private and repo docs distinct page slugs', () => {
     expect(slugOf('docs/research/a-b.md')).toBe('docs-research-a-b');
     expect(slugOf('private:notes/a.md')).toBe('p-notes-a');
+  });
+});
+
+describe('v2 visuals', () => {
+  it('draws an inline-data chart with its threshold line', () => {
+    const svg = renderChart({ id: 'c', title: 't', caption: '', agg: 'max', unit: 'ms', data: [{ key: 'a', value: 12 }, { key: 'b', value: 4 }], threshold: { value: 10, label: 'audible' } });
+    expect(svg).toMatch(/ch-ref/);
+    expect(svg).toMatch(/12\.0 ms/);
+  });
+
+  it('colours a measure by whether it cleared its bar', () => {
+    expect(measureSvg({ value: 8, label: 'lag', better: 'lower', threshold: { value: 10, label: 'bound' } })).toMatch(/ch-pass/);
+    expect(measureSvg({ value: 0.2, label: 'F', better: 'higher', baseline: { value: 0.5, label: 'old' } })).toMatch(/ch-fail[\s\S]*ch-base/);
+  });
+
+  it('gives every curated area at least one visual (a chart or a diagram)', () => {
+    const withVisual = new Set([
+      ...data.charts.map((c) => c.area ?? data.docs.find((d) => d.path === c.doc)?.area),
+      ...data.diagrams.map((d) => d.area),
+    ]);
+    const areasWithDocs = new Set(data.docs.map((d) => d.area));
+    expect([...areasWithDocs].filter((a) => !withVisual.has(a))).toEqual([]);
+  });
+
+  it('puts docs, decisions, experiments and merges on one line, newest first', () => {
+    const m = {
+      entries: new Map([['docs/a.md', entry('docs/a.md')]]),
+      disk: new Map([['docs/a.md', { ...doc('docs/a.md'), created: '2026-09-01' }]]),
+      data: { ...data, decisions: [{ id: 'adr:x', title: 'x', kind: 'adr', status: 'accepted', decided: '', date: '2026-10-01' }] },
+      experiments: [{ id: 'e', title: 'e', area: 'timing', verdict: 'negative', number: 'n', summary: '', date: '2026-08-01' }],
+      gh: gh({ prs: [{ number: 9, title: 'p', mergedAt: '2026-10-05T00:00:00Z', url: '' }] }),
+    } as unknown as GuideModel;
+    expect(timelineItems(m).map((i) => `${i.date} ${i.kind}`)).toEqual(['2026-10-05 pr', '2026-10-01 decision', '2026-09-01 doc', '2026-08-01 experiment']);
   });
 });
