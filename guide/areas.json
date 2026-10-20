@@ -1,0 +1,22 @@
+[
+  {
+    "id": "field",
+    "title": "Field instruments",
+    "blurb": "Play the air in front of the camera like a theremin: your hands choose the pitch and the loudness, and each instrument changes what the fingers, the face and the open hand do."
+  },
+  {
+    "id": "air",
+    "title": "Air instruments",
+    "blurb": "Mime an instrument and it plays: strike a drum, pluck a bass, strum a guitar or blow a flute at nothing."
+  },
+  {
+    "id": "chords",
+    "title": "Chords and harmony",
+    "blurb": "Point at chords instead of notes: a map or a wheel of a key's chords, a song that sets the chords for you to play over, a score whose chords you conduct."
+  },
+  {
+    "id": "sign",
+    "title": "Sign instruments",
+    "blurb": "Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter."
+  }
+]

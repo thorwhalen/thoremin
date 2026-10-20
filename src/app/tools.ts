@@ -31,10 +31,11 @@
  * and by the browser smoke; the icon for each id is chosen in {@link ToolsBar}.
  */
 import { z } from 'zod';
+import { GUIDE_HOME } from './guide/links';
 
 /** How a tool opens. `panel`: a panel in the shell, tracked in `useTools`. `overlay`: an
  *  overlay (with its own hotkey when it has one); the launcher opens it too. `link`: a
- *  plain link out of the app (the generated manual). */
+ *  plain link out of the app (the generated manual, the player guide); it opens in a new tab so a live session is not left. */
 export const ToolKindSchema = z.enum(['panel', 'overlay', 'link']);
 export type ToolKind = z.infer<typeof ToolKindSchema>;
 
@@ -170,6 +171,15 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     group: 'help',
     defaultPinned: false,
     href: 'manual.html',
+  },
+  {
+    id: 'guide',
+    label: 'Guide',
+    description: 'How to play every instrument and use every tool: short pages with pictures, for players.',
+    kind: 'link',
+    group: 'help',
+    defaultPinned: false,
+    href: GUIDE_HOME,
   },
 ]);
 

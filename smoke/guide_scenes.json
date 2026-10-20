@@ -1,0 +1,5 @@
+{
+  "Air Drum": { "query": "synthetic.strike=1", "clip": true, "clipMs": 3500 },
+  "Chord Map": { "clip": true, "clipMs": 4000 },
+  "tool:poses": { "body": true }
+}

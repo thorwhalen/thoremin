@@ -96,6 +96,8 @@ function ToolButton({
     return (
       <a
         href={tool.href}
+        target="_blank"
+        rel="noopener"
         title={tool.description}
         data-tool={tool.id}
         className={`${btnCls} border-white/10 bg-black/40 text-white/60 hover:text-white ${className}`}

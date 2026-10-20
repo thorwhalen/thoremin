@@ -31,7 +31,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
 
-/** Where the human-facing user manual lives (this page is the *node* catalog). */
+/** Where the human-facing guide's pointer lives in the repo (this page is the *node* catalog; the guide itself is `public/guide/`). */
 const USER_GUIDE_URL = 'https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md';
 
 const OVERVIEW = `Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
@@ -98,7 +98,7 @@ function toMarkdown(catalog: CatalogEntry[]): string {
     '',
     '_Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand — run `npm run catalog`._',
     '',
-    `**Looking for how to _use_ the app?** → [the User Guide](${USER_GUIDE_URL}).`,
+    `**Looking for how to _use_ the app?** → [the Guide](${USER_GUIDE_URL}).`,
     '',
     OVERVIEW,
     '',
@@ -239,7 +239,7 @@ function toHtml(catalog: CatalogEntry[]): string {
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
   <p class="gen">Auto-generated from the node registry. ${catalog.length} nodes.</p>
-  <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="${USER_GUIDE_URL}">the User Guide</a>. This page is the <b>node</b> catalog.</p>
+  <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="guide/index.html">the Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>${esc(OVERVIEW).replace(/\n\n/g, '</p><p>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>
   <h3>Example pipelines</h3>
   <ul class="examples">${examples}</ul>
