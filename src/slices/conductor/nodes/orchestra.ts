@@ -88,12 +88,12 @@ const _defaultFactory: OrchestraEngineFactory = async (opts) => {
  * source's own velocity, as the orchestra has played it since #336. `written`: scaled by
  * the score's dynamics marks through `preparePiece`, exactly as the `score` node's
  * oscillators voice it, so switching the orchestra on keeps the balance of a `p` passage
- * (#393 item 3). `raw` stays the default until a player has heard the difference: it
- * changes how every marked piece sounds.
+ * (#393 item 3). `written` is the default (#168 D12): two renderings of one score agree.
+ * `raw` stays selectable for the orchestra's own velocities.
  */
 export const ORCHESTRA_DYNAMICS = SCORE_DYNAMICS;
 export type OrchestraDynamics = ScoreDynamics;
-export const DEFAULT_ORCHESTRA_DYNAMICS: OrchestraDynamics = 'raw';
+export const DEFAULT_ORCHESTRA_DYNAMICS: OrchestraDynamics = 'written';
 
 export interface PlanPieceOptions {
   /** {@link OrchestraDynamics}; {@link DEFAULT_ORCHESTRA_DYNAMICS} when absent. */

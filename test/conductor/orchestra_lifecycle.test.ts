@@ -129,15 +129,16 @@ describe.runIf(CONDUCTOR)('planPiece and the written dynamics', () => {
     expect(byNote(planPiece(piece, { dynamics: 'written' }).events)).toEqual(byNote(flat.map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }))));
   });
 
-  it('the default is still the raw velocities: the written marks are opt-in', () => {
+  it('the default is the written dynamics (#168 D12); the raw velocities are opt-in', () => {
     const piece = markedPiece();
     const raw = piece.parts[0].notes.map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }));
-    expect(byNote(planPiece(piece).events)).toEqual(byNote(raw));
+    const flat = flattenNotes(piece).map((n) => ({ key: n.midi, start: n.start, velocity: n.velocity }));
+    expect(byNote(planPiece(piece).events)).toEqual(byNote(flat));
     expect(byNote(planPiece(piece, { dynamics: 'raw' }).events)).toEqual(byNote(raw));
-    expect(orchestraNode.params.parse({}).dynamics).toBe('raw');
+    expect(orchestraNode.params.parse({}).dynamics).toBe('written');
   });
 
-  it('the node param reaches the plan: `written` plays the marked velocities, the default the raw ones', async () => {
+  it('the node param reaches the plan: `written` plays the marked velocities, the default too, `raw` the raw ones', async () => {
     const play = async (params: Record<string, unknown>) => {
       const synth = new FakeSynth();
       const ac = { currentTime: 100, state: 'running' };
@@ -151,8 +152,8 @@ describe.runIf(CONDUCTOR)('planPiece and the written dynamics', () => {
       }
       return synth.ons().map((c) => [c.args[1], c.args[2]]);
     };
-    const raw = await play({});
-    const written = await play({ dynamics: 'written' });
+    const raw = await play({ dynamics: 'raw' });
+    const written = await play({});
     expect(raw.length).toBeGreaterThan(3);
     expect(raw.map(([, v]) => v)).toEqual(raw.map(() => Math.round(0.8 * 127)));
     const piece = markedPiece();
