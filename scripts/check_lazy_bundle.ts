@@ -12,7 +12,10 @@
  *     alone depends on, with that recogniser's weights); a package core imports too (the SDK,
  *     zod) is shared, not owned, and so is a library whose only importer is a shared module core
  *     reaches by itself even when the extension imports that module too (#342);
- *  3. what the stubs leave in the initial chunks stays under {@link STUB_BUDGET_BYTES};
+ *  3. what the stubs leave in the initial chunks stays under {@link STUB_BUDGET_BYTES}, measured
+ *     in MINIFIED bytes: each stub module's rendered code run through esbuild's minifier, which is
+ *     what the production build ships (comments and whitespace never reach the player; measuring
+ *     them pushed every stub change toward deleting the comments that explain the wiring, #681);
  *  4. no node the deferred half defines is in the initial chunks, found by its own text (its
  *     description). Rule 2 cannot see a node a stub imports statically (that node is then in
  *     the stubs' closure, which rule 2 allows); this rule does, by content.
@@ -28,11 +31,12 @@
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
+import { transformSync } from 'esbuild';
 import { build, type Plugin } from 'vite';
 import { readExtensionEntries } from '../vite.extensions';
 import { closureOf, ownedPackages } from './lazy_ownership';
 
-/** What a lazy extension's eager stubs may add to the initial chunks (rendered bytes): its
+/** What a lazy extension's eager stubs may add to the initial chunks (minified bytes, #681): its
  *  dial schema, branches as data, instrument seeds and section labels. */
 const STUB_BUDGET_BYTES = 16 * 1024;
 
@@ -85,9 +89,14 @@ interface Graph {
   dynamic: Map<string, string[]>;
   /** chunk file -> { isEntry, imports (static), modules with rendered bytes } */
   chunks: { file: string; isEntry: boolean; facade: string | null; imports: string[]; modules: Record<string, number> }[];
+  /** module id -> its rendered code, for the stub budget's minified measure. */
+  code: Map<string, string>;
 }
 
-const graph: Graph = { importers: new Map(), imported: new Map(), dynamic: new Map(), chunks: [] };
+const graph: Graph = { importers: new Map(), imported: new Map(), dynamic: new Map(), chunks: [], code: new Map() };
+/** The bytes a module's rendered code ships as: minified (whitespace, comments and local names
+ *  only; the module's top-level names stay, as in the bundle's scope-hoisted chunk). */
+const minifiedBytes = (id: string): number => Buffer.byteLength(transformSync(graph.code.get(id) ?? '', { minify: true, loader: 'js', format: 'esm' }).code);
 const capture: Plugin = {
   name: 'check-lazy-bundle',
   generateBundle(_options, bundle) {
@@ -100,6 +109,7 @@ const capture: Plugin = {
     }
     for (const chunk of Object.values(bundle)) {
       if (chunk.type !== 'chunk') continue;
+      for (const [id, m] of Object.entries(chunk.modules)) if (m.code) graph.code.set(id, m.code);
       graph.chunks.push({
         file: chunk.fileName,
         isEntry: chunk.isEntry,
@@ -169,10 +179,12 @@ try {
     const deferredOnly = (id: string) => id.startsWith(join(extDir, 'src') + sep) && relative(join(extDir, 'src'), id).includes(sep);
     const stubClosure = closure(stubs, (id) => graph.imported.get(id) ?? [], (id) => inExt(id) && !deferredOnly(id));
     let stubBytes = 0;
+    let stubRendered = 0;
     for (const [id, bytes] of initialModules) {
       if (!owned.some((d) => under(d)(id))) continue;
       if (stubClosure.has(id)) {
-        stubBytes += bytes;
+        stubBytes += minifiedBytes(id);
+        stubRendered += bytes;
         continue;
       }
       failures.push(`${entry.id}: ${rel(id)} (${bytes} B) is in an initial chunk but only the extension needs it`);
@@ -191,12 +203,12 @@ try {
       }
     }
     // 3. The stubs stay small.
-    if (stubBytes > STUB_BUDGET_BYTES) failures.push(`${entry.id}: its stubs put ${stubBytes} B in the initial chunks (budget ${STUB_BUDGET_BYTES} B)`);
+    if (stubBytes > STUB_BUDGET_BYTES) failures.push(`${entry.id}: its stubs put ${stubBytes} minified B in the initial chunks (budget ${STUB_BUDGET_BYTES} B)`);
 
     const deferredChunks = graph.chunks.filter((c) => !initial.has(c.file) && Object.keys(c.modules).some((id) => owned.some((d) => under(d)(id))));
     const deferredBytes = deferredChunks.reduce((n, c) => n + Object.values(c.modules).reduce((a, b) => a + b, 0), 0);
     console.log(
-      `${entry.id}: lazy. Initial: ${stubBytes} B of stubs (${[...stubClosure].filter((id) => initialModules.has(id)).map(rel).join(', ')}). ` +
+      `${entry.id}: lazy. Initial: ${stubBytes} minified B of stubs, ${stubRendered} B rendered (${[...stubClosure].filter((id) => initialModules.has(id)).map(rel).join(', ')}). ` +
         `Deferred: ${deferredChunks.length} chunks, ${(deferredBytes / 1024).toFixed(1)} kB (${deferredChunks.map((c) => c.file).join(', ')}). ` +
         `Owned packages: ${owned.map(rel).join(', ')}.`,
     );
