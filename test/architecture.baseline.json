@@ -19,9 +19,9 @@
   "runtimeImportCycles": 0,
   "largestFiles": {
     "packages/ext-faces/src/app/sessionStore.ts": 1765,
-    "src/nodes/output/canvas_overlay.ts": 1450,
     "packages/ext-air/src/nodes/air_drum.ts": 1308,
     "packages/ictus/src/impact.ts": 904,
-    "src/app/dials/InstrumentsPanel.tsx": 850
+    "src/app/dials/InstrumentsPanel.tsx": 850,
+    "packages/sdk/src/nodes/domain.ts": 809
   }
 }
