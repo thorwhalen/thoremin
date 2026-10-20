@@ -61,6 +61,17 @@ jobs:
       - name: Test (vitest)
         run: npm test
 
+      # The node catalog (docs/CATALOG.md, public/catalog.json, public/manual.html) is generated
+      # from the node registry and committed; a change to a node, a port or a param that did not
+      # regenerate it leaves the manual describing another app. Regenerate and compare.
+      - name: The generated node catalog is up to date
+        run: |
+          npm run catalog
+          if ! git diff --exit-code -- docs/CATALOG.md public/catalog.json public/manual.html; then
+            echo "::error::The node catalog is stale: run 'npm run catalog' and commit docs/CATALOG.md, public/catalog.json and public/manual.html."
+            exit 1
+          fi
+
       - name: Build (vite — verifies the React layer)
         run: npm run build
 
