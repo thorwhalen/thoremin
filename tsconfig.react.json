@@ -23,6 +23,7 @@
     "packages/ext-harmony/src",
     "node_modules/@thoremin/ext-asl/src",
     "packages/ext-faces/src",
+    "packages/ext-patcher/src",
     "test/**/*.test.tsx"
   ],
   "//exclude": "Empty on purpose: TypeScript's default exclude drops node_modules, and an installed extension (its own repository, node_modules/@thoremin/ext-asl) is React source this ratchet must check.",

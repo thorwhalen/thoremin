@@ -8,6 +8,6 @@
  * so that the strict, React-free typecheck never reads a React type.)
  */
 declare module 'virtual:thoremin/extensions' {
-  const extensions: readonly [typeof import("@thoremin/ext-air").default, typeof import("@thoremin/ext-harmony").default, typeof import("@thoremin/ext-asl").default, typeof import("@/slices/midi").default, typeof import("@/slices/generative").default, typeof import("@/slices/song").default, typeof import("@/slices/body").default, typeof import("@/slices/trainer").default, typeof import("@/slices/conductor").default, typeof import("@/slices/lab").default, typeof import("@thoremin/ext-faces").default];
+  const extensions: readonly [typeof import("@thoremin/ext-air").default, typeof import("@thoremin/ext-harmony").default, typeof import("@thoremin/ext-asl").default, typeof import("@/slices/midi").default, typeof import("@/slices/generative").default, typeof import("@/slices/song").default, typeof import("@/slices/body").default, typeof import("@/slices/trainer").default, typeof import("@/slices/conductor").default, typeof import("@/slices/lab").default, typeof import("@thoremin/ext-faces").default, typeof import("@thoremin/ext-patcher").default];
   export default extensions;
 }
