@@ -69,7 +69,7 @@ describe.runIf(AIR)('an air-only instrument describes the air instrument, not th
   });
 
   it('summarizes as air with the hand voices off', () => {
-    expect(sum.air).toEqual(['drum']);
+    expect(sum.played).toEqual(['drum']);
     expect(sum.handVoices).toBe(false);
     const labels = summaryLines(sum).map((l) => l.label);
     expect(labels[0]).toBe('Air');
@@ -102,7 +102,7 @@ describe.runIf(AIR)('an air instrument that plays the scale keeps describing it'
   });
 
   it('shows the scale and range, not the silent voices', () => {
-    expect(sum.air).toEqual(['bass']);
+    expect(sum.played).toEqual(['bass']);
     expect(sum.handVoices).toBe(false);
     expect(sum.scaleHeard).toBe(true);
     const labels = summaryLines(sum).map((l) => l.label);

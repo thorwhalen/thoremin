@@ -52,7 +52,7 @@ import TagsEditor from '@/app/library/TagsEditor';
 import { EditorLinks } from '@/app/guide/EditorLinks';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
-import { INSTRUMENT_CATALOG, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
+import { INSTRUMENT_CATALOG, airInstrumentsOf, classOfEntry, classShowsEmpty, groupByCategory, type AirInstrumentId } from '@/app/library/category';
 import { assembleSpec } from '@/app/graph';
 import { type InstrumentSpec } from '@/instruments/spec';
 import { instrumentsCollection, type InstrumentSort } from '@/app/library/instrumentsCollection';
@@ -324,7 +324,7 @@ export default function InstrumentsPanel() {
     const current = name === selected && name === getSelectedName();
     // What leads the editor: the air instruments playing now (unsaved edits included), or the
     // saved ones of the instrument about to load.
-    setEditorLead(current ? liveAir : (library.summaryOf(name)?.air ?? []));
+    setEditorLead(current ? liveAir : (library.summaryOf(name)?.played ?? []));
     if (!current) select(name);
     setConfirming(false);
     setView('editor');
@@ -755,7 +755,7 @@ export default function InstrumentsPanel() {
               ) : null;
             })()}
             {groups.map((g) =>
-              g.items.length === 0 && (searching || g.id !== 'air') ? null : (
+              g.items.length === 0 && (searching || !classShowsEmpty(g.id)) ? null : (
                 <section key={g.id} role="group" aria-label={g.label} data-category={g.id} className="mb-1.5">
                   {(() => {
                     // A collapsed class still says what it holds, names the instrument being

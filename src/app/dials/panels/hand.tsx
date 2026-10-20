@@ -93,7 +93,7 @@ export function HandControls() {
           onChange={(e) => patchLive({ maxGain: Number(e.target.value) })}
         />
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="Field instruments only (the air instruments label hands themselves). The camera sometimes relabels a turning hand Left/Right for a frame or two; a dwell of N frames holds the voice on its side through any relabel of up to N frames, and delays a real hand swap by exactly N frames.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Field instruments only (an instrument that reads each hand for itself labels the hands its own way). The camera sometimes relabels a turning hand Left/Right for a frame or two; a dwell of N frames holds the voice on its side through any relabel of up to N frames, and delays a real hand swap by exactly N frames.">
         Handedness dwell
         <select
           className={selectCls}

@@ -71,7 +71,7 @@ export function deriveSystemTags(sum: InstrumentSummary): SystemTag[] {
 
   // The air instruments first (#249): what you mime is the most distinguishing fact.
   for (const a of INSTRUMENT_CATALOG) {
-    if ((sum.air as readonly string[]).includes(a.id)) {
+    if ((sum.played as readonly string[]).includes(a.id)) {
       tags.push({ id: `${SYSTEM_TAG_PREFIX}${classOfEntry(a)}:${a.id}`, emoji: a.emoji, label: a.label });
     }
   }

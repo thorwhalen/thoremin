@@ -57,7 +57,7 @@ export async function deriveForName(name: string): Promise<InstrumentDerived | n
     return {
       summary,
       systemTags: deriveSystemTags(summary),
-      category: categoryOfAir(summary.air),
+      category: categoryOfAir(summary.played),
       branches: branchIdsFor(settings),
       layer,
     };

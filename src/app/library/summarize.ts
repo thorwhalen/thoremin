@@ -56,8 +56,9 @@ export interface InstrumentSummary {
   faceMode: FaceMode;
   /** Active finger->effect routings (empty when no finger is routed). */
   fingerFx: FingerFx[];
-  /** The air instruments it plays (#249), in display order; empty for a theremin. */
-  air: AirInstrumentId[];
+  /** The catalog rows it plays (#249: the air instruments, the sign reader...; #788 renamed the
+   *  field from `air`), in display order; empty for a field instrument. */
+  played: AirInstrumentId[];
   /** Whether the hands play the theremin voices at all. An air instrument that silences
    *  them (hand-map max gain 0) has no scale, voices or range worth describing. */
   handVoices: boolean;
@@ -140,7 +141,7 @@ export function summarizeInstrument(s: Settings): InstrumentSummary {
     noteSource: s.handMap.positionSource,
     faceMode: faceModeOf(s.faceMapping),
     fingerFx: activeFingerFx(s.handMap),
-    air: airInstrumentsOf(s),
+    played: airInstrumentsOf(s),
     handVoices: s.handMap.maxGain > 0,
     scaleHeard: s.handMap.maxGain > 0 || INSTRUMENT_CATALOG.some((a) => a.usesScale && a.on(s as unknown as Readonly<Record<string, unknown>>)),
     masterVolume: s.masterVolume,
@@ -188,10 +189,10 @@ const MASTER_DEFAULTS = { masterVolume: 0.4, magnetism: 0.8, octaveShift: 0 } as
  */
 export function summaryLines(sum: InstrumentSummary): SummaryLine[] {
   const lines: SummaryLine[] = [];
-  if (sum.air.length > 0) {
+  if (sum.played.length > 0) {
     // One line per contributed class, in class order, named by its label's first word: the air
     // instruments under "Air", the sign reader under "Sign".
-    const entries = sum.air.map((id) => INSTRUMENT_CATALOG.find((a) => a.id === id)).filter((a): a is (typeof INSTRUMENT_CATALOG)[number] => !!a);
+    const entries = sum.played.map((id) => INSTRUMENT_CATALOG.find((a) => a.id === id)).filter((a): a is (typeof INSTRUMENT_CATALOG)[number] => !!a);
     for (const cls of INSTRUMENT_CLASSES) {
       if (cls.id === DEFAULT_CLASS) continue;
       const of = entries.filter((a) => classOfEntry(a) === cls.id);

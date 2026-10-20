@@ -43,8 +43,13 @@ export function registerInstrumentClasses(classes: readonly InstrumentClass[]): 
   for (const c of classes) {
     const had = INSTRUMENT_CLASSES.find((k) => k.id === c.id);
     if (!had) INSTRUMENT_CLASSES.push(c);
-    else if (had.label !== c.label || had.emoji !== c.emoji || had.colour !== c.colour) throw new Error(`instrument class "${c.id}" is registered twice, differently`);
+    else if (had.label !== c.label || had.emoji !== c.emoji || had.colour !== c.colour || !!had.showEmpty !== !!c.showEmpty) throw new Error(`instrument class "${c.id}" is registered twice, differently`);
   }
+}
+
+/** Whether the Instruments view keeps class `id` listed while it is empty (its `showEmpty`). */
+export function classShowsEmpty(id: InstrumentClassId): boolean {
+  return INSTRUMENT_CLASSES.find((c) => c.id === id)?.showEmpty === true;
 }
 
 /** A current class id for `id`, following {@link LEGACY_CLASS_IDS}; `undefined` when unknown. */
