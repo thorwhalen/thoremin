@@ -46,7 +46,7 @@
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
     "@tensorflow/tfjs-converter": "^4.22.0",
     "@tensorflow/tfjs-core": "^4.22.0",
-    "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#beb86ed4e6db4c6ee8182ee31f58401048433f6a",
+    "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#c2031c865bbbfff460714407ff61dbf1db77c98a",
     "@tonejs/midi": "^2.0.28",
     "@vitejs/plugin-react": "^5.0.4",
     "@zodal/core": "^0.1.2",
