@@ -41,7 +41,7 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
     // Every input the node declares is connected: none left to its default by accident.
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'chordMap').map((e) => e.to.port));
-    expect([...inbound].sort()).toEqual(['audio', 'chordConfig', 'conductorTime', 'config', 'face', 'hands', 'midi', 'octaveShift', 'signs', 'spec', 'time']);
+    expect([...inbound].sort()).toEqual(['audio', 'chordConfig', 'conductorTime', 'config', 'face', 'hands', 'midi', 'octaveShift', 'ratings', 'signs', 'spec', 'time']);
     expect(has('conductor', 'time', 'chordMap', 'conductorTime')).toBe(true); // the conductor's beat (H9), while conducting
     expect(has('ui', 'chordMapAudio', 'chordMap', 'audio')).toBe(true); // the microphone's chroma (H8)
     expect(has('songPlayer', 'songTime', 'chordMap', 'time')).toBe(true); // the song's beat (H9)

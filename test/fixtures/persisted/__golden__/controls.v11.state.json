@@ -319,6 +319,7 @@
   },
   "chordMapAudio": null,
   "chordMapMidi": null,
+  "chordMapRatings": null,
   "chordWheel": {
     "bpm": 100,
     "categoryMoves": {},

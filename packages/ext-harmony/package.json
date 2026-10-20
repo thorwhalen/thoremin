@@ -27,7 +27,12 @@
     "./panels/chordWheel": "./src/panels/chordWheel.tsx",
     "./ui": "./src/ui.tsx",
     "./lib/torus": "./src/lib/torus.ts",
-    "./nodes/overlay/chord_torus": "./src/nodes/overlay/chord_torus.ts"
+    "./nodes/overlay/chord_torus": "./src/nodes/overlay/chord_torus.ts",
+    "./app/moveRatings": "./src/app/moveRatings.ts",
+    "./app/movePlayer": "./src/app/movePlayer.ts",
+    "./panels/rateMove": "./src/panels/rateMove.tsx",
+    "./stores": "./src/stores.ts",
+    "./lib/map_paths": "./src/lib/map_paths.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

@@ -1325,6 +1325,10 @@
         "kind": "audio-chroma"
       },
       {
+        "name": "ratings",
+        "kind": "move-ratings"
+      },
+      {
         "name": "face",
         "kind": "face-features"
       },
@@ -1413,7 +1417,7 @@
       },
       {
         "name": "captionSet",
-        "type": "enum(interval | computed)",
+        "type": "enum(interval | computed | mine)",
         "default": "interval"
       },
       {
@@ -4199,6 +4203,10 @@
       {
         "name": "chordMapAudio",
         "kind": "audio-chroma"
+      },
+      {
+        "name": "chordMapRatings",
+        "kind": "move-ratings"
       },
       {
         "name": "steerPlaying",

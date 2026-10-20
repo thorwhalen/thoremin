@@ -1,7 +1,7 @@
 /**
  * Computed move captions (#714; choice 2 of #614): a move's caption made from what can be
  * measured about it instead of a hand-typed table, as a third caption set beside the interval
- * captions (the default, the relations' own labels) and a player's own words. "smooth, darker"
+ * captions (the default, the relations' own labels) and a player's own words (`./ratings`). "smooth, darker"
  * for C to Em: two common tones, and major to minor.
  *
  * Each part of a caption is a fact with a source, and a part that comes from a model carries the
@@ -30,6 +30,7 @@ import { QUALITIES, type QualityId } from './qualities';
 import { TENSION_MODELS, tpsDistance, type TensionModelId } from './tension';
 import { SCALE_TYPES } from '../music/theory';
 import type { Edge, Relation } from './space';
+import { moveKey, ratingMode, ratingWords, type RatingsTable } from './ratings';
 
 export const CAPTION_PARTS = ['tones', 'quality', 'expectedness', 'direction', 'distance'] as const;
 export type CaptionPart = (typeof CAPTION_PARTS)[number];
@@ -138,6 +139,8 @@ export interface CaptionOptions {
   prior?: PriorId;
   /** The tension model `direction` reads. */
   tension?: TensionModelId;
+  /** The player's ratings, for their own set (`mine`, #715). */
+  ratings?: RatingsTable;
 }
 
 /** The facts of a move; only the `parts` asked for are measured (the others are null, and
@@ -220,10 +223,36 @@ export const INTERVAL_CAPTIONS: CaptionSet = {
   caption: () => undefined,
 };
 
-export const CAPTION_SET_IDS = ['interval', 'computed'] as const;
+/** The degree of a key's own diatonic chord, or null for a borrowed, applied or foreign one. */
+function diatonicDegree(chord: Chord, key: Key): number | null {
+  const f = functionOf(chord, key);
+  return f && f.alter === undefined && f.of === undefined ? f.degree : null;
+}
+
+/** The player's caption set (#715): a rated move's words, nothing (the relation's label) for the rest. */
+export function ratedCaptions(table: RatingsTable): CaptionSet {
+  return {
+    id: 'mine',
+    name: 'Yours (your ratings)',
+    models: ['your ratings'],
+    caption(edge, _relation, key) {
+      const from = diatonicDegree(edge.from, key);
+      const to = diatonicDegree(edge.to, key);
+      if (from === null || to === null || from === to) return undefined;
+      const r = table[moveKey(ratingMode(key), from, to)];
+      return r ? ratingWords(r) : undefined;
+    },
+  };
+}
+
+/** The sets: the intervals, the computed words, and the player's own (`mine`: their ratings of
+ *  the moves, `./ratings`, #715). */
+export const CAPTION_SET_IDS = ['interval', 'computed', 'mine'] as const;
 export type CaptionSetId = (typeof CAPTION_SET_IDS)[number];
 
-/** The caption set an id names, the computed one over `options`. */
+/** The caption set an id names: the computed one over `options`, the player's over its ratings. */
 export function captionSet(id: CaptionSetId, options: CaptionOptions = {}): CaptionSet {
-  return id === 'computed' ? computedCaptions(options) : INTERVAL_CAPTIONS;
+  if (id === 'computed') return computedCaptions(options);
+  if (id === 'mine') return ratedCaptions(options.ratings ?? {});
+  return INTERVAL_CAPTIONS;
 }
