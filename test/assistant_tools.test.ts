@@ -5,7 +5,7 @@
  * palette uses, with errors returned as data (never thrown across the tool boundary).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { buildAssistantTools } from '@/plugins/assistant/aiTools';
+import { buildAssistantTools } from '@/app/assistant/aiTools';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { useControls } from '@/app/store';
 

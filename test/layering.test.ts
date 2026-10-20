@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, normalize, sep } from 'node:path';
 import { ALL_EXTENSION_DIRS } from './helpers/extensions';
 
 /** The nodes and libraries of every extension are Node-safe core too (they moved out of
@@ -69,5 +69,47 @@ describe('the settings import node contracts only', () => {
       }
     }
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+});
+
+/**
+ * `src/plugins` is the frozen legacy app's (#128): only its entry (`src/App.tsx`, `src/components`,
+ * `src/hooks`) and the plugins themselves import it (#600 S20, which moved the assistant to
+ * `src/app/assistant`). A new import from anywhere else would make the frozen tree load-bearing again.
+ */
+const LEGACY_ENTRY = ['src/App.tsx', 'src/components/', 'src/hooks/', 'src/plugins/'];
+const IMPORT_SPEC = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g;
+
+describe('nothing outside the legacy entry imports src/plugins', () => {
+  it('src/ and packages/ reach src/plugins only from the legacy app', () => {
+    const roots = ['src', ...readdirSync('packages').map((p) => join('packages', p, 'src')).filter((d) => {
+      try {
+        return statSync(d).isDirectory();
+      } catch {
+        return false;
+      }
+    })];
+    const offenders: string[] = [];
+    let scanned = 0;
+    for (const root of roots) {
+      for (const f of tsFiles(root)) {
+        const rel = f.split(sep).join('/');
+        if (LEGACY_ENTRY.some((e) => rel === e || rel.startsWith(e))) continue;
+        scanned++;
+        const src = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        for (const m of src.matchAll(IMPORT_SPEC)) {
+          const spec = m[1];
+          const target = spec.startsWith('@/') ? `src/${spec.slice(2)}` : spec.startsWith('.') ? normalize(join(dirname(f), spec)).split(sep).join('/') : '';
+          if (target === 'src/plugins' || target.startsWith('src/plugins/')) offenders.push(`${rel} imports ${spec}`);
+        }
+      }
+    }
+    expect(scanned).toBeGreaterThan(100);
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+
+  it('the assistant lives in the app, not in src/plugins', () => {
+    expect(statSync('src/app/assistant').isDirectory()).toBe(true);
+    expect(() => statSync('src/plugins/assistant')).toThrow();
   });
 });

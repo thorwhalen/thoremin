@@ -121,7 +121,7 @@ export interface TimingReading {
    * stage). The output stage is never unknown (its prior stands in); before a stamped
    * frame the age term is 0, so it is the output stage alone. A REPORT, not an input:
    * no node reads it (each instrument times its own onsets from `outputStage` and its
-   * frame's stamp); the latency probe's panel prints it (`src/app/latencyProbe.ts`).
+   * frame's stamp); the latency probe's panel prints it (`src/app/engine/latencyProbe.ts`).
    */
   leadBudget: number;
 }

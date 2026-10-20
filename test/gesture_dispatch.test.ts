@@ -25,15 +25,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ok, err, type Result } from 'acture';
-import { createGestureDispatcher, isGestureBindable, type GestureDispatcherDeps } from '@/app/gestureDispatch';
+import { createGestureDispatcher, isGestureBindable, type GestureDispatcherDeps } from '@/app/gestures/gestureDispatch';
 import {
   GESTURE_IDS,
   defaultGesturePrefs,
   isGestureId,
   type GestureBinding,
   type GesturePrefs,
-} from '@/app/gesturePrefs';
-import type { HandPoses } from '@/app/gestureStatus';
+} from '@/app/gestures/gesturePrefs';
+import type { HandPoses } from '@/app/gestures/gestureStatus';
 import { createThoreminRegistry } from '@/app/commands/registry';
 import type { Pose } from '@/nodes';
 
@@ -296,9 +296,9 @@ describe('the classifier output reaches the app dispatch path (the #137-style gu
     // app_graph.test.ts. This is the other half MIDI-out shipped without (#120/#137):
     // the app actually READING the output. A rewiring that drops either line makes
     // the gesture feature silently unreachable while every unit test stays green.
-    const src = readFileSync(resolve(process.cwd(), 'src/app/useEngine.ts'), 'utf8');
+    const src = readFileSync(resolve(process.cwd(), 'src/app/engine/useEngine.ts'), 'utf8');
     // The reporter itself is `makeGestureReporter` in gestureStatus.ts (#392); the hook builds it.
-    const reporter = readFileSync(resolve(process.cwd(), 'src/app/gestureStatus.ts'), 'utf8');
+    const reporter = readFileSync(resolve(process.cwd(), 'src/app/gestures/gestureStatus.ts'), 'utf8');
     expect(reporter).toMatch(/getOutput\(\s*'gesture'\s*,\s*'poses'\s*\)/);
     expect(src).toMatch(/createGestureDispatcher\(/);
     expect(reporter).toMatch(/gestureDispatcher\.tick\(/);

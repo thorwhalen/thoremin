@@ -1,5 +1,5 @@
 /**
- * Re-wiring a RUNNING engine onto the live graph (`applyLive`, `src/app/liveApply.ts`; #391
+ * Re-wiring a RUNNING engine onto the live graph (`applyLive`, `src/app/engine/liveApply.ts`; #391
  * item 2, extracted from `useEngine` by #392). The pure applier rules are
  * `lazy_extensions.test.ts` / `lazy_extensions_failures.test.tsx`; this file pins the host half
  * the hook used to hide: the commit goes to `engine.applyGraph` only once a pending lazy type has
@@ -16,10 +16,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineNode, NodeRegistry, type Engine, type NodeDef } from '@thoremin/dag';
 import type { Composed } from '@/instruments/compose';
-import { applyLive, type LiveEngine } from '@/app/liveApply';
+import { applyLive, type LiveEngine } from '@/app/engine/liveApply';
 import { NO_SLOTS } from '@/app/graph';
 import { useControls } from '@/app/store';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
 const node = (type: string): NodeDef<any> =>
   defineNode({ type, inputs: [], outputs: [{ name: 'out', kind: 'number' }], process: () => ({ out: 1 }) });

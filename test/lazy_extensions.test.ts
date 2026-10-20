@@ -21,7 +21,7 @@ import { defineExtension, type Extension, type ExtensionNodes } from '@thoremin/
 import { createAppRegistry } from '@/nodes/browser';
 import { loadExtensionNodes, loadedExtensionNodes } from '@/extensions';
 import { branchIdsWithout, resolveSlot } from '@/app/graph';
-import { composeLoaded, makeLazyApplier, type LazyApplyDeps } from '@/app/lazyApply';
+import { composeLoaded, makeLazyApplier, type LazyApplyDeps } from '@/app/engine/lazyApply';
 import { listModuleSource, readExtensionEntries } from '../vite.extensions';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -157,7 +157,7 @@ describe('the app registry and a lazy extension', () => {
   });
 });
 
-describe('the live applier (src/app/lazyApply.ts)', () => {
+describe('the live applier (src/app/engine/lazyApply.ts)', () => {
   /** A fake world: the "settings" pick a graph (a list of node types), some types are lazy. */
   function world(lazy: string[]) {
     const state = { graph: ['core'] as string[] };

@@ -10,7 +10,7 @@
  * player finds the training from the instrument they are looking at.
  */
 import type { InstrumentSpec } from '@/instruments/spec';
-import { useTools } from '../toolsStore';
+import { useTools } from '../tools/toolsStore';
 import { goToTraining, trainingRouteFor } from './routes';
 
 export function TrainingLink({ spec }: { spec: InstrumentSpec | undefined }) {

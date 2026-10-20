@@ -15,7 +15,7 @@
  * Installed by `useEngine` when the engine is ready and removed on teardown, so a
  * torn-down engine is never reachable through a stale handle.
  */
-import { readLiveVector } from './enroll/liveVector';
+import { readLiveVector } from '../enroll/liveVector';
 
 /** The slice of the engine the handle needs — the same read the per-frame bridges use. */
 export interface OutputReader {

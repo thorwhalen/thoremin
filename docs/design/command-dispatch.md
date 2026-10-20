@@ -138,9 +138,9 @@ emitted JSON Schema is one the model may simply omit.
 
 | Surface | How it dispatches |
 |---------|-------------------|
-| **Keyboard** (#90, `src/app/keyboardShortcuts.ts`) | `tinykeys` → `dial.set`. Uses tinykeys *directly*, not `acture-hotkeys`, because a binding must carry **fixed params** (a specific octave delta), which the hotkeys adapter can't express. |
+| **Keyboard** (#90, `src/app/shell/keyboardShortcuts.ts`) | `tinykeys` → `dial.set`. Uses tinykeys *directly*, not `acture-hotkeys`, because a binding must carry **fixed params** (a specific octave delta), which the hotkeys adapter can't express. |
 | **Command palette** (#87 Phase 2, `CommandPaletteOverlay.tsx`) | Cmd/Ctrl-K → headless `cmdk` + `acture-palette-react` + `acture-forms-autoform` over the per-dial commands. |
-| **AI assistant** (#87 Phase 3, `src/plugins/assistant/`) | `acture-ai-vercel` exposes the registry as model tools. |
+| **AI assistant** (#87 Phase 3, `src/app/assistant/`) | `acture-ai-vercel` exposes the registry as model tools. |
 | **Settings panels** (#126) | `src/app/dispatchDial.ts` → `dispatchDialSet` (`dial.set`), `dispatchDialSetIn` (`dial.setIn`), `dispatchDialPatch` (`dial.patch`), each with a toast on validation failure. **Every discrete control**, in all six panel sections. |
 | **Gestures** (#129, open) | Not yet. `gesture-classifier` already emits discrete pose edge events; wiring them to dispatch is the open issue. |
 

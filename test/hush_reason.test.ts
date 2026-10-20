@@ -4,8 +4,8 @@
  * says its reason, and a claim no tool explains (a carve tool's quiet) says nothing.
  */
 import { describe, it, expect } from 'vitest';
-import { hushReason } from '@/app/hushReason';
-import { SHELL_TOOLS } from '@/app/shellTools';
+import { hushReason } from '@/app/shell/hushReason';
+import { SHELL_TOOLS } from '@/app/tools/shellTools';
 import { TRAINER } from './helpers/extensions';
 
 const tools = [

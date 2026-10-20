@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Engine } from '@thoremin/dag';
-import { useToasts } from '../toasts';
+import { useToasts } from '../shell/toasts';
 import { SessionRecorder, activeStreamLabels, type RecordingResult, type SessionRecorderDeps } from './session';
 import { registerRecordingController, type StartTakeOptions } from '@thoremin/sdk-ui/recording/controller';
 import { SinkCancelled } from './sink';

@@ -238,9 +238,9 @@ describe('the production wiring (source guard — useEngine is outside the stric
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
-    const engine = read('src/app/useEngine.ts');
+    const engine = read('src/app/engine/useEngine.ts');
     // The live branch set moved out of the hook with the live graph (#392).
-    const liveApply = read('src/app/liveApply.ts');
+    const liveApply = read('src/app/engine/liveApply.ts');
     // The install. Deleting this line leaves every unit test green (the nodes are always
     // handed a hand-built getter in tests) — which is exactly how v1 shipped blind.
     expect(engine).toMatch(/resources\.featureDemand\s*=\s*featureDemandResource/);

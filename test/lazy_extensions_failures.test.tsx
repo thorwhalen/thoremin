@@ -79,9 +79,9 @@ const UIS: readonly (ExtensionUi | LazyStub)[] = [
 ];
 
 let app: {
-  ensureLazyTypes: typeof import('@/app/extensionLoad').ensureLazyTypes;
-  useExtensionLoad: typeof import('@/app/extensionLoad').useExtensionLoad;
-  makeLazyApplier: typeof import('@/app/lazyApply').makeLazyApplier;
+  ensureLazyTypes: typeof import('@/app/engine/extensionLoad').ensureLazyTypes;
+  useExtensionLoad: typeof import('@/app/engine/extensionLoad').useExtensionLoad;
+  makeLazyApplier: typeof import('@/app/engine/lazyApply').makeLazyApplier;
   loadExtensionUi: typeof import('@/app/extensions').loadExtensionUi;
   makeExtensionSinks: typeof import('@/app/extensions').makeExtensionSinks;
 };
@@ -90,7 +90,7 @@ beforeAll(async () => {
   vi.resetModules();
   vi.doMock('virtual:thoremin/extensions', () => ({ default: PURE }));
   vi.doMock('virtual:thoremin/extensions-ui', () => ({ default: UIS }));
-  const [load, apply, exts] = await Promise.all([import('@/app/extensionLoad'), import('@/app/lazyApply'), import('@/app/extensions')]);
+  const [load, apply, exts] = await Promise.all([import('@/app/engine/extensionLoad'), import('@/app/engine/lazyApply'), import('@/app/extensions')]);
   app = {
     ensureLazyTypes: load.ensureLazyTypes,
     useExtensionLoad: load.useExtensionLoad,

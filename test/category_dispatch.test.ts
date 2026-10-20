@@ -19,8 +19,8 @@ import {
   type SavedCategories,
 } from '@/app/enroll/categoryBinding';
 import { createThoreminRegistry } from '@/app/commands/registry';
-import { isGestureBindable } from '@/app/gestureDispatch';
-import { useTools } from '@/app/toolsStore';
+import { isGestureBindable } from '@/app/gestures/gestureDispatch';
+import { useTools } from '@/app/tools/toolsStore';
 import { LiveVectorTap, readLiveVector, resetLiveVector } from '@/app/enroll/liveVector';
 
 function model(): TrainedModel {

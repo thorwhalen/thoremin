@@ -1,6 +1,6 @@
 /**
  * The Song tool, as data (#186 PR G; the song slice's since #600 S15): a module with no runtime
- * imports, so the browser smoke's reachability sweep can import it beside core's `src/app/tools.ts`.
+ * imports, so the browser smoke's reachability sweep can import it beside core's `src/app/tools/tools.ts`.
  * Plain data (no SDK import: this is the slice's pure side); the React half (`./ui.tsx`), which
  * type-checks it as an `ExtensionTool`, adds its panel, icon and stop control.
  */

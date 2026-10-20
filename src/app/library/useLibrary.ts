@@ -37,7 +37,7 @@ import {
   instrumentsUsingTag,
 } from './store';
 import { deriveForNames, type InstrumentDerived } from './derive';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
 const KNOWN_BRANCH_IDS: ReadonlySet<string> = new Set(ALL_BRANCH_IDS);
 

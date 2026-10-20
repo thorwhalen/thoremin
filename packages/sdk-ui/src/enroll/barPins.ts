@@ -5,7 +5,7 @@
  *
  * The bars read the pins synchronously at UI rate, so the live state is a zustand store; it
  * persists through a `DataProvider` (localStorage by default), hydrated once and written through
- * on every change, as the tool pins are (`src/app/toolPins.ts`): zustand for what renders, zodal
+ * on every change, as the tool pins are (`src/app/tools/toolPins.ts`): zustand for what renders, zodal
  * for what persists. A write never waits, and a failed save is logged, not surfaced.
  */
 import { z } from 'zod';

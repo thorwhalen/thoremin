@@ -9,8 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { unzipSync } from 'fflate';
 
-vi.mock('@/app/recorder', () => ({ downloadBlob: vi.fn() }));
-import { downloadBlob } from '@/app/recorder';
+vi.mock('@/app/recording/recorder', () => ({ downloadBlob: vi.fn() }));
+import { downloadBlob } from '@/app/recording/recorder';
 import { createRecordingSink } from '@/app/recording/sink';
 
 /** What a take writes: text (the manifest, NDJSON streams) and binary (audio, video). */

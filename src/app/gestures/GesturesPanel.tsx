@@ -26,7 +26,7 @@
  */
 import { Hand, X } from 'lucide-react';
 import CommandBindingFields from './CommandBindingFields';
-import CategoryBindings from './enroll/CategoryBindings';
+import CategoryBindings from '../enroll/CategoryBindings';
 import {
   GESTURE_IDS,
   GESTURE_LABELS,
@@ -36,9 +36,9 @@ import {
   type GestureId,
 } from './gesturePrefs';
 import { useGestureStatus } from './gestureStatus';
-import { useControls } from './store';
-import { useTools } from './toolsStore';
-import { toolById } from './tools';
+import { useControls } from '../store';
+import { useTools } from '../tools/toolsStore';
+import { toolById } from '../tools/tools';
 
 const TOOL_ID = 'gestures';
 

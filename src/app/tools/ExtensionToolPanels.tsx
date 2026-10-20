@@ -6,7 +6,7 @@
  */
 import { Puzzle, X } from 'lucide-react';
 import { useTools } from './toolsStore';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 import { shellToolById } from './shellTools';
 import { TOOL_ICONS } from './toolIcons';
 import { raiseToolEvent, ToolSections } from './toolSections';

@@ -9,14 +9,14 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
 import { describeGrid, formatTime } from '@/slices/song/panels/SongPanel';
 // The Song tool's panel, in the frame the shell opens an extension's tool in (#600 S15).
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
-import { useToolPins } from '@/app/toolPins';
-import { TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
+import { useToolPins } from '@/app/tools/toolPins';
+import { TOOL_PINS_STORAGE_KEY } from '@/app/tools/toolsCollection';
 import { useControls, toSettings, mergeControls } from '@/app/store';
 import { loadSongFile } from '@/slices/song/app/host';
 import { ANALYSIS_SAMPLE_RATE } from '@/slices/song/app/load';

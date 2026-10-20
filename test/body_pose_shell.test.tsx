@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import LabPanel from '@/slices/lab/panels/LabPanel';
 import { toolPanelProps } from './helpers/toolPanel';
-import { useTools } from '@/app/toolsStore';
+import { useTools } from '@/app/tools/toolsStore';
 // The app's hot store, which installs the controls host the Lab's state reads.
 import '@/app/store';
 import { defaultFeatureLab, labWantsBody } from '@/slices/lab/schema';

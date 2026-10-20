@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { defineNode, NodeRegistry, type NodeDef } from '@thoremin/dag';
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
-import { ensureLazyTypes, useExtensionLoad } from '@/app/extensionLoad';
+import { ensureLazyTypes, useExtensionLoad } from '@/app/engine/extensionLoad';
 import { lazyPanel } from '@/app/extensions/lazyPanel';
 import { EXTENSION_PANELS, EXTENSION_UI_IDS, EXTENSION_UIS, loadExtensionUi } from '@/app/extensions';
 import { ASL } from './helpers/extensions';
@@ -19,7 +19,7 @@ afterEach(cleanup);
 const node = (type: string): NodeDef<any> =>
   defineNode({ type, inputs: [], outputs: [{ name: 'out', kind: 'number' }], process: () => ({ out: 1 }) });
 
-describe.runIf(ASL)('loading a lazy extension from the app (src/app/extensionLoad.ts)', () => {
+describe.runIf(ASL)('loading a lazy extension from the app (src/app/engine/extensionLoad.ts)', () => {
   it('reports loading then error when its nodes cannot load, and ready once they do', async () => {
     const failing = new NodeRegistry().declareLazy(['asl-signs', 'sign-chord'], async () => {
       throw new Error('offline');

@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ downloads: [] as string[] }));
-vi.mock('@/app/recorder', () => ({ downloadBlob: (_b: Blob, name: string) => void h.downloads.push(name) }));
+vi.mock('@/app/recording/recorder', () => ({ downloadBlob: (_b: Blob, name: string) => void h.downloads.push(name) }));
 import { saveBlob } from '@/app/recording/save';
 
 const abort = () => new DOMException('aborted', 'AbortError');

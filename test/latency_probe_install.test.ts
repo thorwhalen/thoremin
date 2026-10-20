@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * `installLatencyProbe`'s strike test (`src/app/latencyProbe.ts`, #391 item 4): the
+ * `installLatencyProbe`'s strike test (`src/app/engine/latencyProbe.ts`, #391 item 4): the
  * microphone it opens must never outlive the probe. A start is refused while the
  * instrument's own audio is not running (the answer tone plays through it); a second
  * start while one is in flight is the same start (one microphone, not two); and an
@@ -12,7 +12,7 @@
  * each resolvable by hand so the test decides when the async start moves on.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { installLatencyProbe, LATENCY_HANDLE_KEY, type InstalledLatencyProbe } from '@/app/latencyProbe';
+import { installLatencyProbe, LATENCY_HANDLE_KEY, type InstalledLatencyProbe } from '@/app/engine/latencyProbe';
 
 interface Deferred<T> {
   promise: Promise<T>;

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { GuideLink } from '@/app/guide/GuideLink';
 import { GUIDE_HOME, guideLinkFor, guideSlug, instrumentPage, toolPage } from '@/app/guide/links';
-import { TOOLS } from '@/app/tools';
+import { TOOLS } from '@/app/tools/tools';
 
 afterEach(cleanup);
 

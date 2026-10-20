@@ -41,11 +41,11 @@ import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import { registry } from '../commands/registry';
 // The extensions' commands join the registry (#600 S11).
 import '@/app/host/contributions';
-import { isGestureBindable } from '../gestureDispatch';
+import { isGestureBindable } from '../gestures/gestureDispatch';
 import { useControls } from '../store';
-import { useToasts } from '../toasts';
+import { useToasts } from '../shell/toasts';
 import { readLiveVector } from './liveVector';
-import { useTools } from '../toolsStore';
+import { useTools } from '../tools/toolsStore';
 import { CATEGORY_PANEL_TOOL, presenceFor, readFor, useCategoryBinding, type SavedCategories } from './categoryBinding';
 
 const FIRE_TOAST_MS = 2500;

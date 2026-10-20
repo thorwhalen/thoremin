@@ -9,7 +9,7 @@
  * next one (or undefined for "unbound").
  */
 import { useMemo, useState } from 'react';
-import { registry } from './commands/registry';
+import { registry } from '../commands/registry';
 // The extensions' commands join the registry (#600 S11).
 import '@/app/host/contributions';
 import { isGestureBindable } from './gestureDispatch';

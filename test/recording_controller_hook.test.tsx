@@ -20,7 +20,7 @@ import { SinkCancelled } from '@/app/recording/sink';
 import type { RecordingResult, SessionRecorderDeps } from '@/app/recording/session';
 import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { useRecordingConfig } from '@/app/recording/configStore';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
 const SAVED: RecordingResult = { label: 'take-1', count: 3, viaPicker: true, failedFormats: [], streamCount: 2 };
 

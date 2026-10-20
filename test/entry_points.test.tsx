@@ -6,9 +6,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
-import { entryPointsFrom } from '@/app/entryPoints';
+import { entryPointsFrom } from '@/app/tools/entryPoints';
 import { EXTENSION_ENTRY_POINTS } from '@/app/extensions';
-import { shellToolById } from '@/app/shellTools';
+import { shellToolById } from '@/app/tools/shellTools';
 import { FACES } from './helpers/extensions';
 
 // `commands`: a core tool, in every build (the song's and the Lab's tools, the examples before, are

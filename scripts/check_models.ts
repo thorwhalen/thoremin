@@ -9,7 +9,7 @@
  * send, forever, for anyone who had picked it.
  *
  * The only ground truth is a real request. This script sends the smallest possible one to
- * each pinned id in `src/plugins/assistant/providers.ts` and fails if any is gone.
+ * each pinned id in `src/app/assistant/providers.ts` and fails if any is gone.
  *
  *   npm run check:models
  *
@@ -20,8 +20,8 @@
  *
  * Exit code is non-zero if any offered model is dead, so it can be run on a schedule.
  */
-import { PROVIDERS, type ProviderSpec } from '../src/plugins/assistant/providers';
-import type { ProviderId } from '../src/plugins/assistant/types';
+import { PROVIDERS, type ProviderSpec } from '../src/app/assistant/providers';
+import type { ProviderId } from '../src/app/assistant/types';
 
 /**
  * A model is "alive" if the API will talk to us about it at all. A 429 (quota/rate limit)
@@ -173,7 +173,7 @@ async function main(): Promise<void> {
   console.log(`\n${determined} model(s) verified, ${t.dead} dead, ${t.unknown} indeterminate.`);
 
   if (t.dead > 0) {
-    console.error(`\n${t.dead} offered model(s) are no longer available. Update src/plugins/assistant/providers.ts.`);
+    console.error(`\n${t.dead} offered model(s) are no longer available. Update src/app/assistant/providers.ts.`);
     process.exitCode = 1;
     return;
   }

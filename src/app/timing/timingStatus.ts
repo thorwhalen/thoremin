@@ -13,7 +13,7 @@
  */
 import { create } from 'zustand';
 import type { TimingReading } from '@thoremin/sdk/timing/tracker';
-import { describeTiming } from './timing/describe';
+import { describeTiming } from './describe';
 
 /** How often the readout may change, ms. */
 export const TIMING_REPORT_MS = 500;

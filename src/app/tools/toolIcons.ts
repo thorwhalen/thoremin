@@ -6,7 +6,7 @@
  */
 import type { ComponentType } from 'react';
 import { Command, BookOpen, Hand, Bot } from 'lucide-react';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 
 export const TOOL_ICONS: Record<string, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>> = {
   commands: Command,

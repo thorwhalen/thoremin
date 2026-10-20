@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
-import { TOOLS, TOOL_GROUPS, ToolGroupSchema, ToolSchema } from '@/app/tools';
+import { TOOLS, TOOL_GROUPS, ToolGroupSchema, ToolSchema } from '@/app/tools/tools';
 import {
   createToolsProvider,
   isPinned,
@@ -13,8 +13,8 @@ import {
   savePin,
   toolsCollection,
   type ToolPin,
-} from '@/app/toolsCollection';
-import { createToolPinsStore } from '@/app/toolPins';
+} from '@/app/tools/toolsCollection';
+import { createToolPinsStore } from '@/app/tools/toolPins';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 

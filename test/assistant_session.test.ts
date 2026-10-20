@@ -25,10 +25,10 @@ if (typeof (globalThis as { CustomEvent?: unknown }).CustomEvent === 'undefined'
 }
 
 import { describe, it, expect } from 'vitest';
-import { AssistantSession } from '@/plugins/assistant/AssistantSession';
-import { setStoredKey, removeStoredKey } from '@/plugins/assistant/providers';
-import type { ChatBackend, AssistantTurnCallbacks } from '@/plugins/assistant/backend';
-import type { AssistantSettings } from '@/plugins/assistant/types';
+import { AssistantSession } from '@/app/assistant/AssistantSession';
+import { setStoredKey, removeStoredKey } from '@/app/assistant/providers';
+import type { ChatBackend, AssistantTurnCallbacks } from '@/app/assistant/backend';
+import type { AssistantSettings } from '@/app/assistant/types';
 
 const SETTINGS: AssistantSettings = { provider: 'openai', model: 'gpt-4o' };
 

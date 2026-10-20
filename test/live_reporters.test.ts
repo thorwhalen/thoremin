@@ -7,8 +7,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { ABSENT_FACE_STATUS, type FaceStatus } from '@/nodes';
-import { makeFaceReporter } from '@/app/faceStatus';
-import { makeGestureReporter, type HandPoses } from '@/app/gestureStatus';
+import { makeFaceReporter } from '@/app/face/faceStatus';
+import { makeGestureReporter, type HandPoses } from '@/app/gestures/gestureStatus';
 
 /** A stub engine whose outputs the test sets by `node.port`. */
 function stubEngine() {

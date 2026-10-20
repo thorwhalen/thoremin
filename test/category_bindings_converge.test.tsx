@@ -28,7 +28,7 @@ import { setSavedCategoriesStore, useCategoryBinding, playable, type SavedCatego
 import { BOUND_SETS_MIGRATED_KEY, LegacyBoundSetSchema, migrateBoundSets, SAVED_CATEGORIES_STORAGE_KEY } from '@/app/enroll/boundSets';
 import { localStorageFlag } from '@thoremin/sdk-ui/enroll/categorizers';
 import CategoryBindings from '@/app/enroll/CategoryBindings';
-import { useTools } from '@/app/toolsStore';
+import { useTools } from '@/app/tools/toolsStore';
 
 /** The demo face categorizer (smile, open smile; Neutral taught). */
 function demo(): PersonalCategorizer {
@@ -295,7 +295,7 @@ describe('#371 review: what a binding write touches', () => {
   });
 
   it('a binding that cannot be saved is taken back, with a notice', async () => {
-    const { useToasts } = await import('@/app/toasts');
+    const { useToasts } = await import('@/app/shell/toasts');
     await useCategoryBinding.getState().saveModel('Mine', trainerModel());
     await createCategorizerIndex().remove('trained:mine'); // deleted elsewhere
     await useCategoryBinding.getState().setBinding('cat-1', { command: 'transport.toggle' });

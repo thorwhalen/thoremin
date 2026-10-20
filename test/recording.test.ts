@@ -12,10 +12,10 @@ import {
   DEFAULT_RECORDING_FORMATS,
   recordingFormat,
 } from '@/app/recording/formats';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
-vi.mock('@/app/recorder', () => ({ downloadBlob: vi.fn() }));
-import { downloadBlob } from '@/app/recorder';
+vi.mock('@/app/recording/recorder', () => ({ downloadBlob: vi.fn() }));
+import { downloadBlob } from '@/app/recording/recorder';
 import { saveBlob } from '@/app/recording/save';
 
 const readView = async (blob: Blob): Promise<DataView> => new DataView(await blob.arrayBuffer());

@@ -6,7 +6,7 @@
  * `useEngine` passing it. That is a type error, and **nothing could see it**:
  *
  *  - `npm run typecheck` uses `tsconfig.dag.json`, which deliberately EXCLUDES the React
- *    layer (the repo ships no `@types/react`), so `src/app/useEngine.ts` is not in it.
+ *    layer (the repo ships no `@types/react`), so `src/app/engine/useEngine.ts` is not in it.
  *  - `npm run build` is Vite/esbuild, which type-ERASES rather than checking.
  *  - `npm run lint` (loose `tsc` over everything) is known-red with ~21 pre-existing
  *    React-layer errors, and `docs/TESTING.md` says gating on it would train everyone to
@@ -70,7 +70,7 @@ function newExpressionKeys(file: string, ctor: string): Set<string> {
 
 describe('useEngine constructs an Applier with options that actually exist', () => {
   const declared = interfaceKeys('packages/dag/src/applier.ts', 'ApplierOptions');
-  const passed = newExpressionKeys('src/app/useEngine.ts', 'Applier');
+  const passed = newExpressionKeys('src/app/engine/useEngine.ts', 'Applier');
 
   it('finds both sides (the guard is not vacuous)', () => {
     // If either extractor silently returned nothing, the subset assertion below would
@@ -85,7 +85,7 @@ describe('useEngine constructs an Applier with options that actually exist', () 
     const unknown = [...passed].filter((k) => !declared.has(k));
     expect(
       unknown,
-      `src/app/useEngine.ts passes Applier options that no longer exist: ${unknown.join(', ')}. ` +
+      `src/app/engine/useEngine.ts passes Applier options that no longer exist: ${unknown.join(', ')}. ` +
         `This file is NOT in tsconfig.dag.json, so tsc will not tell you.`,
     ).toEqual([]);
   });

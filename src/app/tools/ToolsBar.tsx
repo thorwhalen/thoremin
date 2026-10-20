@@ -32,16 +32,16 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { LayoutGrid, X } from 'lucide-react';
 import type { Tool } from './tools';
 import { SHELL_TOOLS } from './shellTools';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 import { TOOL_ICONS } from './toolIcons';
 import { isPinned } from './toolsCollection';
 import { useToolPins } from './toolPins';
 import { searchTools } from './toolsCatalog';
 import { useTools } from './toolsStore';
-import { publishHeight, TOOLS_BAR_HEIGHT_VAR } from './shellLayout';
-import { useControls } from './store';
-import { dispatchCommand } from './dispatchDial';
-import VersionBadge from './VersionBadge';
+import { publishHeight, TOOLS_BAR_HEIGHT_VAR } from '../shell/shellLayout';
+import { useControls } from '../store';
+import { dispatchCommand } from '../dispatchDial';
+import VersionBadge from '../shell/VersionBadge';
 
 /** The launcher's hotkey (bound in `keyboardShortcuts.ts`), shown on its button. */
 export const LAUNCHER_HOTKEY = 'T';

@@ -3,7 +3,7 @@
  * folder/file names for a recording session (#88). The folder name IS the file
  * stem, so every file self-identifies even when moved out of its folder. Kept
  * pure and unit-testable, mirroring the existing `recordingFilename`/`extForMime`
- * helpers in the app's `src/app/recorder.ts` (which this supersedes for the multi-stream flow).
+ * helpers in the app's `src/app/recording/recorder.ts` (which this supersedes for the multi-stream flow).
  *
  * Naming scheme (see issue #88 §3): an info-carrying stem + a type-carrying
  * primary extension, with a role as a SECONDARY extension when several streams

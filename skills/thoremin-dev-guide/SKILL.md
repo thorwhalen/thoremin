@@ -5,7 +5,7 @@ description: >-
   guide/, built to public/guide/) must change whenever a player can find something new or different: a new
   or renamed instrument (seed), a new tool or shell control, a new or removed section of the instrument
   editor, a behaviour a player would notice. Use when you add or change a seed in SEED_INSTRUMENTS or an
-  extension's `instruments`, add a tool (src/app/tools.ts, a slice's tool.ts), add an editor section
+  extension's `instruments`, add a tool (src/app/tools/tools.ts, a slice's tool.ts), add an editor section
   (an extension's `panels`), change what an instrument does, see test/guide_coverage.test.ts fail, or are
   asked to "update the guide / docs / user guide / how-to-play page / screenshots". Triggers on "player guide",
   "guide page", "guide:media", "npm run guide", "shipping rule 4", "guide entry". The private RESEARCH guide

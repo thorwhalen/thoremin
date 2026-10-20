@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
-import { defaultGesturePrefs } from '@/app/gesturePrefs';
+import { defaultGesturePrefs } from '@/app/gestures/gesturePrefs';
 import { DEFAULT_FACE_CHORD, SettingsSchema } from '@/settings/schema';
 import { DEFAULT_FACE_CONTROLS_DIAL } from '@/nodes/features/face_controls';
 import { storeControlsNode } from '@/nodes/browser';

@@ -23,13 +23,13 @@
  */
 import { tinykeys } from 'tinykeys';
 import { isEditableTarget } from '@/nodes/sources/keyboard.schema';
-import { history, registry } from './commands/registry';
-import { useControls } from './store';
-import { useTools } from './toolsStore';
-import { toggleCarveCapture } from './carveCapture';
+import { history, registry } from '../commands/registry';
+import { useControls } from '../store';
+import { useTools } from '../tools/toolsStore';
+import { toggleCarveCapture } from '../enroll/carveCapture';
 import type { KeybindingDecl } from '@thoremin/sdk-ui/types';
 // The extensions' keybindings; loading it registers the commands they dispatch.
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 
 const OCTAVE_MIN = -2;
 const OCTAVE_MAX = 2;

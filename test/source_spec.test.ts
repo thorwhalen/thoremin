@@ -4,7 +4,7 @@
  * covers the pure URL→SourceSpec parsing that decides which path runs.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { parseSourceSpec, DEFAULT_SOURCE } from '../src/app/sourceSpec';
+import { parseSourceSpec, DEFAULT_SOURCE } from '../src/app/engine/sourceSpec';
 
 describe('parseSourceSpec', () => {
   it('defaults to the camera with no params', () => {

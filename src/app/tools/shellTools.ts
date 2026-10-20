@@ -10,7 +10,7 @@
  */
 import { ToolSchema, TOOLS, type Tool } from './tools';
 import type { ExtensionToolDecl } from '@thoremin/sdk-ui/tools';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 
 /** The core tools followed by the extensions' (validated, `kind: 'panel'`), each placed before the
  *  tool it names (`before`) when the list has it. Throws on a clash. */

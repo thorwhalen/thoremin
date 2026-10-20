@@ -130,7 +130,7 @@ narrates it. Each of these has its own SSOT design doc in `docs/design/`:
 | **Feature Lab** (`src/features/`, `src/app/lab/`, #119) | A data-driven catalog of ~200 face/hand scalar features, a no-eval formula compiler for user-defined derived features, and an online normalizer that makes heterogeneous features comparable on one grid of meters. See [design/feature-lab.md](design/feature-lab.md). |
 | **Recording v2** (`src/app/recording/`, #88) | Session-based multi-stream capture into one folder + `manifest.json`. See [design/recording-v2.md](design/recording-v2.md). |
 | **Annotations** (`packages/taglog/src/`, `src/app/tagging/`, #92) | Live tag toggles → a time-aligned `<take>.annotations.jsonl` + exporters. `packages/taglog/src/` is written to lift out as a standalone package. |
-| **AI assistant** (`src/plugins/assistant/`, #87 Phase 3) | A chat that operates the instrument by dispatching commands. Client-side, multi-provider, bring-your-own-key; destructive commands pass a human confirmation gate. |
+| **AI assistant** (`src/app/assistant/`, #87 Phase 3) | A chat that operates the instrument by dispatching commands. Client-side, multi-provider, bring-your-own-key; destructive commands pass a human confirmation gate. |
 
 ## The legacy app (`src/App.tsx` — frozen)
 

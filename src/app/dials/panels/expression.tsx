@@ -8,7 +8,7 @@ import { diatonicTriad, defaultChordSpecFor, type ScaleTypeId } from '@thoremin/
 import { voiceTriad, type VoicingId } from '@/music/voicing';
 import { EXPRESSIONS, EMOTIONS, DEFAULT_EXPRESSION_TO_DEGREE, SILENCE_DEGREE } from '@/music/expression';
 import { useControls } from '../../store';
-import { CalibrationWizard } from '../../CalibrationWizard';
+import { CalibrationWizard } from '../../face/CalibrationWizard';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, selectCls } from '@thoremin/sdk-ui/primitives';

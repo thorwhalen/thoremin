@@ -5,7 +5,7 @@
  * recordings, and raises its Start and Stop to it inside the click, without naming the song.
  */
 import type { ExtensionToolSection, ToolSectionContext } from '@thoremin/sdk-ui/types';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 
 /** The sections tool `from`'s panel shows now: `when` holds over its context. */
 export function toolSectionsFrom(from: string, context: ToolSectionContext, all: readonly ExtensionToolSection[] = UI_CONTRIBUTIONS.toolSections): ExtensionToolSection[] {

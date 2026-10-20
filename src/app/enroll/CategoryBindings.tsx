@@ -19,8 +19,8 @@
  */
 import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
-import CommandBindingFields from '../CommandBindingFields';
-import { useTools } from '../toolsStore';
+import CommandBindingFields from '../gestures/CommandBindingFields';
+import { useTools } from '../tools/toolsStore';
 import { modalityById } from '@thoremin/sdk/features/modalities';
 import { TRAINED_KIND } from '@thoremin/sdk/enroll/record';
 import type { CategorizerSummary } from '@thoremin/sdk-ui/enroll/categorizers';

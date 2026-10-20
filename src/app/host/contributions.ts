@@ -10,7 +10,7 @@
  * The keyed points are checked once, here (with the pure rule `checkUiDecls`, so it is tested
  * without React): a tool id, an entry point id or an editor section (instrument and section
  * label) declared twice is refused with both extensions named. Core's own tools are checked
- * against the extensions' where both are known (`src/app/shellTools.ts`).
+ * against the extensions' where both are known (`src/app/tools/shellTools.ts`).
  */
 import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, ExtensionToolSection, KeybindingDecl, StillSounding, ToolDetached, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
 import { defineCommand, err, type Registry } from 'acture';

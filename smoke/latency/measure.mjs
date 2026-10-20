@@ -2,7 +2,7 @@
 /**
  * Measure thoremin's event-to-sound latency budget in a real Chromium (#227).
  *
- * The in-app probe (`?probe=latency`, `src/app/latencyProbe.ts`) times each stage of
+ * The in-app probe (`?probe=latency`, `src/app/engine/latencyProbe.ts`) times each stage of
  * the running instrument; this script drives it without a person, and adds the
  * measurements a page can make offline, so the budget in
  * `docs/research/latency-budget-and-browser-realtime.md` is re-derivable by one
@@ -63,7 +63,7 @@ const BASE_PATH = '/thoremin/';
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
 const TASKS_VISION_VERSION = '0.10.35';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
-/** Must match `CAPTURE` in `src/app/camera.ts` (what the app asks the camera for). */
+/** Must match `CAPTURE` in `src/app/engine/camera.ts` (what the app asks the camera for). */
 const APP_CAPTURE = '1280x720';
 /** Must match the synth's output bus (`ensureBus` in `src/nodes/output/webaudio_synth.ts`). */
 const SYNTH_COMPRESSOR = { threshold: -14, knee: 24, ratio: 3, attack: 0.005, release: 0.2 };

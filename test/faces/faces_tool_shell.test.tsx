@@ -12,12 +12,12 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
-import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
-import { TOOLS } from '@/app/tools';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
+import { SHELL_TOOLS, withExtensionTools } from '@/app/tools/shellTools';
+import { TOOLS } from '@/app/tools/tools';
 import { EXTENSION_TOOL_DECLS } from '@/app/extensions';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { faceSessionStore } from '@thoremin/ext-faces/app/faceSession';
@@ -27,7 +27,7 @@ import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialPatch } from '@/app/dispatchDial';
 import '@/app/dials/useDialsSettings';
 import { registry } from '@/app/commands/registry';
-import { installKeyboardShortcuts } from '@/app/keyboardShortcuts';
+import { installKeyboardShortcuts } from '@/app/shell/keyboardShortcuts';
 import { carveCapture } from '@thoremin/sdk-ui/enroll/capture';
 
 const Shell = () => (

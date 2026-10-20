@@ -36,7 +36,7 @@ import { isErr, type Result } from 'acture';
 import { registry } from './commands/registry';
 import { applyDialSet } from './commands/dials';
 import { dialsStore } from './dials/settingsStore';
-import { useToasts } from './toasts';
+import { useToasts } from './shell/toasts';
 import { provideDials } from '@thoremin/sdk-ui/host';
 
 /** Toast a rejected write — a refused value is the player's to see, not a silent no-op.

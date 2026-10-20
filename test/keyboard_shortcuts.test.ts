@@ -7,7 +7,7 @@
  * keyboard_control.test.ts (the export is shared).
  */
 import { describe, it, expect } from 'vitest';
-import { shiftOctave, adjustMagnetism, toggleMute, DEFAULT_KEYMAP } from '../src/app/keyboardShortcuts';
+import { shiftOctave, adjustMagnetism, toggleMute, DEFAULT_KEYMAP } from '../src/app/shell/keyboardShortcuts';
 import { GENERATIVE } from './helpers/extensions';
 import { registry } from '../src/app/commands/registry';
 import { useControls } from '../src/app/store';

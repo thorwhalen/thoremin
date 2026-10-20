@@ -6,7 +6,7 @@
  * ({@link ./AssistantChat}) so the heavy AI SDK never enters the initial bundle — the
  * same lazy-import discipline the ai-dj plugin uses for its overlay.
  *
- * It is a registered shell TOOL (`assistant` in `src/app/tools.ts`), opened from the Tools
+ * It is a registered shell TOOL (`assistant` in `src/app/tools/tools.ts`), opened from the Tools
  * launcher or its pinned button like any other, and its open state is the shared
  * `useTools` one — as an INDEPENDENT tool (`Tool.independent`): opening a panel does not
  * close the chat (which would abort a reply in flight), and opening the chat does not
@@ -16,7 +16,7 @@
  */
 import { lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useTools } from '@/app/toolsStore';
+import { useTools } from '@/app/tools/toolsStore';
 
 const AssistantChat = lazy(() => import('./AssistantChat'));
 

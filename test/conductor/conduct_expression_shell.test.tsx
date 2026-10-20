@@ -8,10 +8,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
+import ToolsBar from '@/app/tools/ToolsBar';
 // The Conductor is an extension's tool (#600 S18b): it opens in the shell's frame.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { useConductorStatus } from '@/slices/conductor/app/conductorStatus';

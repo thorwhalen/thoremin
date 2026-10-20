@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore, resetDial } from '@/app/dials/settingsStore';
-import { OVERLAY_CONTROLS } from '@/app/overlayControls';
+import { OVERLAY_CONTROLS } from '@/app/dials/overlayControls';
 import { structuredDialLeaves } from '@/app/commands/paths';
 import { makeCanvasOverlayNode, overlayElementOrder } from '@/nodes/output/canvas_overlay';
 import { CONTRIBUTIONS } from '@/host/contributions';

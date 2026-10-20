@@ -14,19 +14,19 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
 // The Lab's panel, in the frame the shell opens an extension's tool in (#600 S16b).
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import GesturesPanel from '@/app/GesturesPanel';
-import { TOOLS, TOOL_IDS } from '@/app/tools';
-import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import GesturesPanel from '@/app/gestures/GesturesPanel';
+import { TOOLS, TOOL_IDS } from '@/app/tools/tools';
+import { SHELL_TOOLS, withExtensionTools } from '@/app/tools/shellTools';
 import { CONDUCTOR, LAB, SONG, TRAINER } from './helpers/extensions';
 import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
 import { ALL_STARTER_CUES } from '@/slices/trainer/app/cueStore';
-import { useTools } from '@/app/toolsStore';
-import { useToolPins } from '@/app/toolPins';
-import { isPinned, TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
+import { useTools } from '@/app/tools/toolsStore';
+import { useToolPins } from '@/app/tools/toolPins';
+import { isPinned, TOOL_PINS_STORAGE_KEY } from '@/app/tools/toolsCollection';
 import { dialsStore } from '@/app/dials/settingsStore';
 import type { ConductorSettings } from '@/slices/conductor/schema';
 
@@ -43,8 +43,8 @@ import { setTrainerHud, trainerHud } from '@/slices/trainer/app/hud';
 import { defaultTrainerHud } from '@/slices/trainer/schema';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { defaultFeatureLab } from '@/slices/lab/schema';
-import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
-import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
+import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gestures/gesturePrefs';
+import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/dials/overlayControls';
 import { labConfig, setLab } from '@/slices/lab/app/state';
 
 /** The bar and its launcher, as the shell mounts them. */

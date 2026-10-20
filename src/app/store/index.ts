@@ -22,7 +22,7 @@ import { provideControls } from '@thoremin/sdk-ui/host';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import type { OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
-import { defaultGesturePrefs } from '../gesturePrefs';
+import { defaultGesturePrefs } from '../gestures/gesturePrefs';
 import { DEFAULT_FACE_CHORD, DEFAULT_FACE_EXPR, DEFAULT_HANDS, extensionDialDefaults, extensionTransientDefaults } from '@/settings/schema';
 import { DEFAULT_AUDIO_PREFS } from '../timing/audioPrefs';
 import { CONTRIBUTIONS } from '@/host/contributions';

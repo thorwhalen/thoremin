@@ -28,7 +28,7 @@
 import { resolveIntervals } from '@thoremin/taglog/affordances';
 import type { EdgeEvent, ResolvedInterval } from '@thoremin/taglog/affordances';
 import { ADAPTERS, getAdapter, type TimeChoice } from '@thoremin/taglog/adapters';
-import { downloadBlob } from '@/app/recorder';
+import { downloadBlob } from '@/app/recording/recorder';
 import type { LastTake } from './store';
 
 /** The raw recorded JSONL, offered alongside the rendered formats. It is the archival
