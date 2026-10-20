@@ -71,6 +71,11 @@ const Params = z
      *  (it sees levels up to a third of this span: a 1.2 s step, not a 1.9 s bar). 0 =
      *  off, the full window alone. */
     fastWindowS: z.number().min(0).max(8).default(PULSE_DEFAULTS.fastWindowS),
+    /** The long-level window (#339 item 2), seconds: a level of 1.5 s or more is trusted
+     *  only as far as this longer ACF also shows it, which halves red noise's trusted
+     *  ticks at the cost of the real streams' slow levels and of a slower step into one.
+     *  0, or any value no longer than `windowS`, = off (the default: research doc §5.4). */
+    longWindowS: z.number().min(0).max(16).default(PULSE_DEFAULTS.longWindowS),
     /** Landmarks below this visibility are treated as unobserved. */
     minVisibility: z.number().min(0).max(1).default(0.5),
   })
@@ -151,7 +156,7 @@ export const bodyPulseNode = defineNode<Params>({
   ],
   params: Params,
   make(p) {
-    const opts = { windowS: p.windowS, minPeriodS: p.minPeriodS, maxPeriodS: p.maxPeriodS, prior: p.prior, fastWindowS: p.fastWindowS };
+    const opts = { windowS: p.windowS, minPeriodS: p.minPeriodS, maxPeriodS: p.maxPeriodS, prior: p.prior, fastWindowS: p.fastWindowS, longWindowS: p.longWindowS };
     const channels: readonly PulseChannel[] = p.channel === 'auto' ? AUTO_PULSE_CHANNELS : [p.channel];
     // One follower and one yaw unwrapper per channel; `auto` runs them all, so a
     // challenger that takes over is already warm.

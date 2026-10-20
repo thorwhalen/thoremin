@@ -116,6 +116,16 @@ export interface PulseOptions {
   /** The least relative change of period the step detector acts on: a smaller change
    *  is the prior's to follow, and a switch costs it its lock for a moment. */
   fastMinChange?: number;
+  /** The long-level window (#339 item 2): a level of `longLevelS` or more is trusted only
+   *  as strongly as an ACF over the last this-many seconds shows it. Red noise fakes a 2
+   *  to 3 s level because an 8 s window holds only three of its cycles, which a slow
+   *  wander repeats by chance; a longer window holds four or five, and chance agreement
+   *  fades with each. The strength of a long level is the lesser of the two windows'
+   *  readings at that level (none in the long window: no strength). Levels under
+   *  `longLevelS` are untouched, and so is the step detector. 0 (or no more than
+   *  `windowS`) turns it off. */
+  longWindowS?: number;
+  longLevelS?: number;
 }
 
 export const PULSE_DEFAULTS = {
@@ -138,6 +148,8 @@ export const PULSE_DEFAULTS = {
   fastMinStrength: 0.6,
   fastSwitchAfterS: 1,
   fastMinChange: 0.06,
+  longWindowS: 0,
+  longLevelS: 1.5,
 } as const;
 
 /** The confidence from which a consumer should act on the pulse (follow it, gate on
@@ -364,6 +376,8 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     return createRhythmPrior(priorOpt ?? DEFAULT_RHYTHM_PRIOR, { oscillator: osc, trend: bounds });
   };
   let prior = makePrior();
+  const longOn = o.longWindowS > o.windowS;
+  const keepS = longOn ? o.longWindowS : o.windowS; // seconds of samples kept
 
   let samples: Sample[] = [];
   let lastT = NaN;
@@ -419,7 +433,8 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   };
 
   const estimate = (t: number) => {
-    const span = samples[samples.length - 1].t - samples[0].t;
+    const fullSpan = samples[samples.length - 1].t - samples[0].t;
+    const span = Math.min(fullSpan, o.windowS);
     if (span < o.minSpanS) return;
     const n = Math.max(4, Math.floor(Math.min(o.windowS, span) * o.gridHz));
     const { t0, x } = resample(samples, o.gridHz, n);
@@ -481,6 +496,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       if (!slowPath()) return;
       if (Number.isFinite(level) && level <= fastReach) fastStep(t, false);
     }
+    if (longOn && level >= o.longLevelS) strength = Math.min(strength, longStrength(fullSpan));
     if (strength < o.minStrength) {
       phi = NaN;
       return;
@@ -490,6 +506,20 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
     const sinceSwitch = Math.max(3 * level, t - switchedAt);
     const fitFrom = sinceSwitch >= o.windowS ? 0 : Math.max(0, n - Math.ceil(sinceSwitch * o.gridHz));
     phi = fitSine(x.slice(fitFrom), level, { t0: t0 + fitFrom / o.gridHz, hz: o.gridHz }).phi;
+  };
+
+  /** The ACF strength at the current level over the long window (see
+   *  {@link PulseOptions.longWindowS}); before the long window has filled, over what there
+   *  is, and no gate while that is no more than the full window. */
+  const longStrength = (fullSpan: number): number => {
+    const spanS = Math.min(fullSpan, o.longWindowS);
+    if (spanS <= o.windowS) return Infinity;
+    const n = Math.floor(spanS * o.gridHz);
+    const { x } = resample(samples, o.gridHz, n);
+    const d = detrend(x, o.detrendS * o.gridHz);
+    const peaks = acfPeaks(d, { minLag: Math.round(o.minPeriodS * o.gridHz), maxLag: Math.round(o.maxPeriodS * o.gridHz) });
+    const near = peaks.find((q) => Math.abs(q.lag / o.gridHz / level - 1) < o.levelTolerance);
+    return near ? near.r : 0;
   };
 
   /** The step detector: the last `fastWindowS` seconds alone (see {@link PulseOptions.fastWindowS}). */
@@ -617,7 +647,7 @@ export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
       lastNanT = NaN;
       lastValidT = t;
       samples.push({ t, v: value });
-      const cutoff = t - o.windowS - 1 / o.gridHz;
+      const cutoff = t - keepS - 1 / o.gridHz;
       let drop = 0;
       while (drop < samples.length && samples[drop].t < cutoff) drop++;
       if (drop) samples = samples.slice(drop);

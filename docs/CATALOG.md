@@ -126,7 +126,7 @@ Camera-free animated hand landmark source for tests & demos.
 - **roles:** source
 - **in:** —
 - **out:** hands:hands-frame
-- **params:** width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80), strike (boolean=false), strikePeriod (number=0.9)
+- **params:** width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80), strike (boolean=false), strikePeriod (number=0.9), conduct (boolean=false), conductPeriod (number=0.75), conductDrop (number=0.12)
 
 #### `replay-source` — Replay Source
 Emits a recorded value stream, one value per tick.
@@ -265,7 +265,7 @@ The dancer's pulse: the period, phase and confidence of the body's repeating mov
 - **roles:** feature
 - **in:** body:body-frame
 - **out:** pulse:pulse-state, channel:string
-- **params:** channel (enum(stride | head | hip | sway | yaw | trunk | auto)="stride"), autoSwitchAfterS (number=3), windowS (number=8), minPeriodS (number=0.3), maxPeriodS (number=3), prior (enum(oscillator | trend | blend)="oscillator"), fastWindowS (number=4.5), minVisibility (number=0.5)
+- **params:** channel (enum(stride | head | hip | sway | yaw | trunk | auto)="stride"), autoSwitchAfterS (number=3), windowS (number=8), minPeriodS (number=0.3), maxPeriodS (number=3), prior (enum(oscillator | trend | blend)="oscillator"), fastWindowS (number=4.5), longWindowS (number=0), minVisibility (number=0.5)
 
 ### Mapping (direct ↔ indirect)
 _Features → engine parameters, across the expression spectrum._

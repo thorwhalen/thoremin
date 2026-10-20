@@ -665,6 +665,11 @@
         "default": 4.5
       },
       {
+        "name": "longWindowS",
+        "type": "number",
+        "default": 0
+      },
+      {
         "name": "minVisibility",
         "type": "number",
         "default": 0.5
@@ -4393,6 +4398,21 @@
         "name": "strikePeriod",
         "type": "number",
         "default": 0.9
+      },
+      {
+        "name": "conduct",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "conductPeriod",
+        "type": "number",
+        "default": 0.75
+      },
+      {
+        "name": "conductDrop",
+        "type": "number",
+        "default": 0.12
       }
     ]
   },

@@ -249,6 +249,44 @@ describe('a tempo step (#339 item 1): the step detector follows the new tempo fr
   });
 });
 
+describe('the long-level window (#339 item 2): a slow level must show in a longer ACF too', () => {
+  const LONG = { longWindowS: 12 };
+
+  it('is off by default: the same states as with it set to 0', () => {
+    const f = (t: number) => Math.cos((2 * Math.PI * t) / 2.2);
+    expect(run(f, 30).map((s) => s.confidence)).toEqual(run(f, 30, { longWindowS: 0 }).map((s) => s.confidence));
+  });
+
+  it('red noise is trusted at a slow level about half as often (measured 7.35 % to 3.08 % of ticks at a = 0.95, 16 runs of 40 s)', () => {
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+    let off = 0;
+    let on = 0;
+    for (let k = 0; k < 8; k++) {
+      let y = 0;
+      const xs = Array.from({ length: 40 * HZ }, () => (y = 0.95 * y + rand()));
+      const f = (t: number) => xs[Math.round(t * HZ)];
+      off += run(f, 40).filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE).length;
+      on += run(f, 40, LONG).filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE).length;
+    }
+    expect(off).toBeGreaterThan(0);
+    expect(on).toBeLessThan(0.7 * off);
+  });
+
+  it('a steady slow cycle keeps its lock and its confidence; a level under 1.5 s is untouched', () => {
+    for (const P of [1.86, 2.79]) {
+      const s = run((t) => Math.cos((2 * Math.PI * t) / P), 30, LONG).at(-1)!;
+      expect(Math.abs(s.period / P - 1), `period at ${P}`).toBeLessThan(0.02);
+      expect(s.confidence, `confidence at ${P}`).toBeGreaterThan(0.8);
+    }
+    const f = (t: number) => Math.cos((2 * Math.PI * t) / 1.1);
+    const on = run(f, 30, LONG);
+    const off = run(f, 30);
+    expect(on.map((s) => s.period)).toEqual(off.map((s) => s.period));
+    expect(on.map((s) => s.confidence)).toEqual(off.map((s) => s.confidence));
+  });
+});
+
 describe('the parts', () => {
   it('acfPeaks: the per-lag normalisation does not crush a slow, perfectly regular cycle', () => {
     for (const P of [0.5, 1.5, 2.4]) {
