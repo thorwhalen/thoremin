@@ -15,7 +15,7 @@
  * or when the tool or the section opens.
  */
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
-import { sharedId } from './lib/shared';
+import { sharedId } from './lib/shared_ids';
 
 /** The categorizer chords id of a shipped categorizer (the app half's `sharedChordId`). */
 const sharedChordIdOf = (modality: 'hand' | 'body', name: string): string => `${modality}:${sharedId(name)}`;

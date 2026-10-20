@@ -27,9 +27,10 @@ import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
 import { categorySlot, MAX_CATEGORY_SLOTS } from '../schema';
+import { isSharedId, SHARED_PREFIX } from './shared_ids';
 
-/** The id prefix of a shared categorizer. */
-export const SHARED_PREFIX = 'shared:';
+export { isSharedId, SHARED_PREFIX, sharedId } from './shared_ids';
+
 
 /** The folder, under the app's base URL, the shared files are served from. */
 export const SHARED_DIR = 'categorizers/';
@@ -37,9 +38,7 @@ export const SHARED_DIR = 'categorizers/';
 /** The index file in {@link SHARED_DIR}. */
 export const SHARED_INDEX_FILE = 'index.json';
 
-export const isSharedId = (id: string | null | undefined): boolean => typeof id === 'string' && id.startsWith(SHARED_PREFIX) && id.length > SHARED_PREFIX.length;
 
-export const sharedId = (name: string): string => `${SHARED_PREFIX}${name}`;
 
 /** The shared name of `id` (null when `id` is not a shared one). */
 export const sharedName = (id: string): string | null => (isSharedId(id) ? id.slice(SHARED_PREFIX.length) : null);
