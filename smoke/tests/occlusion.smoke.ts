@@ -16,11 +16,11 @@
  * So this suite hit-tests: for each control, sample five points inside it (its centre and
  * the four points a quarter of the way in) and ask the document what is on top there
  * (`elementFromPoint`). Any sample landing on something else is an occlusion. The list of
- * controls is the shell's own: the tools bar is read from `src/app/tools.ts`, the rest by
+ * controls is the shell's own: the tools bar is read from `helpers/allTools.ts` (core's tools and every slice's), the rest by
  * the aria-labels the shell gives them.
  */
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { TOOLS } from '../../src/app/tools';
+import { ALL_TOOLS as TOOLS } from './helpers/allTools';
 
 const SYNTHETIC = '?slot.source=synthetic-hands';
 
@@ -191,10 +191,10 @@ test.describe('the Tools launcher', () => {
     await barButton(page, 'conductor').click();
     await page.locator('[data-tools-launcher]').click();
     const rows = page.locator('[data-launcher-tool]');
-    // Every core tool, plus whatever the build's extensions declare (#330: the face session).
+    // Every tool in the shared list (core's and every slice's); the count check below is the guard.
     for (const tool of TOOLS) await expect(page.locator(`[data-launcher-tool="${tool.id}"]`)).toHaveCount(1);
     const n = await rows.count();
-    expect(n).toBeGreaterThanOrEqual(TOOLS.length);
+    expect(n, 'the launcher lists exactly the tools this sweep covers').toBe(TOOLS.length);
     for (let i = 0; i < n; i++) {
       for (const el of [rows.nth(i).locator('a, button').first(), rows.nth(i).locator('button[aria-pressed]')]) {
         // The launcher scrolls once its rows outgrow a short viewport (nine tools at 720 px):
