@@ -490,12 +490,17 @@ export function createFramePump(
   const tick = () => {
     rafId = null;
     if (!running) return;
-    const v = getVideo() as (HTMLVideoElement & VideoFrameCallbackTarget) | undefined;
-    if (v) {
-      ensureVfc(v);
-      if (ready(v)) rafDeliver(v);
+    try {
+      const v = getVideo() as (HTMLVideoElement & VideoFrameCallbackTarget) | undefined;
+      if (v) {
+        ensureVfc(v);
+        if (ready(v)) rafDeliver(v);
+      }
+    } finally {
+      // A listener that throws must not stop the only driver a browser without the video
+      // frame callback has: the loop is re-armed, and the error still reaches the console.
+      if (running) rafId = raf(tick);
     }
-    rafId = raf(tick);
   };
 
   return {

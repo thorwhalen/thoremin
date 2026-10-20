@@ -185,7 +185,10 @@ export function workerHandRunner(
   let busy: InFlight | null = null;
   /** Frames dropped since the last one sent: added to its `skipped`. */
   let dropped = 0;
-  const changes = new Map<number, { resolve: () => void; reject: (e: Error) => void }>();
+  /** Hand-count changes in flight, each with its watchdog: `setOptions` rebuilds the graph
+   *  in the worker, and a rebuild that hangs would otherwise hold the instrument on its last
+   *  pose for good (the pump offers no frame while a change is in flight). */
+  const changes = new Map<number, { resolve: () => void; reject: (e: Error) => void; watchdog: unknown }>();
   let changeId = 0;
   /** Failed frames in a row. */
   let frameErrors = 0;
@@ -203,12 +206,19 @@ export function workerHandRunner(
     watchdog = null;
   };
 
+  const rejectChanges = (err: Error): void => {
+    for (const c of changes.values()) {
+      clearTimer(c.watchdog);
+      c.reject(err);
+    }
+    changes.clear();
+  };
+
   const die = (reason: unknown): void => {
     if (stopped()) return;
     dead = true;
     free();
-    for (const c of changes.values()) c.reject(new Error('the hand worker stopped'));
-    changes.clear();
+    rejectChanges(new Error('the hand worker stopped'));
     worker.terminate();
     if (ready) onDead(reason);
   };
@@ -240,8 +250,12 @@ export function workerHandRunner(
           worker.postMessage({ type: 'frame', id: frame.id, bitmap, tMs: frame.stamp.tMs }, [bitmap]);
         })
         .catch(() => {
-          // The element had no frame to give (a resize, a stall): nothing to infer.
-          if (busy === frame) free();
+          // The element had no frame to give (a resize, a stall): nothing to infer. The
+          // drops this frame carried, and the frame itself, count against the next one.
+          if (busy === frame) {
+            dropped += 1 + frame.stamp.skipped;
+            free();
+          }
         });
       return true;
     },
@@ -249,7 +263,10 @@ export function workerHandRunner(
       if (dead || closed) return Promise.reject(new Error('the hand worker stopped'));
       const id = ++changeId;
       return new Promise<void>((resolve, reject) => {
-        changes.set(id, { resolve, reject });
+        const watchdog = setTimer(() => {
+          if (changes.has(id)) die(new Error(`the hand worker did not change its hand count in ${frameTimeoutMs} ms`));
+        }, frameTimeoutMs);
+        changes.set(id, { resolve, reject, watchdog });
         worker.postMessage({ type: 'numHands', id, n });
       });
     },
@@ -257,8 +274,7 @@ export function workerHandRunner(
       if (closed) return;
       closed = true;
       free();
-      for (const c of changes.values()) c.reject(new Error('the hand runner closed'));
-      changes.clear();
+      rejectChanges(new Error('the hand runner closed'));
       try {
         worker.postMessage({ type: 'close' });
       } finally {
@@ -289,10 +305,16 @@ export function workerHandRunner(
         if (m.type === 'result') {
           frameErrors = 0;
           if (!stopped()) onResult({ result: m.result, width: done.width, height: done.height, stamp: done.stamp });
-        } else if (++frameErrors >= maxFrameErrors) die(new Error(`${frameErrors} hand frames in a row failed in the worker`));
+        } else {
+          // A failed frame is a frame nobody saw: it and the drops it carried count
+          // against the next result's `skipped`.
+          dropped += 1 + done.stamp.skipped;
+          if (++frameErrors >= maxFrameErrors) die(new Error(`${frameErrors} hand frames in a row failed in the worker`));
+        }
       } else if (m.type === 'numHands-done') {
         const c = changes.get(m.id);
         changes.delete(m.id);
+        if (c) clearTimer(c.watchdog);
         if (m.error === undefined) c?.resolve();
         else c?.reject(new Error(m.error));
       }
@@ -375,12 +397,14 @@ export async function createHandRunner(
       current = null;
     },
   };
-  const onDead = (reason: unknown): void => {
+  /** The replacement for a worker that ran with `o`: the GPU cascade may have left a CPU
+   *  worker running after the main thread's GPU failed, and that GPU is not tried again. */
+  const onDeadFor = (o: LandmarkerOptions) => (reason: unknown): void => {
     console.warn('[thoremin] the hand worker stopped; the hand model moves to the main thread', reason);
     current = null;
     const loading = numHands;
     void deps
-      .loadMain({ ...options, numHands: loading })
+      .loadMain({ ...o, numHands: loading })
       .then((lm) => {
         if (closed) {
           lm.close();
@@ -395,7 +419,7 @@ export async function createHandRunner(
       .catch((err) => console.error('[thoremin] the hand model could not load on the main thread either', err));
   };
   const inWorker = async (o: LandmarkerOptions): Promise<HandRunner> => {
-    const r = await workerHandRunner(o, onResult, deps.worker!, onDead);
+    const r = await workerHandRunner(o, onResult, deps.worker!, onDeadFor(o));
     console.info(`[thoremin] the hand model runs in a Web Worker (${o.delegate})`);
     return r;
   };
