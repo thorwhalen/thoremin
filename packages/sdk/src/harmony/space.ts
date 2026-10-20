@@ -218,15 +218,16 @@ export function restrict(space: HarmonicSpace, pred: (c: Chord, key: Key) => boo
 }
 
 /** A space whose moves carry captions: the relation's label by default, or a caption set (a
- *  player's words, an imported set) keyed by relation id, falling back to the label. */
-export function annotated(space: HarmonicSpace, captions: (edge: Edge, relation: Relation | undefined) => string | undefined = () => undefined): HarmonicSpace {
+ *  player's words, an imported set, the computed set of `./captions`) read from the move, its
+ *  relation and the key, falling back to the label. */
+export function annotated(space: HarmonicSpace, captions: (edge: Edge, relation: Relation | undefined, key: Key) => string | undefined = () => undefined): HarmonicSpace {
   const byId = new Map(space.relations.map((r) => [r.id, r]));
   return {
     ...space,
     neighbours: (from, key) =>
       space.neighbours(from, key).map((e) => {
         const r = byId.get(e.relation);
-        return { ...e, caption: captions(e, r) ?? r?.label ?? e.relation };
+        return { ...e, caption: captions(e, r, key) ?? r?.label ?? e.relation };
       }),
   };
 }
