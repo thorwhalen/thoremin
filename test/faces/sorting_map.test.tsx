@@ -69,7 +69,7 @@ beforeEach(() => {
       return true;
     },
   });
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as never);
   // Shown at twice the backing size: pointer positions are scaled back.
   vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 680, height: 440 } as DOMRect);
   live.value = null;
