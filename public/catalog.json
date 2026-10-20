@@ -792,15 +792,6 @@
         "kind": "body-status"
       },
       {
-        "name": "conductorTime",
-        "kind": "musical-time"
-      },
-      {
-        "name": "conductorEnabled",
-        "kind": "boolean",
-        "default": false
-      },
-      {
         "name": "expression",
         "kind": "face-expression"
       },
@@ -882,6 +873,18 @@
         "kind": "air-flute-config"
       },
       {
+        "name": "conductor-tool.conductorHud.time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "conductor-tool.conductorHud.enabled",
+        "kind": "boolean"
+      },
+      {
+        "name": "conductor-tool.conductorHud.config",
+        "kind": "conductor-config"
+      },
+      {
         "name": "feature-lab.meters.lab",
         "kind": "feature-lab-config"
       },
@@ -942,11 +945,6 @@
       },
       {
         "name": "bodySkeleton",
-        "type": "object",
-        "default": {}
-      },
-      {
-        "name": "conductorHud",
         "type": "object",
         "default": {}
       },
