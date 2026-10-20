@@ -196,6 +196,11 @@ export const PersonalCategorizerSchema = z
     /** The player's "none of these" holds (the rest cloud, or a face moved out of every
      *  category), by sample id. */
     neutral: z.array(z.string().min(1)),
+    /** The `neutral` holds that arrived by merging a whole category into Neutral (#536), by
+     *  sample id: a deliberate act, so `trainNeutral` does not fold them into a larger group
+     *  as it would a stray hold. Optional and additive (an older build drops it); an id no
+     *  longer in `neutral` is ignored ({@link mergedNeutralIndices}). */
+    mergedNeutral: z.array(z.string().min(1)).optional(),
     /** Whether the `neutral` holds are trained as a null class (#385 E5): a face nearest them
      *  reads as none of these. False only for a file made before version 3 (it classified so);
      *  absent from a version-3 document, true (the migrations always write it). */
@@ -262,6 +267,14 @@ export function memberIndices(c: Pick<PersonalCategorizer, 'samples' | 'categori
 export function neutralSampleIndices(c: Pick<PersonalCategorizer, 'samples' | 'neutral'>): number[] {
   const neutral = new Set(c.neutral);
   return c.samples.flatMap((s, i) => (neutral.has(s.id) ? [i] : []));
+}
+
+/** The Neutral holds that a whole-category merge put there (#536), as indices into `samples`,
+ *  in sample order; only those still in Neutral. */
+export function mergedNeutralIndices(c: Pick<PersonalCategorizer, 'samples' | 'neutral' | 'mergedNeutral'>): number[] {
+  const merged = new Set(c.mergedNeutral ?? []);
+  const neutral = new Set(c.neutral);
+  return c.samples.flatMap((s, i) => (merged.has(s.id) && neutral.has(s.id) ? [i] : []));
 }
 
 /** A copy of `v` without its non-finite entries (JSON cannot carry them). */
@@ -396,7 +409,7 @@ export function modelFromCategorizer(input: PersonalCategorizer, { renormalize =
     for (const j of cat.members) cues.set(c.samples[j].cue, (cues.get(c.samples[j].cue) ?? 0) + 1);
     return { ...cat, id: c.categories[i].id, label: c.categories[i].label, cues: Object.fromEntries(cues) };
   });
-  const neutral = c.neutralTrained ? trainNeutral(vectors, neutralSampleIndices(c), c.features, c.weights, categories) : [];
+  const neutral = c.neutralTrained ? trainNeutral(vectors, neutralSampleIndices(c), c.features, c.weights, categories, { merged: mergedNeutralIndices(c) }) : [];
   return {
     ...trained,
     categories,

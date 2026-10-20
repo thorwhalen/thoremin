@@ -85,7 +85,7 @@ function rebuild(
   categories: readonly { id: string; label: string }[],
   place: ReadonlyMap<string, Place>,
   pins: Readonly<Record<string, Place>>,
-  extra: Partial<PersonalCategorizer> = {},
+  { mergedNeutral: markedMerged, ...extra }: Partial<PersonalCategorizer> = {},
 ): PersonalCategorizer {
   const members = new Map<string, string[]>(categories.map((x) => [x.id, []]));
   const neutral: string[] = [];
@@ -97,9 +97,11 @@ function rebuild(
     else if (to === ASIDE_BIN) aside.push(s.id);
     else members.get(to)?.push(s.id);
   }
-  const { aside: _a, pins: _p, ...rest } = c;
+  const { aside: _a, pins: _p, mergedNeutral: _m, ...rest } = c;
   void _a;
   void _p;
+  // The merge mark (#536) lasts only while the hold is in Neutral; a move out of it clears it.
+  const merged = [...(markedMerged ?? _m ?? [])].filter((id) => neutral.includes(id));
   const keptPins = Object.fromEntries(Object.entries(pins).filter(([id]) => place.has(id)));
   return PersonalCategorizerSchema.parse({
     ...rest,
@@ -109,6 +111,7 @@ function rebuild(
     neutral,
     ...(aside.length > 0 ? { aside } : {}),
     ...(Object.keys(keptPins).length > 0 ? { pins: keptPins } : {}),
+    ...(merged.length > 0 ? { mergedNeutral: merged } : {}),
   });
 }
 
@@ -250,7 +253,9 @@ export function deleteHolds(c: PersonalCategorizer, ids: readonly string[]): Sor
 /** Merge category `from` into `into`: one category with both's holds, every one pinned to it (a
  *  merged pair stays merged at every k). `into` keeps its id and label. `into` may be the Neutral
  *  bin (#444, a face the quiz keeps missing given up as "none of these"): every hold of `from`
- *  goes to Neutral, pinned there, and the category is dropped; refused for the last category. */
+ *  goes to Neutral, pinned there and marked as merged (`mergedNeutral`, #536: the Neutral class
+ *  keeps them as a prototype of their own instead of folding a small one into a larger group),
+ *  and the category is dropped; refused for the last category. */
 export function mergeCategories(c: PersonalCategorizer, from: string, into: string): SortResult {
   if (from === into) return fail('a category cannot merge with itself');
   if (into === NEUTRAL_BIN) {
@@ -264,7 +269,7 @@ export function mergeCategories(c: PersonalCategorizer, from: string, into: stri
         place.set(id, NEUTRAL_BIN);
         pins[id] = NEUTRAL_BIN;
       }
-      return rebuild(c, c.categories.filter((x) => x.id !== from), place, pins);
+      return rebuild(c, c.categories.filter((x) => x.id !== from), place, pins, { mergedNeutral: [...(c.mergedNeutral ?? []), ...gone.members] });
     });
   }
   const a = c.categories.find((x) => x.id === from);
