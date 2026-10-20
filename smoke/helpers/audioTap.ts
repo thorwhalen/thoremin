@@ -31,7 +31,7 @@ const BANDS = { lowHz: 60, highHz: 8_000, count: 24 } as const;
 
 declare global {
   interface Window {
-    __smokeAudio?: { read(): AudioReading | null; contexts(): number };
+    __smokeAudio?: { read(): AudioReading | null; peak(): number; watch(ms: number, everyMs: number): Promise<number[]>; contexts(): number };
   }
 }
 
@@ -57,8 +57,32 @@ function installTap(bands: { lowHz: number; highHz: number; count: number }): vo
   } as typeof AudioNode.prototype.connect;
 
   const edges = Array.from({ length: bands.count + 1 }, (_, i) => bands.lowHz * (bands.highHz / bands.lowHz) ** (i / bands.count));
+  const peakNow = (): number => {
+    let peak = 0;
+    for (const a of analysers) {
+      if ((a.context as AudioContext).state !== 'running') continue;
+      const time = new Float32Array(a.fftSize);
+      a.getFloatTimeDomainData(time);
+      for (const x of time) peak = Math.max(peak, Math.abs(x));
+    }
+    return peak;
+  };
   window.__smokeAudio = {
     contexts: () => analysers.length,
+    peak: peakNow,
+    // The peak every `everyMs`, in the page (no round trip per reading): fast enough to catch a
+    // drum hit's transient, which a reading every 100 ms from the test can step over.
+    watch: (ms, everyMs) =>
+      new Promise((resolve) => {
+        const out: number[] = [];
+        const t0 = performance.now();
+        const step = () => {
+          out.push(peakNow());
+          if (performance.now() - t0 < ms) setTimeout(step, everyMs);
+          else resolve(out);
+        };
+        step();
+      }),
     read() {
       const live = analysers.filter((a) => (a.context as AudioContext).state === 'running');
       if (live.length === 0) return null;
@@ -107,6 +131,24 @@ function installTap(bands: { lowHz: number; highHz: number; count: number }): vo
 /** Install the tap on a page; call before `page.goto`. */
 export async function installAudioTap(page: Page): Promise<void> {
   await page.addInitScript(installTap, BANDS);
+}
+
+/** The peak every `everyMs` for `forMs`, sampled in the page (for transients). */
+export async function watchPeaks(page: Page, { forMs, everyMs = 20 }: { forMs: number; everyMs?: number }): Promise<number[]> {
+  return page.evaluate(([ms, every]) => window.__smokeAudio?.watch(ms, every) ?? Promise.resolve([]), [forMs, everyMs] as const);
+}
+
+/** The onsets in a run of peaks: each rise above `floor` after the sound fell back below half of it. */
+export function onsets(peaks: number[], floor: number): number {
+  let n = 0;
+  let armed = true;
+  for (const p of peaks) {
+    if (armed && p > floor) {
+      n++;
+      armed = false;
+    } else if (p < floor / 2) armed = true;
+  }
+  return n;
 }
 
 /** Read the tap every `everyMs` for `forMs`. */
