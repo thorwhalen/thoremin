@@ -191,6 +191,10 @@ export interface CategoryStepperOptions {
   enterFrames: number;
   /** The category that is "no choice" (a neutral face): reading it re-arms the stepper. */
   rest: string | null;
+  /** What re-arms after a commit: only the rest (a face goes back to neutral between moves, the
+   *  default), or also a different category held long enough (signed letters, which pass from one
+   *  to the next without a rest in between). */
+  rearm?: 'rest' | 'change';
 }
 
 export interface CategoryStepper {
@@ -203,33 +207,43 @@ export interface CategoryStepper {
  * The commit policy for a categorical navigator that MOVES (a face expression mapped to a move on
  * a chord wheel): a category read `enterFrames` times in a row commits once, and nothing more
  * commits until the reading has come back to rest (a neutral face, or nothing read). One move per
- * expression, as the direction stepper makes one move per push.
+ * expression, as the direction stepper makes one move per push. With `rearm: 'change'`, a
+ * different category held `enterFrames` commits too, without a rest between (the one just made
+ * still waits for a rest or another category first).
  */
 export function createCategoryStepper(opts: CategoryStepperOptions): CategoryStepper {
   let armed = true;
   let candidate: string | null = null;
   let count = 0;
+  let made: string | null = null;
   return {
     push(category) {
       if (category === null || category === opts.rest) {
         armed = true;
         candidate = null;
         count = 0;
+        made = null;
         return null;
       }
-      if (!armed) return null;
+      if (!armed && !(opts.rearm === 'change' && category !== made)) {
+        candidate = null;
+        count = 0;
+        return null;
+      }
       count = category === candidate ? count + 1 : 1;
       candidate = category;
       if (count < opts.enterFrames) return null;
       armed = false;
       candidate = null;
       count = 0;
+      made = category;
       return category;
     },
     reset() {
       armed = true;
       candidate = null;
       count = 0;
+      made = null;
     },
   };
 }

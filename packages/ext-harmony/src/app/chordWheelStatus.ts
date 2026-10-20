@@ -23,6 +23,12 @@ export const useChordWheelStatus = create<ChordWheelStatusState>((set) => ({
 /** What to tell the player, per state. */
 export function describeChordWheelLive(live: ChordWheelStatus): string {
   if (!live.enabled) return 'Off. Tick "Play the chord wheel" (the Chord Wheel and Tonnetz Wheel instruments have it on).';
+  if (live.steer === 'signs' || live.steer === 'categorizer') {
+    const chord = live.chord ?? '-';
+    const what = live.steer === 'signs' ? 'Sign a letter A to G to go to its chord' : 'Hold one of your poses: each makes a move';
+    if (live.category === null) return `${chord}. ${what}.`;
+    return `${chord}${live.lastMove ? `, after ${live.lastMove}` : ''}. Reading: ${live.category}.`;
+  }
   if (live.steer === 'face') {
     const chord = live.chord ? `${live.chord}${live.numeral ? ` (${live.numeral})` : ''}` : '';
     if (live.face === null) return `${chord}. Show your face: each expression makes a move, a neutral face gets ready for the next.`;
@@ -37,7 +43,7 @@ export function describeChordWheelLive(live: ChordWheelStatus): string {
 }
 
 export function chordWheelLiveKey(l: ChordWheelStatus): string {
-  return [l.enabled ? 1 : 0, l.moves, l.steer, l.face ?? '-', l.key, l.steering ? 1 : 0, l.chord ?? '-', l.numeral, l.armed ? 1 : 0, l.moveCount, l.lastMove ?? '-', l.rejected ?? '-', l.walking ? 1 : 0].join('|');
+  return [l.enabled ? 1 : 0, l.moves, l.steer, l.face ?? '-', l.category ?? '-', l.key, l.steering ? 1 : 0, l.chord ?? '-', l.numeral, l.armed ? 1 : 0, l.moveCount, l.lastMove ?? '-', l.rejected ?? '-', l.walking ? 1 : 0].join('|');
 }
 
 export function makeChordWheelReporter(engine: { getOutput(nodeId: string, port: string): unknown }, store: Pick<ChordWheelStatusState, 'report'> = useChordWheelStatus.getState()): () => void {

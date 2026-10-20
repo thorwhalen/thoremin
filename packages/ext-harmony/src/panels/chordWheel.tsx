@@ -17,6 +17,8 @@ const STEER_LABEL: Record<ChordWheelDialParams['steer'], string> = {
   hand: 'the hand (push toward a move)',
   face: 'the face (each expression a move)',
   both: 'the hand and the face',
+  signs: 'signs (a letter A to G goes to its chord)',
+  categorizer: 'your poses (each one a move)',
 };
 const moveLabel = (id: string) => (id === 'none' ? 'no move' : (RELATIONS.get(id)?.label ?? id));
 
@@ -98,7 +100,17 @@ export function ChordWheelControls() {
           ))}
         </select>
       </label>
-      {steer !== 'hand' && (
+      {steer === 'signs' && (
+        <p className="text-[10px] text-white/50" data-testid="chord-wheel-signs-hint">
+          Fingerspell a letter A to G and hold it a moment: the wheel goes to that letter's chord in the key (in D major, F is F-sharp minor), and its wedges show where each move would go. The next letter goes straight on; your hand pushes no wedge. Needs the Sign language section on.
+        </p>
+      )}
+      {steer === 'categorizer' && (
+        <p className="text-[10px] text-white/50" data-testid="chord-wheel-categorizer-hint">
+          Hold one of your poses a moment: your first pose makes the top wedge's move, the second the next one clockwise, and so on; your rest pose gets ready for the next. Choose which poses in the Pose categorizer section.
+        </p>
+      )}
+      {(steer === 'face' || steer === 'both') && (
         <div className="space-y-1 rounded border border-white/10 p-1.5" data-testid="chord-wheel-face-moves">
           <p className="text-[10px] text-white/50">Each expression, held a moment, makes one move; a neutral face gets ready for the next.</p>
           {EMOTIONS.map((e) => (

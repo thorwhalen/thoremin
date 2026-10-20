@@ -58,7 +58,7 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 The chord wheel's own settings; the key and how chords sound are in **Sound**.
 
 - **Moves**: the key's six moves, or the Tonnetz's, which leave the key one or two changed notes at a time.
-- **Steering**: your hand, your face, or both; which hand and which point of it; the wheel's size; how far to push and how long to hold before a move is made; and how long an expression must be held when the face steers.
+- **Steering**: your hand, your face, or both, your signs, or your poses; which hand and which point of it; the wheel's size; how far to push and how long to hold before a move is made; and how long an expression, a sign or a pose must be held. With signs, a fingerspelled letter A to G goes to that letter's chord in the key, and the next letter goes straight on (turn on **Sign language** too). With your poses, your first pose makes the top move, the next pose the next move clockwise (choose the poses in **Pose categorizer**).
 - **Order**: the moves in a fixed place, or the likeliest next chord on top. **Surprise** brings rarer moves to the top, from this setting, your other hand's height, or your face.
 - **Tension**: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named).
 - **Walk on the beat**: a push held out keeps making that move, every one to four beats.

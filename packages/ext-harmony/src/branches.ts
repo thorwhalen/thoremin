@@ -92,6 +92,34 @@ export const chordWheelFace = defineBranch({
 });
 
 /**
+ * ASL's signs steer the chord wheel: the sign reader's reading into the wheel, a letter A..G held
+ * going to its chord. Composed only while signs steer; requires the ASL plugin's reader (a build
+ * without the plugin leaves this branch out, #697), whose own dial must be on for it to read.
+ */
+export const chordWheelSigns = defineBranch({
+  id: 'chord-wheel-signs',
+  description: 'Signs steer the chord wheel: a fingerspelled letter A..G held a moment goes to its chord.',
+  requires: ['chord-wheel', 'asl-signs'],
+  nodes: [],
+  // The ASL plugin's reader node (`aslSigns`) and its category port.
+  edges: [to({ node: 'aslSigns', port: 'signs' }, { node: 'chordWheel', port: 'signs' })],
+});
+
+/**
+ * The player's pose categorizer steers the chord wheel: each category held a moment makes a move.
+ * Composed only while the categorizer steers; requires the faces extension's pose categorizer
+ * branch, which reads the categorizer the Pose categorizer section names.
+ */
+export const chordWheelCategorizer = defineBranch({
+  id: 'chord-wheel-categorizer',
+  description: 'Your pose categorizer steers the chord wheel: each of your poses held a moment makes a move.',
+  requires: ['chord-wheel', 'pose-categorizer'],
+  nodes: [],
+  // The faces extension's pose categorizer node (`poseCat`) and its category port.
+  edges: [to({ node: 'poseCat', port: 'category' }, { node: 'chordWheel', port: 'poses' })],
+});
+
+/**
  * The face colours the chord map (H7 of #613): the face's smoothed controls into the map, whose
  * valence turns the key to its parallel major or minor and whose arousal adds tensions. Its own
  * branch, composed only while the face colours, so a hands-only map never loads the face model.
@@ -139,4 +167,4 @@ export const chordChart = defineBranch({
   chords: [{ from: { node: 'chordChart', port: 'triad' }, priority: 7 }],
 });
 
-export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordWheel, chordWheelFace, chordWheelAffect, chordChart] as const;
+export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordWheel, chordWheelFace, chordWheelSigns, chordWheelCategorizer, chordWheelAffect, chordChart] as const;
