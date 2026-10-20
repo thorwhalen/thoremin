@@ -13,8 +13,8 @@
  * Body Markdown (no hard wrap). `:::details Title` ... `:::` is a collapsed block (deferred disclosure).
  * Links between pages are `[text](instrument:Name)`, `(tool:id)`, `(settings:label)`, `(area:id)`,
  * `(manual:)`, `(app:)`; the builder resolves them and FAILS on a target that does not exist.
- * A picture is attached by name, not written: `media/<slug>.jpg` (instruments), `media/tool-<id>.jpg`
- * (tools), `media/home.jpg` (the home page), plus `.webm` clips of the same name.
+ * A picture is attached by name, not written: `pics/<slug>.jpg` (instruments), `pics/tool-<id>.jpg`
+ * (tools), `pics/home.jpg` (the home page), plus `.webm` clips of the same name.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,7 +38,7 @@ export interface Built {
   pages: Map<string, string>;
   /** The instrument names, tool ids and settings anchors the sources cover. */
   covers: { seeds: string[]; tools: string[]; sections: string[] };
-  /** Files under `media/` the pages reference. */
+  /** Files under `pics/` the pages reference. */
   media: string[];
   /** Problems the builder found (broken links, unknown fields, missing front matter). */
   problems: string[];
@@ -73,11 +73,11 @@ const list = (v: string | string[] | undefined): string[] => (Array.isArray(v) ?
 
 const listMd = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.md')).sort() : []);
 
-/** Build the whole guide from `root` (the repo root), reading `guide/` and `public/guide/media/`. */
+/** Build the whole guide from `root` (the repo root), reading `guide/` and `public/guide/pics/`. */
 export function buildGuide(root: string): Built {
   const problems: string[] = [];
   const guideDir = join(root, 'guide');
-  const mediaDir = join(root, 'public', 'guide', 'media');
+  const mediaDir = join(root, 'public', 'guide', 'pics');
   const hasMedia = (name: string): boolean => existsSync(join(mediaDir, name));
   const media = new Set<string>();
 
@@ -175,11 +175,11 @@ ${inner}
     let html = '';
     if (hasMedia(`${name}.jpg`)) {
       media.add(`${name}.jpg`);
-      html += `<figure><img src="${prefixOf(out)}media/${name}.jpg" alt="${esc(alt)}" loading="lazy"></figure>\n`;
+      html += `<figure><img src="${prefixOf(out)}pics/${name}.jpg" alt="${esc(alt)}" loading="lazy"></figure>\n`;
     }
     if (hasMedia(`${name}.webm`)) {
       media.add(`${name}.webm`);
-      html += `<figure><video src="${prefixOf(out)}media/${name}.webm" muted loop playsinline controls preload="metadata" aria-label="${esc(alt)}"></video></figure>\n`;
+      html += `<figure><video src="${prefixOf(out)}pics/${name}.webm" muted loop playsinline controls preload="metadata" aria-label="${esc(alt)}"></video></figure>\n`;
     }
     return html;
   };
@@ -223,7 +223,7 @@ ${inner}
     pages.set(out, shell(out, 'instruments', name, inner));
   }
   const card = (out: string, href: string, title: string, items: string[], img: string, from: string): string =>
-    `<li class="card">${img ? `<a href="${hrefOf(out, href)}"><img src="${prefixOf(out)}media/${img}" alt="" loading="lazy"></a>` : ''}<div><h3><a href="${hrefOf(out, href)}">${esc(title)}</a></h3><p>${inlineOnly(items[0] ?? '', out, from)}</p></div></li>`;
+    `<li class="card">${img ? `<a href="${hrefOf(out, href)}"><img src="${prefixOf(out)}pics/${img}" alt="" loading="lazy"></a>` : ''}<div><h3><a href="${hrefOf(out, href)}">${esc(title)}</a></h3><p>${inlineOnly(items[0] ?? '', out, from)}</p></div></li>`;
   for (const a of areas) {
     const out = `areas/${a.id}.html`;
     const cards = seedsOf(a.id).map((s) => {

@@ -51,12 +51,12 @@ A feature a player can find has a guide entry. `test/guide_coverage.test.ts` enf
 3. **A new editor section** (an extension's `panels`, or a core section): add `## <Name> {#<slug>}` to `guide/settings.md` and say what the section is for. A removed section loses its heading.
 4. **Links between pages**: `[text](instrument:Name)`, `(tool:id)`, `(settings:Name)`, `(area:id)`, `(manual:)`, `(app:)`. The builder fails on a link that names nothing.
 5. `npm run guide` (writes `public/guide/*.html`; `npm run guide:check` fails when the committed pages are stale; the coverage test runs the same check). Commit the generated pages with the sources.
-6. **The picture**: `npm run build`, then `npm run guide:media -- --only "<Instrument name>"` (or `--only tool:<id>`). It captures the BUILT app on the synthetic sources and writes `public/guide/media/<slug>.jpg` (`tool-<id>.jpg` for tools). Per-scene knobs (extra query, settle time, a clip) are data in `smoke/guide_scenes.json`. Commit the picture.
+6. **The picture**: `npm run build`, then `npm run guide:media -- --only "<Instrument name>"` (or `--only tool:<id>`). It captures the BUILT app on the synthetic sources and writes `public/guide/pics/<slug>.jpg` (`tool-<id>.jpg` for tools). Per-scene knobs (extra query, settle time, a clip) are data in `smoke/guide_scenes.json`. Commit the picture.
 
 ### Media rules
 
 - Generated from the app, on synthetic sources only (`?slot.source=synthetic-hands`, `slot.body=synthetic-body`, `?carve.source=synthetic`): never a real person, never a screenshot from a real camera.
-- Small: a picture is a JPEG about 960 wide, a clip a short silent webm. The whole `public/guide/media/` has a budget (6 MB, in the coverage test); say the total in the PR.
+- Small: a picture is a JPEG about 960 wide, a clip a short silent webm. The whole `public/guide/pics/` has a budget (6 MB, in the coverage test); say the total in the PR.
 - Regenerate pictures when what they show changes (a redesigned panel), not on every commit. Never hand-edit a generated page: change the source, rebuild.
 
 ### Voice

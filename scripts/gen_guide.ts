@@ -15,12 +15,12 @@ import { buildGuide } from './lib_guide';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'guide');
 
-/** The files of `public/guide/` the builder owns (HTML and the stylesheet; `media/` is the media script's). */
+/** The files of `public/guide/` the builder owns (HTML and the stylesheet; `pics/` is the media script's). */
 function ownedFiles(dir: string, base = ''): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((f) => {
     const rel = base ? `${base}/${f}` : f;
-    if (rel === 'media') return [];
+    if (rel === 'pics') return [];
     return statSync(join(dir, f)).isDirectory() ? ownedFiles(join(dir, f), rel) : [rel];
   });
 }

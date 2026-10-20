@@ -4,7 +4,7 @@
  * Playwright drives the BUILT app (run `npm run build` first) on the synthetic sources, never a
  * real person: `?slot.source=synthetic-hands`, `slot.body=synthetic-body` where an instrument
  * composes the body, `?carve.source=synthetic` for the carve tools. For every instrument page in
- * `guide/instruments/` and every tool page in `guide/tools/` it writes `public/guide/media/<slug>.jpg`
+ * `guide/instruments/` and every tool page in `guide/tools/` it writes `public/guide/pics/<slug>.jpg`
  * (instruments) or `tool-<id>.jpg` (tools); a scene with `"clip": true` in `guide_scenes.json` also gets
  * a short silent `<slug>.webm` (needs ffmpeg; `--no-clips` skips them). The pages pick the files up by
  * name (`scripts/lib_guide.ts`); `test/guide_coverage.test.ts` fails when a page has no picture.
@@ -35,7 +35,7 @@ const PORT = Number(opt('port', '4392'));
 const ONLY = args.flatMap((a, i) => (args[i - 1] === '--only' ? [a] : []));
 const CLIPS = !flag('no-clips');
 const BASE = `http://localhost:${PORT}/thoremin/`;
-const OUT = join(ROOT, 'public', 'guide', 'media');
+const OUT = join(ROOT, 'public', 'guide', 'pics');
 const VIEW = { width: 960, height: 600 };
 const JPEG_QUALITY = 68;
 
@@ -156,4 +156,4 @@ try {
   await browser.close();
   stop();
 }
-console.log(`guide:media ${n} scenes -> public/guide/media`);
+console.log(`guide:media ${n} scenes -> public/guide/pics`);

@@ -10,13 +10,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.webm",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-drum.webm",
      "alt": "Air Drum: hits predicted before the frame shows them",
      "kind": "video",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-drum.jpg",
      "alt": "Air Drum",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
@@ -33,7 +33,7 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/everything.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/everything.jpg",
      "alt": "The instrument with its timing chip",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/everything.html"
@@ -50,13 +50,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-poses.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-poses.jpg",
      "alt": "Your poses",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/poses.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-song.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-song.jpg",
      "alt": "The Song tool: the song follows the dancer",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/song.html"
@@ -73,13 +73,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-conductor.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-conductor.jpg",
      "alt": "The Conductor tool",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/conductor.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/conduct-the-chords.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/conduct-the-chords.jpg",
      "alt": "Conduct the Chords",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/conduct-the-chords.html"
@@ -96,19 +96,19 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-faces.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-faces.jpg",
      "alt": "Your faces",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/faces.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-hand-shapes.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-hand-shapes.jpg",
      "alt": "Your hand shapes",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/hand-shapes.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/face-wheel.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/face-wheel.jpg",
      "alt": "Face Wheel",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/face-wheel.html"
@@ -125,13 +125,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-trainer.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-trainer.jpg",
      "alt": "The Trainer",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/trainer.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-lab.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-lab.jpg",
      "alt": "The Feature Lab",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/lab.html"
@@ -148,25 +148,25 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.webm",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-drum.webm",
      "alt": "Air Drum",
      "kind": "video",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-guitar.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-guitar.jpg",
      "alt": "Air Guitar",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-guitar.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-flute.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-flute.jpg",
      "alt": "Air Flute",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-flute.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-bass.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/air-bass.jpg",
      "alt": "Air Bass",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-bass.html"
@@ -183,25 +183,25 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/chord-map.webm",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/chord-map.webm",
      "alt": "Chord Map",
      "kind": "video",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/chord-map.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/chord-wheel.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/chord-wheel.jpg",
      "alt": "Chord Wheel",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/chord-wheel.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tonnetz-wheel.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tonnetz-wheel.jpg",
      "alt": "Tonnetz Wheel",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/tonnetz-wheel.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/pentatonic-map.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/pentatonic-map.jpg",
      "alt": "Pentatonic Map",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/pentatonic-map.html"
@@ -218,13 +218,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/asl-viewer.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/asl-viewer.jpg",
      "alt": "ASL Viewer",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/asl-viewer.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/asl-chords.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/asl-chords.jpg",
      "alt": "ASL Chords",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/asl-chords.html"
@@ -241,7 +241,7 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-assistant.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-assistant.jpg",
      "alt": "The AI assistant",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/assistant.html"
@@ -258,13 +258,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-record.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-record.jpg",
      "alt": "Record",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/record.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-annotations.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-annotations.jpg",
      "alt": "Annotations",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/annotations.html"
@@ -281,13 +281,13 @@
    },
    "media": [
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-commands.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/tool-commands.jpg",
      "alt": "The command palette (the single write path)",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/tools/commands.html"
     },
     {
-     "src": "https://apps.thorwhalen.com/thoremin/guide/media/everything.jpg",
+     "src": "https://apps.thorwhalen.com/thoremin/guide/pics/everything.jpg",
      "alt": "Everything",
      "kind": "image",
      "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/everything.html"
