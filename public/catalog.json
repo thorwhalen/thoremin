@@ -1319,6 +1319,10 @@
       {
         "name": "face",
         "kind": "face-features"
+      },
+      {
+        "name": "signs",
+        "kind": "category-scores"
       }
     ],
     "outputs": [
@@ -1506,8 +1510,13 @@
       },
       {
         "name": "follow",
-        "type": "enum(hands | midi | audio)",
+        "type": "enum(hands | midi | audio | signs)",
         "default": "hands"
+      },
+      {
+        "name": "signDwellS",
+        "type": "number",
+        "default": 0.2
       },
       {
         "name": "midiDwellS",
