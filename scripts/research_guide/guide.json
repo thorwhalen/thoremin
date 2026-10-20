@@ -3,62 +3,296 @@
   {
    "id": "timing",
    "title": "Timing and rhythm",
-   "blurb": "Musical time from 30 fps gesture: perceptual thresholds, sub-frame onset prediction, ictus, the rhythm priors."
+   "blurb": "Musical time from 30 fps gesture: perceptual thresholds, sub-frame onset prediction, ictus, the rhythm priors.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/areas/air.html",
+    "label": "Air instruments (where sub-frame timing is played)"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.webm",
+     "alt": "Air Drum: hits predicted before the frame shows them",
+     "kind": "video",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.jpg",
+     "alt": "Air Drum",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
+    }
+   ]
   },
   {
    "id": "latency",
    "title": "Latency",
-   "blurb": "Where the lag comes from, camera to speaker, and what the browser allows."
+   "blurb": "Where the lag comes from, camera to speaker, and what the browser allows.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/troubleshooting.html",
+    "label": "Troubleshooting: latency, camera, browsers"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/everything.jpg",
+     "alt": "The instrument with its timing chip",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/everything.html"
+    }
+   ]
   },
   {
    "id": "body",
    "title": "Body and dance",
-   "blurb": "The body as a source: which channel carries the beat, the pose feature space, the dancer's pulse pacing a song."
+   "blurb": "The body as a source: which channel carries the beat, the pose feature space, the dancer's pulse pacing a song.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/poses.html",
+    "label": "Your poses (the body as a source)"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-poses.jpg",
+     "alt": "Your poses",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/poses.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-song.jpg",
+     "alt": "The Song tool: the song follows the dancer",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/song.html"
+    }
+   ]
   },
   {
    "id": "conductor",
    "title": "Conducting and the orchestra",
-   "blurb": "Conducting gestures, the virtual orchestra, meter, lead offsets, transport and expression."
+   "blurb": "Conducting gestures, the virtual orchestra, meter, lead offsets, transport and expression.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/conductor.html",
+    "label": "The Conductor tool"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-conductor.jpg",
+     "alt": "The Conductor tool",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/conductor.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/conduct-the-chords.jpg",
+     "alt": "Conduct the Chords",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/conduct-the-chords.html"
+    }
+   ]
   },
   {
    "id": "face",
    "title": "Face and personal categorizers",
-   "blurb": "Expressions, a player's own face, hand and pose categories, lighting and distance, carve quality."
+   "blurb": "Expressions, a player's own face, hand and pose categories, lighting and distance, carve quality.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/faces.html",
+    "label": "Your faces (personal categorizers)"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-faces.jpg",
+     "alt": "Your faces",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/faces.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-hand-shapes.jpg",
+     "alt": "Your hand shapes",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/hand-shapes.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/face-wheel.jpg",
+     "alt": "Face Wheel",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/face-wheel.html"
+    }
+   ]
   },
   {
    "id": "trainer",
    "title": "Trainer and sequence training",
-   "blurb": "Learning a player's own categories from cues; fingering priors, drum patterns, scripted sequences."
+   "blurb": "Learning a player's own categories from cues; fingering priors, drum patterns, scripted sequences.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/trainer.html",
+    "label": "The Trainer"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-trainer.jpg",
+     "alt": "The Trainer",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/trainer.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-lab.jpg",
+     "alt": "The Feature Lab",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/lab.html"
+    }
+   ]
   },
   {
    "id": "air",
    "title": "Air instruments",
-   "blurb": "Drum, bass, guitar and flute played at nothing: prior art, footage pipelines, first models."
+   "blurb": "Drum, bass, guitar and flute played at nothing: prior art, footage pipelines, first models.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/areas/air.html",
+    "label": "Air instruments"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-drum.webm",
+     "alt": "Air Drum",
+     "kind": "video",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-drum.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-guitar.jpg",
+     "alt": "Air Guitar",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-guitar.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-flute.jpg",
+     "alt": "Air Flute",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-flute.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/air-bass.jpg",
+     "alt": "Air Bass",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/air-bass.html"
+    }
+   ]
   },
   {
    "id": "harmony",
    "title": "Harmony and chord layouts",
-   "blurb": "Chord maps, lattices and wheels; harmony as composable layers; relations, tension and realization."
+   "blurb": "Chord maps, lattices and wheels; harmony as composable layers; relations, tension and realization.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/areas/chords.html",
+    "label": "Chord instruments"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/chord-map.webm",
+     "alt": "Chord Map",
+     "kind": "video",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/chord-map.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/chord-wheel.jpg",
+     "alt": "Chord Wheel",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/chord-wheel.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tonnetz-wheel.jpg",
+     "alt": "Tonnetz Wheel",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/tonnetz-wheel.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/pentatonic-map.jpg",
+     "alt": "Pentatonic Map",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/pentatonic-map.html"
+    }
+   ]
   },
   {
    "id": "asl",
    "title": "Sign language",
-   "blurb": "Reading ASL from the hand; the plugin moved to its own repository."
+   "blurb": "Reading ASL from the hand; the plugin moved to its own repository.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/areas/sign.html",
+    "label": "Sign instruments"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/asl-viewer.jpg",
+     "alt": "ASL Viewer",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/asl-viewer.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/asl-chords.jpg",
+     "alt": "ASL Chords",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/asl-chords.html"
+    }
+   ]
   },
   {
    "id": "generative",
    "title": "Generative AI",
-   "blurb": "Steering a generative music model (Lyria RealTime) from gesture."
+   "blurb": "Steering a generative music model (Lyria RealTime) from gesture.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/assistant.html",
+    "label": "The AI assistant (and the generative layer in the editor)"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-assistant.jpg",
+     "alt": "The AI assistant",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/assistant.html"
+    }
+   ]
   },
   {
    "id": "datasets",
    "title": "Datasets",
-   "blurb": "Every clip set and dataset thoremin trained, tuned or measured on, with licences."
+   "blurb": "Every clip set and dataset thoremin trained, tuned or measured on, with licences.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/tools/record.html",
+    "label": "Record (how takes are made)"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-record.jpg",
+     "alt": "Record",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/record.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-annotations.jpg",
+     "alt": "Annotations",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/annotations.html"
+    }
+   ]
   },
   {
    "id": "architecture",
    "title": "Architecture and engineering",
-   "blurb": "The DAG, the component model, testing, CI cost and the mapping spectrum."
+   "blurb": "The DAG, the component model, testing, CI cost and the mapping spectrum.",
+   "guide": {
+    "url": "https://apps.thorwhalen.com/thoremin/guide/index.html",
+    "label": "The player guide"
+   },
+   "media": [
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/tool-commands.jpg",
+     "alt": "The command palette (the single write path)",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/tools/commands.html"
+    },
+    {
+     "src": "https://apps.thorwhalen.com/thoremin/guide/media/everything.jpg",
+     "alt": "Everything",
+     "kind": "image",
+     "href": "https://apps.thorwhalen.com/thoremin/guide/instruments/everything.html"
+    }
+   ]
   }
  ],
  "docs": [
@@ -515,7 +749,17 @@
     683
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-19"
+   "date": "2026-10-19",
+   "measure": {
+    "value": 0.3,
+    "label": "wrong-hand rate with a governor",
+    "unit": "%",
+    "baseline": {
+     "value": 7,
+     "label": "one hand, no governor"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "impact-template-bound",
@@ -532,7 +776,13 @@
     686
    ],
    "doc": "docs/research/subframe-impact-prediction.md",
-   "date": "2026-10-19"
+   "date": "2026-10-19",
+   "measure": {
+    "value": 0.6,
+    "label": "most sd a per-player stroke template could gain (24 fps, oracle)",
+    "unit": "ms",
+    "better": "higher"
+   }
   },
   {
    "id": "ar1-surrogate-pulse",
@@ -548,7 +798,17 @@
     646
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-19"
+   "date": "2026-10-19",
+   "measure": {
+    "value": 1041,
+    "label": "real dancers' trusted ticks kept at alpha 0.05",
+    "unit": "ticks",
+    "baseline": {
+     "value": 1750,
+     "label": "trusted ticks without the test"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "red-noise-phase-harmonic",
@@ -564,7 +824,16 @@
     577
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 0.87,
+    "label": "harmonic ratio, Que Calor",
+    "baseline": {
+     "value": 0.84,
+     "label": "red noise"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "pulse-tempo-step",
@@ -580,7 +849,17 @@
     577
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 3.6,
+    "label": "settle time after a synthetic tempo step",
+    "unit": "s",
+    "baseline": {
+     "value": 10.6,
+     "label": "without the fast window"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "meter-from-hand-pattern",
@@ -613,7 +892,17 @@
     505
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 25,
+    "label": "standard error of the trunk lag from 16 strokes",
+    "unit": "ms",
+    "threshold": {
+     "value": 20,
+     "label": "SE gate to keep an offset"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "body-channels-by-level",
@@ -680,7 +969,17 @@
     515
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 1.17,
+    "label": "resume time after switching back via the body",
+    "unit": "s",
+    "baseline": {
+     "value": 3.23,
+     "label": "before keeping the ratio"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "dance-tempo-handover",
@@ -696,7 +995,17 @@
     507
    ],
    "doc": "docs/research/body-conducting-and-pose-categories.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 0.2,
+    "label": "mean beat offset from the dancer cycle starts",
+    "unit": "beat",
+    "baseline": {
+     "value": 0.38,
+     "label": "following the first period"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "pace-controller-real-grid",
@@ -745,7 +1054,17 @@
     241
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-09-26"
+   "date": "2026-09-26",
+   "measure": {
+    "value": 21,
+    "label": "hand inference on the GPU",
+    "unit": "ms",
+    "baseline": {
+     "value": 42.4,
+     "label": "WASM CPU path"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "silent-latency-levers",
@@ -762,7 +1081,17 @@
     328
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 112,
+    "label": "captureToTick mean at 30 fps after choosing the delegate",
+    "unit": "ms",
+    "baseline": {
+     "value": 790,
+     "label": "before"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "hands-worker-runner",
@@ -778,7 +1107,21 @@
     482
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 30,
+    "label": "tick period p95 in the worker",
+    "unit": "ms",
+    "baseline": {
+     "value": 165,
+     "label": "main thread"
+    },
+    "threshold": {
+     "value": 20,
+     "label": "plan bar: p95 under 20 ms"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "cpu-delegate-rescaled-frame",
@@ -794,7 +1137,17 @@
     496
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 25,
+    "label": "frames with hands found at 320x180 using a 2D canvas copy",
+    "unit": "of 25",
+    "baseline": {
+     "value": 0,
+     "label": "video element on the CPU delegate"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "clock-stamp-shortfall",
@@ -810,7 +1163,13 @@
     591
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 0.7,
+    "label": "mean capture-lag shortfall of clock-derived stamps",
+    "unit": "ms",
+    "better": "lower"
+   }
   },
   {
    "id": "frame-pump-shared",
@@ -826,7 +1185,17 @@
     601
    ],
    "doc": "docs/research/latency-budget-and-browser-realtime.md",
-   "date": "2026-10-19"
+   "date": "2026-10-19",
+   "measure": {
+    "value": 0.56,
+    "label": "copies per camera frame",
+    "unit": "copies",
+    "baseline": {
+     "value": 0.59,
+     "label": "before"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "categorizer-size-bound",
@@ -842,7 +1211,17 @@
     590,
     633
    ],
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 317,
+    "label": "merge of a 40-hold take at 3000 samples",
+    "unit": "ms",
+    "threshold": {
+     "value": 200,
+     "label": "merge target"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "categorizer-medoid-estimate",
@@ -857,7 +1236,17 @@
    "prs": [
     584
    ],
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 50,
+    "label": "exemplar medoid at 2000 members",
+    "unit": "ms",
+    "baseline": {
+     "value": 430,
+     "label": "exact medoid"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "quadratic-recut",
@@ -872,7 +1261,17 @@
    "prs": [
     498
    ],
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 2000,
+    "label": "holds a re-cut is offered to",
+    "unit": "holds",
+    "baseline": {
+     "value": 600,
+     "label": "before"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "carve-quality-vs-live",
@@ -926,7 +1325,17 @@
     711
    ],
    "doc": "docs/research/face-categorizer-lighting-and-distance.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 13,
+    "label": "largest ordinary lighting shift",
+    "unit": "NU",
+    "baseline": {
+     "value": 104.7,
+     "label": "shift between two expressions"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "face-distance",
@@ -943,7 +1352,17 @@
     350
    ],
    "doc": "docs/research/face-categorizer-lighting-and-distance.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 63.7,
+    "label": "dolly-move shift",
+    "unit": "NU",
+    "threshold": {
+     "value": 52.7,
+     "label": "reject radius"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "impact-predictor-vs-baseline",
@@ -959,7 +1378,17 @@
     354
    ],
    "doc": "docs/research/subframe-impact-prediction.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 7.1,
+    "label": "surface predict sd at +53 ms lead",
+    "unit": "ms",
+    "baseline": {
+     "value": 10.8,
+     "label": "frame-snapped detector"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "air-vertex-reference",
@@ -975,7 +1404,17 @@
     354
    ],
    "doc": "docs/research/subframe-impact-prediction.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 6.5,
+    "label": "air predict sd",
+    "unit": "ms",
+    "baseline": {
+     "value": 9.7,
+     "label": "departure-fit vertex"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "late-mean-correction",
@@ -1024,7 +1463,17 @@
    "prs": [
     540
    ],
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 15,
+    "label": "varied-height rows right, of 16",
+    "unit": "of 16",
+    "baseline": {
+     "value": 9,
+     "label": "main"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "rhythm-prior-blend",
@@ -1040,7 +1489,17 @@
     310
    ],
    "doc": "docs/research/subframe-impact-prediction.md",
-   "date": "2026-10-13"
+   "date": "2026-10-13",
+   "measure": {
+    "value": 18.3,
+    "label": "accelerando grid MAE, surface, blend",
+    "unit": "ms",
+    "baseline": {
+     "value": 68.1,
+     "label": "oscillator alone"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "raw-sample-detector",
@@ -1056,7 +1515,17 @@
     305
    ],
    "doc": "docs/research/subframe-impact-prediction.md",
-   "date": "2026-10-12"
+   "date": "2026-10-12",
+   "measure": {
+    "value": 7.3,
+    "label": "bench sd, surface, raw samples",
+    "unit": "ms",
+    "baseline": {
+     "value": 12.4,
+     "label": "median prefilter"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "embouchure-onset",
@@ -1088,7 +1557,17 @@
     255
    ],
    "doc": "docs/research/air-instruments.md",
-   "date": "2026-09-27"
+   "date": "2026-09-27",
+   "measure": {
+    "value": 24,
+    "label": "chord-shape accuracy across players",
+    "unit": "%",
+    "baseline": {
+     "value": 96,
+     "label": "within a player"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "flute-fingering-and-bass",
@@ -1136,7 +1615,17 @@
     563
    ],
    "doc": "docs/research/datasets.md",
-   "date": "2026-10-14"
+   "date": "2026-10-14",
+   "measure": {
+    "value": 49,
+    "label": "hand detection on Beethoven with pose-guided crops",
+    "unit": "%",
+    "baseline": {
+     "value": 32,
+     "label": "without crops"
+    },
+    "better": "higher"
+   }
   },
   {
    "id": "architecture-ratchet-baseline",
@@ -1153,7 +1642,17 @@
     608
    ],
    "doc": "docs/design/vertical-slices.md",
-   "date": "2026-10-19"
+   "date": "2026-10-19",
+   "measure": {
+    "value": 2,
+    "label": "fold points after later slices",
+    "unit": "fold points",
+    "baseline": {
+     "value": 15,
+     "label": "baseline"
+    },
+    "better": "lower"
+   }
   },
   {
    "id": "persisted-state-goldens",
@@ -2147,6 +2646,1448 @@
    "value": "r",
    "agg": "max",
    "doc": "docs/research/body-conducting-and-pose-categories.md"
+  },
+  {
+   "id": "timing-latency-thresholds",
+   "title": "Latency thresholds from the literature",
+   "caption": "Latency or asynchrony figures reported by the studies surveyed in section 1 (Maki-Patola, Chafe and Gurevich, Hirsh, Jack et al., Dahl and Bresin, Schmid et al.).",
+   "area": "timing",
+   "doc": "docs/research/intent-and-subframe-timing.md",
+   "data": [
+    {
+     "key": "Wessel and Wright target",
+     "value": 10,
+     "note": "with under 1 ms jitter"
+    },
+    {
+     "key": "Chafe and Gurevich: tempo stable",
+     "value": 11.5,
+     "note": "one-way delay for clapping together"
+    },
+    {
+     "key": "Hirsh: order of two sounds",
+     "value": 20,
+     "note": "to report which came first"
+    },
+    {
+     "key": "Jack et al.: rated worse",
+     "value": 20,
+     "note": "percussive instrument"
+    },
+    {
+     "key": "Maki-Patola theremin JND",
+     "value": 30,
+     "note": "JND between 20 and 30 ms; 30 ms detected in 60% of comparisons"
+    },
+    {
+     "key": "Dahl and Bresin: drumming degrades",
+     "value": 40,
+     "note": "players compensate by striking early up to about 55 ms"
+    },
+    {
+     "key": "Schmid et al.: key-press JND",
+     "value": 49,
+     "note": "mean JND at zero base latency"
+    }
+   ],
+   "unit": "ms",
+   "threshold": {
+    "value": 10,
+    "label": "percussive target"
+   }
+  },
+  {
+   "id": "timing-frame-vs-perception",
+   "title": "Perceptual timing against the frame period",
+   "caption": "Perceptually meaningful timing is 1-20 ms while a video frame lasts 16.7-33 ms (section 0 of the rhythm map).",
+   "area": "timing",
+   "doc": "docs/research/rhythm-from-gesture-research-map.md",
+   "data": [
+    {
+     "key": "Finest perceptual timing",
+     "value": 1
+    },
+    {
+     "key": "Coarsest perceptual timing",
+     "value": 20
+    },
+    {
+     "key": "Frame period at 60 fps",
+     "value": 16.7
+    },
+    {
+     "key": "Frame period at 30 fps",
+     "value": 33,
+     "note": "the doc gives 16.7-33 ms"
+    }
+   ],
+   "unit": "ms"
+  },
+  {
+   "id": "timing-estimator-sd",
+   "title": "Timing error spread by estimator (air strokes)",
+   "caption": "Standard deviation of the onset error against ground truth for air strokes, from the headline table (section 3.1). Lower is better.",
+   "area": "timing",
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "data": [
+    {
+     "key": "lowest (frame-snapped bar)",
+     "value": 10.7
+    },
+    {
+     "key": "parabola (shipped since #231)",
+     "value": 5.5
+    },
+    {
+     "key": "parabolaMedian (before #231)",
+     "value": 10.9
+    },
+    {
+     "key": "confirm",
+     "value": 6.9
+    },
+    {
+     "key": "predict (departure reference)",
+     "value": 9.8,
+     "note": "+57 ms mean lead"
+    },
+    {
+     "key": "predict (vertex reference, shipped)",
+     "value": 6.5,
+     "note": "+53 ms mean lead"
+    },
+    {
+     "key": "sounded (what plays)",
+     "value": 20.9,
+     "note": "includes late fallbacks"
+    }
+   ],
+   "unit": "ms sd",
+   "threshold": {
+    "value": 10.7,
+    "label": "frame-snapped baseline"
+   }
+  },
+  {
+   "id": "timing-prior-vs-grid",
+   "title": "Rhythm priors against the intended beat (air strokes)",
+   "caption": "Mean absolute error of each prior grid against the intended time, under a 1.5 percent per beat accelerando (section 3.7).",
+   "area": "timing",
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "data": [
+    {
+     "key": "osc (shipped oscillator)",
+     "value": 77
+    },
+    {
+     "key": "oscFast",
+     "value": 33
+    },
+    {
+     "key": "trend4l",
+     "value": 26
+    },
+    {
+     "key": "trend12l",
+     "value": 86
+    },
+    {
+     "key": "trend6q",
+     "value": 23
+    },
+    {
+     "key": "trend12q",
+     "value": 17
+    },
+    {
+     "key": "blend (default since #232)",
+     "value": 20
+    }
+   ],
+   "unit": "ms MAE",
+   "threshold": {
+    "value": 20,
+    "label": "issue bound of 20 ms"
+   }
+  },
+  {
+   "id": "timing-predict-fps",
+   "title": "Prediction spread by frame rate",
+   "caption": "Standard deviation of air-stroke prediction with constant stroke shapes at each frame rate (section 3.1.5). Lower is better.",
+   "area": "timing",
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "data": [
+    {
+     "key": "15 fps",
+     "value": 18.3
+    },
+    {
+     "key": "20 fps",
+     "value": 14.4
+    },
+    {
+     "key": "24 fps",
+     "value": 11.4
+    },
+    {
+     "key": "30 fps",
+     "value": 9.7
+    },
+    {
+     "key": "60 fps",
+     "value": 6.3
+    }
+   ],
+   "unit": "ms sd"
+  },
+  {
+   "id": "timing-lead-vs-unpredicted",
+   "title": "How early a prediction commits (surface strokes)",
+   "caption": "Mean lead before the impact for each required lead, and the surface strokes left unpredicted (section 3.5).",
+   "area": "timing",
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "data": [
+    {
+     "key": "Mean lead at required 0 ms",
+     "value": 28,
+     "note": "270 strokes not predicted"
+    },
+    {
+     "key": "Mean lead at required 30 ms",
+     "value": 53,
+     "note": "213 not predicted"
+    },
+    {
+     "key": "Mean lead at required 60 ms",
+     "value": 83,
+     "note": "169 not predicted"
+    }
+   ],
+   "unit": "ms lead"
+  },
+  {
+   "id": "latency-budget-stages",
+   "title": "Hand to speaker: the measured stages",
+   "caption": "Mean per stage of the latency chain on an M1 Max in Chrome 153 (section 1 table). Stages sum to about 100 ms before the camera hardware.",
+   "area": "latency",
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "data": [
+    {
+     "key": "Wait for frame (mean)",
+     "value": 16.7,
+     "note": "0 to 33 ms"
+    },
+    {
+     "key": "Capture stamp to inference",
+     "value": 4.1
+    },
+    {
+     "key": "Hand inference (GPU)",
+     "value": 20.5
+    },
+    {
+     "key": "DAG tick",
+     "value": 0.27,
+     "note": "0.3 percent of the budget"
+    },
+    {
+     "key": "Parameter write to loudspeaker",
+     "value": 31.9
+    },
+    {
+     "key": "Compressor look-ahead",
+     "value": 6.0
+    },
+    {
+     "key": "Pitch glide to half",
+     "value": 20.8,
+     "note": "69 ms to 90 percent"
+    }
+   ],
+   "unit": "ms",
+   "threshold": {
+    "value": 30,
+    "label": "continuous-control JND (20-30 ms)"
+   }
+  },
+  {
+   "id": "latency-inference-delegate",
+   "title": "Hand inference: GPU against WebAssembly",
+   "caption": "The same hand model on MediaPipe GPU and CPU (WebAssembly + SIMD) delegates (section 1, stage 4).",
+   "area": "latency",
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "data": [
+    {
+     "key": "GPU delegate",
+     "value": 20.5,
+     "note": "p95 26.5 ms"
+    },
+    {
+     "key": "CPU / WebAssembly delegate",
+     "value": 42.4,
+     "note": "+- 9.1 ms"
+    }
+   ],
+   "unit": "ms"
+  },
+  {
+   "id": "latency-output-hint",
+   "title": "Audio output latency by latencyHint",
+   "caption": "baseLatency plus outputLatency for each hint, and Bluetooth output as measured elsewhere (section 1).",
+   "area": "latency",
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "data": [
+    {
+     "key": "0 (lowest granted)",
+     "value": 25.9,
+     "note": "2.9 + 23"
+    },
+    {
+     "key": "interactive (app choice)",
+     "value": 34.8,
+     "note": "5.8 + 29"
+    },
+    {
+     "key": "balanced",
+     "value": 45,
+     "note": "10 + 35"
+    },
+    {
+     "key": "playback",
+     "value": 70,
+     "note": "23 + 47"
+    },
+    {
+     "key": "Bluetooth output",
+     "value": 178,
+     "note": "measured in [13]"
+    }
+   ],
+   "unit": "ms"
+  },
+  {
+   "id": "body-model-downloads",
+   "title": "Pose and neighbour model downloads",
+   "caption": "Download size of the PoseLandmarker variants, against the hand and face models already shipped (section 1, finding 1).",
+   "area": "body",
+   "doc": "docs/research/body-and-pace-research-map.md",
+   "data": [
+    {
+     "key": "Pose lite",
+     "value": 5.8,
+     "note": "default; 25-30 fps on a laptop CPU"
+    },
+    {
+     "key": "Pose full",
+     "value": 9.4
+    },
+    {
+     "key": "Pose heavy",
+     "value": 30.7,
+     "note": "about 5 fps in browser; not offered live"
+    },
+    {
+     "key": "Hand model",
+     "value": 7.8
+    },
+    {
+     "key": "Face model",
+     "value": 3.8
+    }
+   ],
+   "unit": "MB"
+  },
+  {
+   "id": "body-djogger",
+   "title": "D-Jogger phase coherence by strategy",
+   "caption": "Resultant vector length R of footfall phase against the music for runners, the acceptance numbers for the pace controller (section 1, finding 8).",
+   "area": "body",
+   "doc": "docs/research/body-and-pace-research-map.md",
+   "data": [
+    {
+     "key": "Tempo-matching only",
+     "value": 0.17
+    },
+    {
+     "key": "Plus in-phase start",
+     "value": 0.73
+    },
+    {
+     "key": "Plus phase nudging",
+     "value": 0.92,
+     "note": "nudge past +-30 degrees"
+    }
+   ],
+   "unit": "R",
+   "threshold": {
+    "value": 0.7,
+    "label": "fixture replay target at 30 Hz pose"
+   }
+  },
+  {
+   "id": "body-acf-channels",
+   "title": "Which signal carries the period",
+   "caption": "Autocorrelation r on real pose data for three candidate signals (section 1, finding 3, from the paces benchmark).",
+   "area": "body",
+   "doc": "docs/research/body-and-pace-research-map.md",
+   "data": [
+    {
+     "key": "Wrist y (position)",
+     "value": 0.37
+    },
+    {
+     "key": "Whole-body motion energy",
+     "value": 0.15
+    },
+    {
+     "key": "Wrist speed",
+     "value": 0.11
+    }
+   ],
+   "unit": "ACF r"
+  },
+  {
+   "id": "body-tempo-step",
+   "title": "Pulse follower after a tempo step",
+   "caption": "Seconds to settle after a synthetic tempo step, before and after the fast-window step detector (section 5.4).",
+   "area": "body",
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "data": [
+    {
+     "key": "1.2 to 1.0 s, before",
+     "value": 10.6
+    },
+    {
+     "key": "1.2 to 1.0 s, after",
+     "value": 3.6
+    },
+    {
+     "key": "1.0 to 1.2 s, before",
+     "value": 8.7
+    },
+    {
+     "key": "1.0 to 1.2 s, after",
+     "value": 3.8
+    },
+    {
+     "key": "0.8 to 0.64 s, before",
+     "value": 11.7
+    },
+    {
+     "key": "0.8 to 0.64 s, after",
+     "value": 2.8
+    }
+   ],
+   "unit": "s"
+  },
+  {
+   "id": "body-lead-se",
+   "title": "Standard error of each joint's measured lag",
+   "caption": "Standard error of the lag a Learn-my-timing take measures per joint, whole clip (section 5.2). A lag is kept only under 20 ms.",
+   "area": "body",
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "data": [
+    {
+     "key": "4-pattern trunk",
+     "value": 15
+    },
+    {
+     "key": "4-pattern elbow",
+     "value": 14
+    },
+    {
+     "key": "4-pattern wrist",
+     "value": 4
+    },
+    {
+     "key": "3-pattern trunk",
+     "value": 27
+    },
+    {
+     "key": "3-pattern elbow",
+     "value": 19
+    },
+    {
+     "key": "3-pattern wrist",
+     "value": 11
+    },
+    {
+     "key": "2-pattern trunk",
+     "value": 28
+    },
+    {
+     "key": "2-pattern elbow",
+     "value": 23
+    },
+    {
+     "key": "2-pattern wrist",
+     "value": 6
+    }
+   ],
+   "unit": "ms",
+   "threshold": {
+    "value": 20,
+    "label": "gate: standard error under 20 ms"
+   }
+  },
+  {
+   "id": "conductor-meter-fit",
+   "title": "Beat-strength fit against chance",
+   "caption": "R-squared of the split k = p mod N at the true N for the stroke strength feature, beside the 95th percentile of 400 shuffles; a clip is classified only when the fit beats chance (conducting-meter results table).",
+   "area": "conductor",
+   "doc": "docs/research/conducting-meter.md",
+   "data": [
+    {
+     "key": "hand 2/4 fit",
+     "value": 0.27
+    },
+    {
+     "key": "hand 2/4 chance",
+     "value": 0.96
+    },
+    {
+     "key": "hand 3/4 fit",
+     "value": 0.83
+    },
+    {
+     "key": "hand 3/4 chance",
+     "value": 0.56
+    },
+    {
+     "key": "hand 4/4 fit",
+     "value": 0.62
+    },
+    {
+     "key": "hand 4/4 chance",
+     "value": 0.63
+    },
+    {
+     "key": "wrist 2/4 fit",
+     "value": 0.49
+    },
+    {
+     "key": "wrist 2/4 chance",
+     "value": 0.3
+    },
+    {
+     "key": "wrist 3/4 fit",
+     "value": 0.09,
+     "note": "best N was 4"
+    },
+    {
+     "key": "wrist 3/4 chance",
+     "value": 0.23
+    },
+    {
+     "key": "wrist 4/4 fit",
+     "value": 0.06
+    },
+    {
+     "key": "wrist 4/4 chance",
+     "value": 0.23
+    }
+   ],
+   "unit": "R2"
+  },
+  {
+   "id": "conductor-system-latency",
+   "title": "Reported latency of conducting systems",
+   "caption": "Upper end of the latency or sync error reported in the survey (sections 1.6 and 1.9): conga profiles and the KTH dome installation.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "data": [
+    {
+     "key": "conga Up-Down profile",
+     "value": 122,
+     "note": "range 86-122 ms"
+    },
+    {
+     "key": "conga Four-Beat profile",
+     "value": 203,
+     "note": "range 107-203 ms"
+    },
+    {
+     "key": "KTH dome: bar-sync error",
+     "value": 190,
+     "note": "0.19 s; 2-4 beats to register a tempo change"
+    }
+   ],
+   "unit": "ms",
+   "threshold": {
+    "value": 30,
+    "label": "continuous-control JND upper end"
+   }
+  },
+  {
+   "id": "conductor-stretch-libs",
+   "title": "Time-stretch libraries by size",
+   "caption": "Gzipped size of the browser time-stretch candidates for pacing a recording (section 6.6 table). Rubber Band is GPL.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "data": [
+    {
+     "key": "web-audio-beat-detector (beat seed only)",
+     "value": 5.9,
+     "note": "MIT, offline"
+    },
+    {
+     "key": "@soundtouchjs/audio-worklet",
+     "value": 16.8,
+     "note": "MPL-2.0, WSOLA"
+    },
+    {
+     "key": "signalsmith-stretch",
+     "value": 47.6,
+     "note": "MIT, schedulable rate on audio clock"
+    },
+    {
+     "key": "rubberband-wasm (smallest build)",
+     "value": 116,
+     "note": "GPL or paid"
+    }
+   ],
+   "unit": "kB gz"
+  },
+  {
+   "id": "face-lighting-shift",
+   "title": "Lighting shifts the feature vector",
+   "caption": "Mean shift of the categorizer feature vector per synthetic lighting variant, in noise units (lighting table). Only a dim, noisy room moves it far.",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "data": [
+    {
+     "key": "sensor noise only",
+     "value": 7.8
+    },
+    {
+     "key": "about 1 EV darker",
+     "value": 10.5
+    },
+    {
+     "key": "overexposed",
+     "value": 7.6
+    },
+    {
+     "key": "low contrast",
+     "value": 7.2
+    },
+    {
+     "key": "warm (3000 K)",
+     "value": 10.1
+    },
+    {
+     "key": "cool (10000 K)",
+     "value": 5.7
+    },
+    {
+     "key": "half face in shadow",
+     "value": 13.1
+    },
+    {
+     "key": "dim and noisy (-1.5 EV)",
+     "value": 28.5
+    },
+    {
+     "key": "very dim and noisy (-2.5 EV)",
+     "value": 59.3
+    }
+   ],
+   "unit": "NU",
+   "threshold": {
+    "value": 12.5,
+    "label": "frame-to-frame distance (median)"
+   }
+  },
+  {
+   "id": "face-lighting-accuracy",
+   "title": "Five-category accuracy under lighting",
+   "caption": "Accuracy of a categorizer trained on the baseline (92 percent), per lighting variant (same table).",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "data": [
+    {
+     "key": "sensor noise only",
+     "value": 92
+    },
+    {
+     "key": "about 1 EV darker",
+     "value": 91
+    },
+    {
+     "key": "overexposed",
+     "value": 92
+    },
+    {
+     "key": "low contrast",
+     "value": 93
+    },
+    {
+     "key": "warm (3000 K)",
+     "value": 92
+    },
+    {
+     "key": "cool (10000 K)",
+     "value": 91
+    },
+    {
+     "key": "half face in shadow",
+     "value": 92
+    },
+    {
+     "key": "dim and noisy (-1.5 EV)",
+     "value": 88
+    },
+    {
+     "key": "very dim and noisy (-2.5 EV)",
+     "value": 85
+    }
+   ],
+   "unit": "%",
+   "threshold": {
+    "value": 92,
+    "label": "baseline accuracy"
+   }
+  },
+  {
+   "id": "face-dolly-distances",
+   "title": "Camera distance against category separation",
+   "caption": "Distances in noise units on the dolly fixture (35.5 to 17.6 cm): moving the camera alone exceeds the reject radius.",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "data": [
+    {
+     "key": "Far vs near (dolly)",
+     "value": 63.7
+    },
+    {
+     "key": "Rest vs smile",
+     "value": 156.7
+    },
+    {
+     "key": "Rest vs frown",
+     "value": 142.5
+    }
+   ],
+   "unit": "NU",
+   "threshold": {
+    "value": 52.7,
+    "label": "reject radius (2.5x rest spread)"
+   }
+  },
+  {
+   "id": "face-dolly-features",
+   "title": "Features that move most over the dolly",
+   "caption": "Per-feature move over the dolly, in noise units (distance table). A negative slope means the feature grows as the camera gets closer.",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "data": [
+    {
+     "key": "eye.wideLeft",
+     "value": 31.7,
+     "note": "r -0.85"
+    },
+    {
+     "key": "au5",
+     "value": 27.5,
+     "note": "r -0.81"
+    },
+    {
+     "key": "symmetry.smile",
+     "value": 20.0,
+     "note": "r -0.76"
+    },
+    {
+     "key": "eye.wideRight",
+     "value": 18.3,
+     "note": "r -0.62"
+    },
+    {
+     "key": "brow.outerUpLeft",
+     "value": 15.7,
+     "note": "r -0.67"
+    },
+    {
+     "key": "au2",
+     "value": 12.7,
+     "note": "r -0.57"
+    },
+    {
+     "key": "symmetry.browOuter",
+     "value": 12.6,
+     "note": "r 0.81"
+    },
+    {
+     "key": "au7",
+     "value": 9.7,
+     "note": "r 0.84"
+    },
+    {
+     "key": "eye.squintLeft",
+     "value": 9.5,
+     "note": "r 0.81"
+    },
+    {
+     "key": "brow.innerUp",
+     "value": 9.1,
+     "note": "r -0.78"
+    }
+   ],
+   "unit": "NU",
+   "threshold": {
+    "value": 3,
+    "label": "moves more than 3 NU counts (27 of 67 features)"
+   }
+  },
+  {
+   "id": "trainer-chip-vs-frames",
+   "title": "Open-smile chip ratio against the live frames",
+   "caption": "Quality chip ratio for the open smile before and after supporting frames, against the frames' own separation, for 4, 8 and 10 frame holds (result table).",
+   "area": "trainer",
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "data": [
+    {
+     "key": "4 f chip before",
+     "value": 2.88
+    },
+    {
+     "key": "4 f chip after",
+     "value": 2.41
+    },
+    {
+     "key": "4 f frames",
+     "value": 2.61
+    },
+    {
+     "key": "8 f chip before",
+     "value": 3.74,
+     "note": "graded DISTINCT"
+    },
+    {
+     "key": "8 f chip after",
+     "value": 2.59,
+     "note": "graded OK"
+    },
+    {
+     "key": "8 f frames",
+     "value": 2.78
+    },
+    {
+     "key": "10 f chip before",
+     "value": 3.35,
+     "note": "graded DISTINCT"
+    },
+    {
+     "key": "10 f chip after",
+     "value": 2.29
+    },
+    {
+     "key": "10 f frames",
+     "value": 2.51
+    }
+   ],
+   "unit": "ratio"
+  },
+  {
+   "id": "trainer-open-smile-live",
+   "title": "Open smile read as itself, live",
+   "caption": "Share of the open smile's frames the live readout reads as itself, by hold length; the smile reads as itself in 90 to 93 percent (result table).",
+   "area": "trainer",
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "data": [
+    {
+     "key": "4 f holds",
+     "value": 57
+    },
+    {
+     "key": "6 f holds",
+     "value": 47
+    },
+    {
+     "key": "8 f holds",
+     "value": 67
+    },
+    {
+     "key": "10 f holds",
+     "value": 43
+    }
+   ],
+   "unit": "%",
+   "threshold": {
+    "value": 90,
+    "label": "smile reads as itself (low end of 90-93)"
+   }
+  },
+  {
+   "id": "trainer-share-outside",
+   "title": "Share past the reject radius",
+   "caption": "Share of supporting frames past the reject radius, by category (section on #564). The sloppy flag is 0.25, provisional.",
+   "area": "trainer",
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "data": [
+    {
+     "key": "Smile, low end",
+     "value": 7
+    },
+    {
+     "key": "Smile, high end",
+     "value": 10
+    },
+    {
+     "key": "Open smile, low end",
+     "value": 33
+    },
+    {
+     "key": "Open smile, high end",
+     "value": 57
+    }
+   ],
+   "unit": "%",
+   "threshold": {
+    "value": 25,
+    "label": "sloppy threshold (provisional)"
+   }
+  },
+  {
+   "id": "air-guitar-enrol",
+   "title": "Air guitar: seconds of enrolment per chord vs accuracy (own footage only)",
+   "caption": "Softmax accuracy when a player enrols on their own footage, by seconds per chord, for the player with the close-up drills (for3v3rfaithful) and the lesson player (good-guitarist). Air-instruments section 6.3 enrolment table.",
+   "area": "air",
+   "doc": "docs/research/air-instruments.md",
+   "data": [
+    {
+     "key": "for3v3rfaithful, 2 s",
+     "value": 97.5,
+     "note": "C D G"
+    },
+    {
+     "key": "for3v3rfaithful, 5 s",
+     "value": 98.3
+    },
+    {
+     "key": "for3v3rfaithful, 10 s",
+     "value": 98.1
+    },
+    {
+     "key": "for3v3rfaithful, 20 s",
+     "value": 98.1
+    },
+    {
+     "key": "good-guitarist, 2 s",
+     "value": 89.4,
+     "note": "C D Em F G"
+    },
+    {
+     "key": "good-guitarist, 5 s",
+     "value": 94.1
+    },
+    {
+     "key": "good-guitarist, 10 s",
+     "value": 99.1
+    },
+    {
+     "key": "good-guitarist, 20 s",
+     "value": 99.6
+    }
+   ],
+   "unit": "%"
+  },
+  {
+   "id": "air-guitar-others",
+   "title": "Air guitar: enrolling on others plus own vs own only",
+   "caption": "Softmax accuracy at 2 s of enrolment per chord: training on the player alone against adding other players. Maebelle (a play-along with the fretting hand found in 11% of frames) stays near chance. Air-instruments section 6.3.",
+   "area": "air",
+   "doc": "docs/research/air-instruments.md",
+   "data": [
+    {
+     "key": "for3v3rfaithful, own only",
+     "value": 97.5
+    },
+    {
+     "key": "for3v3rfaithful, others + own",
+     "value": 72.3
+    },
+    {
+     "key": "good-guitarist, own only",
+     "value": 89.4
+    },
+    {
+     "key": "good-guitarist, others + own",
+     "value": 58.5
+    },
+    {
+     "key": "maebelle, own only",
+     "value": 15.8
+    },
+    {
+     "key": "maebelle, others + own",
+     "value": 15.4
+    }
+   ],
+   "unit": "%"
+  },
+  {
+   "id": "air-heldout",
+   "title": "Held-out player accuracy by instrument (pooled softmax)",
+   "caption": "Accuracy of the first model on a player it never saw: guitar chord shapes, bass fretting position and flute fingering. Air-instruments sections 6.3, 7.1 and 7.2.",
+   "area": "air",
+   "doc": "docs/research/air-instruments.md",
+   "data": [
+    {
+     "key": "Guitar chords (pooled)",
+     "value": 24.3
+    },
+    {
+     "key": "Bass position (pooled)",
+     "value": 10.2
+    },
+    {
+     "key": "Flute fingering (pooled)",
+     "value": 9.6
+    }
+   ],
+   "unit": "%"
+  },
+  {
+   "id": "air-drum-point",
+   "title": "Air drums: which tracked point finds the onsets (F at 70 ms)",
+   "caption": "F-measure at a 70 ms tolerance on the full-kit clip LCVliBvczG8 (817 onsets, 30 fps), raw, by the point followed. Air-instruments section 7.3. The first two rows differ in frames used: all frames, then only the frames where a hand was found.",
+   "area": "air",
+   "doc": "docs/research/air-instruments.md",
+   "data": [
+    {
+     "key": "Pose wrist, all frames",
+     "value": 36.8
+    },
+    {
+     "key": "Pose wrist, same frames",
+     "value": 25.6
+    },
+    {
+     "key": "Hand's wrist",
+     "value": 46.5
+    },
+    {
+     "key": "Index tip",
+     "value": 48.6
+    },
+    {
+     "key": "Stick tip",
+     "value": 50.1
+    }
+   ],
+   "unit": "%"
+  },
+  {
+   "id": "air-fingering-shapes",
+   "title": "Fingering charts: notes against distinct hand shapes",
+   "caption": "Number of finger patterns a camera could tell apart per encoded chart. The clarinet has 33 notes but only 9 shapes (throat tones and clarion look alike). Fingering-priors section 3.1 chart table.",
+   "area": "air",
+   "doc": "docs/research/fingering-priors-and-sequence-training.md",
+   "data": [
+    {
+     "key": "Boehm flute (37 notes)",
+     "value": 24
+    },
+    {
+     "key": "Soprano recorder, baroque (22 notes)",
+     "value": 11
+    },
+    {
+     "key": "Soprano recorder, German (22 notes)",
+     "value": 11
+    },
+    {
+     "key": "Bb clarinet (33 notes)",
+     "value": 9
+    },
+    {
+     "key": "Alto saxophone (32 notes)",
+     "value": 25
+    },
+    {
+     "key": "Oboe (27 notes)",
+     "value": 15
+    },
+    {
+     "key": "Tin whistle in D (14 notes)",
+     "value": 7
+    }
+   ],
+   "unit": "shapes"
+  },
+  {
+   "id": "harm-layout-reach",
+   "title": "Chord controls on offer: how many chords each layout reaches",
+   "caption": "Chords (or chord buttons) reachable in a key by each layout, as stated in the comparison table of section 3. Omnichord/Q-Chord lists 36 to 38 buttons (36 shown), Stradella 80 chord buttons.",
+   "area": "harmony",
+   "doc": "docs/research/chord-layouts.md",
+   "data": [
+    {
+     "key": "Video harmonic map",
+     "value": 7
+    },
+    {
+     "key": "Launchpad Chord Mode",
+     "value": 7
+    },
+    {
+     "key": "Diatonic circle of thirds",
+     "value": 7
+    },
+    {
+     "key": "GarageBand Smart Guitar",
+     "value": 8
+    },
+    {
+     "key": "InstaChord",
+     "value": 9
+    },
+    {
+     "key": "Autoharp 21-bar",
+     "value": 21
+    },
+    {
+     "key": "Circle-of-fifths wheel",
+     "value": 24
+    },
+    {
+     "key": "Tonnetz (all triads)",
+     "value": 24
+    },
+    {
+     "key": "Omnichord / Q-Chord",
+     "value": 36
+    },
+    {
+     "key": "Stradella bass",
+     "value": 80
+    }
+   ],
+   "unit": "chords"
+  },
+  {
+   "id": "harm-common-tones",
+   "title": "Common tones by diatonic step",
+   "caption": "Chord tones shared between two diatonic triads a step apart in a major key; this is why the map's third moves are the smoothest and its second moves move every voice. Harmony-relations section 2.4.",
+   "area": "harmony",
+   "doc": "docs/research/harmony-relations-and-realization.md",
+   "data": [
+    {
+     "key": "Third up (+2)",
+     "value": 2,
+     "note": "smoothest"
+    },
+    {
+     "key": "Third down (-2)",
+     "value": 2,
+     "note": "smoothest"
+    },
+    {
+     "key": "Fourth up (+3)",
+     "value": 1,
+     "note": "moderate"
+    },
+    {
+     "key": "Fourth down (-3)",
+     "value": 1,
+     "note": "moderate"
+    },
+    {
+     "key": "Second up (+1)",
+     "value": 0,
+     "note": "every voice moves"
+    },
+    {
+     "key": "Second down (-1)",
+     "value": 0,
+     "note": "every voice moves"
+    }
+   ],
+   "unit": "common tones"
+  },
+  {
+   "id": "harm-map-timing",
+   "title": "Chord map: selection timings",
+   "caption": "The chord map's choosing rules from section 6: two camera frames of dwell (about 67 ms at 30 fps), a 300 ms release hold, against the 150 to 250 ms dwell the literature gives for undoable selections (upper bound shown).",
+   "area": "harmony",
+   "doc": "docs/research/chord-layouts.md",
+   "data": [
+    {
+     "key": "Dwell to take over (2 frames at 30 fps)",
+     "value": 67
+    },
+    {
+     "key": "Release: chord keeps sounding",
+     "value": 300
+    }
+   ],
+   "unit": "ms",
+   "threshold": {
+    "value": 250,
+    "label": "upper dwell in the literature (Jacob 150 to 250 ms)"
+   }
+  },
+  {
+   "id": "gen-model-sizes",
+   "title": "In-browser generation: what a first enable downloads",
+   "caption": "Download sizes in MB for the options priced in section 4 (HTTP HEAD of the weight shards; wasm binaries for ONNX Runtime Web). MusicGen-small via transformers.js is about 656 MB and is left off the scale.",
+   "area": "generative",
+   "doc": "docs/design/generative-instruments.md",
+   "data": [
+    {
+     "key": "Piano Genie",
+     "value": 1.2
+    },
+    {
+     "key": "Coconet (bach)",
+     "value": 2.2
+    },
+    {
+     "key": "MusicRNN chord_pitches_improv",
+     "value": 5.6
+    },
+    {
+     "key": "MusicRNN drum_kit_rnn",
+     "value": 11.9
+    },
+    {
+     "key": "MusicRNN basic_rnn",
+     "value": 13.0
+    },
+    {
+     "key": "ONNX Runtime Web wasm (simd-threaded)",
+     "value": 13.6
+    },
+    {
+     "key": "GrooVAE humanize",
+     "value": 16.3
+    },
+    {
+     "key": "MusicVAE mel_2bar_small",
+     "value": 17.7
+    },
+    {
+     "key": "MusicVAE drums_2bar_lokl_small",
+     "value": 18.5
+    },
+    {
+     "key": "ONNX Runtime Web wasm (jsep/WebGPU)",
+     "value": 27.1
+    }
+   ],
+   "unit": "MB"
+  },
+  {
+   "id": "gen-lazy-main",
+   "title": "Main chunk before and after lazy-loading the Gemini SDK",
+   "caption": "Gzip size of the main chunk in kB: PR 3 moved @google/genai to an on-demand chunk (raw 1,193 kB to 929 kB). The SDK now lives in a 54 kB gzip chunk loaded on demand. Generative-instruments section 5d.",
+   "area": "generative",
+   "doc": "docs/design/generative-instruments.md",
+   "data": [
+    {
+     "key": "Main chunk before",
+     "value": 338
+    },
+    {
+     "key": "Main chunk after",
+     "value": 286
+    },
+    {
+     "key": "SDK chunk (on demand)",
+     "value": 54
+    }
+   ],
+   "unit": "kB gzip"
+  },
+  {
+   "id": "data-licences",
+   "title": "Datasets by licence class",
+   "caption": "How many of the 14 clip sets and datasets in the table fall in each licence or provenance class (the Other Commons body clips row counts once, with its mixed Creative Commons licences).",
+   "area": "datasets",
+   "doc": "docs/research/datasets.md",
+   "data": [
+    {
+     "key": "Creative Commons",
+     "value": 5
+    },
+    {
+     "key": "Not recorded (issue 417)",
+     "value": 2
+    },
+    {
+     "key": "Generated or code",
+     "value": 2
+    },
+    {
+     "key": "Maintainer's or player's own",
+     "value": 2
+    },
+    {
+     "key": "Made for this repository (AI clips)",
+     "value": 1
+    },
+    {
+     "key": "Standard YouTube licence (local only)",
+     "value": 1
+    },
+    {
+     "key": "Per source (ASL corpus)",
+     "value": 1
+    }
+   ],
+   "unit": "sets"
+  },
+  {
+   "id": "data-media-kept",
+   "title": "Datasets by whether the raw media is kept",
+   "caption": "Rows of the datasets table by the \"Raw media kept\" column: kept in the app-data dir (deletable), not kept, or left to the player or another repository.",
+   "area": "datasets",
+   "doc": "docs/research/datasets.md",
+   "data": [
+    {
+     "key": "Kept in app-data dir or gitignored (deletable)",
+     "value": 6
+    },
+    {
+     "key": "Not kept / no media",
+     "value": 6
+    },
+    {
+     "key": "Player's choice or other repo",
+     "value": 2
+    }
+   ],
+   "unit": "sets"
+  },
+  {
+   "id": "arch-ci-steps",
+   "title": "CI test job: where the time goes (ci.yml)",
+   "caption": "Average seconds per step of the typecheck/test/build job over 20 sampled runs. CI_COST.md, \"Where the time actually goes\".",
+   "area": "architecture",
+   "doc": "docs/CI_COST.md",
+   "data": [
+    {
+     "key": "Test (vitest)",
+     "value": 53.2
+    },
+    {
+     "key": "Build (vite)",
+     "value": 12.6
+    },
+    {
+     "key": "Typecheck (strict DAG)",
+     "value": 8.8
+    },
+    {
+     "key": "Install (npm ci)",
+     "value": 7.3
+    },
+    {
+     "key": "setup-node / checkout",
+     "value": 3.6
+    }
+   ],
+   "unit": "s"
+  },
+  {
+   "id": "arch-ci-cost",
+   "title": "What CI would cost per month if the repo were private",
+   "caption": "Extrapolated dollars per month by workflow from 18 days of runs (2026-09-09 to 09-27); total about 5.15 dollars. CI_COST.md.",
+   "area": "architecture",
+   "doc": "docs/CI_COST.md",
+   "data": [
+    {
+     "key": "ci.yml",
+     "value": 3.0
+    },
+    {
+     "key": "smoke.yml",
+     "value": 1.74
+    },
+    {
+     "key": "deploy.yml",
+     "value": 0.41
+    }
+   ],
+   "unit": "$/month"
+  },
+  {
+   "id": "arch-file-sizes",
+   "title": "Largest files at the architecture review (lines)",
+   "caption": "The giant files in finding V8 of the vertical-slices review, as measured at main 18b742d; the architecture ratchet only lets these numbers go down.",
+   "area": "architecture",
+   "doc": "docs/design/vertical-slices.md",
+   "data": [
+    {
+     "key": "canvas_overlay.ts",
+     "value": 2300
+    },
+    {
+     "key": "ext-faces sessionStore.ts",
+     "value": 1779
+    },
+    {
+     "key": "ext-air air_drum.ts",
+     "value": 1307
+    },
+    {
+     "key": "conductor.ts",
+     "value": 922
+    },
+    {
+     "key": "app/store.ts",
+     "value": 904
+    }
+   ],
+   "unit": "lines"
+  },
+  {
+   "id": "arch-feature-files",
+   "title": "Files a built-in feature touches (before slices)",
+   "caption": "Files mentioning each feature outside tests, from finding V2 of the vertical-slices review: the evidence that built-in features were spread horizontally.",
+   "area": "architecture",
+   "doc": "docs/design/vertical-slices.md",
+   "data": [
+    {
+     "key": "song",
+     "value": 32
+    },
+    {
+     "key": "conductor",
+     "value": 58
+    },
+    {
+     "key": "body",
+     "value": 74
+    }
+   ],
+   "unit": "files"
+  },
+  {
+   "id": "arch-lazy-asl",
+   "title": "Lazy ASL: what the player pays for",
+   "caption": "Sizes in kB from the lazy-extensions ADR: ASL code that sat in the 1.29 MB entry chunk before, the eager stubs after, and the deferred chunks (weights included) fetched on first use.",
+   "area": "architecture",
+   "doc": "docs/design/lazy-extensions.md",
+   "data": [
+    {
+     "key": "Stubs in initial chunks (after)",
+     "value": 4.6
+    },
+    {
+     "key": "ASL code in entry chunk (before)",
+     "value": 48
+    },
+    {
+     "key": "Weights (two JSON chunks)",
+     "value": 120
+    },
+    {
+     "key": "Deferred chunks incl. weights",
+     "value": 152
+    }
+   ],
+   "unit": "kB"
   }
  ],
  "diagrams": [
@@ -2161,6 +4102,318 @@
    "title": "Harmony as composable layers (#613)",
    "caption": "Every chord instrument is a chord model, a space of named relations, a harmonic state, a layout, a navigation, and a realization pipeline with a seam per aspect.",
    "mermaid": "flowchart TB\n  model[Chord model\\ntriads, sevenths, a scale's own chords]\n  rel[Space of relations\\nfifths, thirds, seconds, parallel, relative]\n  state[Harmonic state\\nkey, mode, current chord, clock]\n  layout[Layout\\nhex lattice, row by fifths, wheel]\n  nav[Navigation\\nhand pointing, MIDI in, microphone, conductor, face affect]\n  subgraph Realization\n    col[coloration] --> red[reduction] --> bass[bass] --> voi[voicing] --> fig[figuration]\n  end\n  render[Rendering\\nsynth, strum, pluck, orchestra]\n  model --> rel --> layout\n  nav --> state\n  layout --> nav\n  state --> col\n  fig --> render"
+  },
+  {
+   "id": "timing-three-objectives",
+   "title": "Actuality, intent, sounding good",
+   "caption": "The three objectives of section 3 and the three dials that expose the trade-off (timing magnetism, arbitration, sensitivity).",
+   "area": "timing",
+   "doc": "docs/research/intent-and-subframe-timing.md",
+   "mermaid": "flowchart LR\n  A[\"Movement (actuality)\"] --> S[\"Sensitivity gain\"]\n  S --> P[\"Prediction from partial stroke\"]\n  P --> R[\"Arbitration: confidence blends raw and predicted\"]\n  G[\"Rhythm prior grid (intent)\"] --> M[\"Timing magnetism: pull toward grid\"]\n  R --> M\n  M --> O[\"Onset that sounds\"]\n  O --> Q[\"Judged: does it sound off?\"]"
+  },
+  {
+   "id": "timing-rhythm-engine",
+   "title": "Rhythm inference engine",
+   "caption": "The layered sketch of section 6: anchors in, a latent musical-time state, a quantiser that renders the grid on its own clock.",
+   "area": "timing",
+   "doc": "docs/research/rhythm-from-gesture-research-map.md",
+   "mermaid": "flowchart TB\n  L[\"Gesture landmarks (30-60 Hz)\"] --> AD[\"AnchorDetector: sparse timing anchors with confidence\"]\n  AD --> RE[\"RhythmInferenceEngine: predict, then correct per anchor\"]\n  RP[\"RhythmPrior: oscillator or particle filter\"] -.-> RE\n  RE --> MT[\"MusicalTimeState: phase, tempo, meter, next-onset forecast\"]\n  MT --> Q[\"Quantizer plus GrooveModel\"]\n  Q --> ON[\"High-resolution onset grid on the audio clock\"]\n  FC[\"Frame clock corrects phase only\"] -.-> RE"
+  },
+  {
+   "id": "timing-predict-confirm",
+   "title": "Predict, confirm, learn",
+   "caption": "The impact predictor of section 2: commit once as late as allowed, never move it, then confirm and learn the floor and lag.",
+   "area": "timing",
+   "doc": "docs/research/subframe-impact-prediction.md",
+   "mermaid": "stateDiagram-v2\n  [*] --> Approach\n  Approach --> Committed: \"trusted fit, last chance for the required lead\"\n  Approach --> Reactive: \"too fast or too early to predict\"\n  Committed --> Confirmed: \"first sample past the bottom\"\n  Reactive --> Confirmed: \"late, scored as late\"\n  Confirmed --> Learned: \"two samples later, classify by rebound and update floor and lag\"\n  Confirmed --> Anchor: \"feed the rhythm prior\"\n  Learned --> Approach"
+  },
+  {
+   "id": "latency-pipeline",
+   "title": "Where the lag is made",
+   "caption": "The reactive path of section 1 and which stage a different language could touch.",
+   "area": "latency",
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "mermaid": "flowchart LR\n  H[\"Hand moves\"] --> W[\"Wait for frame: 16.7 ms mean\"]\n  W --> CAM[\"Camera hardware: not measurable in a page\"]\n  CAM --> ST[\"Stamp to inference: 4.1 ms\"]\n  ST --> INF[\"Hand inference: 20.5 ms (GPU)\"]\n  INF --> T[\"DAG tick: 0.27 ms\"]\n  T --> AU[\"Parameter write to speaker: 31.9 ms\"]\n  AU --> CP[\"Compressor look-ahead: 6 ms\"]\n  CP --> GL[\"Glide: 20.8 ms to half\"]\n  GL --> S[\"Pitch half-way: about 100 ms\"]"
+  },
+  {
+   "id": "latency-levers",
+   "title": "Levers that move the number",
+   "caption": "Section 4: the levers are architectural, not a change of language.",
+   "area": "latency",
+   "doc": "docs/research/latency-budget-and-browser-realtime.md",
+   "mermaid": "flowchart TB\n  L[\"Lag about 100 ms plus camera\"] --> A[\"Camera at 60 fps: halves the frame wait\"]\n  L --> B[\"Inference in a worker: steadier tick on 120 Hz displays\"]\n  L --> C[\"Smaller glide constant\"]\n  L --> D[\"Different limiter: removes 6 ms look-ahead\"]\n  L --> E[\"Anticipate the gesture: predict instead of react\"]\n  L --> X[\"Rust or WebAssembly rewrite: at most 0.3 ms\"]"
+  },
+  {
+   "id": "body-pace-controller",
+   "title": "The pace controller",
+   "caption": "Section 6.2: a song follows the dancer by period, phase nudging and confidence gating.",
+   "area": "body",
+   "doc": "docs/research/body-and-pace-research-map.md",
+   "mermaid": "flowchart TB\n  P[\"Dancer pulse: period and confidence\"] --> CG{\"Confidence above threshold?\"}\n  CG -- \"no\" --> HOLD[\"Hold the last rate\"]\n  CG -- \"yes\" --> RAT[\"Rate = ratio nearest 1 over octave multiples\"]\n  RAT --> SM[\"Smooth (about 1 s) and clamp to +-10 percent\"]\n  SM --> PH{\"Phase error beyond +-30 degrees?\"}\n  PH -- \"yes\" --> NU[\"Nudge rate by +-3 percent until closed\"]\n  PH -- \"no\" --> OUT[\"Playback rate\"]\n  NU --> OUT\n  HOLD --> OUT"
+  },
+  {
+   "id": "body-pulse-estimator",
+   "title": "From pose to pulse",
+   "caption": "Section 4: period from autocorrelation of positions, phase from impact anchors.",
+   "area": "body",
+   "doc": "docs/research/body-and-pace-research-map.md",
+   "mermaid": "flowchart LR\n  PS[\"Pose landmarks 30 Hz\"] --> CH[\"Per-channel positions and angles\"]\n  CH --> ACF[\"Autocorrelate; lags 0.3-3 s; top-k peaks\"]\n  ACF --> PER[\"Period, picked channel, confidence\"]\n  CH --> IMP[\"Deceleration envelope; peaks above median plus MAD; spacing 0.2 s\"]\n  IMP --> ANC[\"Impact anchors\"]\n  PER --> MT[\"MusicalTimeState via ictus\"]\n  ANC --> MT"
+  },
+  {
+   "id": "body-transport-states",
+   "title": "Transport from the body",
+   "caption": "Section 5.1: ready, start, hold and cut-off as a state machine over raise and motion.",
+   "area": "body",
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "mermaid": "stateDiagram-v2\n  [*] --> idle\n  idle --> armed: \"raised and still for 0.4 s\"\n  armed --> prepared: \"motion above upbeat threshold\"\n  prepared --> running: \"first anchor is the downbeat\"\n  running --> holding: \"no anchor for 1.5 stroke periods, raised and still\"\n  holding --> running: \"next stroke releases, prior restarts\"\n  running --> idle: \"dropped and still for 1 period (cut-off)\"\n  holding --> idle: \"dropped and still (cut-off)\"\n  running --> idle: \"arm unseen for 2 s (lost)\""
+  },
+  {
+   "id": "body-channel-measurement",
+   "title": "Which channel carries the beat",
+   "caption": "Section 2: channels, anchor events and levels scored against each fixture grid.",
+   "area": "body",
+   "doc": "docs/research/body-conducting-and-pose-categories.md",
+   "mermaid": "flowchart LR\n  CL[\"Fixture clips with beat grid\"] --> CHN[\"Body channels: trunk, head, hips, wrists, elbows, stride, sway, yaw\"]\n  CHN --> EV[\"Anchor events: turning point, directional impact, deceleration, acceleration\"]\n  EV --> LV[\"Levels: beat, half-bar, bar\"]\n  LV --> SC[\"Score: F, F after lag, circular R with Rayleigh p\"]\n  SC --> DEF[\"Defaults: trunk turning point at the beat, torso yaw at the bar\"]"
+  },
+  {
+   "id": "conductor-meter-method",
+   "title": "Testing a meter classifier",
+   "caption": "How the hand pattern was tested for 2, 3 or 4 beats per bar, and why it was closed as not viable.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-meter.md",
+   "mermaid": "flowchart TB\n  A[\"Stroke anchors from the follower\"] --> B[\"Integer beat index; rebounds dropped\"]\n  B --> F1[\"strength: excursion over recent envelope\"]\n  B --> F2[\"vertical: 1 / (1 + 3 |lateral|)\"]\n  F1 --> FIT[\"R2 of split k mod N, best phase, N in 2,3,4\"]\n  F2 --> FIT\n  FIT --> CH{\"Best N is the clip's and beats shuffle 95th percentile?\"}\n  CH -- \"yes\" --> OK[\"Classified\"]\n  CH -- \"no\" --> NO[\"Not classified\"]\n  NO --> V[\"Result: 1 of 3 clips per source for strength, 0 of 3 for vertical; PR 6 closed\"]"
+  },
+  {
+   "id": "conductor-state-machine",
+   "title": "The conductor state machine",
+   "caption": "Section 6.3: READY, the preparatory upbeat, RUNNING and HOLD around the tempo servo.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "mermaid": "stateDiagram-v2\n  [*] --> READY\n  READY --> RUNNING: \"preparatory upbeat\"\n  RUNNING --> HOLD: \"no ictus within 1.4 expected beats, or conservative fermata\"\n  HOLD --> RUNNING: \"next ictus\"\n  HOLD --> READY: \"stop\""
+  },
+  {
+   "id": "conductor-pacing-pll",
+   "title": "Pacing a recording",
+   "caption": "Section 6.7: a phase-locked loop between the conductor beat map and the song beat grid.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "mermaid": "flowchart LR\n  G[\"Conductor time-to-beat map and tempo\"] --> R0[\"Nominal ratio r0 = conductor tempo / song tempo\"]\n  S[\"Song beat grid and audio position\"] --> E[\"Phase error e in beats, at output timestamp\"]\n  G --> E\n  R0 --> SV[\"Servo: r = r0 + e / (song tempo times horizon)\"]\n  E --> SV\n  SV --> CL[\"Clamp the ratio\"]\n  CL --> ST[\"Stretcher rate scheduled on the audio clock\"]\n  ST --> S"
+  },
+  {
+   "id": "conductor-scheduler",
+   "title": "Pending-event scheduler",
+   "caption": "Section 6.3 and 7.3: events are committed only inside a short horizon and never moved.",
+   "area": "conductor",
+   "doc": "docs/research/conducting-and-virtual-orchestra-research-map.md",
+   "mermaid": "flowchart TB\n  TB[\"Estimator publishes time-to-beat map\"] --> T[\"Each frame: T = now + (B - beat now) / tempo\"]\n  T --> H{\"T inside horizon H = output latency + 2 frames?\"}\n  H -- \"no\" --> WAIT[\"Keep re-planning next frame\"]\n  H -- \"yes\" --> C[\"Commit note command at predicted time\"]\n  C --> NM[\"Committed starts are never moved\"]\n  WAIT --> T"
+  },
+  {
+   "id": "face-nuisance-decision",
+   "title": "Lighting and distance decisions",
+   "caption": "What the measurements decided: no lighting dial, a learned per-feature distance dial.",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "mermaid": "flowchart TB\n  Q[\"Nuisance: what moves the feature vector?\"] --> LI[\"Lighting\"]\n  Q --> DI[\"Camera distance\"]\n  LI --> L1[\"Ordinary changes: below a still face's jitter\"]\n  LI --> L2[\"Dim and noisy: differs by feature, person, frame\"]\n  L1 --> LD[\"No lighting dial\"]\n  L2 --> LW[\"Warn: too dark, add light or record again\"]\n  DI --> D1[\"Learn slope per feature against log face scale\"]\n  D1 --> D2{\"r2 at least 0.5?\"}\n  D2 -- \"yes\" --> D3[\"Subtract live, in proportion to the dial\"]\n  D2 -- \"no\" --> D4[\"Leave the feature alone\"]"
+  },
+  {
+   "id": "face-distance-dial",
+   "title": "How the distance dial is learned",
+   "caption": "The fitDistance procedure of the decision section: pooled within-category slopes against face scale.",
+   "area": "face",
+   "doc": "docs/research/face-categorizer-lighting-and-distance.md",
+   "mermaid": "flowchart LR\n  S[\"Samples held at several distances\"] --> F[\"Pooled within-category slope vs log face.head.scale\"]\n  F --> G[\"Keep features with r2 at least 0.5\"]\n  G --> M[\"Reference: the samples' mean scale\"]\n  M --> L[\"Live: subtract slope times scale offset, scaled by dial\"]\n  S -.-> N[\"One distance only: teaches nothing, the dial says so\"]"
+  },
+  {
+   "id": "trainer-carve-quality",
+   "title": "Carve quality chip",
+   "caption": "How the quality chip is built and what it still does not say (sections Method and #564).",
+   "area": "trainer",
+   "doc": "docs/research/carve-quality-vs-live.md",
+   "mermaid": "flowchart TB\n  T[\"Take: rest, then faces\"] --> H[\"Holds: mean of N frames, frames kept as support\"]\n  H --> M[\"trainModel in reject mode, features weighted by rest jitter\"]\n  M --> Q[\"carveQuality with supports: separation over spread\"]\n  M --> O[\"Share of support frames past the reject radius\"]\n  Q --> CH[\"Chip grade: distinct, ok, close\"]\n  O --> SL{\"Over 0.25?\"}\n  SL -- \"yes\" --> W[\"Chip words: often none of these\"]\n  SL -- \"no\" --> CH\n  M --> LIVE[\"Live readout: classify and liveMargin per frame\"]\n  LIVE -.-> CH"
+  },
+  {
+   "id": "trainer-pipeline",
+   "title": "Trainer pipeline",
+   "caption": "The five named seams of section 7, from the live feature vector to a bound command.",
+   "area": "trainer",
+   "doc": "docs/research/trainer-mode.md",
+   "mermaid": "flowchart LR\n  FV[\"Live feature vector\"] --> SA[\"Sample: velocity-gate, keep still-points\"]\n  SA --> CO[\"Condition: drop or residualise nuisance axes\"]\n  CO --> CA[\"Carve: hierarchy over still-points, cut at k\"]\n  CA --> RJ[\"Reject: threshold tau, no-man's-land, hysteresis\"]\n  RJ --> BI[\"Bind: category to command via registry\"]"
+  },
+  {
+   "id": "trainer-enrollment",
+   "title": "Guided enrollment ritual",
+   "caption": "The four movements of section 10.5, about 60-90 seconds in total.",
+   "area": "trainer",
+   "doc": "docs/research/trainer-mode.md",
+   "mermaid": "flowchart TB\n  S1[\"1 Rest: relax 5 s\"] --> B1[\"Neutral centroid and reject threshold seed\"]\n  S2[\"2 Range: look and tilt each way\"] --> B2[\"Per-player pose boundaries\"]\n  S3[\"3 Nuisance: hold a face, move closer then further\"] --> B3[\"Invariance demonstration\"]\n  S4[\"4 Vocabulary: make reliable faces, hold each\"] --> B4[\"Still-points to cluster; k chosen afterwards\"]\n  S1 --> S2 --> S3 --> S4\n  B4 --> C[\"Coverage meter flags categories the model cannot separate\"]"
+  },
+  {
+   "id": "trainer-sources",
+   "title": "Two regimes for examples",
+   "caption": "Section 3: supervised demonstration against unsupervised carving, and the recommended hybrid.",
+   "area": "trainer",
+   "doc": "docs/research/trainer-mode.md",
+   "mermaid": "flowchart TB\n  A[\"Regime A: demonstrate each category (Wekinator, Teachable Machine)\"] --> C[\"Confirmation\"]\n  B[\"Regime B: unsupervised carving of still-points\"] --> D[\"Discovery\"]\n  D --> H[\"Hierarchy built once\"]\n  H --> K[\"Count k is a view: cut after the fact\"]\n  K --> C\n  C --> M[\"Model with reject region\"]"
+  },
+  {
+   "id": "air-footage-pipeline",
+   "title": "The air-instrument footage pipeline",
+   "caption": "Five idempotent steps from section 5; the join takes two seams, a featurize function and a label function, which the next instruments reuse. Derived data stays in the app-data dir, never in the repository.",
+   "area": "air",
+   "doc": "docs/research/air-instruments.md",
+   "mermaid": "flowchart LR\n  A[\"fetch (yb, 1080p cap)\"] --> B[\"extract landmarks (MediaPipe scripts)\"]\n  A --> L[\"label from audio (chord decoder)\"]\n  B --> J[\"join\"]\n  L --> J\n  S[\"source list (Zod, committed)\"] -.-> A\n  J --> T[\"train (softmax / centroid)\"]\n  T --> R[\"held-out player scoring\"]\n  J -. \"featurize seam: frame to vector\" .-> J\n  J -. \"labelOf seam: time to label\" .-> J"
+  },
+  {
+   "id": "air-fingering-prior",
+   "title": "Fingering chart as a Bayesian prior over enrolled notes",
+   "caption": "Section 4: the chart gives an expected curl per finger; the player's enrolment pulls it by a conjugate update worth 10 pseudo-samples, and checkTake judges a held note against its nearest rival.",
+   "area": "air",
+   "doc": "docs/research/fingering-priors-and-sequence-training.md",
+   "mermaid": "flowchart TD\n  C[\"fingering chart (one bit per finger)\"] --> E[\"expected curl per finger\"]\n  AN[\"anchors: default up 0.5, down 2.4\"] --> E\n  EN[\"player enrolment samples\"] --> CAL[\"calibrateAnchors\"]\n  CAL --> AN\n  E --> P[\"posterior mean = (strength*chart + n*x)/(strength+n)\"]\n  EN --> P\n  P --> M[\"trainModel: ordinary TrainedModel\"]\n  M --> K[\"classifier + tracker\"]\n  K --> W[\"checkTake: margin 0.5 vs nearest other class\"]\n  W --> R[\"ok / mismatch / unknown\"]"
+  },
+  {
+   "id": "air-drum-fit",
+   "title": "Drum pattern training: from a take to a pattern model",
+   "caption": "Section 5 of the drum-pattern design: tempo and phase scan, strict then identity-based assignment, then feel and positions per pass, stored as a model that playback snaps and humanises.",
+   "area": "air",
+   "doc": "docs/research/drum-pattern-training.md",
+   "mermaid": "flowchart TD\n  P[\"pattern grid (kick x...x...)\"] --> S[\"ScoreDoc, percussion part\"]\n  S --> V[\"strip + cursor, count-in click\"]\n  V --> TK[\"take: DrumHit stream (4 passes)\"]\n  TK --> F1[\"1 phase and tempo scan 70 to 130 percent\"]\n  F1 --> F2[\"2 assign hits to events (strict, then by drum identity)\"]\n  F2 --> F3[\"3 feel: offset per event vs each pass's own line\"]\n  F2 --> F4[\"4 positions: pad and mean landing per drum\"]\n  F3 --> MD[\"PatternModel (zodal record)\"]\n  F4 --> MD\n  F1 --> MD\n  MD --> PL[\"playback: RhythmPrior + magnet at full pull\"]\n  PL --> OUT[\"snapped and humanised hits\"]"
+  },
+  {
+   "id": "harm-layers",
+   "title": "The harmonic layers",
+   "caption": "Design record: a chord instrument is seven separable parts. Navigation turns input features into an intent, state tracks key and chord, realization turns a chord into notes (five aspects), and rendering emits voices, MIDI or pictures.",
+   "area": "harmony",
+   "doc": "docs/design/harmonic-layers.md",
+   "mermaid": "flowchart LR\n  CH[\"1 Chord (vocabulary)\"] --> SP[\"2 Space (relations graph)\"]\n  SP --> ST[\"3 State (key, chord, pending)\"]\n  IN[\"input features (hand, face, MIDI, audio)\"] --> NAV[\"5 Navigation (choose or move)\"]\n  LAY[\"4 Layout (screen positions)\"] --> NAV\n  ST --> LAY\n  NAV -- \"intent + time\" --> ST\n  ST --> REAL\n  subgraph REAL[\"6 Realization\"]\n    direction LR\n    CO[\"coloration\"] --> RE[\"reduction\"] --> BA[\"bass\"] --> VO[\"voicing\"] --> FI[\"figuration\"]\n  end\n  REAL --> REN[\"7 Rendering (synth, MIDI, orchestra, overlay)\"]"
+  },
+  {
+   "id": "harm-chordmap-select",
+   "title": "Chord map: choosing a chord with a hand",
+   "caption": "Section 6: a new chord must win two frames of dwell and be nearer its centre than the sounding chord by 0.12 cell widths (hysteresis); a chord keeps sounding 0.3 s after the hand leaves.",
+   "area": "harmony",
+   "doc": "docs/research/chord-layouts.md",
+   "mermaid": "stateDiagram-v2\n  [*] --> Silent\n  Silent --> Candidate: \"hand over a cell\"\n  Candidate --> Sounding: \"2 frames dwell\"\n  Candidate --> Silent: \"hand leaves\"\n  Sounding --> Candidate: \"other cell nearer by 0.12 cell widths\"\n  Sounding --> Releasing: \"hand leaves\"\n  Releasing --> Sounding: \"hand returns\"\n  Releasing --> Silent: \"after 0.3 s\""
+  },
+  {
+   "id": "harm-diatonic-steps",
+   "title": "Diatonic moves of the harmonic map",
+   "caption": "Section 2.4 of the relations research: the three axes of the lattice are scale-step moves; each of the 7 chords has the other six as neighbours.",
+   "area": "harmony",
+   "doc": "docs/research/harmony-relations-and-realization.md",
+   "mermaid": "flowchart LR\n  C[\"chord\"] -- \"row: fourth up (+3), 1 common tone\" --> F[\"chord +3\"]\n  C -- \"down-right: third up (+2), 2 common tones\" --> T[\"chord +2\"]\n  C -- \"down-left: second down (-1), 0 common tones\" --> S[\"chord -1\"]"
+  },
+  {
+   "id": "asl-pipeline",
+   "title": "The ASL plugin pipeline",
+   "caption": "Drawn from the repo CLAUDE.md ASL row and test/asl: webcam hands feed the asl-signs node, whose CategoryScores reach core's generic category cues; the ASL Chords instrument adds sign-chord through the letter-to-degree rule.",
+   "area": "asl",
+   "doc": "docs/research/asl-recognition.md",
+   "mermaid": "flowchart LR\n  CAM[\"webcam-hands\"] --> SIGNS[\"asl-signs node (recogniser + weights)\"]\n  SIGNS -- \"CategoryScores\" --> OV[\"canvas-overlay: categoryLabel, categoryBars\"]\n  SIGNS --> CH[\"sign-chord node\"]\n  CH -- \"letterDegree (core SDK theory)\" --> VOICE[\"chord voice (D major)\"]\n  subgraph PLUGIN[\"thoremin-asl plugin (lazy)\"]\n    SIGNS\n    CH\n  end\n  subgraph CORE[\"thoremin core\"]\n    CAM\n    OV\n    VOICE\n  end"
+  },
+  {
+   "id": "asl-lifecycle",
+   "title": "From plugin repository to a sign on screen",
+   "caption": "The plugin lives in its own repo, is pinned by commit in package.json, named in extensions.json as lazy, and its nodes load only when a composed graph names asl-signs; training uses only MIT-licensed sources.",
+   "area": "asl",
+   "doc": "docs/research/asl-recognition.md",
+   "mermaid": "flowchart TD\n  R[\"thoremin-asl repo: extension, recogniser, weights, Python training\"] --> PIN[\"pinned sha in package.json\"]\n  PIN --> X[\"extensions.json lazy entry (stubs: dial, seeds, provides)\"]\n  PLAYER[\"player picks ASL Viewer or ASL Chords\"] --> DIAL[\"asl.enabled dial\"]\n  DIAL --> DERIVE[\"derive names asl-signs branch\"]\n  DERIVE --> LOAD[\"import() of deferred half\"]\n  X --> LOAD\n  LOAD --> ENG[\"engine applyGraph with asl-signs\"]\n  TR[\"training data: MIT sources only; research-only sets test-only\"] -.-> R"
+  },
+  {
+   "id": "asl-instruments",
+   "title": "The two ASL instruments",
+   "caption": "What test/asl/instruments.test.ts pins: the viewer is video only with the reader and no hand or chord voices; the chords instrument composes the chord branch in D major and emits a reading.",
+   "area": "asl",
+   "doc": "docs/research/asl-recognition.md",
+   "mermaid": "flowchart TD\n  subgraph V[\"ASL Viewer\"]\n    V1[\"webcam-hands\"] --> V2[\"asl-signs\"] --> V3[\"overlay category cues\"]\n  end\n  subgraph K[\"ASL Chords (D major)\"]\n    K1[\"webcam-hands\"] --> K2[\"asl-signs\"] --> K3[\"sign-chord\"] --> K4[\"chord branch voice\"]\n    K2 --> K5[\"overlay: reading + chord captions\"]\n  end"
+  },
+  {
+   "id": "gen-lyria-session",
+   "title": "A Lyria RealTime session",
+   "caption": "Sequence from the music-generation and live-music docs: a bidirectional WebSocket, weighted prompts and config sent as they change, audio chunks back; bpm or scale changes need reset_context; control latency is at most 2 s.",
+   "area": "generative",
+   "doc": "docs/lyria-docs/music-generation.md",
+   "mermaid": "sequenceDiagram\n  participant App as \"thoremin lyria node\"\n  participant S as \"Lyria RealTime (WebSocket)\"\n  App->>S: \"connect (model lyria-realtime-exp)\"\n  App->>S: \"set_weighted_prompts\"\n  App->>S: \"set_music_generation_config (bpm, density, brightness)\"\n  App->>S: \"play\"\n  S-->>App: \"audio chunks (48 kHz stereo 16-bit PCM)\"\n  App->>S: \"new weighted prompts (smooth transition)\"\n  App->>S: \"bpm or scale change, then reset_context\"\n  S-->>App: \"audio resumes (up to 2 s control latency)\""
+  },
+  {
+   "id": "gen-steering",
+   "title": "Gesture-steered generation in the DAG",
+   "caption": "Design sections 3a and 6: the indirect-map node turns hand and face features into prompt weights and config dials; the lyria node diffs and throttles them to the engine; the transport is a keybinding, never a command.",
+   "area": "generative",
+   "doc": "docs/design/generative-instruments.md",
+   "mermaid": "flowchart LR\n  F[\"hand and face features\"] --> IM[\"indirect-map\"]\n  D[\"steer.enabled dial + steerConfig port\"] --> IM\n  IM -- \"weighted prompts + config\" --> LY[\"lyria node (throttle, diff, tempo reset)\"]\n  KEY[\"BYO Gemini key\"] --> EN[\"LyriaEngine (lazy)\"]\n  LY --> EN\n  EN --> AU[\"Web Audio: scheduled ahead\"]\n  P[\"p key: steerPlaying\"] -. \"not a command\" .-> LY\n  LY -- \"status: off, loading, ready, active, error\" --> UI[\"status readout\"]"
+  },
+  {
+   "id": "gen-phases",
+   "title": "Heavy-node status phases",
+   "caption": "The shared phase vocabulary of the lazy-loading pattern (section 5b): every heavy node reports where it is, and an unavailable host gives a reason instead of a dead toggle.",
+   "area": "generative",
+   "doc": "docs/design/generative-instruments.md",
+   "mermaid": "stateDiagram-v2\n  [*] --> off\n  off --> loading: \"enabled\"\n  off --> unavailable: \"enabled but no key or unsupported\"\n  loading --> ready: \"loaded\"\n  loading --> error: \"load failed\"\n  ready --> active: \"doing its job\"\n  active --> ready: \"stopped\"\n  error --> loading: \"re-enable retries\"\n  ready --> off: \"disabled\""
+  },
+  {
+   "id": "data-lifecycle",
+   "title": "Where a clip's data goes",
+   "caption": "The rule behind the table: every downloaded video keeps all its landmark streams with a meta.json; the video is deletable; only redistributable-licence fixtures are committed.",
+   "area": "datasets",
+   "doc": "docs/research/datasets.md",
+   "mermaid": "flowchart TD\n  SRC[\"source video (URL, licence)\"] --> EXT[\"extract pose, hands, face (gzipped NDJSON)\"]\n  EXT --> META[\"meta.json: source URL, licence, labels and their origin, extractor, model\"]\n  SRC --> VID[\"video file\"]\n  EXT --> LIC{\"licence allows redistribution?\"}\n  LIC -- \"yes\" --> FIX[\"committed fixture under test/fixtures\"]\n  LIC -- \"no\" --> APP[\"app-data dir: landmarks/ and meta (never committed)\"]\n  VID --> DEL[\"deletable once streams exist\"]\n  META --> FIX\n  META --> APP\n  NUM[\"measured numbers\"] --> CSV[\"may be committed (docs/research/data)\"]"
+  },
+  {
+   "id": "arch-signal-flow",
+   "title": "The default signal path as roles",
+   "caption": "The roles of the default instrument. This is a narrative, not a stack: the engine is a DAG with fan-out and a merge sink, and a node sees only what it is wired to.",
+   "area": "architecture",
+   "doc": "docs/ARCHITECTURE.md",
+   "mermaid": "flowchart LR\n  IN[\"Input: webcam-hands, webcam-face, store-controls\"] --> FE[\"Feature: hand-features, face-features, expression\"]\n  FE --> MAP[\"Mapping: voice-mapping (direct), indirect-map\"]\n  MAP --> ML[\"Music logic: scale snap, chords\"]\n  ML --> SY[\"Synthesis: webaudio-synth, lyria\"]\n  SY --> OUT[\"Output: audio, canvas-overlay, midi-out\"]\n  FE --> OUT"
+  },
+  {
+   "id": "arch-command-path",
+   "title": "The command dispatch path",
+   "caption": "Every param mutation is an acture command; consumers dispatch into one registry, which writes a dial. The firewall test keeps commands away from the hot store, DAG and audio; a dragged range slider is the one deliberate bypass.",
+   "area": "architecture",
+   "doc": "docs/design/command-dispatch.md",
+   "mermaid": "flowchart TD\n  KB[\"keyboard (tinykeys)\"] --> REG\n  PAL[\"palette (Cmd/Ctrl-K)\"] --> REG\n  AI[\"AI assistant\"] --> GATE[\"confirmation gate (assistant channel)\"]\n  GATE -- \"destructive: human approval token\" --> REG\n  PAN[\"settings panels: dispatchDialSet, SetIn, Patch\"] --> REG\n  GES[\"gestures\"] --> REG\n  REG[\"registry.dispatch\"] --> DIAL[\"write a dial (Zod validated)\"]\n  SLIDER[\"range slider being dragged\"] -. \"Decision B: direct setDial\" .-> DIAL\n  DIAL --> STORE[\"zustand store\"]\n  STORE --> TICK[\"read each tick by the DAG\"]"
+  },
+  {
+   "id": "arch-lazy-sequence",
+   "title": "Lazy extension loading",
+   "caption": "Section 4 of the ADR: the trigger is a composed graph naming a pending node type; only the latest request commits, and a failed load plays on without the extension.",
+   "area": "architecture",
+   "doc": "docs/design/lazy-extensions.md",
+   "mermaid": "sequenceDiagram\n  participant P as \"Player\"\n  participant D as \"Dials and derive\"\n  participant L as \"lazyApply\"\n  participant R as \"Registry\"\n  participant E as \"Engine\"\n  P->>D: \"pick ASL instrument (asl.enabled)\"\n  D->>L: \"composed spec names asl-signs\"\n  L->>R: \"pending types? ensure(types)\"\n  R-->>L: \"import() of deferred half\"\n  alt \"loaded\"\n    L->>E: \"applyGraph (latest request only)\"\n  else \"failed\"\n    L->>E: \"applyGraph without those branches\"\n    L-->>P: \"toast + Reload button\"\n  end"
+  },
+  {
+   "id": "arch-slices",
+   "title": "Five layers, with features as slices",
+   "caption": "Target architecture of the vertical-slices review: every feature, built-in or external, is one slice contributing through the same Extension / ExtensionUi contract at the fold points.",
+   "area": "architecture",
+   "doc": "docs/design/vertical-slices.md",
+   "mermaid": "flowchart TD\n  SH[\"5 App shell (fold points: host/contributions)\"] --> SL\n  subgraph SL[\"4 Feature slices\"]\n    S1[\"conductor\"]\n    S2[\"body\"]\n    S3[\"song\"]\n    S4[\"midi-output\"]\n    S5[\"generative\"]\n    S6[\"external: ASL (lazy)\"]\n  end\n  SL --> DL[\"3 Shared domain libraries (sdk, ictus, stats)\"]\n  SL --> CT[\"2 Contracts (schemas, ports, Extension)\"]\n  DL --> K[\"1 Kernel (packages/dag)\"]\n  CT --> K"
+  },
+  {
+   "id": "arch-applier",
+   "title": "The Stream Applier",
+   "caption": "The engine is the computation; the Applier applies it to a SourceSet under a Clock with taps and sinks. The live app and the headless runner are two configs of it.",
+   "area": "architecture",
+   "doc": "docs/design/stream-applier.md",
+   "mermaid": "flowchart LR\n  SRC[\"Source: webcam, replayed video, NDJSON, generator\"] --> AP\n  CLK[\"Clock: realtime or paced, speed multiplier\"] --> AP\n  AP[\"Applier\"] --> ENG[\"Engine (DAG)\"]\n  ENG --> TAP[\"taps: recorder\"]\n  ENG --> SNK[\"sinks: view, audio\"]\n  ENG -- \"StateReader feedback\" --> SRC\n  AP -. \"config\" .- LIVE[\"useEngine (live)\"]\n  AP -. \"config\" .- HEAD[\"runHeadless (tests)\"]"
+  },
+  {
+   "id": "arch-test-tiers",
+   "title": "The four test tiers",
+   "caption": "Tiers 1 to 3 are the CI gate in Node with no camera; tier 4 produces the landmark fixtures that tiers 2 and 3 replay.",
+   "area": "architecture",
+   "doc": "docs/TESTING.md",
+   "mermaid": "flowchart LR\n  T1[\"1 pure-function unit tests\"] --> GATE[\"CI gate: npm test\"]\n  T2[\"2 node-from-replay tests\"] --> GATE\n  T3[\"3 headless graph tests\"] --> GATE\n  T4[\"4 end-to-end from video (manual or nightly)\"] -- \"produces fixtures\" --> FX[\"landmark fixtures\"]\n  FX --> T2\n  FX --> T3"
+  },
+  {
+   "id": "arch-mapping-spectrum",
+   "title": "The direct to indirect mapping spectrum",
+   "caption": "One configurable mapping stage across a continuum: direct gestures to parameters, face-chosen chords in the middle, and gestures that steer a generative model at the indirect end.",
+   "area": "architecture",
+   "doc": "docs/MAPPING_SPECTRUM.md",
+   "mermaid": "flowchart LR\n  A[\"Direct: x to pitch, y to volume (voice-mapping, wired)\"] --> B[\"Middle: expression to chord, pose to chord (wired)\"] --> C[\"Indirect: features to weighted prompts (indirect-map to lyria)\"]"
   }
  ],
  "ignoreDocs": [

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, type GuideConfig } from './config';
 import { renderChart } from './charts';
 import { GuideDataSchema, PrivateDataSchema, type DocEntry, type GuideData, type PrivateData } from './schema';
-import { docPage, renderDecisions, renderDoc, renderExperiments, renderHorizon, renderIndex, renderResearch, slugOf, type GuideModel } from './render';
+import { docPage, esc, renderDecisions, renderDoc, renderExperiments, renderHorizon, renderIndex, renderResearch, renderTimeline, slugOf, type GuideModel } from './render';
 import { loadGitHub, privateDocs, repoDocs, resolveDocPath } from './sources';
 import { readState, reportLines, staleness, writeState, type GuideState } from './staleness';
 
@@ -73,6 +73,7 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     disk, entries, decisions: data.decisions, gh, ignore: [...data.ignoreDocs, ...priv.ignoreDocs],
   });
 
+  const charts = [...data.charts, ...priv.charts];
   rmSync(cfg.out, { recursive: true, force: true });
   mkdirSync(join(cfg.out, 'doc'), { recursive: true });
   const model: GuideModel = {
@@ -81,7 +82,9 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     experiments: [...data.experiments, ...priv.experiments],
     ideas: [...data.ideas, ...priv.ideas],
     disk: new Map(disk.map((d) => [d.path, d])),
-    charts: new Map(data.charts.map((c) => [c.id, `<figure>${renderChart(c)}<figcaption class="meta">${c.caption}</figcaption></figure>`])),
+    charts,
+    chartHtml: new Map(charts.map((c) => [c.id, `<figure>${renderChart(c)}<figcaption class="meta">${esc(c.caption)}</figcaption></figure>`])),
+    diagrams: [...data.diagrams, ...priv.diagrams],
     annals: priv.annals,
     figures: copyFigures(entries, cfg, cfg.out),
     builtAt: next.builtAt!,
@@ -91,6 +94,7 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
     'research.html': renderResearch(model),
     'experiments.html': renderExperiments(model),
     'decisions.html': renderDecisions(model),
+    'timeline.html': renderTimeline(model),
     'horizon.html': renderHorizon(model),
   };
   for (const d of disk) pages[docPage(d.path)] = renderDoc(model, d, readFileSync(d.abs, 'utf8'));
@@ -99,10 +103,12 @@ export function build({ offline = false, out }: { offline?: boolean; out?: strin
   return { out: cfg.out, lines: reportLines(report), state: next, cfg };
 }
 
-/** Publish the built site to annals: in place (`--replace`) when annals supports it and the guide was published before. */
-export function publish({ out, state, cfg }: BuildResult): { url: string; id?: string } {
+/** Publish the built site to annals: in place (`--replace`) when annals supports it and the guide was published before, so the owner keeps one link. */
+export function publish({ out, state, cfg }: BuildResult, { replace: target }: { replace?: string } = {}): { url: string; id?: string } {
   const help = execFileSync('annals', ['publish', '--help'], { encoding: 'utf8' });
-  const replace = state.annalsId && help.includes('--replace') ? ['--replace', state.annalsId] : [];
+  // The document to replace: named by the caller, else by the environment (a machine with no state yet), else the last publish.
+  const existing = target ?? process.env.THOREMIN_GUIDE_ANNALS ?? state.annalsUrl ?? state.annalsId;
+  const replace = existing && help.includes('--replace') ? ['--replace', existing] : [];
   const args = ['publish', out, '--session', cfg.session, '--title', 'thoremin research guide', '--tags', 'thoremin,research-guide', ...replace];
   const printed = execFileSync('annals', args, { encoding: 'utf8' });
   const url = printed.match(/https?:\/\/\S+/)?.[0] ?? printed.trim();
