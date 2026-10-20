@@ -115,3 +115,18 @@ test.describe('every settings section is reachable from a cold load', () => {
     await expect(generative.getByRole('button', { name: 'Play' })).toBeDisabled();
   });
 });
+
+test.describe('the player guide is reachable (shipping rule 4)', () => {
+  test('an instrument\'s editor links to its own guide page, which the app serves', async ({ page }) => {
+    await page.goto(SYNTHETIC);
+    await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
+    await page.getByRole('button', { name: /^Edit Air Drum/ }).first().click();
+    const link = page.getByTestId('guide-link');
+    await expect(link).toBeVisible();
+    expect(await link.getAttribute('data-own')).toBe('true');
+    const href = await link.getAttribute('href');
+    expect(href).toBe('guide/instruments/air-drum.html');
+    const res = await page.request.get(new URL(href!, page.url()).toString());
+    expect(res.status(), `${href} is served`).toBe(200);
+  });
+});

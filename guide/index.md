@@ -18,8 +18,8 @@ No camera? Add `?slot.source=synthetic-hands` to the address and a pretend hand 
 - **[Air instruments](area:air)**: strike a drum, pluck a bass, strum a guitar, blow a flute, at nothing.
 - **[Chords and harmony](area:chords)**: point at chords on a map or a wheel instead of notes.
 - **[Sign instruments](area:sign)**: fingerspell and see or hear the letters.
-- **Conduct and dance**: the [Conductor](tool:conductor) follows your beat; the [Song](tool:song) follows your pulse.
-- **Teach it yourself**: [Your faces](tool:faces), [Your hand shapes](tool:hand-shapes) and [Your poses](tool:poses) learn the faces, shapes and poses you can make.
+- **[Conduct and dance](conduct-and-dance.html)**: the [Conductor](tool:conductor) follows your beat; the [Song](tool:song) follows your pulse.
+- **[Teach it yourself](teach-it-yourself.html)**: [Your faces](tool:faces), [Your hand shapes](tool:hand-shapes) and [Your poses](tool:poses) learn the faces, shapes and poses you can make.
 
 :::details How the guide is arranged
 Each page starts with what to do, in three lines. "How it works" and "Settings" are folded away until you want them. The [instruments](instruments.html) and the [tools](tools.html) each have a page; the [settings](settings.html) page explains every section of the instrument editor; and [the manual](manual:) lists every knob.

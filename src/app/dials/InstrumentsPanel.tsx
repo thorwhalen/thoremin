@@ -49,9 +49,7 @@ import { useDialsSettings } from './useDialsSettings';
 import { useLibrary } from '@/app/library/useLibrary';
 import InstrumentTags from '@/app/library/InstrumentTags';
 import TagsEditor from '@/app/library/TagsEditor';
-import { TrainingLink } from '@/app/training/TrainingLink';
-import { GuideLink } from '@/app/guide/GuideLink';
-import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { EditorLinks } from '@/app/guide/EditorLinks';
 import TagManager from '@/app/library/TagManager';
 import { summaryLines } from '@/app/library/summarize';
 import { INSTRUMENT_CATALOG, airInstrumentsOf, classOfEntry, groupByCategory, type AirInstrumentId } from '@/app/library/category';
@@ -70,9 +68,6 @@ const classColour = (id: string): string => INSTRUMENT_CLASSES.find((c) => c.id 
 import { layerToSettings } from '@/settings/dials';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import type { ExtensionPanel } from '@thoremin/sdk-ui/types';
-
-/** The shipped instruments' names: the ones the player guide has its own page for. */
-const SHIPPED_NAMES: ReadonlySet<string> = new Set(SEED_INSTRUMENTS.map((s) => s.name));
 
 const cardFrame =
   'shell-instruments-card absolute right-3 top-3 flex max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-black/60 backdrop-blur';
@@ -464,17 +459,7 @@ export default function InstrumentsPanel() {
           )}
           <div className="border-t border-white/10 pt-3">
             {/* #263/#269: where this instrument's training lives, from its spec. */}
-            {selected && (
-              <div className="mb-2">
-                <TrainingLink spec={library.specOf(selected)} />
-              </div>
-            )}
-            {/* The player guide's page for this instrument (its own, or its area's). */}
-            {selected && (
-              <div className="mb-2">
-                <GuideLink name={selected} classId={library.specOf(selected)?.class ?? library.categoryOf(selected)} shipped={SHIPPED_NAMES} />
-              </div>
-            )}
+            {selected && <EditorLinks name={selected} spec={library.specOf(selected)} category={library.categoryOf(selected)} />}
             <DialsControlsPanel leadAir={editorLead} />
           </div>
         </div>

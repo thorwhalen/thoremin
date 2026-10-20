@@ -12,10 +12,6 @@
 /** The guide's home, relative to the app's base (the same way the manual is linked). */
 export const GUIDE_HOME = 'guide/index.html';
 
-/** The areas the instrument pages are grouped into (their page is `guide/areas/<id>.html`). */
-export const GUIDE_AREAS = ['field', 'air', 'chords', 'sign'] as const;
-export type GuideArea = (typeof GUIDE_AREAS)[number];
-
 /** `Chord Map + Face` -> `chord-map-face`: lower-case words joined by single dashes. */
 export function guideSlug(name: string): string {
   return name
@@ -34,15 +30,12 @@ export const areaPage = (area: string): string => `guide/areas/${guideSlug(area)
 /** A settings section's anchor on the settings page. */
 export const settingsAnchor = (label: string): string => `guide/settings.html#${guideSlug(label)}`;
 
-/** The area page an instrument class falls back to (a player's own instruments have no page). */
-const AREA_OF_CLASS: Readonly<Record<string, GuideArea>> = { field: 'field', air: 'air', sign: 'sign' };
-
 /**
  * Where the guide explains an instrument: its own page when it is a shipped one (`shipped` lists
- * their names), else its class's area, else the guide's home.
+ * their names), else the area page named like its class (every instrument class has one: a guard
+ * checks), else the guide's home.
  */
 export function guideLinkFor(name: string | undefined, classId: string | undefined, shipped: ReadonlySet<string>): { href: string; own: boolean } {
   if (name && shipped.has(name)) return { href: instrumentPage(name), own: true };
-  const area = classId ? AREA_OF_CLASS[classId] : undefined;
-  return { href: area ? areaPage(area) : GUIDE_HOME, own: false };
+  return { href: classId ? areaPage(classId) : GUIDE_HOME, own: false };
 }

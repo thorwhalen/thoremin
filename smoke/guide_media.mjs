@@ -11,7 +11,7 @@
  *
  * Usage (from the repo root, after `npm run build`):
  *   npm run guide:media                       all scenes
- *   npm run guide:media -- --only "Air Drum"  just those (instrument names or tool:<id>)
+ *   npm run guide:media -- --only "Air Drum"  just those (`home`, instrument names or `tool:<id>`)
  *   npm run guide:media -- --port 4392 --no-clips
  *
  * The scenes' knobs are data (`smoke/guide_scenes.json`): per instrument or `tool:<id>` entry, `ms` (settle
@@ -114,6 +114,15 @@ async function clip(name, queryFor, act, ms, file) {
 
 let n = 0;
 try {
+  if (wanted('home')) {
+    const context = await browser.newContext({ viewport: VIEW });
+    const page = await boot(context, 'slot.source=synthetic-hands');
+    await page.waitForTimeout(2500);
+    await shoot(page, 'home.jpg');
+    await context.close();
+    console.log('guide:media home');
+    n++;
+  }
   for (const name of instruments) {
     if (!wanted(name)) continue;
     const s = { ...SCENE_DEFAULT, ...(scenes[name] ?? {}) };

@@ -26,7 +26,7 @@ describe('guide addresses', () => {
     const shipped = new Set(['Air Drum']);
     expect(guideLinkFor('Air Drum', 'air', shipped)).toEqual({ href: 'guide/instruments/air-drum.html', own: true });
     expect(guideLinkFor('My Drum', 'air', shipped)).toEqual({ href: 'guide/areas/air.html', own: false });
-    expect(guideLinkFor('Mine', 'mystery', shipped)).toEqual({ href: GUIDE_HOME, own: false });
+    expect(guideLinkFor('Mine', undefined, shipped)).toEqual({ href: GUIDE_HOME, own: false });
   });
 });
 

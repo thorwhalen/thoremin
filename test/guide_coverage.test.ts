@@ -19,6 +19,7 @@ import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import { ALL_TOOLS } from '../smoke/tests/helpers/allTools';
 import { guideSlug } from '@/app/guide/links';
+import { INSTRUMENT_CLASSES } from '@/instruments/classes';
 import extensions from '../extensions.json';
 import { hasExtension } from './helpers/extensions';
 
@@ -62,6 +63,12 @@ describe.runIf(SHIPPED)('the player guide covers everything a player can find', 
     const known = new Set(labels.map(guideSlug));
     const orphan = built.covers.sections.filter((s) => !known.has(s));
     expect(orphan, `guide/settings.md explains sections the editor no longer has: ${orphan.join(', ')}. ${HOW}`).toEqual([]);
+  });
+
+  it('has an area page for every instrument class (the editor\'s link for a player\'s own instrument)', () => {
+    const areas = (JSON.parse(readFileSync(join(ROOT, 'guide', 'areas.json'), 'utf8')) as { id: string }[]).map((a) => a.id);
+    const missing = INSTRUMENT_CLASSES.map((c) => c.id).filter((id) => !areas.includes(id));
+    expect(missing, `no guide area for instrument class(es): ${missing.join(', ')}. Add an area with that id to guide/areas.json (and its instruments' pages). ${HOW}`).toEqual([]);
   });
 
   it('has a picture for every instrument and tool page', () => {

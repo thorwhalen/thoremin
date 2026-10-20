@@ -6,19 +6,20 @@
  *
  * Source layout (`guide/`):
  *   areas.json            the instrument areas (id, title, blurb), in order
- *   index.md, settings.md, troubleshooting.md   free pages (settings.md has one `{#anchor}` heading per section)
+ *   *.md at the top (index, settings, troubleshooting, conduct-and-dance, teach-it-yourself, ...): free pages;
+ *   settings.md has one `{#anchor}` heading per editor section
  *   instruments/<slug>.md one per shipped instrument: front matter `seed`, `area`, `do` (3 lines), `settings`
  *   tools/<id>.md         one per tool or shell control: front matter `tool`, `title`, `do`
  * Body Markdown (no hard wrap). `:::details Title` ... `:::` is a collapsed block (deferred disclosure).
  * Links between pages are `[text](instrument:Name)`, `(tool:id)`, `(settings:label)`, `(area:id)`,
  * `(manual:)`, `(app:)`; the builder resolves them and FAILS on a target that does not exist.
  * A picture is attached by name, not written: `media/<slug>.jpg` (instruments), `media/tool-<id>.jpg`
- * (tools), plus `.webm` clips of the same name.
+ * (tools), `media/home.jpg` (the home page), plus `.webm` clips of the same name.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { marked } from 'marked';
-import { GUIDE_AREAS, guideSlug } from '../src/app/guide/links';
+import { guideSlug } from '../src/app/guide/links';
 
 export interface Area {
   id: string;
@@ -81,12 +82,11 @@ export function buildGuide(root: string): Built {
   const media = new Set<string>();
 
   const areas = JSON.parse(readFileSync(join(guideDir, 'areas.json'), 'utf8')) as Area[];
-  for (const a of areas) if (!(GUIDE_AREAS as readonly string[]).includes(a.id)) problems.push(`areas.json: area "${a.id}" is not in GUIDE_AREAS (src/app/guide/links.ts)`);
 
   const read = (rel: string): Source => parseSource(rel, readFileSync(join(guideDir, rel), 'utf8'));
   const seeds = listMd(join(guideDir, 'instruments')).map((f) => read(`instruments/${f}`));
   const tools = listMd(join(guideDir, 'tools')).map((f) => read(`tools/${f}`));
-  const free = ['index.md', 'settings.md', 'troubleshooting.md'].map(read);
+  const free = listMd(guideDir).map(read);
 
   // The targets a link may name.
   const seedBySlug = new Map(seeds.map((s) => [guideSlug(str(s.meta.seed)), s]));
@@ -179,7 +179,7 @@ ${inner}
     }
     if (hasMedia(`${name}.webm`)) {
       media.add(`${name}.webm`);
-      html += `<figure><video src="${prefixOf(out)}media/${name}.webm" muted loop playsinline controls preload="none" aria-label="${esc(alt)}"></video></figure>\n`;
+      html += `<figure><video src="${prefixOf(out)}media/${name}.webm" muted loop playsinline controls preload="metadata" aria-label="${esc(alt)}"></video></figure>\n`;
     }
     return html;
   };
@@ -194,7 +194,7 @@ ${inner}
     const out = p.file.replace(/\.md$/, '.html');
     const key = out === 'index.html' ? 'home' : out.replace('.html', '');
     const title = str(p.meta.title) || 'Guide';
-    pages.set(out, shell(out, key, title, `<h1>${esc(title)}</h1>\n${render(p.body, out, p.file)}`));
+    pages.set(out, shell(out, key, title, `<h1>${esc(title)}</h1>\n${out === 'index.html' ? figure(out, 'home', 'Thoremin, with the instrument list open') : ''}${render(p.body, out, p.file)}`));
   }
 
   // Instruments: one page each, an area page, and the index of areas.

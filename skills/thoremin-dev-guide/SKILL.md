@@ -9,7 +9,8 @@ description: >-
   (an extension's `panels`), change what an instrument does, see test/guide_coverage.test.ts fail, or are
   asked to "update the guide / docs / user guide / how-to-play page / screenshots". Triggers on "player guide",
   "guide page", "guide:media", "npm run guide", "shipping rule 4", "guide entry". The private RESEARCH guide
-  (research, ADRs, horizon) has its own section below.
+  (research, ADRs, horizon) has its own section below: "research guide", "a research doc / ADR / decision
+  landed", "update guide.json", "npm run research-guide", "staleness report".
 metadata:
   audience: developers
 ---
@@ -72,4 +73,12 @@ New or renamed seed; new or removed tool; a section added or removed; a visible 
 
 ## Research guide
 
-(Written by the research guide's author, thoremin-iq-research; see its section once added.)
+The owner's PRIVATE guide to thoremin's research, experiments, ADRs, decisions and horizon (epics, open issues by theme, what waits on the owner). Built outside the repo and published to annals; never deployed with the app, never committed. Details: `scripts/research_guide/README.md`.
+
+When a research doc (`docs/research/`), a design doc or ADR (`docs/design/`), a measured experiment (a PR whose body states a number and a verdict) or a decision (a choice on #168, #602, #614 or another decision issue) lands:
+
+1. Add or update its record in `scripts/research_guide/guide.json` (the schema is `scripts/research_guide/schema.ts`): a doc entry (area, a one-paragraph abstract written from the doc, status, 1-4 key numbers, issues, PRs), an experiment (headline number, verdict), or a decision (status, what it decided). Public material only: `test/research_guide.test.ts` fails on a `private:` path or an absolute local path. A private working note goes in the overlay `private.json` in the guide's home instead.
+2. Rebuild and republish: `npm run research-guide -- --publish` (with `THOREMIN_GUIDE_SESSION=<your session name>`). It prints the staleness report: NEW, CHANGED, UNCURATED (no entry yet: the guide shows it as "new, needs an abstract"), MISSING docs, decision issues updated since the last build, new manual-task issues. An UNCURATED or CHANGED line is the to-do list for step 1.
+3. Once annals has `--replace` (thorwhalen/annals#10), the publish replaces the same document, so the owner keeps one link; the id is kept in the guide's `state.json`.
+
+thoremin-iq rebuilds after every deploy with the same command. `--offline` reuses the cached GitHub data (for a copy fix).
