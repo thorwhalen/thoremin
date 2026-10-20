@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { cancelLeadTake, leadTakeBpm, leadTakeClicks, makeLeadCalibrationSink, startLeadTake, useLeadCalibration, LEAD_TAKE } from '@/slices/conductor/app/conductorLead';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { demandWantsBody } from '@/features/groups';
+import { demandWantsBody } from '@thoremin/sdk/features/sources';
 import { conductorLeadHost } from '@/slices/conductor/app/conductorLeadCommandHost';
 // The hot store installs the controls host the slice's pref reads and writes through.
 import '@/app/store';

@@ -37,7 +37,8 @@ const nodeKey = (n: NodeSpec): string => JSON.stringify([n.id, n.type, n.params 
 /** The overlay ports that moved with their elements into the air extension (#600 S10): the drum
  *  pads' config and hits, the flute's status for its breath cue. Each maps to exactly one new
  *  port, and the comparison is exact after that mapping, as for the merge's letters. */
-const LEGACY_OVERLAY_PORT: Record<string, string> = { airDrumConfig: 'air.drumPads.config', drumHits: 'air.drumPads.hits', airFluteStatus: 'air.mouthCue.status' };
+// The Feature Lab's vector taps moved with its element into the Lab slice (#600 S16b), the same way.
+const LEGACY_OVERLAY_PORT: Record<string, string> = { airDrumConfig: 'air.drumPads.config', drumHits: 'air.drumPads.hits', airFluteStatus: 'air.mouthCue.status', faceVector: 'feature-lab.meters.face', handVector: 'feature-lab.meters.hand', bodyVector: 'feature-lab.meters.body' };
 
 function edgeKey(e: EdgeSpec): string {
   const port = e.to.node === 'merge' ? (LEGACY_MERGE_PORT[e.to.port] ?? e.to.port) : e.to.node === 'overlay' ? (LEGACY_OVERLAY_PORT[e.to.port] ?? e.to.port) : e.to.port;
@@ -113,6 +114,9 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   // overlay's), and the breath cue's options arrive from the flute's dial (they were core's).
   { from: { node: 'cam', port: 'hands' }, to: { node: 'overlay', port: 'air.drumPads.hands' } },
   { from: { node: 'ui', port: 'airFlute' }, to: { node: 'overlay', port: 'air.mouthCue.config' } },
+  // #600 S16b: the Feature Lab's config reaches its element on a port of its own (it rode the
+  // overlay node's params before the Lab became a slice).
+  ...(hasExtension('feature-lab') ? [{ from: { node: 'ui', port: 'featureLabConfig' }, to: { node: 'overlay', port: 'feature-lab.meters.lab' } }] : []),
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */

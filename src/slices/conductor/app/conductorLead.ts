@@ -41,12 +41,9 @@ import { type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
-import { DERIVED_GROUP, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
+import { BODY_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { bodyChannelFrame, conductorBodyJoints, type BodySide, type ConductorBodyPoint } from '../nodes/conductor_body';
 import type { OutputReader } from './conductorStatus';
-
-/** The body's feature groups: what the take claims so the body camera runs with the Lab closed. */
-const BODY_GROUP_IDS: readonly string[] = FEATURE_GROUPS.filter((g) => g.source === 'body' && g.id !== DERIVED_GROUP).map((g) => g.id);
 
 /** The take: a bar's count-in, then four bars of clicks (16 strokes), after a lead-in to
  *  stand back. The tempo is the loaded piece's marked one inside `minBpm..maxBpm`, else

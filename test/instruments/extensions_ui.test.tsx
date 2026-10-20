@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { EXTENSION_PANELS, EXTENSION_MOUNT_EFFECTS, EXTENSION_UI_IDS, extensionStatusHooks, loadExtensionUi } from '@/app/extensions';
 import { EXTENSIONS } from '@/extensions';
+import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { INSTRUMENT_CATALOG } from '@/app/library/category';
 import { AIR } from '../helpers/extensions';
 
@@ -32,10 +33,11 @@ describe('the React halves of the extensions', () => {
     }
   });
 
-  it('every status hook names a node an extension branch declares, and can be built against an empty engine', async () => {
+  it('every status hook names a node a branch declares, and can be built against an empty engine', async () => {
     // A lazy extension's hooks arrive with its React half: load every one first.
     await Promise.all(EXTENSION_UI_IDS.map((id) => loadExtensionUi(id)));
-    const nodeIds = new Set(EXTENSIONS.flatMap((e) => e.branches.flatMap((b) => b.nodes.map((n) => n.id))));
+    // An extension's branches, or core's: the Feature Lab reads the face source's load status (#600 S16b).
+    const nodeIds = new Set([...EXTENSIONS, { branches: CORE_BRANCHES }].flatMap((e) => e.branches.flatMap((b) => b.nodes.map((n) => n.id))));
     for (const hook of extensionStatusHooks()) {
       expect(nodeIds.has(hook.nodeId), hook.nodeId).toBe(true);
       const sink = hook.make({ getOutput: () => undefined }, () => ({}));

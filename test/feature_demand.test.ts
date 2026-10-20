@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { createFeatureDemand } from '@thoremin/sdk/features/demand';
 import { resolveFeatureGate } from '@/features/groups';
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
 import { appFeatureDemand, featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
@@ -256,7 +256,7 @@ describe('the production wiring (source guard — useEngine is outside the stric
     // Since #600 S17 by the face source's declared `demands`, not a hand-written face rule:
     // a claim on any face group composes it (and nothing else claimed does).
     const { branchIdsFor } = await import('@/app/graph');
-    const { FACE_GROUP_IDS } = await import('@/features/groups');
+    const { FACE_GROUP_IDS } = await import('@thoremin/sdk/features/sources');
     expect(branchIdsFor({} as never, { demanded: new Set([FACE_GROUP_IDS[0]]) })).toContain('face-source');
     expect(branchIdsFor({ faceMapping: 'none' } as never, { demanded: new Set() })).not.toContain('face-source');
   });

@@ -8,7 +8,6 @@
  */
 import { z } from 'zod';
 import type { PortSpec } from '@thoremin/dag';
-import { FeatureLabSchema } from '@/features/labConfig';
 
 /** The overlay's core input ports (every overlay has them; an extension's elements add theirs). */
 export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
@@ -40,11 +39,6 @@ export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   // The composed graph's element set (the ADR, §3.2 rule 4): which elements exist for
   // the current instrument. Absent → every element (headless tests, pre-composition).
   { name: 'elements', kind: 'string[]' },
-  // Raw feature vectors for the Feature Lab (#119). Additive: the vector nodes
-  // tap the existing camFace/cam edges; the lab element normalizes + draws them.
-  { name: 'faceVector', kind: 'feature-vector' },
-  { name: 'handVector', kind: 'feature-vector' },
-  { name: 'bodyVector', kind: 'feature-vector' },
 ];
 
 /** How many category readers of each kind the overlay takes (#600 S10b), sized by the contribution
@@ -218,14 +212,6 @@ const Params = z.object({
     })
     .prefault({}),
   /**
-   * Feature Instrumentation Lab (#119). The schema lives in `@/features/labConfig`
-   * because the Lab is a TOOLING preference, not an instrument parameter: the value
-   * is owned by the hot control store (per-device, persisted) and composed into these
-   * node params by `store-controls` each tick — it is deliberately NOT part of the
-   * `overlay` dial (see {@link OverlayDialSchema} and #136).
-   */
-  featureLab: FeatureLabSchema,
-  /**
    * Live-tagging burned-in corner HUD (#92): while a take is recording with tagging
    * on, paints the open tags + a media timecode + a ~1 Hz REC blink into the
    * composited (and alpha) frames — the in-band "second opinion" that makes stream
@@ -262,20 +248,17 @@ export const OverlayParamsSchema = Params;
 export type OverlayParams = Params;
 
 /**
- * The overlay DIAL's schema — the node's params minus `featureLab`, and so the single
+ * The overlay DIAL's schema — the node's params minus `trainerHud`, and so the single
  * source of truth for the overlay portion of saved settings and of the overlay settings
  * panel.
  *
- * The Lab is omitted on purpose (#136): it is a measuring tool, not a property of the
- * instrument being measured. Leaving it in the dial meant that toggling a meter marked
- * the instrument as having unsaved edits, and that loading an instrument silently
- * re-configured the meters — the same reason recording settings were moved out of the
- * instrument in #88. The trainer's guidance HUD (#163) is omitted for the same reason:
- * the trainer is a shell TOOL, and hiding a training aid must not edit the instrument.
- * Both are per-device tooling prefs on the control store, composed into this node's
- * params by `store-controls` each tick.
+ * The trainer's guidance HUD (#163) is omitted on purpose: the trainer is a shell TOOL, and
+ * hiding a training aid must not edit the instrument (the reason the Feature Lab's config left
+ * the dial in #136, and the overlay params altogether when the Lab became a slice, #600 S16b).
+ * It is a per-device tooling pref on the control store, composed into this node's params by
+ * `store-controls` each tick.
  */
-export const OverlayDialSchema = Params.omit({ featureLab: true, trainerHud: true });
+export const OverlayDialSchema = Params.omit({ trainerHud: true });
 export type OverlayDialParams = z.infer<typeof OverlayDialSchema>;
 
 export type OverlayCategory = 'input' | 'output' | 'guide' | 'backdrop';
@@ -305,8 +288,6 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   markers: 'output',
   fingerLines: 'output',
   timbreLevels: 'output',
-  featureLab: 'input',
-  featureCorrelation: 'input',
   chordName: 'output',
   faceExpression: 'output',
   categoryLabel: 'output',

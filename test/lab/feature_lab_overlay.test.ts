@@ -1,36 +1,41 @@
 /**
  * Feature Lab overlay element (#119) drawn headlessly against the shared recording 2D
- * context (`./helpers/canvas`): the node hands the incoming face/hand vectors to the
- * lab-meter computer (which owns the normalizer — unit-tested in lab_meters.test.ts)
- * and the featureLab element RENDERS the grouped meters. We assert it is opt-in, that
- * it draws a titled panel with per-feature bars + labels once warmed, and that the live
- * overlayConfig drives show/groups.
+ * context (`../helpers/canvas`): since #600 S16b it is the Lab slice's contributed element, whose
+ * `update` hands the incoming face/hand vectors to the lab-meter computer (which owns the normalizer
+ * — unit-tested in lab_meters.test.ts) once per tick and whose `draw` RENDERS the grouped meters.
+ * We assert it is opt-in, that it draws a titled panel with per-feature bars + labels once warmed,
+ * and that the live config (its `lab` input, a derived port of the Lab's pref) drives show/groups.
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext } from '@thoremin/dag';
-import { canvasOverlayNode } from '@/nodes/output/canvas_overlay';
-import { makeRecordingCanvas } from './helpers/canvas';
+import { labMeters } from '@/slices/lab/nodes/meters';
+import { FeatureLabSchema } from '@/slices/lab/schema';
+import { makeRecordingCanvas } from '../helpers/canvas';
+import { LAB } from '../helpers/extensions';
 
-/** Run the overlay node `ticks` times, feeding a slightly different jaw-open value
- *  each tick so the normalizer warms up, and return the LAST tick's recording. */
-function runLab(params: unknown, ticks: number, extraInputs: Record<string, unknown> = {}) {
-  const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(params));
+/** Run the element `ticks` times, feeding a slightly different jaw-open value each tick so the
+ *  normalizer warms up, and return the LAST tick's recording. (Was: the overlay node with the Lab
+ *  config among its params; the element now reads it as its `lab` input.) */
+function runLab(params: { featureLab?: unknown }, ticks: number) {
+  const lab = FeatureLabSchema.parse(params.featureLab ?? {});
+  const memo: Record<string, unknown> = {};
   let rc = makeRecordingCanvas();
   for (let i = 0; i < ticks; i++) {
     rc = makeRecordingCanvas();
-    const ctx: NodeContext = { tick: i, time: i / 30, dt: 1 / 30, resources: { canvas: rc.canvas } };
-    const faceVector = { 'face.blendshape.jaw.open': (i % 10) / 10, 'face.blendshape.jaw.left': 0.2 };
-    handlers.process({ faceVector, ...extraInputs }, ctx);
+    const g = rc.canvas.getContext('2d') as CanvasRenderingContext2D;
+    const frame = { W: rc.canvas.width, H: rc.canvas.height, t: i / 30 };
+    const face = { 'face.blendshape.jaw.open': (i % 10) / 10, 'face.blendshape.jaw.left': 0.2 };
+    const inputs = { lab, face };
+    labMeters.update!(frame, inputs, memo);
+    labMeters.draw(g, frame, inputs, memo);
   }
   return rc;
 }
 
-describe('featureLab overlay element (#119)', () => {
+describe.runIf(LAB)('featureLab overlay element (#119)', () => {
   it('is opt-in: nothing drawn when show is false (the default)', () => {
     const rc = runLab({}, 5);
     expect(rc.texts()).not.toContain('Feature Lab');
-    const parsed = canvasOverlayNode.params.parse({}) as { featureLab: { show: boolean } };
-    expect(parsed.featureLab.show).toBe(false);
+    expect(FeatureLabSchema.parse(undefined).show).toBe(false);
   });
 
   it('tells the player how to turn it off, in the panel they are looking at', () => {
@@ -127,14 +132,13 @@ describe('featureLab overlay element (#119)', () => {
  * they reach a canvas, that the element is genuinely opt-in, and that it says how much
  * evidence it has rather than presenting a three-frame coefficient like a measurement.
  */
-describe('featureCorrelation overlay element (#150)', () => {
+describe.runIf(LAB)('featureCorrelation overlay element (#150)', () => {
   const shown = (over: Record<string, unknown> = {}) => ({
     featureLab: { show: true, groups: ['face.blendshape.jaw'], showCorrelation: true, ...over },
   });
 
   it('is opt-in twice over: off by default, and silent while the Lab itself is closed', () => {
-    const parsed = canvasOverlayNode.params.parse({}) as { featureLab: { showCorrelation: boolean } };
-    expect(parsed.featureLab.showCorrelation).toBe(false);
+    expect(FeatureLabSchema.parse(undefined).showCorrelation).toBe(false);
     expect(runLab({}, 20).texts()).not.toContain('Correlation');
 
     // Meters ON, correlation OFF — the case the other two miss, since they both have the
@@ -171,19 +175,22 @@ describe('featureCorrelation overlay element (#150)', () => {
 
   it('says so when the cap dropped features, rather than quietly showing a subset', () => {
     // Four jaw blendshapes in view, capped at 2 → two dropped. `runLab`'s fixture supplies
-    // only two, so this one drives the node directly with the fuller vector.
-    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(shown({ correlationMaxFeatures: 2 })));
+    // only two, so this one drives the element directly with the fuller vector.
+    const lab = FeatureLabSchema.parse(shown({ correlationMaxFeatures: 2 }).featureLab);
+    const memo: Record<string, unknown> = {};
     let rc = makeRecordingCanvas();
     for (let i = 0; i < 40; i++) {
       rc = makeRecordingCanvas();
       const v = (i % 10) / 10;
-      const faceVector = {
+      const face = {
         'face.blendshape.jaw.open': v,
         'face.blendshape.jaw.left': v,
         'face.blendshape.jaw.right': 1 - v,
         'face.blendshape.jaw.forward': 0.3,
       };
-      handlers.process({ faceVector }, { tick: i, time: i / 30, dt: 1 / 30, resources: { canvas: rc.canvas } });
+      const frame = { W: rc.canvas.width, H: rc.canvas.height, t: i / 30 };
+      labMeters.update!(frame, { lab, face }, memo);
+      labMeters.draw(rc.canvas.getContext('2d') as CanvasRenderingContext2D, frame, { lab, face }, memo);
     }
     expect(rc.texts().some((t) => t.includes('not shown'))).toBe(true);
   });

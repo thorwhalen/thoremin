@@ -12,21 +12,26 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { thoreminDials, settingsToLayer } from '@/settings/dials';
 import { SettingsSchema } from '@/settings/schema';
 import { OverlayDialSchema, OverlayParamsSchema } from '@/nodes/output/canvas_overlay';
-import { defaultFeatureLab, labWantsFace } from '@/features/labConfig';
-import { FACE_GROUP_IDS } from '@/features/groups';
+import { defaultFeatureLab, labWantsFace } from '@/slices/lab/schema';
+import { FACE_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { branchIdsFor } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { storeControlsNode, type ControlSnapshot } from '@/nodes/sources/store_controls';
+import { type ControlSnapshot } from '@/nodes/sources/store_controls';
+import { makeStoreControlsNode } from '@/host/storeControls';
+import type { Extension } from '@thoremin/sdk/instruments/extension';
+import { LAB_CONFIG_PORT, LAB_EXTENSION } from '@/slices/lab';
 import { faceFeatureVectorNode } from '@/nodes/features/face_feature_vector';
 import { normalizeLayer } from '@/app/dials/instruments';
 import { useControls, toSettings, migrateControls, mergeControls } from '@/app/store';
 import type { NodeContext } from '@thoremin/dag';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
-import { installLabDemand, labDemandGroups } from '@/app/labDemand';
+import { installLabDemand, labDemandGroups } from '@/slices/lab/app/labDemand';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
+import { labConfig, setLab } from '@/slices/lab/app/state';
+import { LAB } from '../helpers/extensions';
 
-describe('the Feature Lab is not part of the instrument', () => {
+describe.runIf(LAB)('the Feature Lab is not part of the instrument', () => {
   it('is not a dial — the overlay dial carries no featureLab', () => {
     // The whole bug: a measuring tool filed as an instrument parameter. If this ever
     // goes back into the dial, editing a meter marks the instrument dirty again.
@@ -40,24 +45,25 @@ describe('the Feature Lab is not part of the instrument', () => {
 
   it('is not a preset field — an instrument snapshot never carries it', () => {
     expect(Object.keys(SettingsSchema.shape)).not.toContain('featureLab');
-    useControls.getState().setFeatureLab({ show: true, columns: 7 });
+    setLab({ show: true, columns: 7 });
     expect(toSettings(useControls.getState())).not.toHaveProperty('featureLab');
   });
 
   it('survives loading an instrument (an instrument cannot reconfigure the meters)', () => {
-    useControls.getState().setFeatureLab({ show: true, columns: 7 });
+    setLab({ show: true, columns: 7 });
     const settings = SettingsSchema.parse(toSettings(useControls.getState()));
     useControls.getState().applySettings(settings);
-    expect(useControls.getState().featureLab.show).toBe(true);
-    expect(useControls.getState().featureLab.columns).toBe(7);
+    expect(labConfig().show).toBe(true);
+    expect(labConfig().columns).toBe(7);
   });
 
-  it('IS still an overlay ELEMENT on the node side (the meters are drawn by the overlay)', () => {
-    expect(Object.keys(OverlayParamsSchema.shape)).toContain('featureLab');
+  it('IS still an overlay ELEMENT, the Lab slice\'s own, not a core overlay param (#600 S16b)', () => {
+    expect(Object.keys(OverlayParamsSchema.shape)).not.toContain('featureLab');
+    expect(LAB_EXTENSION.overlay?.map((d) => d.name)).toEqual(['meters']);
   });
 });
 
-describe('persistence: the lab is a per-device tooling pref', () => {
+describe.runIf(LAB)('persistence: the lab is a per-device tooling pref', () => {
   it('migrates a v6 blob, lifting overlay.featureLab out of the instrument', () => {
     const v6 = { overlay: { featureLab: { show: true, columns: 5 } } };
     const migrated = migrateControls(v6, 6) as unknown as Record<string, unknown>;
@@ -69,8 +75,8 @@ describe('persistence: the lab is a per-device tooling pref', () => {
 
   it('heals a corrupt lab blob back to the defaults rather than throwing', () => {
     const current = useControls.getState();
-    const merged = mergeControls({ featureLab: { columns: 'banana' } }, current);
-    expect(merged.featureLab).toEqual(current.featureLab);
+    const merged = mergeControls({ featureLab: { columns: 'banana' } }, current) as unknown as Record<string, unknown>;
+    expect(merged.featureLab).toEqual((current as unknown as Record<string, unknown>).featureLab);
   });
 
   it('defaults to meters OFF (the Lab is opt-in — but now findable)', () => {
@@ -78,33 +84,35 @@ describe('persistence: the lab is a per-device tooling pref', () => {
   });
 });
 
-describe('store-controls composes the two back into one overlay config', () => {
+// Since #600 S16b the Lab's config reaches its element on a port of its own (the slice's pref
+// derives it), instead of being merged into the overlay node's params.
+describe.runIf(LAB)('store-controls delivers the lab config to the Lab\'s element on its own port', () => {
   const runNode = (c: ControlSnapshot) => {
-    const node = storeControlsNode.make({} as never);
-    return node.process({}, { resources: { controls: () => c } } as unknown as NodeContext);
+    const node = makeStoreControlsNode([LAB_EXTENSION as unknown as Extension]);
+    return node.make({} as never).process({}, { resources: { controls: () => c } } as unknown as NodeContext) as Record<string, unknown>;
   };
   const baseVoice = { root: 0, type: 'pentatonic' as const, octaves: 2, baseOctave: 3, sound: 'warmPad' as const };
 
-  it('merges the per-device lab config into the overlay node params', () => {
+  it('emits the per-device lab config on its port, and leaves the overlay params the instrument\'s', () => {
     const out = runNode({
       right: baseVoice,
       left: baseVoice,
       overlay: OverlayDialSchema.parse({}),
       featureLab: { ...defaultFeatureLab(), show: true, columns: 6 },
-    });
+    } as ControlSnapshot);
+    expect(out[LAB_CONFIG_PORT]).toMatchObject({ show: true, columns: 6 });
     const overlay = out.overlay as Record<string, unknown>;
-    expect(overlay.featureLab).toMatchObject({ show: true, columns: 6 });
-    // The instrument's own elements are still there — this is a merge, not a swap.
+    expect(overlay.featureLab).toBeUndefined();
     expect(overlay.landmarks).toBeDefined();
   });
 
   it('falls back to the lab defaults when the snapshot carries none', () => {
     const out = runNode({ right: baseVoice, left: baseVoice, overlay: OverlayDialSchema.parse({}) });
-    expect((out.overlay as Record<string, unknown>).featureLab).toEqual(defaultFeatureLab());
+    expect(out[LAB_CONFIG_PORT]).toEqual(defaultFeatureLab());
   });
 });
 
-describe('the Lab can observe the face without altering the sound', () => {
+describe.runIf(LAB)('the Lab can observe the face without altering the sound', () => {
   it('labWantsFace is true only when the meters are on AND a face group is selected', () => {
     const off = { ...defaultFeatureLab(), show: false, groups: [...FACE_GROUP_IDS] };
     const handOnly = { ...defaultFeatureLab(), show: true, groups: ['hand.whole'] };
@@ -133,10 +141,10 @@ describe('the Lab can observe the face without altering the sound', () => {
 });
 
 beforeEach(() => {
-  useControls.getState().setFeatureLab(defaultFeatureLab());
+  if (LAB) setLab(defaultFeatureLab());
 });
 
-describe('the compute gate: the catalog costs nothing when the meters are off', () => {
+describe.runIf(LAB)('the compute gate: the catalog costs nothing when the meters are off', () => {
   // The regression this file exists for. `ctx.resources.controls` is the RAW control
   // store (useEngine wires `() => useControls.getState()`), NOT the composed
   // store-controls output — so a vector node that reads `overlay.featureLab` reads
@@ -157,21 +165,21 @@ describe('the compute gate: the catalog costs nothing when the meters are off', 
   const faceFrame = { present: true, blendshapes: { jawOpen: 0.5 }, landmarks: [] };
 
   it('emits an EMPTY vector when the meters are off (the default)', () => {
-    expect(useControls.getState().featureLab.show).toBe(false);
+    expect(labConfig().show).toBe(false);
     const node = faceFeatureVectorNode.make({} as never);
     const out = node.process({ face: faceFrame } as never, liveControls());
     expect(out.vector).toEqual({});
   });
 
   it('emits features once the meters are on', () => {
-    useControls.getState().setFeatureLab({ show: true });
+    setLab({ show: true });
     const node = faceFeatureVectorNode.make({} as never);
     const out = node.process({ face: faceFrame } as never, liveControls());
     expect(Object.keys(out.vector as object).length).toBeGreaterThan(0);
   });
 });
 
-describe('a legacy saved instrument does not read as dirty on load', () => {
+describe.runIf(LAB)('a legacy saved instrument does not read as dirty on load', () => {
   // The mirror-image bug. `dialsStore.setLayer` stores a layer verbatim and dirty is a
   // structural compare, so an instrument saved BEFORE #136 (whose overlay still carries
   // featureLab) differs from the working layer (whose overlay no longer does) — and every

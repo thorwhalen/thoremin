@@ -16,7 +16,7 @@ import { loadStream } from './helpers/fixtures';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { LAB_HANDEDNESS_DWELL_FRAMES } from '@/nodes/features/hand_feature_vector';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 
 const bareCtx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
 const allFinite = (v: FeatureVector) => Object.values(v).every((x) => Number.isFinite(x));

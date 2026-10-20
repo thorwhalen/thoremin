@@ -20,7 +20,6 @@ import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ExtensionDials, ExtensionTransients } from '@/settings/schema';
 import { TrainerHudParamsSchema, type OverlayDialParams, type TrainerHudParams } from '@/nodes/output/canvas_overlay.schema';
-import { defaultFeatureLab, type FeatureLabConfig } from '@/features/labConfig';
 
 export interface VoiceControlSnapshot {
   root: number;
@@ -51,15 +50,10 @@ export interface ControlSnapshot extends Partial<ExtensionDials>, Partial<Extens
   /** Tool surfaces holding the instrument quiet (the store's `hushedBy`); see
    *  {@link hushOf}. Absent → nobody. */
   hushedBy?: readonly string[];
-  /** Live overlay element config (the INSTRUMENT's overlay — no Feature Lab). Composed
-   *  with {@link featureLab} into canvas-overlay's `overlayConfig`. */
+  /** Live overlay element config (the INSTRUMENT's overlay). Composed with the trainer HUD
+   *  pref into canvas-overlay's `overlayConfig`. */
   overlay?: OverlayDialParams;
-  /** The Feature Lab config (#119) — a per-device TOOLING pref, not an instrument
-   *  parameter (#136), so it is carried separately and merged into the overlay node's
-   *  params here. Also read by `webcam-face`, which loads the face model when the Lab
-   *  is measuring face groups even if the face drives no sound. */
-  featureLab?: FeatureLabConfig;
-  /** The trainer's guidance HUD pref (#163) — per-device, like the Lab; composed into
+  /** The trainer's guidance HUD pref (#163) — per-device; composed into
    *  the overlay node's params here. */
   trainerHud?: TrainerHudParams;
   /** Legacy face on/off flag; superseded by {@link faceMapping}. Kept so older
@@ -295,12 +289,12 @@ function defineStoreControls(extensions: readonly Extension[]) {
           out.expressionDegrees = c.faceExpr.degrees;
           out.expressionTargets = c.faceExpr.targets ?? {};
         }
-        // Recompose the overlay node's params: the instrument's overlay elements plus
-        // the per-device Feature Lab config, which is owned outside the instrument (#136).
+        // Recompose the overlay node's params: the instrument's overlay elements plus the
+        // per-device trainer HUD pref, owned outside the instrument (#136). (The Feature Lab's
+        // config was composed here too; its element reads it from its slice's port, #600 S16b.)
         if (c.overlay) {
           out.overlay = {
             ...c.overlay,
-            featureLab: c.featureLab ?? defaultFeatureLab(),
             trainerHud: c.trainerHud ?? TrainerHudParamsSchema.parse({}),
           };
         }

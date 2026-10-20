@@ -6,12 +6,13 @@
  * arithmetic, helpers, ternary short-circuiting, and the runtime NaN contract.
  */
 import { describe, it, expect } from 'vitest';
-import { compileFormula, FormulaError, DEFAULT_HELPERS } from '@/features/formula';
+import { compileFormula, FormulaError, DEFAULT_HELPERS } from '@/slices/lab/lib/formula';
+import { LAB } from '../helpers/extensions';
 
 const VARS = new Set(['x', 'y', 'face_geom_mouth_openness']);
 const compile = (src: string) => compileFormula(src, { variables: VARS });
 
-describe('formula compiler — security', () => {
+describe.runIf(LAB)('formula compiler — security', () => {
   it('rejects member access (dotted and computed)', () => {
     expect(() => compile('x.constructor')).toThrow(FormulaError);
     expect(() => compile('x["a"]')).toThrow(FormulaError);
@@ -47,7 +48,7 @@ describe('formula compiler — security', () => {
   });
 });
 
-describe('formula compiler — correctness', () => {
+describe.runIf(LAB)('formula compiler — correctness', () => {
   it('evaluates arithmetic with correct precedence', () => {
     expect(compile('x + y * 2').eval({ x: 1, y: 3 })).toBe(7);
     expect(compile('(x + y) * 2').eval({ x: 1, y: 3 })).toBe(8);
@@ -84,7 +85,7 @@ describe('formula compiler — correctness', () => {
   });
 });
 
-describe('formula compiler — runtime contract (never throws in the loop)', () => {
+describe.runIf(LAB)('formula compiler — runtime contract (never throws in the loop)', () => {
   it('an absent variable yields NaN, not a throw', () => {
     const f = compile('x + y');
     expect(Number.isNaN(f.eval({ x: 1 }))).toBe(true); // y missing this frame
@@ -102,7 +103,7 @@ describe('formula compiler — runtime contract (never throws in the loop)', () 
   });
 });
 
-describe('stateful helpers — residual / deconfound (#131)', () => {
+describe.runIf(LAB)('stateful helpers — residual / deconfound (#131)', () => {
   const VARS = new Set(['x', 'z', 'z2']);
 
   it('residual regresses out a perfectly linear confound (over the EW window)', () => {
@@ -226,7 +227,7 @@ describe('stateful helpers — residual / deconfound (#131)', () => {
  * NUMBERS, not feature ids, so nothing in the compiler can tell an angle from a ratio —
  * hence a helper the author writes, rather than a correction applied behind their back.
  */
-describe('stateful helper — unwrap (#150)', () => {
+describe.runIf(LAB)('stateful helper — unwrap (#150)', () => {
   const ANG = new Set(['x', 'a']);
   const wrapTo = (t: number) => Math.atan2(Math.sin(t), Math.cos(t));
 

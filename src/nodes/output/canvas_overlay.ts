@@ -46,14 +46,6 @@ import {
 import { categorizerReading, personalDegree, readingName, type ExpressionScores } from '@/music/expression';
 import { clamp01 } from '@thoremin/sdk/features/math';
 import { BAR_GAP, BAR_W, PAD, drawBarGraph, measureBarGraph, type BarGraphOpts, type BarSpec } from '@thoremin/sdk/overlay/bar_graph';
-import { createLabMeterComputer, type FeatureMeters } from '@/features/labMeters';
-import { pairIndex } from '@/features/labCorrelation';
-import {
-  DERIVED_GROUP,
-  FEATURE_BY_ID,
-  FEATURE_GROUPS,
-  type FeatureVector,
-} from '@thoremin/sdk/features/catalog';
 import { computeTagOverlay, type TagOverlayFrame, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import { wrapLines, type TrainerHudSnapshot } from '@/enroll/hud';
 import { EFFECT_SHORT, type HandMap } from '../mapping/hand_map';
@@ -92,9 +84,6 @@ export interface OverlayView {
   W: number;
   H: number;
   video?: HTMLVideoElement;
-  /** Feature-lab meters, computed by {@link createLabMeterComputer} (present only
-   *  while the lab is shown). The overlay only DRAWS them. */
-  featureMeters?: FeatureMeters;
   inputs: {
     hands?: HandsFrame;
     features?: HandFeatures;
@@ -184,6 +173,8 @@ export interface OverlayElement {
   measure?(view: OverlayView): { w: number; h: number } | null;
   positionOf?(view: OverlayView): CuePosition;
   draw(g: CanvasRenderingContext2D, view: OverlayView): void;
+  /** Once per tick, before every pass draws: a contributed element's `update` (#600 S16b). */
+  update?(view: OverlayView): void;
 }
 
 function mirrorX(xPx: number, frameW: number, W: number): number {
@@ -1098,220 +1089,6 @@ const keyboardStripElement: OverlayElement = {
 
 // ---- Air drum pads (#245) ---------------------------------------------------
 
-// ---- Feature Instrumentation Lab (#119) ------------------------------------
-
-const LAB_COL_W = 168; // px per newspaper column
-const LAB_ROW_H = 22; // px per meter row (label + bar)
-const LAB_HEADER_H = 16; // px per group header
-const LAB_TITLE_H = 22;
-const LAB_BAR_H = 6;
-const LAB_TOP = 68; // == CUE_TOP_INSET: clear the top-left brand / top-right panel
-/**
- * The way out, drawn in the panel's own title row.
- *
- * The meters keep drawing after the Lab panel is closed — deliberate, you watch them
- * while you play — which is exactly how this panel became something players could not
- * get rid of: its off switch is a checkbox INSIDE the panel they had just shut, the
- * config is persisted so a reload brings the bars back, and the Lab is not a dial so
- * the command palette cannot reach it. The tools bar now carries the real control; this
- * line says so, at the thing the player is actually looking at.
- */
-const LAB_HINT = 'stop in the Tools bar';
-/** Approximate glyph widths (no measureText: the headless recording-canvas test). */
-const LAB_TITLE_CHAR_W = 7.6; // bold 13px monospace
-const LAB_HINT_CHAR_W = 6; // 10px monospace
-
-/** Terse meter label: the feature id with its group (or the `face.`/`hand.`
- *  prefix) stripped, so the group header carries the context. */
-function labFeatureLabel(id: string, group: string): string {
-  if (id.startsWith(group + '.')) return id.slice(group.length + 1);
-  return id.replace(/^(face|hand)\./, '');
-}
-
-/** Truncate text to fit `maxChars` with an ellipsis (monospace-approximate). */
-function labClip(text: string, maxChars: number): string {
-  return text.length <= maxChars ? text : text.slice(0, Math.max(1, maxChars - 1)) + '…';
-}
-
-/** Draw one meter (label + normalized bar + percentile ticks + optional value). */
-function drawLabMeter(
-  g: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  label: string,
-  level: number,
-  markers: number[],
-  color: string,
-  value: number | undefined,
-): void {
-  const valueW = value !== undefined ? 34 : 0;
-  const barW = Math.max(20, w - valueW);
-  // Label.
-  g.globalAlpha = 0.85;
-  g.fillStyle = '#d1d5db';
-  g.font = '9px monospace';
-  g.textAlign = 'left';
-  g.fillText(labClip(label, Math.floor(w / 5.4)), x, y + 8);
-  // Track.
-  const barY = y + 11;
-  g.globalAlpha = 0.22;
-  g.fillStyle = '#ffffff';
-  g.fillRect(x, barY, barW, LAB_BAR_H);
-  // Fill to the normalized level (skip when un-warmed / NaN).
-  if (Number.isFinite(level)) {
-    g.globalAlpha = 0.85;
-    g.fillStyle = color;
-    g.fillRect(x, barY, barW * clamp01(level), LAB_BAR_H);
-  }
-  // Percentile-band ticks.
-  if (markers.length) {
-    g.globalAlpha = 0.7;
-    g.strokeStyle = '#ffffff';
-    g.lineWidth = 1;
-    for (const m of markers) {
-      const mx = x + barW * clamp01(m);
-      g.beginPath();
-      g.moveTo(mx, barY - 1);
-      g.lineTo(mx, barY + LAB_BAR_H + 1);
-      g.stroke();
-    }
-  }
-  // Raw value.
-  if (value !== undefined) {
-    g.globalAlpha = 0.7;
-    g.fillStyle = '#9ca3af';
-    g.textAlign = 'right';
-    g.fillText(value.toFixed(2), x + w, y + 8);
-    g.textAlign = 'left';
-  }
-}
-
-/**
- * The Feature Lab panel (#119): a right-anchored, newspaper-column grid of
- * grouped, online-normalized meters over the raw face + hand feature vectors. The
- * statistics are computed by {@link createLabMeterComputer} (which owns the
- * normalizer + the derived formulas) and handed in as
- * {@link OverlayView.featureMeters}; this element is a pure renderer. Group headers repeat at the top of
- * a continued column; a "+N more" note is drawn if features overflow the panel, so
- * nothing is silently dropped. Opt-in (a large panel).
- */
-const featureLabElement: OverlayElement = {
-  name: 'featureLab',
-  category: 'input',
-  draw(g, view) {
-    const p = view.params.featureLab;
-    if (!p.show) return;
-    const meters = view.featureMeters;
-    if (!meters) return;
-    const { W, H } = view;
-    const columns = Math.max(1, Math.min(p.columns, Math.floor((W - 2 * PAD) / LAB_COL_W) || 1));
-    const panelW = columns * LAB_COL_W + 2 * PAD;
-    const panelLeft = W - panelW;
-    const panelTop = LAB_TOP;
-    const panelBottom = H - 16;
-    const contentTop = panelTop + LAB_TITLE_H;
-
-    g.save();
-    // Backdrop.
-    g.globalAlpha = 0.55;
-    g.fillStyle = '#000000';
-    g.fillRect(panelLeft, panelTop, panelW, panelBottom - panelTop);
-    // Title.
-    g.globalAlpha = 1;
-    g.fillStyle = FACE_COLOR;
-    g.font = 'bold 13px monospace';
-    g.textAlign = 'left';
-    g.fillText('Feature Lab', panelLeft + PAD, panelTop + 15);
-    // ...and, when the panel is wide enough to hold it beside the title, where to
-    // turn it off. Skipped on a one-column panel rather than overlapping the title.
-    //
-    // Left-aligned just after the title rather than right-aligned at the panel edge:
-    // the panel is right-anchored, so its outer edge is the first thing `object-cover`
-    // crops away on a window narrower than the camera's aspect ratio. Tucked against
-    // the title it survives that crop for as long as the title itself does. (The real
-    // control is the tools bar, which is DOM and never cropped — this is the signpost.)
-    const titleW = 'Feature Lab'.length * LAB_TITLE_CHAR_W;
-    if (titleW + LAB_HINT.length * LAB_HINT_CHAR_W + 3 * PAD <= panelW) {
-      g.globalAlpha = 0.5;
-      g.fillStyle = '#9ca3af';
-      g.font = '10px monospace';
-      g.fillText(LAB_HINT, panelLeft + PAD + titleW + PAD, panelTop + 15);
-      g.globalAlpha = 1;
-    }
-
-    // Shown but nothing to measure (no face/hands, or the enabled groups are empty
-    // this frame): keep the panel + a hint so the lab doesn't read as "broken".
-    if (!meters.order.length) {
-      g.globalAlpha = 0.7;
-      g.fillStyle = '#9ca3af';
-      g.font = 'italic 11px monospace';
-      g.textAlign = 'left';
-      g.fillText('No features in view (adjust groups)', panelLeft + PAD, contentTop + 8);
-      g.restore();
-      return;
-    }
-
-    let col = 0;
-    let y = contentTop;
-    let lastGroup: string | null = null;
-    let drawn = 0;
-    const colX = (c: number) => panelLeft + PAD + c * LAB_COL_W;
-    const cellW = LAB_COL_W - PAD;
-    const nextColumn = (): boolean => {
-      col += 1;
-      if (col >= columns) return false;
-      y = contentTop;
-      lastGroup = null;
-      return true;
-    };
-
-    for (const id of meters.order) {
-      // Catalog features resolve via FEATURE_BY_ID; derived features (not in the
-      // static registry) fall back to the `derived` group + a gold accent.
-      const feat = FEATURE_BY_ID[id];
-      const group = feat?.group ?? DERIVED_GROUP;
-      const color = !feat ? CHORD_COLOR : feat.source === 'face' ? FACE_COLOR : feat.source === 'body' ? BODY_COLOR : RIGHT_COLOR;
-      // Group header (repeats when a group continues into a new column).
-      if (group !== lastGroup) {
-        if (y + LAB_HEADER_H + LAB_ROW_H > panelBottom && !nextColumn()) break;
-        const info = FEATURE_GROUPS.find((gr) => gr.id === group);
-        g.globalAlpha = 0.9;
-        g.fillStyle = color;
-        g.font = 'bold 10px monospace';
-        g.textAlign = 'left';
-        g.fillText(labClip(info?.label ?? group, Math.floor(cellW / 6)), colX(col), y + 10);
-        y += LAB_HEADER_H;
-        lastGroup = group;
-      }
-      if (y + LAB_ROW_H > panelBottom && !nextColumn()) break;
-      drawLabMeter(
-        g,
-        colX(col),
-        y,
-        cellW,
-        labFeatureLabel(id, group),
-        meters.levels[id],
-        p.showMarkers ? meters.markers[id] ?? [] : [],
-        color,
-        p.showValues ? meters.raw[id] : undefined,
-      );
-      y += LAB_ROW_H;
-      drawn += 1;
-    }
-    // Honest overflow note (no silent truncation).
-    const remaining = meters.order.length - drawn;
-    if (remaining > 0) {
-      g.globalAlpha = 0.8;
-      g.fillStyle = '#9ca3af';
-      g.font = 'italic 10px monospace';
-      g.textAlign = 'right';
-      g.fillText(`+${remaining} more (widen / fewer groups)`, panelLeft + panelW - PAD, panelBottom - 4);
-      g.textAlign = 'left';
-    }
-    g.restore();
-  },
-};
 
 // ---- Live-tagging burned-in corner HUD (#92) ------------------------------------
 // A self-contained additive block (first mover; keep it isolated so a concurrent
@@ -1476,117 +1253,6 @@ const trainerHud: OverlayElement = {
   },
 };
 
-/** Correlation-grid geometry. Deliberately small: this is a diagnostic you glance at
- *  while performing, not a plot you study. */
-const CORR_CELL = 14;
-const CORR_LABEL_W = 96;
-const CORR_TITLE_H = 20;
-
-/** Blue (anti-correlated) → transparent (independent) → orange (correlated). Diverging,
- *  because the SIGN of a coupling is the whole point — a single-hue ramp would show
- *  |r| and hide whether raising your brow raises or lowers the other feature. */
-function corrColor(r: number): string {
-  const a = Math.min(1, Math.abs(r));
-  return r >= 0 ? `rgba(249, 115, 22, ${a.toFixed(3)})` : `rgba(59, 130, 246, ${a.toFixed(3)})`;
-}
-
-/**
- * The rolling correlation matrix (#150) — a compact lower-left heat grid over the
- * currently-watched features, so coupling between them is VISIBLE rather than inferred.
- *
- * This is the diagnostic that makes #131's other two halves usable: `invariantTo` labels
- * say what COULD contaminate a feature and `residual(x, z)` removes a confound you name,
- * but only this says which confound is actually biting right now.
- *
- * A pure renderer, like the meters element: the statistics are folded by
- * {@link createLabMeterComputer} (which owns the estimators and the cost guards) and
- * arrive as `view.featureMeters.correlation`.
- *
- * Its config lives in the per-device `featureLab` block rather than a params sub-object of
- * its own — see {@link OverlayElement.configKey}. It is the Lab's diagnostic, so it must
- * not become an instrument parameter (#136).
- */
-const featureCorrelationElement: OverlayElement = {
-  name: 'featureCorrelation',
-  configKey: 'featureLab',
-  category: 'input',
-  draw(g, view) {
-    const p = view.params.featureLab;
-    // A SECOND gate. The load-bearing one is upstream: `createLabMeterComputer` does not
-    // populate `correlation` at all unless `showCorrelation` is on, which is what makes
-    // the feature genuinely free when off (the work is quadratic — see labCorrelation.ts).
-    // A mutation test confirms this line is currently redundant; it is kept so the element
-    // does not silently start drawing the day the computer populates the field
-    // unconditionally, and so the element reads as opt-in on its own terms.
-    if (!p.show || !p.showCorrelation) return;
-    const corr = view.featureMeters?.correlation;
-    if (!corr || corr.ids.length < 2) return;
-
-    const { W, H } = view;
-    const k = corr.ids.length;
-    // The grid is the strict lower-left triangle, so it needs k-1 rows and k-1 columns.
-    const gridW = (k - 1) * CORR_CELL;
-    const panelW = CORR_LABEL_W + gridW + 2 * PAD;
-    const panelH = CORR_TITLE_H + (k - 1) * CORR_CELL + 18;
-    // Bottom-LEFT: the meters panel is right-anchored and the HUD cues take the edges,
-    // so this is the one large region left free.
-    const panelLeft = PAD;
-    const panelTop = Math.max(LAB_TOP, H - 16 - panelH);
-    if (panelW > W - 2 * PAD) return; // never draw a panel wider than the frame
-
-    g.save();
-    g.globalAlpha = 0.55;
-    g.fillStyle = '#000000';
-    g.fillRect(panelLeft, panelTop, panelW, panelH);
-
-    g.globalAlpha = 1;
-    g.fillStyle = FACE_COLOR;
-    g.font = 'bold 12px monospace';
-    g.textAlign = 'left';
-    g.fillText('Correlation', panelLeft + PAD, panelTop + 14);
-
-    // Warm-up honesty: an r computed from a handful of frames is not evidence, and a
-    // grid that looks identical whether it has 5 samples or 5000 invites reading noise
-    // as structure. Say the sample count rather than implying confidence.
-    g.globalAlpha = 0.75;
-    g.fillStyle = '#9ca3af';
-    g.font = 'italic 9px monospace';
-    g.textAlign = 'right';
-    g.fillText(`${corr.frames}f`, panelLeft + panelW - PAD, panelTop + 14);
-
-    const gridLeft = panelLeft + PAD + CORR_LABEL_W;
-    const gridTop = panelTop + CORR_TITLE_H;
-
-    // Row i (for i = 1..k-1) labels feature i; column j (for j = 0..k-2) is feature j.
-    // Lower-left triangle: cell (i, j) exists only for j < i, so each unordered pair is
-    // drawn exactly once — a full square would mirror every value and say nothing more.
-    for (let i = 1; i < k; i++) {
-      const y = gridTop + (i - 1) * CORR_CELL;
-      g.globalAlpha = 0.85;
-      g.fillStyle = '#d1d5db';
-      g.font = '9px monospace';
-      g.textAlign = 'right';
-      g.fillText(labClip(labFeatureLabel(corr.ids[i], ''), 15), gridLeft - 4, y + CORR_CELL - 4);
-
-      for (let j = 0; j < i; j++) {
-        const r = corr.r[pairIndex(j, i, k)];
-        g.globalAlpha = 1;
-        g.fillStyle = corrColor(r);
-        g.fillRect(gridLeft + j * CORR_CELL, y, CORR_CELL - 1, CORR_CELL - 1);
-      }
-    }
-
-    if (corr.truncated > 0) {
-      g.globalAlpha = 0.8;
-      g.fillStyle = '#9ca3af';
-      g.font = 'italic 9px monospace';
-      g.textAlign = 'left';
-      g.fillText(`+${corr.truncated} not shown (raise the cap)`, panelLeft + PAD, panelTop + panelH - 5);
-    }
-    g.restore();
-  },
-};
-
 /**
  * The overlay elements, in draw (z) order. In-scene first, HUD cues last (on top).
  * Each has a `category` and a `<name>` sub-object in `Params`. Append here to add one.
@@ -1607,11 +1273,8 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   controlMarkers,
   fingerLinesElement,
   timbreLevels,
-  // The Feature Lab panel (#119): above the in-scene elements, below the HUD cues
-  // so the chord/finger readouts stay legible over it.
-  featureLabElement,
-  // The Lab's correlation matrix (#150), beside it on the opposite edge.
-  featureCorrelationElement,
+  // (The Feature Lab's panel and correlation matrix drew here: the Lab slice's contributed
+  // element since #600 S16b, placed before `chordName`.)
   // HUD cues last (on top). chordName sits before the others so `fingerBars`
   // stays the topmost cue; cues on different edges don't overlap regardless.
   chordNameCue,
@@ -1729,12 +1392,9 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
     outputs: [],
     params: OverlayParamsSchema,
     make(p) {
-      // The Feature Lab's statistics (#119) are a stateful online computation, not a
-      // drawing concern: one opaque handle owns the normalizer + the derived formulas
-      // (see @/features/labMeters), so this node stays a pure RENDERER.
-      // The contributed elements' state belongs to THIS overlay instance (#600 S10).
+      // The contributed elements' state belongs to THIS overlay instance (#600 S10); the Feature
+      // Lab's statistics live in its element's (the Lab slice's, #600 S16b).
       const elementState: Record<string, { memo: Record<string, unknown>; broken: boolean }> = {};
-      const computeLabMeters = createLabMeterComputer();
 
       return {
         process(inputs, ctx: NodeContext) {
@@ -1821,16 +1481,8 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
           const elements = view.elements ?? OVERLAY_ELEMENTS;
           if (contributed.length) view.contributed = contributedInputs(contributed, drawn, inputs);
 
-          // Compute the Feature Lab meters once per tick (the normalizer observes here);
-          // the featureLab element and the alpha pass both draw from this.
-          view.featureMeters = computeLabMeters(
-            view.params.featureLab,
-            inputs.faceVector as FeatureVector | undefined,
-            inputs.handVector as FeatureVector | undefined,
-            ctx.dt,
-            inputs.bodyVector as FeatureVector | undefined,
-          );
-
+          // A contributed element's per-tick work (#600 S16b), once, before either pass draws.
+          for (const element of elements) element.update?.(view);
           view.layout = layoutCues(view);
           for (const element of elements) element.draw(g, view);
 

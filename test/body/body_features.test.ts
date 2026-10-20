@@ -13,9 +13,9 @@ import { createCoreRegistry } from '@/nodes';
 import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { BLM, makeBodyKeypoints, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { ALL_FEATURES, BODY_FEATURES, FEATURE_BY_ID, FEATURE_GROUPS, buildBodyCtx, type FeatureVector } from '@thoremin/sdk/features/catalog';
-import { labWantsBody } from '@/features/labConfig';
-import { BODY_GROUP_IDS } from '@/features/groups';
-import { labDemandGroups } from '@/app/labDemand';
+import { labWantsBody } from '@/slices/lab/schema';
+import { BODY_GROUP_IDS } from '@thoremin/sdk/features/sources';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { BODY } from '../helpers/extensions';
 import { BODY_EXTENSION } from '@/slices/body';
 

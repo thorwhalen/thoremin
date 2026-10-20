@@ -6,17 +6,33 @@
  * bundle. Two sweeps, both data-driven from the shell's own registries so a new
  * entry is covered the day it is added:
  *
- *   - every tool in `src/app/tools.ts` opens from the shell — a pinned tool from its bar
- *     button, any other from the Tools launcher (Round 4, #271) — and a panel shows its
- *     close button, the palette its input, the assistant its chat, a link resolves;
+ *   - every tool opens from the shell — core's (`src/app/tools.ts`) and every shipped
+ *     extension's (#600: a built-in feature moved into a slice takes its tool with it) — a
+ *     pinned tool from its bar button, any other from the Tools launcher (Round 4, #271) —
+ *     and a panel shows its close button, the palette its input, the assistant its chat, a
+ *     link resolves; and the launcher lists EXACTLY the tools swept here, so a tool that
+ *     moves, or a new one, can never leave the sweep silently (#600 S16b);
  *   - every settings section of the instrument editor expands to real controls,
  *     reached the way a player reaches it: instruments list → Edit → section.
  *
- * `tools.ts` is imported from the app source (it is plain data with no imports),
- * so the list of tools here can never drift from the one the shell renders.
+ * `tools.ts` and the extensions' tool modules are imported from the source (plain data with
+ * no runtime imports), so the list of tools here can never drift from the one the shell renders.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { TOOLS } from '../../src/app/tools';
+import { SONG_TOOL } from '../../src/slices/song/tool';
+import { CONDUCTOR_TOOL } from '../../src/slices/conductor/tool';
+import { LAB_TOOL } from '../../src/slices/lab/tool';
+import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from '../../packages/ext-faces/src/tools';
+
+/** A tool as the sweep needs it: core's entries, and an extension's (always a panel). */
+type SweptTool = Pick<(typeof TOOLS)[number], 'id' | 'label' | 'kind' | 'defaultPinned'>;
+
+/** Every shipped extension's tools (each a panel the shell frames). A slice that brings a tool adds
+ *  its data module here; the launcher check below fails until it does. */
+const EXTENSION_TOOLS: readonly SweptTool[] = [CONDUCTOR_TOOL, SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({ id: t.id, label: t.label, kind: 'panel' as const, defaultPinned: t.defaultPinned }));
+
+const ALL_TOOLS: readonly SweptTool[] = [...TOOLS, ...EXTENSION_TOOLS];
 
 const SYNTHETIC = '?slot.source=synthetic-hands';
 
@@ -39,19 +55,25 @@ const OPEN_PROOF: Record<string, (page: Page, label: string) => Promise<void>> =
 
 /** The element that opens `tool` from a cold load: its bar button if it ships pinned,
  *  otherwise its row in the Tools launcher (opened first). Two clicks at most. */
-async function entryPoint(page: Page, tool: (typeof TOOLS)[number]) {
+async function entryPoint(page: Page, tool: SweptTool) {
   if (tool.defaultPinned) return page.locator(`[data-tools-bar] [data-tool="${tool.id}"]`);
   await page.locator('[data-tools-launcher]').click();
   return page.locator(`[data-launcher-tool="${tool.id}"]`).locator('a, button').first();
 }
 
-test.describe('every tool in src/app/tools.ts opens from the shell', () => {
+test.describe('every tool, core\'s and the extensions\', opens from the shell', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(SYNTHETIC);
     await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
   });
 
-  for (const tool of TOOLS) {
+  test('the launcher lists exactly the tools this sweep covers (a moved or new tool cannot drop out)', async ({ page }) => {
+    await page.locator('[data-tools-launcher]').click();
+    const listed = await page.locator('[data-launcher-tool]').evaluateAll((els) => els.map((e) => e.getAttribute('data-launcher-tool')));
+    expect([...listed].sort()).toEqual(ALL_TOOLS.map((t) => t.id).sort());
+  });
+
+  for (const tool of ALL_TOOLS) {
     test(`${tool.id} (${tool.kind}): ${tool.defaultPinned ? 'one click' : 'two clicks'} from a cold load`, async ({ page }) => {
       const button = await entryPoint(page, tool);
       await expect(button).toBeVisible();

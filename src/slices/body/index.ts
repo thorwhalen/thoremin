@@ -55,7 +55,6 @@ export const bodySource = defineBranch({
     to({ node: 'camBody', port: 'body' }, { node: 'bodyVec', port: 'body' }),
     to({ node: 'camBody', port: 'body' }, { node: 'bodyPulse', port: 'body' }),
     to({ node: 'bodyPulse', port: 'pulse' }, { node: 'bodyVec', port: 'pulse' }),
-    to({ node: 'bodyVec', port: 'vector' }, overlay('bodyVector')),
   ],
   overlay: ['bodySkeleton'],
   demands: [...BODY_GROUP_IDS],

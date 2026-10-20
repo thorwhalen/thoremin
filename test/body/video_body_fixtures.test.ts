@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { replayNode } from '@thoremin/dag';
 import type { BodyFrame } from '@/nodes';
 import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
-import { BODY_GROUP_IDS } from '@/features/groups';
+import { BODY_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { FIXTURES, loadStream, roundVector } from '../helpers/fixtures';
 import { BODY } from '../helpers/extensions';

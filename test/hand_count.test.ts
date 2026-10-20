@@ -7,13 +7,13 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { ALL_BRANCHES, branchIdsFor } from '@/app/graph';
 import { branchClosureIds } from '@/instruments/compose';
 import { ALL_HANDS, branchHands, deriveHandCount, HAND_COUNT_POLICY, parseHandsOverride, type HandCountContext, type HandCountPolicy } from '@/instruments/hands';
-import { defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@/slices/lab/schema';
 import { ensureSeeded, instruments, SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import type { DerivationSettings } from '@/instruments/derive';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { CONDUCTOR } from './helpers/extensions';
 
 const byId = new Map(ALL_BRANCHES.map((b) => [b.id, b]));

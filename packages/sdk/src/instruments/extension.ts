@@ -302,6 +302,11 @@ export interface OverlayElementImpl {
   /** `memo` is this element's own state in this overlay (kept between frames, one per overlay
    *  instance), for a drawing that remembers something (when each pad was last struck). */
   draw(g: CanvasRenderingContext2D, frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>, memo: Record<string, unknown>): void;
+  /** Called ONCE per tick before any drawing (#600 S16b), for an element that keeps running
+   *  statistics (the Feature Lab's normalizer): `draw` may run twice in a tick (the overlay-only
+   *  take redraws), so a statistic folded in `draw` would count each frame twice. Keep the result
+   *  in `memo` for `draw`. `frame.t` is the engine time; it runs while the element is composed. */
+  update?(frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>, memo: Record<string, unknown>): void;
   /** A cue's box, or null while it has nothing to show. */
   measure?(frame: OverlayFrame, inputs: Readonly<Record<string, unknown>>): { w: number; h: number } | null;
   /** A cue's edge (default `right`). */

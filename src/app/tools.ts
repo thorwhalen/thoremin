@@ -147,16 +147,6 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     independent: true,
   },
   {
-    id: 'lab',
-    label: 'Feature Lab',
-    description:
-      'Measure the raw face and hand features the instrument plays from — live, normalized meters.',
-    kind: 'panel',
-    group: 'tool',
-    defaultPinned: false,
-    runsDetached: true,
-  },
-  {
     id: 'gestures',
     label: 'Gestures',
     description:

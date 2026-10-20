@@ -19,13 +19,14 @@
  * Pure + headless: no canvas, no camera.
  */
 import { describe, it, expect } from 'vitest';
-import { makeEwPair } from '@/features/ewMoments';
-import { makeUnwrapper, unwrapStep, periodOf, TAU } from '@/features/circular';
-import { makeCorrelationMatrix, pairIndex, DEFAULT_CORRELATION_WINDOW } from '@/features/labCorrelation';
-import { compileFormula } from '@/features/formula';
+import { makeEwPair } from '@/slices/lab/lib/ewMoments';
+import { makeUnwrapper, unwrapStep, periodOf, TAU } from '@/slices/lab/lib/circular';
+import { makeCorrelationMatrix, pairIndex, DEFAULT_CORRELATION_WINDOW } from '@/slices/lab/lib/labCorrelation';
+import { compileFormula } from '@/slices/lab/lib/formula';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
+import { LAB } from '../helpers/extensions';
 
-describe('phase unwrapping — the angular pre-step (src/features/circular.ts)', () => {
+describe.runIf(LAB)('phase unwrapping — the angular pre-step (src/features/circular.ts)', () => {
   it('continues a wrapped angle instead of stepping by a period', () => {
     // The measurement from #144: a "5.69 rad jump" that is really a -0.59 rad move.
     expect(unwrapStep(3.10, -3.13, TAU)).toBeCloseTo(3.153, 3);
@@ -70,7 +71,7 @@ describe('phase unwrapping — the angular pre-step (src/features/circular.ts)',
   });
 });
 
-describe('makeEwPair — the shared moments', () => {
+describe.runIf(LAB)('makeEwPair — the shared moments', () => {
   it('reports the three outcomes distinctly', () => {
     const p = makeEwPair();
     expect(p.isSeeded()).toBe(false);
@@ -157,7 +158,7 @@ describe('makeEwPair — the shared moments', () => {
   });
 });
 
-describe('the residual helper still behaves exactly as before the extraction (#131)', () => {
+describe.runIf(LAB)('the residual helper still behaves exactly as before the extraction (#131)', () => {
   const VARS = new Set(['x', 'z']);
   const residual = (formula: string) => compileFormula(formula, { variables: VARS });
 
@@ -207,7 +208,7 @@ describe('the residual helper still behaves exactly as before the extraction (#1
   });
 });
 
-describe('pairIndex — the strict upper-triangle layout', () => {
+describe.runIf(LAB)('pairIndex — the strict upper-triangle layout', () => {
   it('is a bijection onto 0..k(k-1)/2-1 for every k', () => {
     for (let k = 2; k <= 9; k++) {
       const seen: number[] = [];
@@ -217,7 +218,7 @@ describe('pairIndex — the strict upper-triangle layout', () => {
   });
 });
 
-describe('makeCorrelationMatrix (#150)', () => {
+describe.runIf(LAB)('makeCorrelationMatrix (#150)', () => {
   const cfg = (over: Partial<{ maxFeatures: number; everyNFrames: number; window: number }> = {}) => ({
     maxFeatures: 12,
     everyNFrames: 1,
@@ -359,7 +360,7 @@ describe('makeCorrelationMatrix (#150)', () => {
  * perfectly: r held +1.00, collapsed at the wrap frame, and sat near -0.9 for the next
  * two hundred frames (the EW window is 180 at stride 1, ~6 s at 30fps).
  */
-describe('circular features are phase-unwrapped before folding (#150 / #144)', () => {
+describe.runIf(LAB)('circular features are phase-unwrapped before folding (#150 / #144)', () => {
   const PERIOD: readonly [number, number] = [-Math.PI, Math.PI];
   const wrapTo = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 

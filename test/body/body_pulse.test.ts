@@ -15,12 +15,12 @@ import { bodyFeatureVectorNode } from '@/slices/body/nodes/body_feature_vector';
 import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
-import { defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@/slices/lab/schema';
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { PULSE_GATE_CONFIDENCE } from '@thoremin/sdk/features/body_catalog';
 import { loadStream } from '../helpers/fixtures';
 // The open Lab claims its shown groups as a feature demand (#600 S16a): what the derivation reads.
-import { labDemandGroups } from '@/app/labDemand';
+import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { BODY } from '../helpers/extensions';
 import { BODY_EXTENSION } from '@/slices/body';
 

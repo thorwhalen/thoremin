@@ -53,8 +53,9 @@ describe('the tools collection declares what the launcher renders', () => {
   });
 
   it("the provider's search matches a tool by its description, not only its name", async () => {
-    const { data } = await createToolsProvider().getList({ search: 'meters' });
-    expect(data.map((t) => t.id)).toEqual(['lab']);
+    // (`manual`, by "capabilities": the Lab, the example before, is the Lab slice's tool since #600 S16b.)
+    const { data } = await createToolsProvider().getList({ search: 'capabilities' });
+    expect(data.map((t) => t.id)).toEqual(['manual']);
   });
 
   it("the provider is the seam an extension's tools join", async () => {
@@ -66,9 +67,10 @@ describe('the tools collection declares what the launcher renders', () => {
 
 describe("the player's pins", () => {
   it('a tool with no stored choice uses its default; a stored choice overrides it', () => {
-    const lab = TOOLS.find((t) => t.id === 'lab')!;
-    expect(isPinned(lab, {})).toBe(lab.defaultPinned);
-    expect(isPinned(lab, { lab: !lab.defaultPinned })).toBe(!lab.defaultPinned);
+    // (The assistant: a core tool in every build; the Lab, the example before, is its slice's since #600 S16b.)
+    const tool = TOOLS.find((t) => t.id === 'assistant')!;
+    expect(isPinned(tool, {})).toBe(tool.defaultPinned);
+    expect(isPinned(tool, { assistant: !tool.defaultPinned })).toBe(!tool.defaultPinned);
   });
 
   it('a provider with upsert is written through it', async () => {

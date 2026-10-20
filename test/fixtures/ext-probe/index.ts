@@ -103,8 +103,15 @@ export const probeNode = defineNode<Record<string, never>>({
 /** The probe's overlay element (#600 S5): a bar as long as the probe's level, while its dial is on. */
 export const PROBE_ELEMENT = 'meter';
 export const PROBE_ELEMENT_ID = overlayElementId('probe', PROBE_ELEMENT);
+/** How many times the host ran the meter's per-tick update (#600 S16b), for the test. */
+export const probeOverlay = { updates: 0 };
 export const probeMeter: OverlayElementImpl = {
   name: PROBE_ELEMENT,
+  // Once per tick before any pass draws (#600 S16b): a running count it then draws from `memo`.
+  update(_frame, _inputs, memo) {
+    probeOverlay.updates += 1;
+    memo.ticks = ((memo.ticks as number | undefined) ?? 0) + 1;
+  },
   draw(g, frame, inputs) {
     if ((inputs.config as ProbeDial | undefined)?.enabled !== true) return;
     const level = typeof inputs.level === 'number' ? inputs.level : 0;

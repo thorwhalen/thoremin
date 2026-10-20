@@ -81,9 +81,9 @@ describe('every overlay control the panel renders is an addressable leaf', () =>
     }
   });
 
-  it('the LAB-surface descriptor is excluded (its element is not a dial since #136)', () => {
+  it('the Feature Lab is not a dial (since #136) and has no overlay descriptor at all (its element is the Lab slice\'s, #600 S16b)', () => {
     const paths = new Set(structuredLeafPaths());
-    expect(OVERLAY_CONTROLS.some((d) => d.surface === 'lab')).toBe(true);
+    expect(OVERLAY_CONTROLS.some((d) => d.name === 'featureLab' || d.name === 'featureCorrelation')).toBe(false);
     expect(paths).not.toContain('overlay.featureLab.show');
   });
 });

@@ -52,6 +52,8 @@ export interface DrawnElement<V> {
   measure?(view: V): { w: number; h: number } | null;
   positionOf?(view: V): 'left' | 'right' | 'top' | 'bottom';
   draw(g: CanvasRenderingContext2D, view: V): void;
+  /** Once per tick, before every pass draws (#600 S16b: `OverlayElementImpl.update`). */
+  update?(view: V): void;
 }
 
 /** How an element that threw is reported (once; a test may watch the console). */
@@ -97,6 +99,7 @@ export function adaptContributed<V extends ContributedView>(c: ContributedElemen
       });
     },
   };
+  el.update = (view) => guarded(view, undefined, (impl) => impl.update?.(frameOf(view), inputsOf(view), stateOf(view).memo));
   if (c.decl.cue) {
     el.cue = true;
     el.measure = (view) => guarded(view, null, (impl) => impl.measure?.(frameOf(view), inputsOf(view)) ?? null);

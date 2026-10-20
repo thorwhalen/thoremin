@@ -6,7 +6,8 @@
  * and the mode switch is live + lossless.
  */
 import { describe, it, expect } from 'vitest';
-import { OnlineNormalizer } from '@/features/normalizer';
+import { OnlineNormalizer } from '@/slices/lab/lib/normalizer';
+import { LAB } from '../helpers/extensions';
 
 const DT = 1 / 60;
 
@@ -15,7 +16,7 @@ function feedRamp(nz: OnlineNormalizer, id: string, cycles: number): void {
   for (let i = 0; i < cycles; i++) nz.observe(id, i % 11, DT);
 }
 
-describe('OnlineNormalizer — guards', () => {
+describe.runIf(LAB)('OnlineNormalizer — guards', () => {
   it('rejects NaN and Infinity without incrementing the sample count', () => {
     const nz = new OnlineNormalizer();
     nz.observe('f', 1, DT);
@@ -47,7 +48,7 @@ describe('OnlineNormalizer — guards', () => {
   });
 });
 
-describe('OnlineNormalizer — minmax mapping', () => {
+describe.runIf(LAB)('OnlineNormalizer — minmax mapping', () => {
   it('maps the observed range to [0,1] with the extremes at the ends', () => {
     const nz = new OnlineNormalizer({ mode: 'minmax' });
     feedRamp(nz, 'f', 300);
@@ -64,7 +65,7 @@ describe('OnlineNormalizer — minmax mapping', () => {
   });
 });
 
-describe('OnlineNormalizer — percentile band', () => {
+describe.runIf(LAB)('OnlineNormalizer — percentile band', () => {
   it('is empty during warm-up, then monotone non-decreasing and in [0,1]', () => {
     const nz = new OnlineNormalizer();
     nz.observe('f', 1, DT);
@@ -82,7 +83,7 @@ describe('OnlineNormalizer — percentile band', () => {
   });
 });
 
-describe('OnlineNormalizer — zscore mapping', () => {
+describe.runIf(LAB)('OnlineNormalizer — zscore mapping', () => {
   it('reads 0.5 at the running mean and is bounded', () => {
     const nz = new OnlineNormalizer({ mode: 'zscore' });
     for (let i = 0; i < 500; i++) nz.observe('f', (i % 21) - 10, DT); // symmetric about 0
@@ -94,7 +95,7 @@ describe('OnlineNormalizer — zscore mapping', () => {
   });
 });
 
-describe('OnlineNormalizer — drift', () => {
+describe.runIf(LAB)('OnlineNormalizer — drift', () => {
   it('the envelope follows a shifted range (recent extremes win)', () => {
     const nz = new OnlineNormalizer({ mode: 'minmax', envelopeTau: 0.5 });
     for (let i = 0; i < 500; i++) nz.observe('f', i % 11, DT); // range 0..10
@@ -108,7 +109,7 @@ describe('OnlineNormalizer — drift', () => {
   });
 });
 
-describe('OnlineNormalizer — circular features (#144)', () => {
+describe.runIf(LAB)('OnlineNormalizer — circular features (#144)', () => {
   const PERIOD: readonly [number, number] = [-Math.PI, Math.PI];
   const makeCirc = () => new OnlineNormalizer({ circular: { 'palm.roll': PERIOD } });
 
@@ -159,7 +160,7 @@ describe('OnlineNormalizer — circular features (#144)', () => {
   });
 });
 
-describe('OnlineNormalizer — lifecycle', () => {
+describe.runIf(LAB)('OnlineNormalizer — lifecycle', () => {
   it('reset(id) clears one feature; reset() clears all', () => {
     const nz = new OnlineNormalizer();
     feedRamp(nz, 'a', 50);

@@ -16,12 +16,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
 import ToolsLauncher from '@/app/ToolsLauncher';
-import LabPanel from '@/app/LabPanel';
+// The Lab's panel, in the frame the shell opens an extension's tool in (#600 S16b).
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import GesturesPanel from '@/app/GesturesPanel';
 import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
-import { CONDUCTOR } from './helpers/extensions';
+import { CONDUCTOR, LAB, SONG } from './helpers/extensions';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
 import { useTools } from '@/app/toolsStore';
@@ -40,9 +41,10 @@ import { setSongHandle, setSongPlaying, songPlaying } from '@/slices/song/app/st
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { defaultFeatureLab } from '@/features/labConfig';
+import { defaultFeatureLab } from '@/slices/lab/schema';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
+import { labConfig, setLab } from '@/slices/lab/app/state';
 
 /** The bar and its launcher, as the shell mounts them. */
 const Shell = () => (
@@ -67,7 +69,8 @@ beforeEach(() => {
   localStorage.removeItem(TOOL_PINS_STORAGE_KEY);
   useToolPins.setState({ choices: {} });
   setConducting(false);
-  useControls.getState().setFeatureLab(defaultFeatureLab());
+  // The Lab is its slice's (#600 S16b): its pref exists while the slice is listed.
+  if (LAB) setLab(defaultFeatureLab());
   setSongHandle(null);
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
@@ -161,11 +164,13 @@ describe('the tools bar and its launcher are the shell entry point for every too
     render(<Shell />);
     fireEvent.click(screen.getByText('Tools'));
     await screen.findByRole('dialog', { name: 'Tools' });
-    fireEvent.change(screen.getByLabelText('Find a tool'), { target: { value: 'meters' } });
+    // "capabilities": the manual's description, a core tool in every build (the Lab, by "meters", was
+    // the example before it became its slice's, #600 S16b).
+    fireEvent.change(screen.getByLabelText('Find a tool'), { target: { value: 'capabilities' } });
     await waitFor(() =>
       expect(document.querySelectorAll('[data-launcher-tool]')).toHaveLength(1),
     );
-    expect(document.querySelector('[data-launcher-tool="lab"]')).toBeTruthy();
+    expect(document.querySelector('[data-launcher-tool="manual"]')).toBeTruthy();
   });
 
   it('the assistant is independent: a panel opening does not close it, and it does not close the panel', () => {
@@ -189,15 +194,15 @@ describe('the tools bar and its launcher are the shell entry point for every too
   });
 });
 
-describe('the Feature Lab is reachable and explains itself', () => {
+describe.runIf(LAB)('the Feature Lab is reachable and explains itself', () => {
   it('is closed until its tool is open', () => {
-    const { container } = render(<LabPanel />);
+    const { container } = render(<ExtensionToolPanels />);
     expect(container.firstChild).toBeNull();
   });
 
   it('opens on an INTRO state that says what the meters measure', () => {
     useTools.setState({ open: 'lab' });
-    render(<LabPanel />);
+    render(<ExtensionToolPanels />);
     // The empty state is the deliverable: "248 normalized meters" means nothing to
     // someone who has not read the design doc.
     expect(screen.getByText(/raw features/i)).toBeTruthy();
@@ -207,13 +212,13 @@ describe('the Feature Lab is reachable and explains itself', () => {
 
   it('starting the meters from the intro turns them on and reveals the controls', async () => {
     useTools.setState({ open: 'lab' });
-    render(<LabPanel />);
+    render(<ExtensionToolPanels />);
     // `act` so the saved-views store's async list() settles inside the test rather than
     // after it (React would otherwise warn about an update outside act).
     await act(async () => {
       fireEvent.click(screen.getByText(/Start measuring/i));
     });
-    expect(useControls.getState().featureLab.show).toBe(true);
+    expect(labConfig().show).toBe(true);
     expect(screen.getByText(/Show the meters over the video/i)).toBeTruthy();
   });
 
@@ -222,11 +227,11 @@ describe('the Feature Lab is reachable and explains itself', () => {
     // The compute and the drawing are tested elsewhere; this is the only thing that says
     // a human can get to it.
     useTools.setState({ open: 'lab' });
-    render(<LabPanel />);
+    render(<ExtensionToolPanels />);
     await act(async () => {
       fireEvent.click(screen.getByText(/Start measuring/i));
     });
-    expect(useControls.getState().featureLab.showCorrelation).toBe(false); // opt-in
+    expect(labConfig().showCorrelation).toBe(false); // opt-in
 
     const toggle = screen.getByLabelText(/Correlation matrix/i);
     await act(async () => {
@@ -234,7 +239,7 @@ describe('the Feature Lab is reachable and explains itself', () => {
     });
     // It writes the per-device tooling pref — NOT a dial, so turning a diagnostic on
     // must never mark the instrument as having unsaved edits (#136).
-    expect(useControls.getState().featureLab.showCorrelation).toBe(true);
+    expect(labConfig().showCorrelation).toBe(true);
     // Its two cost knobs are exposed, not hidden: the work is quadratic, and a player who
     // turns it on deserves to see the dial that decides what it costs.
     expect(screen.getByLabelText(/Max features/i)).toBeTruthy();
@@ -244,7 +249,7 @@ describe('the Feature Lab is reachable and explains itself', () => {
     render(
       <>
         <Shell />
-        <LabPanel />
+        <ExtensionToolPanels />
       </>,
     );
     expect(screen.queryByText(/Start measuring/i)).toBeNull();
@@ -317,12 +322,13 @@ describe('every control surface has a home in the shell', () => {
   });
 
   it('the Feature Lab elements are homed on the lab tool, not the instrument panel', () => {
-    // Both Lab elements: the meters (#119/#136) and the correlation matrix (#150), which
-    // is its own element but the same tooling surface.
-    expect(controlsForSurface('lab').map((d) => d.name)).toEqual(['featureLab', 'featureCorrelation']);
+    // Both Lab elements, the meters (#119/#136) and the correlation matrix (#150), are the Lab
+    // slice's one contributed element since #600 S16b, configured by its own panel: no overlay
+    // descriptor in the instrument panel, and the Lab's tool is in the shell.
     for (const name of ['featureLab', 'featureCorrelation']) {
       expect(controlsForSurface('instrument').map((d) => d.name)).not.toContain(name);
     }
+    if (LAB) expect(SHELL_TOOLS.map((t) => t.id)).toContain('lab');
   });
 });
 
@@ -780,8 +786,8 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
 /** Per detached tool: how to start it, and how to ask whether it is running. */
 const DETACHED: Record<string, { start: () => void; running: () => boolean }> = {
   lab: {
-    start: () => useControls.getState().setFeatureLab({ show: true }),
-    running: () => useControls.getState().featureLab.show,
+    start: () => setLab({ show: true }),
+    running: () => labConfig().show,
   },
   conductor: {
     start: () => setConducting(true),
@@ -802,8 +808,10 @@ const detachedTools = SHELL_TOOLS.filter((t) => t.runsDetached);
 describe('a tool that keeps running after its panel closes', () => {
   it('declares at least one such tool, and each has a harness here', () => {
     // If this fails you added `runsDetached` without teaching this file how to drive
-    // it — which would let the rest of the block silently cover nothing.
-    expect(detachedTools.length).toBeGreaterThan(0);
+    // it — which would let the rest of the block silently cover nothing. Every detached tool is an
+    // extension's since #600 S16b (the Lab was core's last), so core alone declares none.
+    if (LAB || SONG || CONDUCTOR) expect(detachedTools.length).toBeGreaterThan(0);
+    else expect(detachedTools).toEqual([]);
     for (const t of detachedTools) {
       expect(DETACHED[t.id], `no start/running harness for tool '${t.id}'`).toBeTruthy();
     }
@@ -839,11 +847,11 @@ describe('a tool that keeps running after its panel closes', () => {
     });
   }
 
-  it('the reported bug, end to end: start the meters, close the panel, still get out', async () => {
+  it.runIf(LAB)('the reported bug, end to end: start the meters, close the panel, still get out', async () => {
     render(
       <>
         <Shell />
-        <LabPanel />
+        <ExtensionToolPanels />
       </>,
     );
 
@@ -853,20 +861,20 @@ describe('a tool that keeps running after its panel closes', () => {
     act(() => {
       fireEvent.click(screen.getByText('Start measuring'));
     });
-    expect(useControls.getState().featureLab.show).toBe(true);
+    expect(labConfig().show).toBe(true);
 
     // Close the panel the obvious way — its X. The meters keep drawing (deliberate:
     // you watch them while you play), which is exactly where the player got stranded.
     act(() => {
-      fireEvent.click(screen.getByLabelText('Close the Feature Lab'));
+      fireEvent.click(screen.getByLabelText('Close the Feature Lab panel'));
     });
     expect(useTools.getState().open).toBeNull();
-    expect(useControls.getState().featureLab.show).toBe(true);
+    expect(labConfig().show).toBe(true);
 
     // ...and the bar still offers the way out, without reopening anything.
     act(() => {
       fireEvent.click(screen.getByLabelText('Stop Feature Lab'));
     });
-    expect(useControls.getState().featureLab.show).toBe(false);
+    expect(labConfig().show).toBe(false);
   });
 });

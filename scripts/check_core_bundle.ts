@@ -30,12 +30,13 @@ import { GENERATIVE_EXTENSION } from '../src/slices/generative';
 import { SONG_EXTENSION } from '../src/slices/song';
 import { BODY_EXTENSION } from '../src/slices/body';
 import { CONDUCTOR_EXTENSION } from '../src/slices/conductor';
+import { LAB_EXTENSION } from '../src/slices/lab';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, ASL_EXTENSION, FACES_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);

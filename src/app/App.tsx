@@ -26,7 +26,7 @@ import { CONTRIBUTIONS } from '@/host/contributions';
 import { stillSoundingNote } from './stillSounding';
 import { useControls } from './store';
 import { useFaceStatus } from './faceStatus';
-import { demandWantsFace } from '@/features/groups';
+import { demandWantsFace } from '@thoremin/sdk/features/sources';
 import { useDemandedGroups } from './useDemandedGroups';
 import InstrumentsPanel from './dials/InstrumentsPanel';
 import RecordButton from './RecordButton';
@@ -37,7 +37,6 @@ import AssistantOverlay from '@/plugins/assistant/AssistantOverlay';
 import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
 import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
-import LabPanel from './LabPanel';
 import GesturesPanel from './GesturesPanel';
 import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
 import ExtensionToolPanels from './ExtensionToolPanels';
@@ -192,9 +191,6 @@ export default function App({
           tool nobody will ever find (#136). */}
       <ToolsBar />
       <ToolsLauncher />
-
-      {/* The Feature Lab's surface (#119/#136) — renders when its tool is the open one. */}
-      <LabPanel />
 
       {/* The gesture-binding editor (#129) — renders when its tool is the open one. */}
       <GesturesPanel />
