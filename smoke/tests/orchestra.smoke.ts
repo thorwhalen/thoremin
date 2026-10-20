@@ -5,13 +5,14 @@
  * AudioWorklet processor and the 6.0 MB soundfont are fetched only when the player asks
  * for the orchestra, never on a cold load and never by opening the Conductor. Then the
  * walk the PR states, click by click: Tap to play, Conductor, Play with the orchestra
- * (the download, with its readout reaching `ready`), Start conducting (the orchestra
- * `active`). The build-time half of the rule is `vite.lazy-guard.ts`; this is the
+ * (the download, with its readout reaching `ready`), Start conducting and beat (the
+ * orchestra `active`: nothing plays before the first stroke, so the synthetic hand beats
+ * time, `synthetic.conduct=1`). The build-time half of the rule is `vite.lazy-guard.ts`; this is the
  * network half.
  */
 import { test, expect, type Page } from '@playwright/test';
 
-const SYNTHETIC = '?slot.source=synthetic-hands';
+const SYNTHETIC = '?slot.source=synthetic-hands&synthetic.conduct=1';
 /** What only the orchestra may fetch. */
 const ORCHESTRA_ASSET = /orchestra_engine-[^/]*\.js|spessasynth_processor[^/]*\.js|soundfonts\/orchestra\.sf3/;
 
@@ -51,7 +52,7 @@ test('the orchestra loads only when switched on, and plays once conducting start
   expect(fetched.some((u) => /orchestra_engine-/.test(u)), `synth chunk fetched: ${fetched.join(', ')}`).toBe(true);
   expect(fetched.some((u) => /soundfonts\/orchestra\.sf3$/.test(u)), 'soundfont fetched').toBe(true);
 
-  // Click 4: Start. The orchestra is the one playing the piece.
+  // Click 4: Start, and the hand beats. From the first stroke the orchestra plays the piece.
   await page.getByRole('button', { name: 'Start conducting' }).click();
   await expect(readout(page)).toHaveAttribute('data-load-phase', 'active', { timeout: 20_000 });
 });
