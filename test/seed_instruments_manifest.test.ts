@@ -11,11 +11,13 @@ import manifest from '../smoke/seed_instruments.json';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { layerToSettings } from '@/settings/dials';
 import { branchIdsFor } from '@/app/graph';
+import { AIR, ASL, hasExtension } from './helpers/extensions';
 
 type Entry = { name: string; body: boolean; silent?: string };
 const entries = manifest.seeds as Entry[];
 
-describe('the seed sweep manifest', () => {
+// The manifest names the shipped build's seeds, extensions included: a core-alone build lists fewer.
+describe.runIf(AIR && ASL && hasExtension('faces'))('the seed sweep manifest', () => {
   it('lists exactly the shipped instruments, in order', () => {
     expect(entries.map((e) => e.name)).toEqual(SEED_INSTRUMENTS.map((s) => s.name));
   });
