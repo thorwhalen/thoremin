@@ -33,6 +33,9 @@ export const HEARING = {
   /** ...and its spectral shape moves by at least this much between readings 100 ms apart (the
    *  continuous seeds measure 0.32 to 0.68 with the sweeping hand; a held, unchanging tone is 0). */
   shapeFlux: 0.08,
-  /** A struck instrument: at least this many onsets while listened to (0.9 s strokes). */
+  /** A struck instrument: at least this many onsets (0.9 s strokes)... */
   hits: 3,
+  /** ...listened for in `playMs` pieces until they come, up to this long (#803: a loaded runner
+   *  drops strokes, so a fixed few seconds read as a missing hit). */
+  hitsWithinMs: 20_000,
 } as const;

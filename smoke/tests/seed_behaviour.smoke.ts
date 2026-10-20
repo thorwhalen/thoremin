@@ -20,6 +20,7 @@ import manifest from '../seed_instruments.json';
 import { installAudioTap, listen, hear, onsets, watchPeaks } from '../helpers/audioTap';
 import { boot, bootUrl, collectErrors, play, type HandSource } from '../helpers/boot';
 import { HEARING, SEED_PLAY } from '../helpers/seedBehaviour';
+import { skipWhenStarved } from '../helpers/load';
 
 type Seed = { name: string; body: boolean; silent?: string };
 const seeds = (manifest.seeds as Seed[]).filter((s) => !s.silent);
@@ -54,9 +55,17 @@ for (const hands of ['synthetic', 'none'] as const) {
           await play(page, seed.name);
           await page.waitForTimeout(HEARING.settleMs);
           if (hands === 'synthetic' && how === 'hits') {
-            const peaks = await watchPeaks(page, { forMs: HEARING.playMs });
+            // Listen until the hits come, up to a generous window: a loaded runner drops frames
+            // and with them strokes, so the count is not tied to a fixed few seconds (#803).
+            const peaks: number[] = [];
+            for (let t = 0; t < HEARING.hitsWithinMs && onsets(peaks, HEARING.floor) < HEARING.hits; t += HEARING.playMs) {
+              peaks.push(...(await watchPeaks(page, { forMs: HEARING.playMs })));
+            }
+            const heard = onsets(peaks, HEARING.floor);
             const loudest = peaks.reduce((m, p) => Math.max(m, p), 0);
-            expect(onsets(peaks, HEARING.floor), `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks`).toBeGreaterThanOrEqual(HEARING.hits);
+            // Too few: if the page could not keep the frame rate a stroke needs, that is the runner.
+            const fps = heard < HEARING.hits ? await skipWhenStarved(page, `${seed.name} hits`) : NaN;
+            expect(heard, `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks, the page at ${fps.toFixed(1)} fps`).toBeGreaterThanOrEqual(HEARING.hits);
             expect(errors.splice(0)).toEqual([]);
             return;
           }
