@@ -47,10 +47,10 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 - **Layout**: the honeycomb map, where every chord's neighbours are the other six; one row by fifths; or one row in scale order. **Letters** keeps the map in place when the key changes, so a new key lights up the chords it changes instead of moving everything.
 - **Hold or strum**: hold a chord and play a melody over it, or strum it like the air guitar.
 - **Which hand points**, and with what: the palm or a fingertip. **Chord size**: bigger chords are easier to hit, smaller ones show more of the map.
-- **Melody**: on or off, its notes (the chord's tones, a pentatonic, the whole scale, or chosen by tilting the hand), its volume and range. **Seventh chords** turns the key's chords into sevenths.
+- **Melody**: on or off, its notes (the chord's tones, a pentatonic, the whole scale, or chosen by tilting the hand), its volume. **Seventh chords** turns the key's chords into sevenths. Also: draw the map on the video, the chords' share of the screen, the strum volume, and (in the harmonic layout) a caption on each cell naming the move from the current chord.
 - **Face**: whether your face colours the chords (a smile major, a frown minor; an open mouth with raised brows adds a seventh, then a ninth), and whether it is read against your face at rest.
 - **What chooses the chords**: your hand, a MIDI keyboard (Chrome or Edge), the microphone, or your signs: fingerspell a letter A to G and that letter's chord in the key lights up while your other hand plays over it (turn on **Sign language** too). **Chords from**: the key's seven, or a pentatonic's own five.
-- **Timing**: what keeps the beat (the Chord sound's tempo, or a song loaded in the Song tool), and whether a new chord waits for the next beat.
+- **Timing**: what keeps the beat (the Chord sound's tempo, a song loaded in the Song tool, or the conductor while you conduct), and whether a new chord waits for the next beat.
 - **Grid on the video**: draw the map over the video, or play it undrawn.
 
 ## Chord wheel {#chord-wheel}
@@ -58,11 +58,11 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 The chord wheel's own settings; the key and how chords sound are in **Sound**.
 
 - **Moves**: the key's six moves, or the Tonnetz's, which leave the key one or two changed notes at a time.
-- **Steering**: your hand, your face, or both, your signs, or your poses; which hand and which point of it; the wheel's size; how far to push and how long to hold before a move is made; and how long an expression, a sign or a pose must be held. With signs, a fingerspelled letter A to G goes to that letter's chord in the key, and the next letter goes straight on (turn on **Sign language** too). With your poses, your first pose makes the top move, the next pose the next move clockwise (choose the poses in **Pose categorizer**).
+- **Steering**: your hand, your face, or both, your signs, or your poses; which hand and which point of it; the wheel's size; and how far to push and how long to hold before a hand move is made. With signs, a fingerspelled letter A to G goes to that letter's chord in the key, and the next letter goes straight on (turn on **Sign language** too). With your poses, your first pose makes the top move, the next pose the next move clockwise (choose the poses in **Pose categorizer**).
 - **Order**: the moves in a fixed place, or the likeliest next chord on top. **Surprise** brings rarer moves to the top, from this setting, your other hand's height, or your face.
 - **Tension**: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named).
 - **Walk on the beat**: a push held out keeps making that move, every one to four beats.
-- **Timing**: what keeps the beat for arpeggios and walks (the Chord sound's tempo, or a song loaded in the Song tool).
+- **Timing**: what keeps the beat for arpeggios and walks (the Chord sound's tempo, a song loaded in the Song tool, or the conductor while you conduct).
 
 ## Chord chart {#chord-chart}
 
