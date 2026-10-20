@@ -4,7 +4,7 @@ title: Troubleshooting
 
 ## No sound
 
-Browsers will not make sound until you tap. Tap anywhere on the page once. If the status still says it is waiting, check that the tab is not muted and the device volume is up. The **m** key mutes the hands and the chords: press it again.
+Browsers will not make sound until you tap. Press **Tap to play** once. If the status still says it is waiting, check that the tab is not muted and the device volume is up. The **m** key mutes everything the instrument plays: press it again.
 
 ## The camera does not start
 
@@ -22,7 +22,7 @@ Browsers will not make sound until you tap. Tap anywhere on the page once. If th
 
 ## Browsers
 
-Chrome and Edge work best. Safari and Firefox work for playing, with gaps: no folder picker for saving takes (they download a zip), and Safari has no Web MIDI. The first time you open an extension (air, ASL, faces) it downloads a little, then works offline of that.
+Chrome and Edge work best. Safari and Firefox work for playing, with gaps: no folder picker for saving takes (they download a zip), and Safari has no Web MIDI. The first time you open the sign-language reader it downloads a little.
 
 ## MIDI
 

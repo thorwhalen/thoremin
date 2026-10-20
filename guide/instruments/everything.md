@@ -3,7 +3,7 @@ seed: Everything
 area: field
 do:
   - Play notes with your wrist.
-  - Curl the four fingers for brightness, vibrato, pan and an octave jump.
+  - Bring the index, middle and ring fingertips toward the thumb for brightness, vibrato and pan; pinch the pinky to jump an octave.
   - Smile and change your expression to change the timbre.
 settings: Sound, Hand, Face
 ---

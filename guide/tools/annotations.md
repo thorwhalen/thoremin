@@ -2,8 +2,8 @@
 tool: annotations
 title: Annotations
 do:
-  - Press Annotation mode at the bottom right.
-  - While recording, tap a label (or press 1 to 9) to mark what is happening.
+  - Press **Annotations** at the bottom right and switch **Annotation mode** on, before you record.
+  - Press Record, then tap a label (or press 1 to 9) to mark what is happening.
   - Export the labels from the Export panel.
 ---
 Mark what was happening, when, so a recording can be cut into labelled segments afterwards.

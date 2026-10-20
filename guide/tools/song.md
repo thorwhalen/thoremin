@@ -13,5 +13,5 @@ With *Follow the dancer* on, the song's tempo follows your pulse (your stride or
 :::
 
 :::details Conduct a recording
-In the [Conductor](tool:conductor) you can make the song itself follow your conducting: choose which beat of the song your first beat lands on, and on a hold the song can fade instead of cutting.
+In the [Conductor](tool:conductor) you can make the song itself follow your conducting: choose which beat of the song your first beat lands on (in the Conductor tool), and on a hold the song can fade instead of cutting (*Fade on a conductor's hold*, in the Song tool).
 :::

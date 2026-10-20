@@ -12,11 +12,11 @@
   {
     "id": "chords",
     "title": "Chords and harmony",
-    "blurb": "Point at chords instead of notes: a map or a wheel of a key's chords, a song that sets the chords for you to play over, a score whose chords you conduct."
+    "blurb": "Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct."
   },
   {
     "id": "sign",
     "title": "Sign instruments",
-    "blurb": "Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter."
+    "blurb": "Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter from A to G."
   }
 ]

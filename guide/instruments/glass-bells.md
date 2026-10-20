@@ -10,5 +10,5 @@ settings: Face, Sound
 Your face plays chords: the expression decides which chord of the key sounds, and the chord is played as a rising arpeggio.
 
 :::details How it works
-In **Face**, the mapping *chord* turns facial expressions into the chords of the key (a smile, a frown, a surprised face each pick a different one). The rendering *arp up* plays the chord's notes one after another at a steady tempo. Your own faces can replace the built-in ones: see [Your faces](tool:faces).
+In **Face**, the mapping *Expression → chord* turns facial expressions into the chords of the key (a smile, a frown, a surprised face each pick a different one). The rendering *Arpeggio ↑* plays the chord's notes one after another at a steady tempo. Your own faces can replace the built-in ones: see [Your faces](tool:faces).
 :::

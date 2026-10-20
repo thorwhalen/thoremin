@@ -6,15 +6,15 @@ The instrument editor (the Edit button next to an instrument) is made of section
 
 ## Sound {#sound}
 
-Per voice (right and left): the root note, the scale (major, minor, pentatonic, blues, chromatic...), the octave range, the sound (the timbre) and the volume. *Sync with right* makes the left voice copy the right.
+Per voice (right and left): the root note, the scale (major, minor, pentatonic, blues, chromatic...), the octave range, the base octave and the sound (the timbre); the master volume sits at the top. *Sync both hands* makes the left voice copy the right.
 
 ## Hand {#hand}
 
-Where the note comes from (the index fingertip or the steadier wrist), the magnetism (0 % glides freely, 100 % snaps to the scale), and what the open hand, the pinch, the closed fist and the position on screen do. Each finger can also be routed to an effect: brightness, vibrato, pan, pitch bend, octave or gate, continuous or as a trigger, with its own sensitivity.
+Where the note comes from (the index fingertip or the steadier wrist), the maximum volume, the stereo pan spread, a handedness dwell that stops the camera swapping left and right, and what the open hand, the pinch, the closed fist and the position on screen do. Each finger can also be routed to an effect: brightness, vibrato, pan, pitch bend, octave or gate, continuous or as a trigger, with its own sensitivity.
 
 ## Face {#face}
 
-What the face does: nothing; *timbre* (a smile brightens, an open mouth adds vibrato); *chord* (an expression plays a chord of the key); or *controls* (a deliberate head, jaw or brow pose plays a chord). Plus the chord sound, volume, voicing (spread, close, shell, power, voice-led), the rendering (sustained, strum, arpeggio up or down, pulse, alberti) and which chord each expression plays.
+What the face does: nothing; *timbre* (a smile brightens, an open mouth adds vibrato); *chord* (an expression plays a chord of the key); or *controls* (a deliberate head, jaw or brow pose plays a chord). Plus the chord sound, volume, voicing (open, bass + triad, close, shell, power, voice-led), the rendering (sustained pad, strum, arpeggio up, down or up-down, pulse, alberti) and which chord each expression plays.
 
 ## Overlay {#overlay}
 
@@ -26,19 +26,19 @@ The keyboard shortcuts, listed. See also [Commands](tool:commands).
 
 ## Air drum {#air-drum}
 
-Switch the drum on; choose which hand strikes, each hand's drum sound (right: kick, left: snare), the stick length, how hard a stroke must be to count as a hard hit, how much the timing is pulled to the beat, the volume; the pads (move, resize, stack, give each a sound); whether the pads and sticks are drawn on the video; saved pad layouts; and the pattern trainer.
+Switch the drum on; choose which hand strikes, each hand's drum sound (right: kick, left: snare), the stick point (wrist, index fingertip or stick tip), how fast a stroke must be to sound at full volume, how far ahead a hit is committed (Lead), how much the timing is pulled to the beat; the pads (move, resize, stack, give each a sound); whether the pads and sticks are drawn on the video; saved pad layouts; and the pattern trainer.
 
 ## Air bass {#air-bass}
 
-Switch the bass on; choose the plucking hand and the point that plucks, the notes at the near and far ends of the neck, how smooth the neck is, how sensitive the pluck is, and the volume.
+Switch the bass on; choose the plucking hand and the point that plucks, how far apart the hands are at the highest and the lowest note (in palm widths), and the volume. The notes themselves are the Sound section's scale.
 
 ## Air guitar {#air-guitar}
 
-Switch the guitar on; choose the strumming hand and point, how spread the strum is, how sensitive the strum is, the volume, and teach your chord shapes (enrol them one by one).
+Switch the guitar on; choose the strumming hand and point, the volume, teach your chord shapes (enrol them one by one) or run the chord sequence trainer.
 
 ## Air flute {#air-flute}
 
-Switch the flute on; choose how you blow (with the mouth, or with the face), the volume, teach your fingerings and your blowing mouth, pick a wind instrument's fingering chart as a guide, show the breath cue, and run the sequence trainer.
+Switch the flute on; choose how a note is started (your blowing mouth, or fingers only: a held fingering sounds on its own), the volume, teach your fingerings and your blowing mouth, pick a wind instrument's fingering chart as a guide, show the breath cue, and run the sequence trainer.
 
 ## Chord map {#chord-map}
 
@@ -57,7 +57,7 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 
 The chord wheel's own settings; the key and how chords sound are in **Sound**.
 
-- **Moves**: the key's six moves, or the Tonnetz's, which leave the key one changed note at a time.
+- **Moves**: the key's six moves, or the Tonnetz's, which leave the key one or two changed notes at a time.
 - **Steering**: your hand, your face, or both; which hand and which point of it; the wheel's size; how far to push and how long to hold before a move is made; and how long an expression must be held when the face steers.
 - **Order**: the moves in a fixed place, or the likeliest next chord on top. **Surprise** brings rarer moves to the top, from this setting, your other hand's height, or your face.
 - **Tension**: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named).
@@ -74,7 +74,7 @@ For conducting a piece's chords (it needs the **Conductor**, which chooses the p
 
 ## Sign language {#sign-language}
 
-Switch the ASL reader on, and the key, sound and voicing for the letter chords.
+Switch the ASL reader on, include the movement signs (J, Z and the words), set how confident and how smooth the reading must be, and choose whether A to G play chords, whether the chord holds between letters, and the key, sound and volume of those chords.
 
 ## MIDI {#midi}
 

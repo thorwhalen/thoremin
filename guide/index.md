@@ -7,7 +7,7 @@ Thoremin turns your camera into a musical instrument. Hold a hand up and it play
 ## Start in one minute
 
 1. Open [the app](app:) in Chrome (other browsers work with a few gaps: see [troubleshooting](troubleshooting.html)) and allow the camera.
-2. Tap anywhere to start the sound. Browsers need a tap before they will make any.
+2. Press **Tap to play**. Browsers need a tap before they will make any sound.
 3. Hold a hand up. Move it left and right for pitch, up and down for loudness. Raise a second hand for a second voice.
 
 No camera? Add `?slot.source=synthetic-hands` to the address and a pretend hand plays.
@@ -26,5 +26,5 @@ Each page starts with what to do, in three lines. "How it works" and "Settings" 
 :::
 
 :::details Instruments, sounds and saving
-An **instrument** is a named saved set of every setting: scales, sounds, ranges, finger routing, what the face does, what is drawn on the video. A **sound** is just the timbre (a bell, a pad, a reed). Open the instrument list to browse them: star the ones you like, give them your own tags, and hover one for a short summary. Editing an instrument marks it changed; **Save** overwrites it and **Save as new** keeps both. Your working state survives a reload.
+An **instrument** is a named saved set of every setting: scales, sounds, ranges, finger routing, what the face does, what is drawn on the video. A **sound** is just the timbre (a bell, a pad, a reed). Open the instrument list to browse them: star the ones you like, give them your own tags, and hover one for a short summary. Editing an instrument marks it changed; **Save** asks before it overwrites the instrument; to keep both, type a name in the list's "Save current sound as..." box and press **Save**. Your working state survives a reload.
 :::

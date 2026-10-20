@@ -4,7 +4,7 @@ title: Your faces
 do:
   - Open Tools, then Your faces, then Record my faces.
   - Stay relaxed while it learns your rest, then make your faces one after another.
-  - Stop, name the groups it finds, and press Play it.
+  - Press **Stop and carve**, name the groups it finds, and press Play it.
 settings: Face categorizer
 ---
 Teach the instrument YOUR faces instead of fixed expressions. It records you, finds the groups, and plays chords from them.
