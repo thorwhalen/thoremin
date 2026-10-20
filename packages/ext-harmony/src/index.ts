@@ -141,6 +141,9 @@ export const HARMONY_EXTENSION = defineExtension({
     // played voice-led and arpeggiated on the conductor's beat under the first violin's tune,
     // which is all the conductor's own score plays (the quartet is not doubled).
     { name: 'Conduct the Chords', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin' }, chordChart: { enabled: true } }, requires: ['conductor'] },
+    // The same, conducted with the whole body (#375): the beating arm and the trunk give the beat,
+    // so the hands are free; needs the body camera (the body slice's branch).
+    { name: 'Conduct the Chords (Body)', patch: { ...SILENT_THEREMIN, faceChord: { voicing: 'voiceLed', rendering: 'arpUpDown' }, conductor: { enabled: true, piece: 'haydn-op76-3', parts: 'violin', source: 'body' }, chordChart: { enabled: true } }, requires: ['conductor', 'body-source'] },
     // Signs steer (the sign-harmony lane): fingerspell a letter A..G and the wheel goes to that
     // letter's chord, its wedges showing the moves from there. Requires the ASL plugin (its
     // reader on, its own chords off: the wheel plays them).

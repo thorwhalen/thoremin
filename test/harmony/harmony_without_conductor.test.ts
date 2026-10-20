@@ -26,7 +26,7 @@ const compose = (settings: DerivationSettings) =>
 describe.runIf(AIR && HARMONY)('the chord instruments without the conductor slice (#697)', () => {
   it('withholds the chord chart: its catalog row, its seed', () => {
     expect(fold.withheld.catalog).toEqual(['chart']);
-    expect(fold.withheld.instruments).toEqual(['Conduct the Chords', 'Sign Wheel', 'Sign Map']);
+    expect(fold.withheld.instruments).toEqual(['Conduct the Chords', 'Conduct the Chords (Body)', 'Sign Wheel', 'Sign Map']);
     expect(fold.catalog.map((r) => r.id)).not.toContain('chart');
     expect(fold.instruments.map((i) => i.name)).not.toContain('Conduct the Chords');
   });

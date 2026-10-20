@@ -4,6 +4,7 @@
   "Chord Map Strum": { "query": "synthetic.strike=1", "clip": true, "clipMs": 3500 },
   "Chord Wheel": { "clip": true, "clipMs": 4000 },
   "Conduct the Chords": { "query": "synthetic.conduct=1", "ms": 9000, "clip": true, "clipMs": 3000 },
+  "Conduct the Chords (Body)": { "body": true, "ms": 6000 },
   "Pose Chords": { "body": true, "ms": 6000 },
   "tool:poses": { "body": true }
 }
