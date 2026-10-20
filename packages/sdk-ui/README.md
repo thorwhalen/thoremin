@@ -16,6 +16,6 @@ A seam is resolved when it is called, never at import, so an extension module ca
 
 ## Moved here whole (no app dependency)
 
-`primitives` (the settings panels' controls), `types` (`ExtensionUi`, `StatusHook`, `ExtensionPanel`), `namedCollection` (the zodal named-record store facade), `featureDemand` (the app's feature-demand registry), `enroll/{sequenceStore,guidance,click}` (the trainer's sequence collection, guidance sinks and click player). Core imports them from here too, so there is one instance of each.
+`primitives` (the settings panels' controls), `types` (`ExtensionUi`, `StatusHook`, `ExtensionPanel`), `namedCollection` (the zodal named-record store facade), `featureDemand` (the app's feature-demand registry), `enroll/{sequenceStore,guidance,click}` (the trainer's sequence collection, guidance sinks and click player), `enroll/binder` (the host's category bindings: bind a saved categorizer, keep a trained model, list the saved ones), `recording/{schema,naming,tagStream,controller,destination,config}` (a take's session schema, file naming, the tag-stream types, the recording controller seam, where the take goes in words, and the recording config store; the app provides the remembered folder's reader). Core imports them from here too, so there is one instance of each.
 
 React is a peer dependency. The `.tsx` files and `types.ts` are outside the strict, React-free typecheck (the project ships no `@types/react`); the rest is checked by it.

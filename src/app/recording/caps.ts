@@ -6,7 +6,8 @@
  * runtime.
  */
 import { pickMimeType } from '../recorder';
-import type { RecordingLocation } from './schema';
+import { folderPickerSupported } from '@thoremin/sdk-ui/recording/destination';
+import type { RecordingLocation } from '@thoremin/sdk-ui/recording/schema';
 
 /** The concrete sink backend a recording will use (see `./sink`). */
 export type SinkKind = 'directory' | 'zip' | 'perFile';
@@ -27,7 +28,7 @@ const g: typeof globalThis & {
 /** Detect the current browser's save capabilities. */
 export function detectCaps(): RecordingCaps {
   return {
-    directoryPicker: typeof g.showDirectoryPicker === 'function',
+    directoryPicker: folderPickerSupported(),
     filePicker: typeof g.showSaveFilePicker === 'function',
   };
 }

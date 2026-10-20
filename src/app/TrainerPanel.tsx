@@ -30,11 +30,12 @@
  *
  * ## Sampling
  *
- * While the runner runs, the panel polls {@link readLiveVector} on an interval and
+ * While the runner runs, the panel polls the live vector on an interval and
  * feeds the store — a sample when a vector is there, a bare tick when not (so patience
  * elapses and the runner can say "I could not see you"). Polling, not a subscription,
  * because the vector updates per tick and no part of this UI needs frame-rate
- * fidelity; see `enroll/liveVector.ts`. The tap's clock and `performance.now()` are the
+ * fidelity; see `enroll/liveVector.ts`. Every store read and write, the poll included, is the
+ * controller's (`enroll/trainerController.ts`, #600 S16c): this component only renders. The tap's clock and `performance.now()` are the
  * same clock (`useEngine` ticks with `performance.now()/1000`), so falling back to it
  * before the first tick is safe.
  *
@@ -49,36 +50,30 @@
  * write path (`enroll/categoryDispatch.ts`). Nothing fires while a trainer is open, so a
  * bad training run cannot re-voice the instrument under the player.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
 import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
-import { readLiveVector } from './enroll/liveVector';
-import { useTrainer } from './enroll/store';
-import { savedCategoriesId, useCategoryBinding } from './enroll/categoryBinding';
-import { TRAINED_KIND } from '@thoremin/sdk/enroll/record';
 import RoutinePicker from './enroll/RoutinePicker';
 import ProjectionView from './enroll/ProjectionView';
-import { installVoice, unlockVoice, useVoice } from './enroll/voiceRuntime';
-import { useTools } from './toolsStore';
-import { useControls } from './store';
-import { useTrainerPrefs } from './enroll/prefs';
-import { toolById } from './tools';
-import { STARTER_ROUTINES, routineRecordsPerformance, starterRoutineById } from './enroll/realVsAirCues';
-import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
-import { useRecordingConfig } from './recording/configStore';
-import { describeTakeDestination } from './recording/destination';
-import { detectCaps } from './recording/caps';
-import { dispatchCommand } from './dispatchDial';
+import { unlockVoice } from './enroll/voiceRuntime';
+import { STARTER_ROUTINES, starterRoutineById } from './enroll/realVsAirCues';
+import type { CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
+import {
+  TRAINER_TOOL_ID,
+  categoryBinder,
+  defaultKeepName,
+  keepModel,
+  keepReplaces,
+  trainerActions,
+  useBeat,
+  useProjection,
+  useRoutineChoice,
+  useTrainerSession,
+  useTrainerView,
+} from './enroll/trainerController';
 
-/** The tool id, and the id of the Trainer's hush claim (see `useControls.setHush`). */
-export const TOOL_ID = 'trainer';
-/** ~30 Hz: fast enough that the sampler's dwell logic sees a smooth signal, slow enough
- *  that the panel is not doing frame-rate work. */
-const SAMPLE_INTERVAL_MS = 33;
-
-/** Now, on the engine's clock (ms): the tap's stamp, or the same wall clock before the
- *  first tick. */
-const nowMs = (): number => readLiveVector()?.t ?? performance.now();
+/** The tool id, and the id of the Trainer's hush claim. */
+export const TOOL_ID = TRAINER_TOOL_ID;
 
 /** The coverage meter — the Face ID ring, flattened. */
 function Coverage({ value }: { value: number }) {
@@ -121,29 +116,29 @@ const DEFAULT_CATEGORIES_NAME = 'My categories';
 
 /** Keep the categories (#160): save the model under a name and go bind it. The binding
  *  itself happens in the Gestures tool, where the instrument is audible again. */
-function KeepCategories({ model, labels, cueNames }: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
-  // Default to the active set's name: retraining the same vocabulary is the common case,
-  // and a re-save under its name carries its bindings over by category name.
-  // Only a Trainer's set: a carved categorizer's name would save a second record beside it.
-  const [name, setName] = useState(() => {
-    const active = useCategoryBinding.getState().active;
-    return active && (active.kind ?? TRAINED_KIND) === TRAINED_KIND ? active.name : DEFAULT_CATEGORIES_NAME;
-  });
-  const saved = useCategoryBinding((s) => s.saved);
+function KeepCategories(props: { model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
+  // Through the host's binder (#600 S16c); a build with no category bindings offers no keep.
+  const binder = categoryBinder();
+  return binder ? <KeepForm binder={binder} {...props} /> : null;
+}
+
+function KeepForm({ binder, model, labels, cueNames }: { binder: CategoryBinder; model: TrainedModel; labels: Record<string, string>; cueNames: Map<string, string> }) {
+  // Default to the active Trainer set's name (`defaultKeepName`).
+  const [name, setName] = useState(() => defaultKeepName(binder, DEFAULT_CATEGORIES_NAME));
+  const saved = binder.useSaved();
   // The name the save will use: the warning must name what a blank field overwrites too.
   const saveName = name.trim() || DEFAULT_CATEGORIES_NAME;
-  const replaces = saved.find((s) => s.id === savedCategoriesId(saveName));
+  const replaces = keepReplaces(saved, saveName);
   useEffect(() => {
-    void useCategoryBinding.getState().load();
-  }, []);
+    void binder.load();
+  }, [binder]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      await useCategoryBinding.getState().saveModel(saveName, labelledModel(model, labels, cueNames));
-      useTools.getState().openTool('gestures');
+      await keepModel(binder, saveName, labelledModel(model, labels, cueNames));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -188,9 +183,7 @@ const OUTCOME_GLYPH = { enough: '✓', cannot: '✗', skipped: '–' } as const;
  *  is the STORE's `routineId`, so it says what is loaded after a run, a reload or an edit
  *  in the picker, not what this control last saw. */
 function RoutineChooser() {
-  const routineId = useTrainer((s) => s.routineId);
-  const routineName = useTrainer((s) => s.routineName);
-  const savedRoutines = useTrainer((s) => s.savedRoutines);
+  const { routineId, routineName, savedRoutines } = useRoutineChoice();
   const starter = starterRoutineById(routineId);
   return (
     <div className="space-y-1">
@@ -199,7 +192,7 @@ function RoutineChooser() {
         <select
           aria-label="Choose a routine"
           value={routineId}
-          onChange={(e) => void useTrainer.getState().useRoutine(e.target.value === '' ? null : e.target.value)}
+          onChange={(e) => trainerActions.useRoutine(e.target.value === '' ? null : e.target.value)}
           className="min-w-0 flex-1 rounded bg-white/5 px-1 py-0.5 text-[11px] text-white/85"
         >
           <option value="">Your faces (default)</option>
@@ -234,7 +227,7 @@ function RoutineChooser() {
 
 /** The counter a clicked cue shows instead of a frame count: where in the phrase you are. */
 function BeatCounter() {
-  const beat = useTrainer((s) => s.beat);
+  const beat = useBeat();
   if (!beat) return <span className="text-[10px] tabular-nums text-white/40">get ready</span>;
   return (
     <span className="text-[10px] tabular-nums text-fuchsia-200/80" data-beat>
@@ -268,8 +261,7 @@ function VoiceToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }
 function ProjectionSection() {
   const [open, setOpen] = useState(false);
   const [projecting, setProjecting] = useState(false);
-  const hasLayout = useTrainer((s) => s.layout.length > 0);
-  const groups = useTrainer((s) => s.labelGroups.length);
+  const { hasLayout, groups } = useProjection();
   return (
     <div className="border-t border-white/10 pt-3">
       <button
@@ -283,7 +275,7 @@ function ProjectionSection() {
             setProjecting(true);
             requestAnimationFrame(() =>
               requestAnimationFrame(() => {
-                useTrainer.getState().project();
+                trainerActions.project();
                 setProjecting(false);
               }),
             );
@@ -310,128 +302,18 @@ function ProjectionSection() {
 }
 
 export default function TrainerPanel() {
-  const open = useTools((s) => s.open) === TOOL_ID;
-  const close = useTools((s) => s.close);
-
-  const routine = useTrainer((s) => s.routine);
-  const routineName = useTrainer((s) => s.routineName);
-  const missing = useTrainer((s) => s.missing);
-  const status = useTrainer((s) => s.status);
-  const index = useTrainer((s) => s.index);
-  const samples = useTrainer((s) => s.samples);
-  const coverage = useTrainer((s) => s.coverage);
-  const say = useTrainer((s) => s.say);
-  const outcomes = useTrainer((s) => s.outcomes);
-  const transcript = useTrainer((s) => s.transcript);
-  const built = useTrainer((s) => s.built);
-  const k = useTrainer((s) => s.k);
-  const suggestedK = useTrainer((s) => s.suggestedK);
-  const model = useTrainer((s) => s.model);
-  const categorySource = useTrainer((s) => s.categorySource);
-  const labels = useTrainer((s) => s.labels);
-  const lastEndSay = useTrainer((s) => s.lastEndSay);
-  const hudShow = useControls((s) => s.trainerHud.show);
-  const setTrainerHud = useControls((s) => s.setTrainerHud);
-  const recordTake = useTrainerPrefs((s) => s.recordTake);
-  const setRecordTake = useTrainerPrefs((s) => s.setRecordTake);
-  const manualAdvance = useTrainerPrefs((s) => s.manualAdvance);
-  const setManualAdvance = useTrainerPrefs((s) => s.setManualAdvance);
-  const recording = useTrainer((s) => s.recording);
-  const notice = useTrainer((s) => s.notice);
-  // Where the take goes (#257): the recording location, the remembered folder and
-  // whether this browser can pick one. Written only through the recording commands.
-  const takeLocation = useRecordingConfig((s) => s.session.location);
-  const takeFolder = useRecordingConfig((s) => s.folder);
-  const takeFolderRemembered = useRecordingConfig((s) => s.folderRemembered);
-  const refreshFolder = useRecordingConfig((s) => s.refreshFolder);
-  const destination = describeTakeDestination({
-    location: takeLocation,
-    folder: takeFolder,
-    supported: detectCaps().directoryPicker,
-    remembered: takeFolderRemembered,
-  });
-  const voiceOn = useVoice((s) => s.enabled);
-  const setVoice = useVoice((s) => s.setEnabled);
-
-  const running = status === 'running' || status === 'between';
-  // A real-versus-air routine (#247): always recorded with the microphone, played to a
-  // click, and nothing to build afterwards — the take goes to the offline pairing script.
-  const pairRoutine = routineRecordsPerformance(routine);
-  const hasVocabulary = routine.some((c) => c.produces === 'vocabulary');
-
-  // Read the cue + routine stores once the panel is first opened; register the spoken
-  // channel (it fetches its clip manifest lazily and says nothing until it has one).
-  useEffect(() => {
-    if (open) {
-      void useTrainer.getState().load();
-      installVoice();
-      void refreshFolder();
-    }
-  }, [open]);
-
-  // Hush the instrument while the panel is open: a theremin sounding under the click and
-  // the spoken cues drowned both. A claim, not the player's mute, so closing the panel
-  // restores exactly what was there (a player who had muted stays muted).
-  useEffect(() => {
-    if (!open) return;
-    useControls.getState().setHush(TOOL_ID, true);
-    return () => useControls.getState().setHush(TOOL_ID, false);
-  }, [open]);
-
-  // Poll the live vector into the runner while it runs. The interval is recreated only
-  // when `running` flips, so it is not restarted every render.
-  const runningRef = useRef(running);
-  runningRef.current = running;
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      if (!runningRef.current) return;
-      const live = readLiveVector();
-      if (live) useTrainer.getState().sample(live.vector, live.t);
-      else useTrainer.getState().tick(performance.now());
-    }, SAMPLE_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [running]);
-
-  // Enter = "I've done it, move on" while a cue is running — the manual override, and
-  // the only way forward in manual mode. Ignored when a form field OR another
-  // interactive element is focused: a focused button (Done/Skip/Stop) already activates
-  // on Enter, so handling it here too would fire complete() twice and skip a cue.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter') return;
-      // One advance per physical press, never per auto-repeat: holding Enter would else
-      // march through every cue (each freshly begun after the beat, with ~0 samples).
-      // (Same guard as src/app/tagging/keymap.ts.)
-      if (e.repeat) return;
-      const el = e.target as HTMLElement | null;
-      if (el && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(el.tagName) || el.isContentEditable)) return;
-      if (useTrainer.getState().status === 'running') {
-        e.preventDefault();
-        useTrainer.getState().complete(nowMs());
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
-  // Closing the panel (the X, or switching tools) must stop a running routine: otherwise
-  // the poll keeps sampling and the feature-demand claim (#163) keeps the catalog
-  // computing every tick, with nothing on screen to say so.
-  useEffect(() => {
-    if (!open && running) useTrainer.getState().stop(nowMs());
-  }, [open, running]);
+  const { open, routine, routineName, missing, status, index, samples, coverage, say, outcomes, transcript, built, k, suggestedK, model, categorySource, labels, lastEndSay, recording, notice, hudShow, recordTake, manualAdvance, voiceOn, destination, tool, running, pairRoutine, hasVocabulary } = useTrainerView();
+  const { close, setHudShow, setRecordTake, setManualAdvance, setVoice } = trainerActions;
+  useTrainerSession(open, running);
 
   if (!open) return null;
-  const tool = toolById(TOOL_ID);
   const activeCue = index >= 0 ? routine[index] : null;
   // The instruction stays up for the whole cue; a variation ("a bit further") is the
   // runner's LAST utterance and goes beneath it, never in its place.
   const guidance = status === 'running' && activeCue && say && say !== activeCue.instruction ? say : null;
   // Buildable only with something to carve: a routine that ended with every vocabulary
   // cue skipped or `cannot` is "done" and still has no still-points.
-  const canBuild = (status === 'done' || status === 'stopped') && useTrainer.getState().session().ready();
+  const canBuild = (status === 'done' || status === 'stopped') && trainerActions.canBuild();
   const cueNames = new Map(routine.map((c) => [c.id, c.name]));
   const latestEnd = [...transcript].reverse().find((l) => l.kind === 'end' && l.outcome === 'cannot');
 
@@ -473,7 +355,7 @@ export default function TrainerPanel() {
           <VoiceToggle on={voiceOn} setOn={setVoice} />
           {status === 'running' && (
             <button
-              onClick={() => useTrainer.getState().complete(nowMs())}
+              onClick={trainerActions.complete}
               title="I've done this one — move on (Enter)"
               className="rounded bg-emerald-500/80 px-2 py-0.5 text-[10px] font-bold text-black transition hover:bg-emerald-400"
             >
@@ -481,13 +363,13 @@ export default function TrainerPanel() {
             </button>
           )}
           <button
-            onClick={() => useTrainer.getState().skip(nowMs())}
+            onClick={trainerActions.skip}
             className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
           >
             Skip
           </button>
           <button
-            onClick={() => useTrainer.getState().stop(nowMs())}
+            onClick={trainerActions.stop}
             className="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80 transition hover:bg-white/20"
           >
             Stop
@@ -586,8 +468,7 @@ export default function TrainerPanel() {
         <button
           onClick={() => {
             // Inside the gesture: let the click's own audio context start (#247).
-            if (pairRoutine) clickPlayer().unlock?.();
-            void useTrainer.getState().startTake(nowMs);
+            trainerActions.startTake({ unlockClick: pairRoutine });
           }}
           disabled={routine.length === 0}
           className="w-full rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-bold text-white/90 transition hover:bg-white/20 disabled:opacity-30"
@@ -597,7 +478,7 @@ export default function TrainerPanel() {
         {/* Per-device prefs (not instrument parameters): the guidance on the video, and
             whether the take is recorded. */}
         <label className="flex items-center gap-2 text-[10px] text-white/60">
-          <input type="checkbox" checked={hudShow} onChange={(e) => setTrainerHud({ show: e.target.checked })} />
+          <input type="checkbox" checked={hudShow} onChange={(e) => setHudShow(e.target.checked)} />
           Also paint the instructions into the video (for screen recordings)
         </label>
         {pairRoutine ? (
@@ -621,7 +502,7 @@ export default function TrainerPanel() {
             {destination.chooseLabel && (
               <button
                 type="button"
-                onClick={() => void dispatchCommand('recording.folder.choose', {})}
+                onClick={trainerActions.chooseFolder}
                 className="rounded bg-white/10 px-2 py-0.5 text-white/80 transition hover:bg-white/20"
               >
                 {destination.chooseLabel}
@@ -630,7 +511,7 @@ export default function TrainerPanel() {
             {destination.offerDownloads && (
               <button
                 type="button"
-                onClick={() => void dispatchCommand('recording.location.set', { location: 'downloads' })}
+                onClick={trainerActions.useDownloads}
                 className="rounded px-2 py-0.5 text-white/60 transition hover:bg-white/10 hover:text-white/80"
               >
                 Downloads instead
@@ -664,7 +545,7 @@ export default function TrainerPanel() {
 
         {hasVocabulary && (
         <button
-          onClick={() => useTrainer.getState().build()}
+          onClick={trainerActions.build}
           disabled={!canBuild}
           className="w-full rounded-lg bg-emerald-500/80 px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-emerald-400 disabled:opacity-30"
         >
@@ -680,7 +561,7 @@ export default function TrainerPanel() {
                 <span className="flex-1">These are the groups you drew.</span>
                 <button
                   type="button"
-                  onClick={() => useTrainer.getState().useAutomaticCut()}
+                  onClick={trainerActions.useAutomaticCut}
                   className="rounded border border-white/10 px-2 py-0.5 text-white/60 transition hover:bg-white/5 hover:text-white"
                 >
                   Use automatic instead
@@ -699,7 +580,7 @@ export default function TrainerPanel() {
                 max={8}
                 step={1}
                 value={k}
-                onChange={(e) => useTrainer.getState().setK(Number(e.target.value))}
+                onChange={(e) => trainerActions.setK(Number(e.target.value))}
                 className="w-full"
               />
               <span className="block text-[10px] leading-snug text-white/40">
@@ -726,7 +607,7 @@ export default function TrainerPanel() {
                       aria-label={`Name for category ${i + 1}`}
                       placeholder={suggestedLabel(c, cueNames) || 'name this one…'}
                       value={labels[categoryKey(c)] ?? ''}
-                      onChange={(e) => useTrainer.getState().setLabel(categoryKey(c), e.target.value)}
+                      onChange={(e) => trainerActions.setLabel(c, e.target.value)}
                       className="min-w-0 flex-1 rounded bg-white/5 px-2 py-1 text-[11px] text-white/85 placeholder:text-white/25"
                     />
                   )}
@@ -747,7 +628,7 @@ export default function TrainerPanel() {
         )}
 
         <button
-          onClick={() => useTrainer.getState().reset()}
+          onClick={trainerActions.reset}
           className="w-full rounded border border-white/10 px-3 py-1 text-[10px] text-white/50 transition hover:bg-white/5 hover:text-white/80"
         >
           Start over

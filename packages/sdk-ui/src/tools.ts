@@ -23,6 +23,9 @@ export interface ExtensionToolDecl {
    *  place ahead of the Trainer, where it was core's first tool). Absent, or a tool the shell does
    *  not list: after every tool listed so far. */
   before?: string;
+  /** Set when the open tool hushes the instrument (a hush claim under its id): what the shell's
+   *  quiet badge says after "Instrument quiet", e.g. "while the Trainer is open". */
+  hushes?: string;
 }
 
 /**

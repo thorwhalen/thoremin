@@ -38,7 +38,9 @@ import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
 import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
 import GesturesPanel from './GesturesPanel';
-import TrainerPanel, { TOOL_ID as TRAINER_TOOL_ID } from './TrainerPanel';
+import TrainerPanel from './TrainerPanel';
+import { SHELL_TOOLS } from './shellTools';
+import { hushReason } from './hushReason';
 import ExtensionToolPanels from './ExtensionToolPanels';
 import VersionBadge from './VersionBadge';
 import TimingChip from './TimingChip';
@@ -98,17 +100,18 @@ function MutedBadge() {
   );
 }
 
-/** Why the instrument is quiet without the player having muted it: a tool holds the
- * room (the Trainer), or an extension's music plays (the conductor's score: its `hushes`;
- * see `hushOf` in store-controls). Shown only when not muted, so the two cues never stack; quieter than
- * MutedBadge because nothing is wrong and nothing needs doing — it lifts by itself. */
+/** Why the instrument is quiet without the player having muted it: an open tool holds the
+ * room (the Trainer; a tool's `hushes` names the reason, #600 S16c), or an extension's music
+ * plays (the conductor's score: its `hushes`; see `hushOf` in store-controls). Shown only when not
+ * muted, so the two cues never stack; quieter than MutedBadge because nothing is wrong and nothing
+ * needs doing — it lifts by itself. */
+/** The tools whose open panel hushes the instrument (`Tool.hushes`). */
+const HUSHING_TOOLS = SHELL_TOOLS.filter((t) => t.hushes);
+
 function HushBadge() {
   const muted = useControls((s) => s.muted);
-  const training = useControls((s) => s.hushedBy.includes(TRAINER_TOOL_ID));
-  // An extension's hush (#600 S18a): the first that holds names the reason.
-  const hushedFor = useControls((s) => CONTRIBUTIONS.hushes.find((h) => h.while(s as unknown as Readonly<Record<string, unknown>>))?.reason ?? null);
-  if (muted || !(training || hushedFor)) return null;
-  const why = training ? 'while the Trainer is open' : hushedFor;
+  const why = useControls((s) => hushReason(s as unknown as Readonly<Record<string, unknown>> & { hushedBy: readonly string[] }, { tools: HUSHING_TOOLS, hushes: CONTRIBUTIONS.hushes }));
+  if (muted || !why) return null;
   return (
     <div data-hush-badge className="pointer-events-none absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white/70 backdrop-blur">
       <VolumeX className="h-3 w-3" />

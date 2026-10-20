@@ -10,7 +10,7 @@ import { REAL_VS_AIR_CUES, routineRecordsPerformance } from '@/app/enroll/realVs
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
 import { trainerTakeMeta, trainerTakeSession } from '@/app/enroll/takeSession';
-import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
+import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import { planRecording } from '@/app/recording/plan';
 import { activeStreamLabels } from '@/app/recording/session';
 import { buildManifest } from '@/app/recording/manifest';

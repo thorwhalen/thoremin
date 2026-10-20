@@ -14,11 +14,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Engine } from '@thoremin/dag';
 import { useToasts } from '../toasts';
 import { SessionRecorder, activeStreamLabels, type RecordingResult, type SessionRecorderDeps } from './session';
-import { registerRecordingController, type StartTakeOptions } from './controller';
+import { registerRecordingController, type StartTakeOptions } from '@thoremin/sdk-ui/recording/controller';
 import { SinkCancelled } from './sink';
-import { type RecordingSession } from './schema';
+import { type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { useRecordingConfig } from './configStore';
-import { prefillName } from './naming';
+import { prefillName } from '@thoremin/sdk-ui/recording/naming';
 import { tagStreamSource } from '../tagging/runtime';
 
 /** Which phase the recording UI is in: the idle button, the settings sheet, an

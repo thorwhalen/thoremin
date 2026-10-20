@@ -15,6 +15,7 @@ import { goToTraining, trainingRouteFor } from './routes';
 
 export function TrainingLink({ spec }: { spec: InstrumentSpec | undefined }) {
   const route = trainingRouteFor(spec);
+  if (!route) return null;
   return (
     <button
       type="button"

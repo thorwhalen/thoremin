@@ -12,11 +12,11 @@ import { createRunner, createSession, type Cue, type FeatureVector, type RunnerE
 import { createTrainerTagSource, trainerTagDefs, TRAINER_TAGS } from '@/app/enroll/annotations';
 import { trainerTakeSession, TRAINER_TAKE_INSTRUMENT } from '@/app/enroll/takeSession';
 import { FEATURE_VECTOR_EDGES } from '@/app/enroll/liveVector';
-import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
+import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import { STARTER_CUES } from '@/app/enroll/starterCues';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
-import { registerRecordingController, recordingController, type RecordingController } from '@/app/recording/controller';
+import { registerRecordingController, recordingController, type RecordingController } from '@thoremin/sdk-ui/recording/controller';
 import { planRecording } from '@/app/recording/plan';
 import { getCodec } from '@thoremin/taglog/affordances/codec';
 import { resolveIntervals } from '@thoremin/taglog/affordances/resolve';

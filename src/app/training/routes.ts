@@ -24,7 +24,7 @@ import { CONTRIBUTIONS } from '@/host/contributions';
 export type { TrainingRoute };
 
 /** Every route: the extensions' own (their instruments train in their settings sections),
- *  then core's Trainer tool, the fallback. */
+ *  then core's Trainer tool, the fallback (`fallback`: whoever offers it, #600 S16c). */
 export const TRAINING_ROUTES: readonly TrainingRoute[] = [
   ...CONTRIBUTIONS.trainingRoutes,
   {
@@ -32,6 +32,7 @@ export const TRAINING_ROUTES: readonly TrainingRoute[] = [
     label: 'Open the Trainer',
     hint: 'A guided take of the faces or moves you can make; the instrument learns your own categories.',
     tool: 'trainer',
+    fallback: true,
   },
 ];
 
@@ -43,14 +44,19 @@ const BY_BRANCH = CONTRIBUTIONS.trainingByBranch;
 
 /**
  * The route for a spec: its declared `training.route` when it names a known route, else
- * the first air branch it composes (explicit or derived features), else the Trainer.
+ * the first air branch it composes (explicit or derived features), else the fallback route (the
+ * Trainer's), else none: a build without the Trainer offers no link rather than a dead one.
  */
-export function trainingRouteFor(spec: Pick<InstrumentSpec, 'training' | 'branches' | 'features'> | undefined): TrainingRoute {
-  const declared = spec?.training?.route ? routeById(spec.training.route) : undefined;
+export function trainingRouteFor(
+  spec: Pick<InstrumentSpec, 'training' | 'branches' | 'features'> | undefined,
+  { routes = TRAINING_ROUTES, byBranch = BY_BRANCH }: { routes?: readonly TrainingRoute[]; byBranch?: readonly (readonly [string, string])[] } = {},
+): TrainingRoute | undefined {
+  const byId = (id: string) => routes.find((r) => r.id === id);
+  const declared = spec?.training?.route ? byId(spec.training.route) : undefined;
   if (declared) return declared;
   const composed = new Set([...(spec?.branches ?? []), ...(spec?.features ?? [])]);
-  for (const [branch, route] of BY_BRANCH) if (composed.has(branch)) return routeById(route)!;
-  return routeById('trainer')!;
+  for (const [branch, route] of byBranch) if (composed.has(branch)) return byId(route);
+  return routes.find((r) => r.fallback);
 }
 
 export interface GoToTrainingDeps {

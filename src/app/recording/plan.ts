@@ -11,9 +11,9 @@
  */
 import { extForMime } from '../recorder';
 import { recordingFormat, DEFAULT_RECORDING_FORMATS } from './formats';
-import { fileName } from './naming';
+import { fileName } from '@thoremin/sdk-ui/recording/naming';
 import type { RecordingStreamKind } from './manifest';
-import type { RecordingSession } from './schema';
+import type { RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 
 /** File extension for a recorded VIDEO MIME type (`video/mp4` → mp4, else webm). */
 export function videoExtForMime(mime: string): string {

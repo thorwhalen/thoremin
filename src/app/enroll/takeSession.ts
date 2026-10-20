@@ -26,8 +26,8 @@
  * is not a performance. The sink is the player's recording location (downloads by
  * default), like any other take.
  */
-import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '../recording/schema';
-import { prefillName } from '../recording/naming';
+import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
+import { prefillName } from '@thoremin/sdk-ui/recording/naming';
 import { FEATURE_VECTOR_EDGES } from './liveVector';
 import type { Cue } from '@thoremin/sdk/enroll';
 

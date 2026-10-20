@@ -12,7 +12,7 @@
  * The picker can only open inside a user gesture, so `recording.folder.choose`
  * dispatched by the AI assistant comes back refused by the browser; that surfaces
  * as an error naming the reason rather than a silent no-op. Recording config is a
- * tooling preference, never a dial (`src/app/recording/schema.ts`), which is why
+ * tooling preference, never a dial (`@thoremin/sdk-ui/recording/schema`), which is why
  * these reach it through the recording host seam (`./recordingHost`) and not the
  * dials layer.
  */

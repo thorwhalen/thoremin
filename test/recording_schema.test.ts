@@ -15,11 +15,11 @@ import {
   DEFAULT_RECORDING_SESSION,
   parseSession,
   hasAnyStream,
-} from '@/app/recording/schema';
+} from '@thoremin/sdk-ui/recording/schema';
 import { DEFAULT_RECORDING_FORMATS } from '@/app/recording/formats';
 
 const SCHEMA_SOURCE = readFileSync(
-  fileURLToPath(new URL('../src/app/recording/schema.ts', import.meta.url)),
+  fileURLToPath(new URL('../packages/sdk-ui/src/recording/schema.ts', import.meta.url)),
   'utf8',
 );
 

@@ -19,7 +19,7 @@ import { RECORDING_FORMATS } from './recording/formats';
 import { supportsOverlayAlpha } from './recording/caps';
 import { useRecordingConfig } from './recording/configStore';
 import { dispatchCommand } from './dispatchDial';
-import type { RecordingSession } from './recording/schema';
+import type { RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 
 export interface RecordingControls {
   phase: 'idle' | 'settings' | 'recording' | 'saving';

@@ -11,24 +11,24 @@ import { AIR } from './helpers/extensions';
 
 describe('trainingRouteFor', () => {
   it('falls back to the Trainer tool for an instrument no extension trains (core alone too)', () => {
-    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] }).id).toBe('trainer');
-    expect(trainingRouteFor(undefined).id).toBe('trainer');
+    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] })?.id).toBe('trainer');
+    expect(trainingRouteFor(undefined)?.id).toBe('trainer');
     expect(TRAINING_ROUTES.at(-1)?.id).toBe('trainer');
   });
 
   it.runIf(AIR)('derives the route from the composed branches, the flute, guitar and drum before the Trainer', () => {
-    expect(trainingRouteFor({ branches: ['air-flute'], features: [] }).id).toBe('sequence:flute');
-    expect(trainingRouteFor({ branches: undefined, features: ['air-guitar', 'hands'] }).id).toBe('sequence:guitar');
-    expect(trainingRouteFor({ branches: ['air-drum', 'conductor'], features: [] }).id).toBe('patterns:drum');
-    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] }).id).toBe('trainer');
-    expect(trainingRouteFor(undefined).id).toBe('trainer');
+    expect(trainingRouteFor({ branches: ['air-flute'], features: [] })?.id).toBe('sequence:flute');
+    expect(trainingRouteFor({ branches: undefined, features: ['air-guitar', 'hands'] })?.id).toBe('sequence:guitar');
+    expect(trainingRouteFor({ branches: ['air-drum', 'conductor'], features: [] })?.id).toBe('patterns:drum');
+    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] })?.id).toBe('trainer');
+    expect(trainingRouteFor(undefined)?.id).toBe('trainer');
     // A flute that also has a drum trains the flute first: the lead instrument.
-    expect(trainingRouteFor({ branches: ['air-drum', 'air-flute'], features: [] }).id).toBe('sequence:flute');
+    expect(trainingRouteFor({ branches: ['air-drum', 'air-flute'], features: [] })?.id).toBe('sequence:flute');
   });
 
   it.runIf(AIR)('honours a declared route it knows, and ignores one it does not', () => {
-    expect(trainingRouteFor({ training: { route: 'patterns:drum' }, branches: ['air-flute'], features: [] }).id).toBe('patterns:drum');
-    expect(trainingRouteFor({ training: { route: 'no-such' }, branches: ['air-flute'], features: [] }).id).toBe('sequence:flute');
+    expect(trainingRouteFor({ training: { route: 'patterns:drum' }, branches: ['air-flute'], features: [] })?.id).toBe('patterns:drum');
+    expect(trainingRouteFor({ training: { route: 'no-such' }, branches: ['air-flute'], features: [] })?.id).toBe('sequence:flute');
   });
 
   it('every route has a label, a hint and exactly one destination; every anchor has a route', () => {
@@ -61,5 +61,18 @@ describe('goToTraining', () => {
     expect(scrolled).toHaveLength(1);
     expect(openTool).not.toHaveBeenCalled();
     expect(goToTraining(routeById('patterns:drum')!, { openTool, doc })).toBe(false);
+  });
+});
+
+describe('the fallback route (#600 S16c)', () => {
+  const sectionRoute = { id: 'sequence:x', label: 'X', hint: 'x', section: { label: 'X', anchor: 'x' } };
+  it('is the first route that says so, whatever its id', () => {
+    const routes = [sectionRoute, { id: 'mine', label: 'Mine', hint: 'm', tool: 'mine', fallback: true }];
+    expect(trainingRouteFor({ branches: ['face-chord'], features: [] }, { routes, byBranch: [] })?.id).toBe('mine');
+  });
+  it('is absent when no route offers one, and the instrument gets no training link', () => {
+    expect(trainingRouteFor({ branches: ['face-chord'], features: [] }, { routes: [sectionRoute], byBranch: [] })).toBeUndefined();
+    // A branch that leads to its route still finds it.
+    expect(trainingRouteFor({ branches: ['air-x'], features: [] }, { routes: [sectionRoute], byBranch: [['air-x', 'sequence:x']] })?.id).toBe('sequence:x');
   });
 });

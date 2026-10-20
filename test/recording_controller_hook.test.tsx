@@ -15,10 +15,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import type { Engine } from '@thoremin/dag';
 import { useRecordingController, type RecordingHostRefs, type TakeRecorder } from '@/app/recording/useRecordingController';
-import { recordingController } from '@/app/recording/controller';
+import { recordingController } from '@thoremin/sdk-ui/recording/controller';
 import { SinkCancelled } from '@/app/recording/sink';
 import type { RecordingResult, SessionRecorderDeps } from '@/app/recording/session';
-import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '@/app/recording/schema';
+import { DEFAULT_RECORDING_SESSION, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { useRecordingConfig } from '@/app/recording/configStore';
 import { useToasts } from '@/app/toasts';
 
