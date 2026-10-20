@@ -90,7 +90,7 @@ describe('filter chips', () => {
     const chip = within(screen.getByRole('group', { name: 'Filter by starred' })).getByRole('button');
     expect(chip.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(chip);
-    await waitFor(() => expect(rowNames().length).toBe(32 + (ASL ? 2 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(32 + (ASL ? 4 : 0)));
   });
 
   it.runIf(AIR)('are behind a Filters toggle, with a chip per class and live counts', async () => {
@@ -101,7 +101,7 @@ describe('filter chips', () => {
     const byClass = screen.getByRole('group', { name: 'Filter by class' });
     const air = within(byClass).getByRole('button', { name: /Air/ });
     const field = within(byClass).getByRole('button', { name: /Field/ });
-    expect(air.textContent).toMatch(/^Air\s*16$/);
+    expect(air.textContent).toMatch(ASL ? /^Air\s*18$/ : /^Air\s*16$/); // the sign instruments need ASL
     expect(field.textContent).toMatch(/^Field\s*16$/);
   });
 
@@ -111,7 +111,7 @@ describe('filter chips', () => {
     fireEvent.click(screen.getByRole('button', { name: /Filters/ }));
     const byClass = screen.getByRole('group', { name: 'Filter by class' });
     fireEvent.click(within(byClass).getByRole('button', { name: /Air/ }));
-    await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Chord Map Strum']));
+    await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', ...(ASL ? ['Sign Wheel', 'Sign Map'] : []), 'Chord Map Strum']));
     // The N+1 rule: the unpicked class chip still says how many it would add.
     expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(/16/);
     // Closing the toggle does not hide an active filter.
@@ -123,6 +123,6 @@ describe('filter chips', () => {
       .map((b) => b.textContent?.replace(/[^A-Za-z]/g, ''));
     expect(order).toEqual(['Field', 'Air', ...(ASL ? ['Sign'] : [])]);
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    await waitFor(() => expect(rowNames().length).toBe(32 + (ASL ? 2 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(32 + (ASL ? 4 : 0)));
   });
 });
