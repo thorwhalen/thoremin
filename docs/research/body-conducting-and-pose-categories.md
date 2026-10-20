@@ -467,6 +467,18 @@ On the real streams (the five body fixtures, replayed at 1x and 1.4x so more lev
 
 A threshold strict enough to cut the noise by two thirds cuts the real dancers' trusted ticks by two fifths, and a loose one does neither: the real streams are, to an AR(1) null of their own smoothness, about as surprising as the noise is. No pulse-side gate is shipped; the pace controller's 3 s persistence stays the defence. What might still work, untried: a longer window for the long levels only (the false 2 to 3 s levels are three cycles of an 8 s window; a 12 s window sees four), at the price of the slower step response the fast detector was built to remove.
 
+**A fourth, the long-level window (2026-10-20): the best trade so far, shipped off.** `PulseOptions.longWindowS` (`body-pulse`'s `longWindowS`, 0 = off, the default) keeps that many seconds of samples and, for a level of `longLevelS` (1.5 s) or more, takes the lesser of the 8 s window's ACF strength and the long window's at that level (none there: no strength); shorter levels and the step detector are untouched. Same runs as the surrogate test (`scripts/body/measure_pulse_noise.ts`; trusted ticks after the first 6 s; "runs" are trusted stretches at one level of 3 s or more, what the pace controller's persistence would follow):
+
+| long window | red noise a = 0.95, trusted (runs) | a = 0.8 | real fixtures, trusted ticks of 9476 (runs) | step 1.86 s to 2.4 s, untrusted after it | 1.2 s to 1.9 s |
+|---|---|---|---|---|---|
+| off | 7.35 % (2) | 0.81 % | 1967 (8) | 0 s | 4.0 s |
+| 10 s | 4.49 % | 0.48 % | 1788 | 0.5 s | 4.0 s |
+| 12 s | 3.08 % (1) | 0.48 % | 1717 (7) | 8.3 s | 6.0 s |
+| 14 s | 2.50 % | 0.48 % | 1571 | 8.5 s | 6.0 s |
+| 16 s | 1.90 % | 0.48 % | 1644 | 10.7 s | 7.9 s |
+
+At 12 s red noise is trusted 58 % less often for 13 % of the real streams' trusted ticks (the surrogate test: 65 % for 40 %). Que Calor's stride, the default channel, is unchanged (410 ticks at 1.86 s); its sway loses 19 % (322 to 261) and its torso yaw all 58 ticks, conducting_44's yaw 24 % and its trunk all 56, while conducting_24's trunk gains (62 to 112). It is not default because nothing it buys reaches the player: the trusted noise stretches that last the controller's 3 s go from 2 to 1 in 16 runs, while a dancer stepping into a slow level is untrusted, the song held, for 2 to 8 s longer (1.2 s to 1.9 s: 4.0 to 6.0 s; 1.86 s to 2.4 s: 0 to 8.3 s), and a step between two slow levels pays too (2.4 s to 1.86 s: 0 to 1.1 s untrusted, settled in 9.1 s instead of 7.3 s): the old tempo has to leave the long window first. Turn it on where a body stream feeds something with no persistence of its own.
+
 ## 6. Reproducing
 
 ```
@@ -478,6 +490,7 @@ npx vite-node scripts/body/excerpt.ts -- <pose> <cut> --from S --to S --beats <b
 npx vite-node scripts/build_body_fixture.ts <scenario> <cut> --clip "..." --meta extra.json
 npx vite-node scripts/body/measure_channels.ts -- --csv docs/research/data/body-channels.csv   # every video_body_* fixture with a grid, plus the synthetic control
 npx vite-node scripts/body/measure_channels.ts -- --pose <pose> --beats <beats.json|stroke> --bpb N   # vet a clip before it becomes a fixture
+npx vite-node scripts/body/measure_pulse_noise.ts -- --long 12          # §5.4: red noise against the fixtures through the pulse follower (--long 0 = off)
 ```
 
 The findings the defaults rest on are pinned in `test/body_channels.test.ts` (the synthetic control, the conductors' trunk and torso rotation, the meter readings, Que Calor's stride and head); the fixtures' provenance and replay regression are in `test/video_body_fixtures.test.ts`.

@@ -665,6 +665,11 @@
         "default": 4.5
       },
       {
+        "name": "longWindowS",
+        "type": "number",
+        "default": 0
+      },
+      {
         "name": "minVisibility",
         "type": "number",
         "default": 0.5
