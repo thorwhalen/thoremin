@@ -185,9 +185,9 @@ export function createIdbProvider<T extends { id: string }>({ dbName, storeName 
       const seen = new Set<string>();
       const copy: Record<string, unknown>[] = [];
       for (const item of items) {
-        const id = (item as { id?: unknown }).id;
+        const id = (item as { id?: unknown } | null)?.id;
         if (typeof id !== 'string') {
-          console.warn('[thoremin] a stored record with no id was left out of the IndexedDB copy', item);
+          console.warn('[thoremin] a stored record with no string id was left out of the IndexedDB copy', item);
           continue;
         }
         if (seen.has(id)) {

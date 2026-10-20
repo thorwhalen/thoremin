@@ -48,12 +48,15 @@ export async function saveBlob(
       console.warn('[thoremin] file picker failed; falling back to download', e);
     }
     if (handle) {
+      let writable: Awaited<ReturnType<typeof handle.createWritable>> | null = null;
       try {
-        const writable = await handle.createWritable();
+        writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
         return { filename: handle.name ?? suggestedName, viaPicker: true };
       } catch (e) {
+        // Drop the half-written file (Chromium's swap file) rather than leave it to the collector.
+        await (writable as { abort?: () => Promise<void> } | null)?.abort?.().catch(() => {});
         // Permission revoked, disk full, the stream torn down: log it, consistent with the
         // rest of the app's error handling, then fall back to a plain download so the take
         // is never lost.

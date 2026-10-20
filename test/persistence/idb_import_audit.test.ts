@@ -64,6 +64,8 @@ describe('the copy into IndexedDB with a damaged legacy collection', () => {
     const { faces } = await pageLoad();
     expect((await faces.list()).map((r) => r.id)).toEqual(['smile']);
     expect(localStorage.getItem(MIGRATED_KEY)).not.toBeNull();
+    expect(storedIds()).toEqual(['smile']); // the copy holds the keyed record only
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no string id'), expect.anything());
     expect(JSON.parse(localStorage.getItem(KEY)!)).toHaveLength(2); // never touched
     warn.mockRestore();
   });

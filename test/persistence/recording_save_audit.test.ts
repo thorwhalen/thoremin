@@ -18,14 +18,18 @@ describe('saveBlob under an AbortError', () => {
     vi.stubGlobal('showSaveFilePicker', async () => {
       throw abort();
     });
-    expect(await saveBlob(new Blob(['x']), 'take.zip')).toBeNull();
-    expect(h.downloads).toEqual([]);
-    vi.unstubAllGlobals();
+    try {
+      expect(await saveBlob(new Blob(['x']), 'take.zip')).toBeNull();
+      expect(h.downloads).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('from the write: not a cancel, the take is downloaded instead', async () => {
     h.downloads.length = 0;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const aborted = vi.fn(async () => {});
     vi.stubGlobal('showSaveFilePicker', async () => ({
       name: 'take.zip',
       createWritable: async () => ({
@@ -33,11 +37,16 @@ describe('saveBlob under an AbortError', () => {
           throw abort();
         },
         close: async () => {},
+        abort: aborted,
       }),
     }));
-    expect(await saveBlob(new Blob(['x']), 'take.zip')).toEqual({ filename: 'take.zip', viaPicker: false });
-    expect(h.downloads).toEqual(['take.zip']);
-    vi.unstubAllGlobals();
-    warn.mockRestore();
+    try {
+      expect(await saveBlob(new Blob(['x']), 'take.zip')).toEqual({ filename: 'take.zip', viaPicker: false });
+      expect(h.downloads).toEqual(['take.zip']);
+      expect(aborted).toHaveBeenCalledTimes(1); // the half-written file is dropped
+    } finally {
+      vi.unstubAllGlobals();
+      warn.mockRestore();
+    }
   });
 });
