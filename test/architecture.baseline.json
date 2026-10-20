@@ -23,7 +23,7 @@
     "packages/ext-faces/src/app/sessionStore.ts": 1395,
     "src/app/dials/InstrumentsPanel.tsx": 846,
     "packages/ext-air/src/nodes/air_drum.ts": 824,
-    "packages/sdk/src/nodes/domain.ts": 809,
-    "packages/ext-faces/src/panels/FaceSessionPanel.tsx": 785
+    "packages/ext-faces/src/panels/FaceSessionPanel.tsx": 785,
+    "packages/sdk/src/enroll/sorting.ts": 783
   }
 }
