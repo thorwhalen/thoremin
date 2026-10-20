@@ -37,7 +37,7 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     expect(has('ui', 'octaveShift', 'chordMap', 'octaveShift')).toBe(true);
     expect(has('dwelled', 'hands', 'chordMap', 'hands')).toBe(true); // through the handedness dwell (#314)
     expect(has('chordMap', 'notes', 'chordStrumOut', 'notes')).toBe(true);
-    expect(has('chordMap', 'grid', 'overlay', 'air.chordMap.grid')).toBe(true); // its own element (#610 item 4)
+    expect(has('chordMap', 'grid', 'overlay', 'harmonic-layers.chordMap.grid')).toBe(true); // its own element (#610 item 4)
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
     // Every input the node declares is connected: none left to its default by accident.
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'chordMap').map((e) => e.to.port));

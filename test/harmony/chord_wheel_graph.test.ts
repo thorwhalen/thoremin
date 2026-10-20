@@ -38,10 +38,10 @@ describe.runIf(HARMONY)('the chord wheel in the composed graph', () => {
   it('wires its grid to its own overlay element, and draws the wheel', () => {
     const reg = createAppRegistry();
     const composed = composeInstrumentGraph(['chord-wheel'], { source: 'replay-hands' }, reg);
-    const port = overlayPortName('air', 'chordWheel', 'grid');
+    const port = overlayPortName('harmonic-layers', 'chordWheel', 'grid');
     expect(composed.spec.edges).toContainEqual({ from: { node: 'chordWheel', port: 'grid' }, to: { node: 'overlay', port } });
-    expect(composed.spec.edges).toContainEqual({ from: { node: 'ui', port: 'chordWheel' }, to: { node: 'overlay', port: overlayPortName('air', 'chordWheel', 'config') } });
-    expect(composed.elements).toContain(overlayElementId('air', 'chordWheel'));
+    expect(composed.spec.edges).toContainEqual({ from: { node: 'ui', port: 'chordWheel' }, to: { node: 'overlay', port: overlayPortName('harmonic-layers', 'chordWheel', 'config') } });
+    expect(composed.elements).toContain(overlayElementId('harmonic-layers', 'chordWheel'));
     expect(composed.spec.edges.some((e) => e.from.node === 'chordWheel' && e.from.port === 'triad' && e.to.node === 'chordSel')).toBe(true);
 
     const centre = radial(wheelRegion('left'), 6, { aspect: W / H, radius: 0.3 })[0];

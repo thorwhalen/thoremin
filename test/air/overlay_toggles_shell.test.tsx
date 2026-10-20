@@ -59,11 +59,11 @@ describe.runIf(AIR)('the air overlay toggles, in the air sections (#600 S10)', (
   });
 
   it('they draw where core drew them: the pads just beneath the chord map\'s grid, the cue just before the face expression', () => {
-    const order = overlayElementOrder(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'air'));
+    const order = overlayElementOrder(CONTRIBUTIONS.overlayElements.filter((c) => c.extension === 'air' || c.extension === 'harmonic-layers'));
     // (Core's `conductorHud` sat between the landmarks and the pads; it is the conductor slice's since #600 S18c.)
     expect(order[order.indexOf('air/drumPads') - 1]).toBe('landmarks');
-    expect(order[order.indexOf('air/drumPads') + 1]).toBe('air/chordMap'); // #610 item 4: the map's grid, then the markers
-    expect(order[order.indexOf('air/chordMap') + 1]).toBe('markers');
+    expect(order[order.indexOf('air/drumPads') + 1]).toBe('harmonic-layers/chordMap'); // #610 item 4: the map's grid, then the markers
+    expect(order[order.indexOf('harmonic-layers/chordMap') + 1]).toBe('markers');
     expect(order[order.indexOf('air/mouthCue') - 1]).toBe('chordName');
     expect(order[order.indexOf('air/mouthCue') + 1]).toBe('faceExpression');
     const [pads] = CONTRIBUTIONS.overlayElements.filter((c) => c.id === 'air/drumPads');
