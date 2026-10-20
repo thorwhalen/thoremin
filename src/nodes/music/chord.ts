@@ -8,6 +8,11 @@
  * Pure + deterministic (uses Tonal.js, no DOM/audio), so it's unit-testable.
  * Lets you *express harmony* directly; pair with `progression` to drive chord
  * selection from a gesture.
+ *
+ * Deprecated: no instrument composes it. The harmonic layers (`@thoremin/sdk/harmony/*`, the
+ * chord map and the chord wheel of `@thoremin/ext-harmony`) do this with voice leading, figuration
+ * and the key's spelling, through the shared realizer; build a new chord instrument on them. Kept
+ * registered so a graph that names it still loads; removal is #783.
  */
 import { z } from 'zod';
 import { Chord, Note } from 'tonal';
@@ -49,7 +54,7 @@ export const chordNode = defineNode<Params>({
   type: 'chord',
   roles: ['music'],
   title: 'Chord',
-  description: 'Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).',
+  description: 'Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).',
   inputs: [
     { name: 'chord', kind: 'chord-symbol', default: 'C' },
     { name: 'gain', kind: 'number', default: 0.3 },

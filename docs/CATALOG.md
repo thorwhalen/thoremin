@@ -354,7 +354,7 @@ Continuous control from a categorizer's memberships: each category's value, weig
 _Harmony kept in-key._
 
 #### `chord` — Chord
-Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
+Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 
 - **roles:** music
 - **in:** chord:chord-symbol, gain:number
@@ -362,7 +362,7 @@ Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 - **params:** baseOctave (number=4), maxVoices (number=4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
 
 #### `progression` — Progression
-Roman-numeral progression in a key + position (0..1) → current chord symbol.
+Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.
 
 - **roles:** music
 - **in:** position:number
@@ -566,7 +566,7 @@ The conducted score played by a sampled orchestra (spessasynth_lib + a cut MuseS
 - **roles:** synth
 - **in:** time:musical-time, velocityScale:number, articulation:number, conducting:boolean, doc:score-doc, config:conductor-config, claimed:boolean
 - **out:** status:load-status, playing:boolean
-- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="raw"), parts (array=[])
+- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="written"), parts (array=[])
 
 #### `lyria` — Lyria Generative
 Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.

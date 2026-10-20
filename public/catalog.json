@@ -1132,7 +1132,7 @@
   {
     "type": "chord",
     "title": "Chord",
-    "description": "Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).",
+    "description": "Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).",
     "roles": [
       "music"
     ],
@@ -3090,7 +3090,7 @@
       {
         "name": "dynamics",
         "type": "enum(raw | written)",
-        "default": "raw"
+        "default": "written"
       },
       {
         "name": "parts",
@@ -3495,7 +3495,7 @@
   {
     "type": "progression",
     "title": "Progression",
-    "description": "Roman-numeral progression in a key + position (0..1) → current chord symbol.",
+    "description": "Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.",
     "roles": [
       "music"
     ],
