@@ -1,9 +1,10 @@
 /**
  * Instruments — named saved settings configs (the word freed by the timbre
  * "instrument" → "sound" rename). An instrument is a dials profile: a NAME + a full
- * {@link Layer} (a complete settings snapshot). Persisted to localStorage via
- * dials-ui's `createProfileStore`, falling back to in-memory storage where
- * localStorage is unavailable (the Node test runtime), so importing this never throws.
+ * {@link Layer} (a complete settings snapshot). Persisted via dials-ui's `createProfileStore`
+ * in the storage seam's key-value target (`@thoremin/sdk-ui/storage`, #659: localStorage under
+ * the same keys today), falling back to in-memory storage where the host has none (the Node
+ * test runtime), so importing this never throws.
  *
  * This module owns the instruments orchestration over the dials store: seeding the
  * shipped instruments on first run, selecting an instrument (load it as the clean
@@ -18,12 +19,9 @@
  * the dirty baseline to the selected instrument. {@link LAST_MODIFIED} is a reserved
  * name kept solely so any legacy autosave profile is filtered out of the visible list.
  */
-import {
-  createProfileStore,
-  createLocalStorageProfileStorage,
-  createMemoryProfileStorage,
-} from '@zodal/dials-ui';
-import type { ProfileStorage } from '@zodal/dials-ui';
+import { createProfileStore, createMemoryProfileStorage } from '@zodal/dials-ui';
+import type { NamedProfile, ProfileStorage } from '@zodal/dials-ui';
+import { hasHostValues, hostValues, noopValues } from '@thoremin/sdk-ui/storage';
 import type { Layer } from '@zodal/dials-core';
 import type { ZodTypeAny } from 'zod';
 import { EXTENSION_DIAL_SCHEMAS } from '@/settings/schema';
@@ -265,15 +263,37 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
   ...CONTRIBUTIONS.instruments.map((i) => seed(i.name, settingsWithPatch(i.name, i.patch))),
 ];
 
+/** The host's key-value target (the storage seam), or nothing where the host has none: every
+ *  key below is read and written through it, so a host swap moves them all. */
+const values = hostValues(noopValues);
+
+const INSTRUMENTS_KEY = 'thoremin.instruments';
+
+/** The profiles as one JSON list under {@link INSTRUMENTS_KEY}, as dials-ui's localStorage
+ *  storage kept them (a missing or corrupt value reads as an empty list), but in the host's
+ *  target; in memory while the host has none (asked on every call, like the metadata blob). */
 function instrumentStorage(): ProfileStorage {
-  try {
-    return createLocalStorageProfileStorage('thoremin.instruments');
-  } catch {
-    return createMemoryProfileStorage();
-  }
+  const memory = createMemoryProfileStorage();
+  return {
+    read: async (): Promise<NamedProfile[]> => {
+      if (!hasHostValues()) return memory.read();
+      const raw = values.getItem(INSTRUMENTS_KEY);
+      if (!raw) return [];
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return Array.isArray(parsed) ? (parsed as NamedProfile[]) : [];
+      } catch {
+        return [];
+      }
+    },
+    write: async (profiles) => {
+      if (!hasHostValues()) return memory.write(profiles);
+      values.setItem(INSTRUMENTS_KEY, JSON.stringify(profiles));
+    },
+  };
 }
 
-/** The instruments profile store (named layers persisted to localStorage). */
+/** The instruments profile store (named layers in the host's key-value target). */
 export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
@@ -283,14 +303,14 @@ const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {
   try {
-    return Number(localStorage.getItem(SEED_VERSION_KEY)) || 0;
+    return Number(values.getItem(SEED_VERSION_KEY)) || 0;
   } catch {
     return 0;
   }
 };
 const writeSeedVersion = (): void => {
   try {
-    localStorage.setItem(SEED_VERSION_KEY, String(SEED_VERSION));
+    values.setItem(SEED_VERSION_KEY, String(SEED_VERSION));
   } catch {
     /* non-browser / disabled storage */
   }
@@ -320,7 +340,7 @@ const SELECTED_KEY = 'thoremin.instruments.selected';
 /** The persisted name of the selected instrument (null if none / unavailable). */
 export function getSelectedName(): string | null {
   try {
-    return localStorage.getItem(SELECTED_KEY) || null;
+    return values.getItem(SELECTED_KEY) || null;
   } catch {
     return null;
   }
@@ -329,8 +349,8 @@ export function getSelectedName(): string | null {
 /** Persist (or clear, with an empty string) the selected instrument name. */
 export function setSelectedName(name: string): void {
   try {
-    if (name) localStorage.setItem(SELECTED_KEY, name);
-    else localStorage.removeItem(SELECTED_KEY);
+    if (name) values.setItem(SELECTED_KEY, name);
+    else values.removeItem(SELECTED_KEY);
   } catch {
     /* non-browser / disabled storage — selection is in-memory only */
   }
@@ -342,7 +362,7 @@ const DEFAULT_KEY = 'thoremin.instruments.default';
  *  (thoremin is single-tenant), so "each user" = each browser. */
 export function getDefaultName(): string | null {
   try {
-    return localStorage.getItem(DEFAULT_KEY) || null;
+    return values.getItem(DEFAULT_KEY) || null;
   } catch {
     return null;
   }
@@ -351,8 +371,8 @@ export function getDefaultName(): string | null {
 /** Set (or clear, with an empty string) the default instrument name. */
 export function setDefaultName(name: string): void {
   try {
-    if (name) localStorage.setItem(DEFAULT_KEY, name);
-    else localStorage.removeItem(DEFAULT_KEY);
+    if (name) values.setItem(DEFAULT_KEY, name);
+    else values.removeItem(DEFAULT_KEY);
   } catch {
     /* non-browser / disabled storage */
   }
@@ -362,8 +382,10 @@ export function setDefaultName(name: string): void {
  *  (zustand persist, key 'thoremin-controls') writes only on the first edit/selection,
  *  so its absence marks a first-ever visit (when the default instrument should open). */
 function isFreshBrowser(): boolean {
+  // No target at all (plain Node) is not a fresh browser: nothing to open a default into.
+  if (!hasHostValues()) return false;
   try {
-    return !localStorage.getItem('thoremin-controls');
+    return !values.getItem('thoremin-controls');
   } catch {
     return false;
   }
