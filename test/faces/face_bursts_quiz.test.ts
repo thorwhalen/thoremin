@@ -21,8 +21,8 @@ import { QUIZ_DEFAULTS, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enro
 import { everydayResult } from '@thoremin/sdk/enroll/everyday';
 import { provideCarveCapture } from '@thoremin/sdk-ui/enroll/capture';
 import { registry } from '@/app/commands/registry';
-import '@/app/carveCapture';
-import { isGestureBindable } from '@/app/gestureDispatch';
+import '@/app/enroll/carveCapture';
+import { isGestureBindable } from '@/app/gestures/gestureDispatch';
 import { FACES } from '../helpers/extensions';
 
 let clock = 0;

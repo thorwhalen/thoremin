@@ -49,8 +49,8 @@ import { provideCategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { createCategorizerIndex, onCategorizersChanged, type CategorizerIndex, type CategorizerStoreOptions, type CategorizerSummary } from '@thoremin/sdk-ui/enroll/categorizers';
 import { TRAINED_KIND, isTrainedRecord, recordBindings, trainedId, type AnyCategorizerRecord } from '@thoremin/sdk/enroll/record';
 import { liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
-import { useTools } from '../toolsStore';
-import { useToasts } from '../toasts';
+import { useTools } from '../tools/toolsStore';
+import { useToasts } from '../shell/toasts';
 import {
   CATEGORY_EDGE_DEFAULTS,
   carryBindings,

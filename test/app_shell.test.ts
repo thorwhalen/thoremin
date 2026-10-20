@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { TOOLS } from '@/app/tools';
+import { TOOLS } from '@/app/tools/tools';
 
 const app = readFileSync(resolve(process.cwd(), 'src/app/App.tsx'), 'utf8');
 

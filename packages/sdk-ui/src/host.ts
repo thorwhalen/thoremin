@@ -102,7 +102,7 @@ export function provideDialsForm(host: DialsFormHost): void {
   dialsFormHost = host;
 }
 
-/** Installed by the engine hook while it owns a camera (`src/app/useEngine.ts`); null uninstalls. */
+/** Installed by the engine hook while it owns a camera (`src/app/engine/useEngine.ts`); null uninstalls. */
 export function provideCamera(host: CameraHost | null): void {
   cameraHost = host;
 }

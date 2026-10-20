@@ -18,8 +18,8 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
-import { useThoreminEngine } from '@/app/useEngine';
-import { DEFAULT_SOURCE } from '@/app/sourceSpec';
+import { useThoreminEngine } from '@/app/engine/useEngine';
+import { DEFAULT_SOURCE } from '@/app/engine/sourceSpec';
 import { sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '@/app/graph';
 import { createAppRegistry } from '@/nodes/browser';
 import { readLiveVector } from '@/app/enroll/liveVector';

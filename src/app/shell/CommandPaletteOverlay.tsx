@@ -19,11 +19,11 @@
 import { useEffect } from 'react';
 import { CommandPalette } from 'acture-palette-react';
 import { AutoForm } from 'acture-forms-autoform';
-import { registry } from './commands';
+import { registry } from '../commands';
 // The extensions' commands join the registry (#600 S11).
 import '@/app/host/contributions';
 import { useToasts } from './toasts';
-import { useTools } from './toolsStore';
+import { useTools } from '../tools/toolsStore';
 
 const TOOL_ID = 'commands';
 

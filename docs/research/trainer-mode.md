@@ -376,7 +376,7 @@ every param write a recorded, replayable, undoable command — so "bind category
 is a command, and a mis-trained model's damage is one ⌘Z.
 
 **And the honest warning, from #137 and #119:** a trainer buried in a settings panel is
-not shipped. It needs an entry in `src/app/tools.ts` and a reachability test.
+not shipped. It needs an entry in `src/app/tools/tools.ts` and a reachability test.
 
 ---
 

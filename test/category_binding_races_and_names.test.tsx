@@ -12,9 +12,9 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import { createInMemoryProvider } from '@zodal/store';
 import { trainModel, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 // The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import GesturesPanel from '@/app/GesturesPanel';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import GesturesPanel from '@/app/gestures/GesturesPanel';
+import { useTools } from '@/app/tools/toolsStore';
 import { useTrainer } from '@/slices/trainer/app/store';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import {

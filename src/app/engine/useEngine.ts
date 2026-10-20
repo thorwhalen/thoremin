@@ -23,33 +23,33 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/host/appRegistry';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
-import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from './graph';
+import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';
 import { DEFAULT_SOURCE, type SourceSpec } from './sourceSpec';
-import { useControls } from './store';
-import { LiveVectorTap, resetLiveVector } from './enroll/liveVector';
+import { useControls } from '../store';
+import { LiveVectorTap, resetLiveVector } from '../enroll/liveVector';
 import { provideCamera } from '@thoremin/sdk-ui/host';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
-import { useRecordingController } from './recording/useRecordingController';
-import { tagOverlayResource } from './tagging/runtime';
-import { useFaceStatus, makeFaceReporter } from './faceStatus';
+import { useRecordingController } from '../recording/useRecordingController';
+import { tagOverlayResource } from '../tagging/runtime';
+import { useFaceStatus, makeFaceReporter } from '../face/faceStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
-import { createTimingResource } from './timing/resource';
+import { createTimingResource } from '../timing/resource';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
-import { useTimingStatus, makeTimingReporter } from './timingStatus';
-import { extensionStatusHooks, makeExtensionSinks } from './host/contributions';
+import { useTimingStatus, makeTimingReporter } from '../timing/timingStatus';
+import { extensionStatusHooks, makeExtensionSinks } from '../host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
 import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount } from './liveApply';
-import { useGestureStatus, makeGestureReporter } from './gestureStatus';
-import { createGestureDispatcher } from './gestureDispatch';
-import { createCategoryDispatcher, resetCategoryLive } from './enroll/categoryDispatch';
-import { installCategoryDemand, useCategoryBinding } from './enroll/categoryBinding';
+import { useGestureStatus, makeGestureReporter } from '../gestures/gestureStatus';
+import { createGestureDispatcher } from '../gestures/gestureDispatch';
+import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
+import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBinding';
 import { cameraConstraints } from './camera';
-import { latencyHintFor, noteLatencyHintInEffect } from './timing/audioPrefs';
+import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -63,7 +63,7 @@ export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 const VIDEO_LOAD_TIMEOUT_MS = 15000;
 
 /** The recording phase, re-exported from its owner for existing importers. */
-export type { RecordingPhase } from './recording/useRecordingController';
+export type { RecordingPhase } from '../recording/useRecordingController';
 
 /** The status stores that mirror a branch node, by node id; reset when the node leaves. */
 function resetStatusesOf(removed: readonly string[]): void {

@@ -9,11 +9,11 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
+import ToolsBar from '@/app/tools/ToolsBar';
 import { describeRecording } from '@/slices/song/panels/RecordingSection';
 // The Song tool's panel, in the frame the shell opens an extension's tool in (#600 S15).
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { useControls } from '@/app/store';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { loadSongFile } from '@/slices/song/app/host';

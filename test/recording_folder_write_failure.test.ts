@@ -8,8 +8,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { unzipSync } from 'fflate';
 
-vi.mock('@/app/recorder', () => ({ downloadBlob: vi.fn() }));
-import { downloadBlob } from '@/app/recorder';
+vi.mock('@/app/recording/recorder', () => ({ downloadBlob: vi.fn() }));
+import { downloadBlob } from '@/app/recording/recorder';
 import { createRecordingSink } from '@/app/recording/sink';
 import type { FsDirHandle } from '@/app/recording/folder';
 

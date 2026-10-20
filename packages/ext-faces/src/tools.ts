@@ -1,6 +1,6 @@
 /**
  * The faces extension's shell tools, as data (#330, #385 E8, E9): a module with no runtime imports,
- * so the browser smoke's reachability sweep can import it beside core's `src/app/tools.ts` (#600
+ * so the browser smoke's reachability sweep can import it beside core's `src/app/tools/tools.ts` (#600
  * S16b). Plain data (no SDK import: this is the extension's pure side); the stub (`./ui.tsx`), which
  * type-checks them as `ExtensionToolDecl`s, lists them; the deferred half adds their panels.
  */

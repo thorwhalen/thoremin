@@ -41,7 +41,7 @@ import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair }
 import { createStrikeTrigger } from '@/latency/strike';
 import type { Tap } from '@thoremin/dag';
 import type { TimingReading } from '@thoremin/sdk/timing/tracker';
-import { describeTiming } from './timing/describe';
+import { describeTiming } from '../timing/describe';
 
 export const LATENCY_HANDLE_KEY = 'thoreminLatency';
 

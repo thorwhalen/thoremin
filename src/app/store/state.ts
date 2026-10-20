@@ -4,7 +4,7 @@
  */
 import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
 import { OverlayDialSchema, type OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
-import type { GesturePrefs } from '../gesturePrefs';
+import type { GesturePrefs } from '../gestures/gesturePrefs';
 import type { VoiceParams, FaceMapping } from '@thoremin/sdk/nodes/domain';
 import { SettingsSchema, type ExtensionDials, type ExtensionTransients, type FaceChord, type FaceExpr, type HandsSettings, type Settings } from '@/settings/schema';
 import { DEFAULT_HAND_MAP, type HandMap } from '@/nodes/mapping/hand_map.schema';

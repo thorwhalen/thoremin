@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { registry } from '@/app/commands';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { CLEARABLE_DIALS, isClearableDial } from '@/app/commands/paths';
-import { buildDialCatalog } from '@/plugins/assistant/dialsContext';
-import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
+import { buildDialCatalog } from '@/app/assistant/dialsContext';
+import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/dials/overlayControls';
 import { structuredLeafPaths } from '@/app/commands/paths';
 
 beforeEach(() => {

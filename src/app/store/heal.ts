@@ -4,7 +4,7 @@
  * corrupt blob can never leave a control bound to undefined.
  */
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
-import { GesturePrefsSchema } from '../gesturePrefs';
+import { GesturePrefsSchema } from '../gestures/gesturePrefs';
 import { DEFAULT_FACE_CHORD, DEFAULT_FACE_EXPR, DEFAULT_HANDS, EXTENSION_DIAL_SCHEMAS, HandsSettingsSchema, FaceChordSchema, FaceExprSchema, HandMapSchema, type FaceExpr } from '@/settings/schema';
 import { FaceControlsDialSchema } from '@/nodes/features/face_controls.schema';
 import { AudioPrefsSchema } from '../timing/audioPrefs';

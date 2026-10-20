@@ -27,7 +27,7 @@ import { createFaceModelStore, type FaceModelRecord } from '@thoremin/ext-faces/
 import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
 import { syntheticSource, type FaceSource } from '@thoremin/ext-faces/app/sources';
 import { registry } from '@/app/commands/registry';
-import { toggleCarveCapture } from '@/app/carveCapture';
+import { toggleCarveCapture } from '@/app/enroll/carveCapture';
 import { loadStream } from '../helpers/fixtures';
 import { FACES } from '../helpers/extensions';
 

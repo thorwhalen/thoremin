@@ -19,7 +19,7 @@
 import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import DagApp from './app/App.tsx';
-import {parseSourceSpec} from './app/sourceSpec';
+import {parseSourceSpec} from './app/engine/sourceSpec';
 import {parseSlotSelection} from './app/graph';
 import './index.css';
 

@@ -42,7 +42,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import InstrumentPicture from '@/app/library/InstrumentPicture';
-import { INSTRUMENTS_WIDTH_VAR, publishSize } from '@/app/shellLayout';
+import { INSTRUMENTS_WIDTH_VAR, publishSize } from '@/app/shell/shellLayout';
 import DialsControlsPanel from './DialsControlsPanel';
 import { useInstruments } from './useInstruments';
 import { useDialsSettings } from './useDialsSettings';

@@ -12,15 +12,15 @@
  * ML models).
  */
 import type { Engine, NodeRegistry } from '@thoremin/dag';
-import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from './graph';
+import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { branchClosureIds, type Composed } from '@/instruments/compose';
 import { deriveHandCount, parseHandsOverride, type HandCount } from '@/instruments/hands';
 import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
-import { useControls } from './store';
-import { useToasts } from './toasts';
+import { useControls } from '../store';
+import { useToasts } from '../shell/toasts';
 import { ensureLazyTypes } from './extensionLoad';
 import { makeLazyApplier, type LazyApplyDeps } from './lazyApply';
 

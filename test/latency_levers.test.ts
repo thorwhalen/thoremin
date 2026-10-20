@@ -6,7 +6,7 @@
  * `test/audio_panel.test.tsx`.
  */
 import { describe, it, expect } from 'vitest';
-import { CAPTURE, cameraConstraints } from '@/app/camera';
+import { CAPTURE, cameraConstraints } from '@/app/engine/camera';
 import { isSoftwareRenderer, resolveDelegate, DelegateChoiceSchema } from '@/nodes/sources/delegate';
 import { latencyHintFor, honoursNumericLatencyHint, DEFAULT_AUDIO_PREFS, DEFAULT_LATENCY_HINT, noteLatencyHintInEffect, lowLatencyHintInEffect, latencyHintInForce, useLatencyHintInEffect } from '@/app/timing/audioPrefs';
 import { useControls, mergeControls } from '@/app/store';

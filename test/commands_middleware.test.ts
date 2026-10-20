@@ -332,7 +332,7 @@ describe('layersEqual is symbol-safe (guard the guard)', () => {
 
 describe('the keyboard entry point', () => {
   it('binds undo and redo in the default keymap', async () => {
-    const { DEFAULT_KEYMAP } = await import('@/app/keyboardShortcuts');
+    const { DEFAULT_KEYMAP } = await import('@/app/shell/keyboardShortcuts');
     expect(Object.keys(DEFAULT_KEYMAP)).toEqual(
       expect.arrayContaining(['$mod+z', '$mod+Shift+z', '$mod+y']),
     );

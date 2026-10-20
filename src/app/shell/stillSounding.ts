@@ -4,7 +4,7 @@
  * the badge never says "muted" while notes still reach the outside, and core names no output.
  */
 import type { StillSounding } from '@thoremin/sdk-ui/types';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 
 /** Each contributed note for this hot-store state, ` · `-joined after the badge's own text. */
 export function stillSoundingNote(state: Readonly<Record<string, unknown>>, hints: readonly StillSounding[] = UI_CONTRIBUTIONS.stillSounding): string {

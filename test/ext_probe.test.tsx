@@ -45,18 +45,18 @@ type App = {
   schema: typeof import('@/settings/schema');
   seeds: typeof import('@/app/dials/instruments');
   routes: typeof import('@/app/training/routes');
-  tools: typeof import('@/app/shellTools');
-  entries: typeof import('@/app/entryPoints');
+  tools: typeof import('@/app/tools/shellTools');
+  entries: typeof import('@/app/tools/entryPoints');
   uis: typeof import('@/app/extensions');
   store: typeof import('@/app/store');
   category: typeof import('@/app/library/category');
   commands: typeof import('@/app/commands/registry');
-  keys: typeof import('@/app/keyboardShortcuts');
+  keys: typeof import('@/app/shell/keyboardShortcuts');
   modalities: typeof import('@thoremin/sdk/features/modalities');
   contributions: typeof import('@/host/contributions');
   storage: typeof import('@thoremin/sdk-ui/storage');
   storeControls: typeof import('@/host/storeControls');
-  still: typeof import('@/app/stillSounding');
+  still: typeof import('@/app/shell/stillSounding');
 };
 let app: App;
 /** The lazy probe's React half, as the host loads it (one module instance after the reset). */
@@ -73,14 +73,14 @@ beforeAll(async () => {
     import('@/settings/schema'),
     import('@/app/dials/instruments'),
     import('@/app/training/routes'),
-    import('@/app/shellTools'),
-    import('@/app/entryPoints'),
+    import('@/app/tools/shellTools'),
+    import('@/app/tools/entryPoints'),
     import('@/app/extensions'),
     import('@/app/store'),
   ]);
   const category = await import('@/app/library/category');
-  const [commands, keys, modalities, contributions, storage] = await Promise.all([import('@/app/commands/registry'), import('@/app/keyboardShortcuts'), import('@thoremin/sdk/features/modalities'), import('@/host/contributions'), import('@thoremin/sdk-ui/storage')]);
-  const [storeControls, still] = await Promise.all([import('@/host/storeControls'), import('@/app/stillSounding')]);
+  const [commands, keys, modalities, contributions, storage] = await Promise.all([import('@/app/commands/registry'), import('@/app/shell/keyboardShortcuts'), import('@thoremin/sdk/features/modalities'), import('@/host/contributions'), import('@thoremin/sdk-ui/storage')]);
+  const [storeControls, still] = await Promise.all([import('@/host/storeControls'), import('@/app/shell/stillSounding')]);
   app = { registry, graph, schema, seeds, routes, tools, entries, uis, store, category, commands, keys, modalities, contributions, storage, storeControls, still };
 });
 
@@ -138,7 +138,7 @@ describe('the probe reaches every pure contribution point', () => {
   });
 
   it('readsTwoHands (#600 S18a): the probe past 1 kHz makes the hand model look for two hands', async () => {
-    const { liveHandCount } = await import('@/app/liveApply');
+    const { liveHandCount } = await import('@/app/engine/liveApply');
     // An instrument that reads no hand (its hand voices off): one hand, until the probe says two.
     const state = app.store.useControls.getState();
     const base = { ...state, handMap: { ...state.handMap, maxGain: 0 } };
@@ -400,8 +400,8 @@ describe('the probe contributes commands, a keybinding and a carve modality (#60
 
 describe('the probe reaches every React contribution point', () => {
   it('a tool panel hosts what other contributions bring to it (#600 S18b): sections, events, entry points', async () => {
-    const { default: ExtensionToolPanels } = await import('@/app/ExtensionToolPanels');
-    const { useTools } = await import('@/app/toolsStore');
+    const { default: ExtensionToolPanels } = await import('@/app/tools/ExtensionToolPanels');
+    const { useTools } = await import('@/app/tools/toolsStore');
     act(() => useTools.getState().openTool(PROBE_TOOL_ID));
     render(<ExtensionToolPanels />);
     expect(screen.getByText('probe hosted section probing')).toBeTruthy();
@@ -414,8 +414,8 @@ describe('the probe reaches every React contribution point', () => {
   });
 
   it('a tool may draw its own frame (#600 S16d): the host mounts its content bare, and its hush names the reason', async () => {
-    const { default: ExtensionToolPanels } = await import('@/app/ExtensionToolPanels');
-    const { useTools } = await import('@/app/toolsStore');
+    const { default: ExtensionToolPanels } = await import('@/app/tools/ExtensionToolPanels');
+    const { useTools } = await import('@/app/tools/toolsStore');
     act(() => useTools.getState().openTool(PROBE_OWN_FRAME_TOOL_ID));
     const { container } = render(<ExtensionToolPanels />);
     // No shell frame: no "Close the ... panel" button and no shell-tool-panel wrapper.
@@ -460,7 +460,7 @@ describe('the probe reaches every React contribution point', () => {
   it('detached tools (#600 S15): the probe tool runs detached, and the bar marks it running and stops it', async () => {
     expect(app.tools.SHELL_TOOLS.find((t) => t.id === PROBE_TOOL_ID)?.runsDetached).toBe(true);
     expect(app.tools.SHELL_TOOLS.find((t) => t.id === PROBE_LAZY_TOOL_ID)?.runsDetached).toBeUndefined();
-    const { default: ToolsBar } = await import('@/app/ToolsBar');
+    const { default: ToolsBar } = await import('@/app/tools/ToolsBar');
     probeSeen.running = true;
     render(<ToolsBar />);
     const stop = screen.getByLabelText('Stop Probe tool');
@@ -471,7 +471,7 @@ describe('the probe reaches every React contribution point', () => {
   });
 
   it("tool sections (#600 S15): the probe's section shows in the Conductor's panel while its context matches, and hears its events", async () => {
-    const sections = await import('@/app/toolSections');
+    const sections = await import('@/app/tools/toolSections');
     expect(sections.toolSectionsFrom('conductor', { 'conductor.conducts': 'recording' }).map((x) => x.id)).toEqual(['probe-section']);
     expect(sections.toolSectionsFrom('conductor', { 'conductor.conducts': 'score' })).toEqual([]);
     render(<sections.ToolSections from="conductor" context={{ 'conductor.conducts': 'recording' }} />);

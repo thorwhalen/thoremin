@@ -15,8 +15,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { EMOTIONS, calibrateSensitivity, type Emotion } from '@/music/expression';
-import { EXPRESSION_HELP } from '@/app/expressionHelp';
-import { useFaceStatus } from '@/app/faceStatus';
+import { EXPRESSION_HELP } from '@/app/face/expressionHelp';
+import { useFaceStatus } from '@/app/face/faceStatus';
 import { useControls } from '@/app/store';
 
 const CAPTURE_MS = 2500;

@@ -11,9 +11,9 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 // The Conductor is an extension's tool (#600 S18b): it opens in the shell's frame.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
-import { SHELL_TOOLS as TOOLS } from '@/app/shellTools';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
+import { SHELL_TOOLS as TOOLS } from '@/app/tools/shellTools';
 import { useOrchestraStatus } from '@/slices/conductor/app/orchestraStatus';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSetIn } from '@/app/dispatchDial';

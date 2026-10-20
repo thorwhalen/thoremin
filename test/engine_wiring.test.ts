@@ -1,5 +1,5 @@
 /**
- * Structural guard on the React↔DAG bridge's wiring (`src/app/useEngine.ts`).
+ * Structural guard on the React↔DAG bridge's wiring (`src/app/engine/useEngine.ts`).
  *
  * This is the #137 lesson applied to the engine host: MIDI out shipped with a
  * dial, a node and no edge — every unit test passed and the feature did nothing,
@@ -25,9 +25,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
-const useEngine = read('src/app/useEngine.ts');
+const useEngine = read('src/app/engine/useEngine.ts');
 // The live graph and its re-wire moved out of the hook (#392): `useEngine` binds it to its refs.
-const liveApply = read('src/app/liveApply.ts');
+const liveApply = read('src/app/engine/liveApply.ts');
 const app = read('src/app/App.tsx');
 const main = read('src/main.tsx');
 
@@ -146,9 +146,9 @@ describe('the slot selection reaches the graph', () => {
     const c = code(useEngine);
     // One helper does the re-wire: it composes the live graph for the CURRENT slots and
     // applies it; both effects call it, and so does the post-init reconcile.
-    // (Through one lazy applier per engine, `src/app/lazyApply.ts`: what the graph names but
+    // (Through one lazy applier per engine, `src/app/engine/lazyApply.ts`: what the graph names but
     // is not loaded yet loads first, and only the latest request commits.)
-    // (`src/app/liveApply.ts` since #392; the hook's `rewire` binds it to the hook's refs.)
+    // (`src/app/engine/liveApply.ts` since #392; the hook's `rewire` binds it to the hook's refs.)
     expect(code(liveApply)).toMatch(/function applyLive\([^)]*\)[^{]*\{[^]*?makeLazyApplier<Composed>\(\{\s*\.\.\.lazyDeps\(selection,\s*registry,\s*\(\) => live\(\) === engine\),\s*\.\.\.\(compose \? \{ compose \} : \{\}\),\s*commit: \(next\) => \{\s*void engine\s*\.applyGraph\(next\.spec,\s*registry\)/);
     expect(c).toMatch(/const rewire = \(engine: Engine, registry: NodeRegistry\) =>\s*applyLive\(engine, \{ selection: \(\) => slotsRef\.current, registry, live: \(\) => engineRef\.current/);
     expect(c).toMatch(/rewire\(engine, registry\);\s*\}, \[\s*slotsKey\s*\]\)/);

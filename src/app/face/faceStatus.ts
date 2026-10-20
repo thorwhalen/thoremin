@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 import { ABSENT_FACE_STATUS, type FaceStatus } from '@thoremin/sdk/nodes/domain';
 import { readingName, type ExpressionLabel, type ExpressionScores } from '@/music/expression';
-import { useToasts } from './toasts';
+import { useToasts } from '../shell/toasts';
 import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 export interface FaceStatusState {

@@ -8,10 +8,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import { branchIdsFor } from '@/app/graph';

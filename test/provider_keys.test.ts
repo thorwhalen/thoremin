@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { getStoredKey, setStoredKey, removeStoredKey, keyStorageKey } from '@/keys/providerKeys';
-import { getStoredKey as assistantGetStoredKey } from '@/plugins/assistant/providers';
+import { getStoredKey as assistantGetStoredKey } from '@/app/assistant/providers';
 
 afterEach(() => localStorage.clear());
 

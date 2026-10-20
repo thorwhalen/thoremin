@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState, type ComponentType, type RefObject } from 'react';
 import type { ExtensionPanel, ExtensionPanelDecl, ExtensionToolDecl, ExtensionToolPanelProps, ExtensionUi } from '@thoremin/sdk-ui/types';
 import { LoadStatusReadout } from '@thoremin/sdk-ui/loadStatus';
-import { useExtensionLoad } from '@/app/extensionLoadStatus';
+import { useExtensionLoad } from '@/app/engine/extensionLoadStatus';
 
 /** The page reload: a browser never refetches a failed `import()` in the same page. */
 const reloadPage = (): void => window.location.reload();

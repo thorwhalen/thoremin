@@ -44,7 +44,7 @@ Two corrections, both of which follow from taking "it is a measuring instrument"
    config and the meters keep working. `OverlayDialSchema` is the node's params minus
    `featureLab` and is what the dial and the saved settings use.
 
-2. **It has an entry point.** The Lab is a *tool*, registered in `src/app/tools.ts` and
+2. **It has an entry point.** The Lab is a *tool*, registered in `src/app/tools/tools.ts` and
    opened from the shell's tools bar (bottom-left, alongside the command palette and the
    manual). It opens on an intro that says what the meters measure, because "248
    normalized meters" means nothing to a player who has not read this document.

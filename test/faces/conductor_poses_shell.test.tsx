@@ -8,9 +8,9 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { dialsStore } from '@/app/dials/settingsStore';
 import { dispatchDialSetIn } from '@/app/dispatchDial';
 import { bodySessionStore } from '@thoremin/ext-faces/app/bodySession';

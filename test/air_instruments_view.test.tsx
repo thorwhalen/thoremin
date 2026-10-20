@@ -17,7 +17,7 @@ import { describe, it, expect, afterEach, beforeAll, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { dialsStore } from '@/app/dials/settingsStore';
-import { TOOLS } from '@/app/tools';
+import { TOOLS } from '@/app/tools/tools';
 import { useAirDrumStatus, ABSENT_AIR_DRUM_LIVE, describeLive, describeMagnet } from '@thoremin/ext-air/app/airDrumStatus';
 import { AirDrumReadout } from '@thoremin/ext-air/panels/airDrum';
 import { INSTRUMENT_CATALOG } from '@/app/library/category';

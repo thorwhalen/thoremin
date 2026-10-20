@@ -5,7 +5,7 @@
  * browser globals and are guarded so they no-op safely under the Node test
  * runtime.
  */
-import { pickMimeType } from '../recorder';
+import { pickMimeType } from './recorder';
 import { folderPickerSupported } from '@thoremin/sdk-ui/recording/destination';
 import type { RecordingLocation } from '@thoremin/sdk-ui/recording/schema';
 

@@ -6,7 +6,7 @@
  */
 import { requestCarve } from '@thoremin/sdk-ui/enroll/carveRequest';
 import type { ToolEntryPointDecl } from '@thoremin/sdk-ui/tools';
-import { UI_CONTRIBUTIONS } from './host/contributions';
+import { UI_CONTRIBUTIONS } from '../host/contributions';
 import { shellToolById } from './shellTools';
 import { useTools } from './toolsStore';
 

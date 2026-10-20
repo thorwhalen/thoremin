@@ -13,10 +13,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
-import ToolsBar from '@/app/ToolsBar';
+import ToolsBar from '@/app/tools/ToolsBar';
 // The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { useTrainer } from '@/slices/trainer/app/store';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { installRecording, useRecordingConfig } from '@/app/recording/configStore';

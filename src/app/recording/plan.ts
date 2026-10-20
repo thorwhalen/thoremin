@@ -9,7 +9,7 @@
  * actual capture + writing. Keeping it pure means the naming contract can't drift
  * between the directory / zip / per-file sinks (they all write the same names).
  */
-import { extForMime } from '../recorder';
+import { extForMime } from './recorder';
 import { recordingFormat, DEFAULT_RECORDING_FORMATS } from './formats';
 import { fileName } from '@thoremin/sdk-ui/recording/naming';
 import type { RecordingStreamKind } from './manifest';

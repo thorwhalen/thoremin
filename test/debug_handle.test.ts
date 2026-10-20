@@ -8,7 +8,7 @@
  * `useEngine` actually installs it.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { makeDebugHandle, installDebugHandle, DEBUG_HANDLE_KEY } from '@/app/debugHandle';
+import { makeDebugHandle, installDebugHandle, DEBUG_HANDLE_KEY } from '@/app/engine/debugHandle';
 import { LiveVectorTap, resetLiveVector } from '@/app/enroll/liveVector';
 
 afterEach(() => {

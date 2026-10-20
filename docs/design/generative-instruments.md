@@ -21,7 +21,7 @@ Two things are in the tree today, on opposite sides of the app split:
 | `LyriaEngine` (WebSocket session, 48 kHz stereo PCM scheduled ahead through Web Audio) | `src/nodes/output/lyria_engine.ts` | type-checked, **never constructed** |
 | `indirect-map` (hand/face features → weighted prompts + config dials, with a live `steerConfig` port since #169) | `src/nodes/mapping/indirect_map.ts` | fixture-tested; 11/11 mutants caught per #169's review comment |
 | The legacy slider-steered AI-DJ (`LyriaSession`, `VibeEditor`, `AiDjOverlayPanel`, `ApiKeyDialog`) | `src/plugins/ai-dj/` | frozen, reachable only at `?engine=legacy` |
-| The BYO-key assistant (`getStoredKey`/`setStoredKey` per provider) | `src/plugins/assistant/providers.ts` | shipped (#133); the key store #141 says to reuse, not fork |
+| The BYO-key assistant (`getStoredKey`/`setStoredKey` per provider) | `src/app/assistant/providers.ts` | shipped (#133); the key store #141 says to reuse, not fork |
 
 (Since #600 S14 the generative layer is a slice: these files live in `src/slices/generative/` (`nodes/generative.ts`, `nodes/lyria.ts`, `nodes/indirect_map.ts`, `app/lyria_engine.ts`), the key is read through `@thoremin/sdk-ui/keys`, and the transport is still not a command: the `p` key runs it as a keybinding action.)
 
@@ -33,7 +33,7 @@ The maintainer's direction adds a second axis the issues do not cover: **in-brow
 
 1. **A generator is a node like any other; its network or model is a host resource.** The `lyria` node fires-and-forgets; audio never enters the DAG; the engine sums into `masterGain` out of band. `midi-out` has the same shape. #141 established that no new abstraction is needed and that #101's `Source` is not the home (a source is an input; a generator is the mirror image). This doc keeps that.
 2. **Static params are the build-time default; input ports are the live override.** Everything a player can change while playing arrives on a port, fed from `store-controls`, so nothing rebuilds the graph (which would reload both MediaPipe models to change a string).
-3. **A capability nobody can find is not shipped.** Every switch in this design is a dial in `src/settings/dials.ts` (so it gets a panel control, a palette entry, a per-dial command and an AI tool surface for free) or a tool in `src/app/tools.ts`, with a structural guard that fails when its port is left unconnected (#147's template).
+3. **A capability nobody can find is not shipped.** Every switch in this design is a dial in `src/settings/dials.ts` (so it gets a panel control, a palette entry, a per-dial command and an AI tool surface for free) or a tool in `src/app/tools/tools.ts`, with a structural guard that fails when its port is left unconnected (#147's template).
 4. **Nothing heavy in the main chunk; nothing heavy loaded until asked for.** This is a rule, not a preference: a player who never enables the generative layer must never download the vendor SDK, a model checkpoint or a wasm runtime. §5.
 5. **Every headless thing gets a fixture-replay test; every ears-only thing gets a line on #146.** No design claim here about how something *sounds* is treated as verified.
 

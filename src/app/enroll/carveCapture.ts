@@ -5,10 +5,10 @@
  * not an extension's internals, so the shell's keymap may bind it.
  */
 import { carveCapture } from '@thoremin/sdk-ui/enroll/capture';
-import './enroll/promptSpeech';
-import { registry } from './commands/registry';
+import './promptSpeech';
+import { registry } from '../commands/registry';
 // The extension commands (the carve's among them) are registered when the fold point loads.
-import './host/contributions';
+import '../host/contributions';
 
 /**
  * Space: toggle the live carve's capture through the command. Returns false when no carve is

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { UNSTAMPED_SOURCE, type TimingReading } from '@thoremin/sdk/timing/tracker';
 import { describeTiming, LOW_LIGHT_FPS, MIN_FRAMES_FOR_STAMP_HINT } from '@/app/timing/describe';
-import { makeTimingReporter, timingStatusKey, TIMING_CHECK_MS } from '@/app/timingStatus';
+import { makeTimingReporter, timingStatusKey, TIMING_CHECK_MS } from '@/app/timing/timingStatus';
 
 function reading(over: Partial<TimingReading> = {}): TimingReading {
   return {

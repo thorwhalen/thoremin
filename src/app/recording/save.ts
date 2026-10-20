@@ -6,7 +6,7 @@
  * cancelled the picker. The web APIs expose the chosen filename but never a true
  * absolute OS path, so callers should surface the name, not a path.
  */
-import { downloadBlob } from '../recorder';
+import { downloadBlob } from './recorder';
 
 export interface SaveResult {
   filename: string;

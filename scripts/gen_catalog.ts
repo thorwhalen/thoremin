@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCatalog, type CatalogEntry, type ParamInfo, type PortInfo } from '@/catalog';
 import { loadedAppRegistry } from '@/nodes/browser';
-import { PROVIDER_LIST } from '@/plugins/assistant/providers';
+import { PROVIDER_LIST } from '@/app/assistant/providers';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -44,7 +44,7 @@ This page catalogs the engine's building blocks — every node, its ports and it
 
 /**
  * The AI-assistant section. The model table is generated from the SAME registry the app
- * ships (`src/plugins/assistant/providers.ts`), so the manual cannot quietly disagree
+ * ships (`src/app/assistant/providers.ts`), so the manual cannot quietly disagree
  * with the picker — a model retired in code disappears from the docs in the same commit.
  */
 const ASSISTANT_INTRO = `The assistant is a chat panel that **operates the instrument for you** — "add face expression chords", "make the left hand an octave lower", "save this as Glassy". It doesn't type into a text box on your behalf; it calls the very same commands the palette and the keyboard shortcuts call, so it can only ever do things you could have done yourself. Anything destructive (saving over an instrument, for instance) stops and asks you first.

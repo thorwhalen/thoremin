@@ -15,9 +15,9 @@
 import type { FaceMapping } from '@/nodes';
 import { type FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import { dispatchDialSet, dispatchDialSetIn, dispatchDialReset } from '../../dispatchDial';
-import { ExpressionHelpButton } from '../../ExpressionHelpPanel';
-import { POSE_MOVES } from '../../poseControlsHelp';
-import { useFaceStatus } from '../../faceStatus';
+import { ExpressionHelpButton } from '../../face/ExpressionHelpPanel';
+import { POSE_MOVES } from '../../face/poseControlsHelp';
+import { useFaceStatus } from '../../face/faceStatus';
 import { useDialsSettings } from '../useDialsSettings';
 import { FACE_MODE_OPTIONS, FACE_MODE_HINT } from '../labels';
 import { CollapsibleSection, ValueRow, selectCls } from '@thoremin/sdk-ui/primitives';

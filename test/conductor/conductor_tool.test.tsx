@@ -13,11 +13,11 @@ import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { describeLive } from '@/slices/conductor/panels/ConductorPanel';
 // The Conductor is an extension's tool (#600 S18b): it opens in the shell's frame.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { useConductorStatus, ABSENT_CONDUCTOR_LIVE } from '@/slices/conductor/app/conductorStatus';
 import { dialsStore } from '@/app/dials/settingsStore';
-import { SHELL_TOOLS as TOOLS } from '@/app/shellTools';
+import { SHELL_TOOLS as TOOLS } from '@/app/tools/shellTools';
 import type { ConductorSettings } from '@/slices/conductor/schema';
 import { CONDUCTOR } from '../helpers/extensions';
 

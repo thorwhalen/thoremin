@@ -15,7 +15,7 @@ import { mergeControls, useControls, type ControlState } from '@/app/store';
 import { makeStoreControlsNode } from '@/host/storeControls';
 import { EXTENSIONS } from '@/extensions';
 import { foldContributions } from '@/host/contributions';
-import { stillSoundingNote } from '@/app/stillSounding';
+import { stillSoundingNote } from '@/app/shell/stillSounding';
 import { MIDI_EXTENSION } from '@/slices/midi';
 import type { DialSlice, Extension } from '@thoremin/sdk/instruments/extension';
 import { MIDI } from '../helpers/extensions';

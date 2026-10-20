@@ -31,7 +31,7 @@
  * and by the browser smoke; the icon for each id is chosen in {@link ToolsBar}.
  */
 import { z } from 'zod';
-import { GUIDE_HOME } from './guide/links';
+import { GUIDE_HOME } from '../guide/links';
 
 /** How a tool opens. `panel`: a panel in the shell, tracked in `useTools`. `overlay`: an
  *  overlay (with its own hotkey when it has one); the launcher opens it too. `link`: a

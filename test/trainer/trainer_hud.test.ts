@@ -21,7 +21,7 @@ import { TRAINER_HUD_ELEMENT } from '@/slices/trainer/nodes/hud';
 import { addGuidanceSink, emitGuidance, resetGuidanceSinks } from '@thoremin/sdk-ui/enroll/guidance';
 import { useTrainer, type TranscriptLine } from '@/slices/trainer/app/store';
 import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
-import { OVERLAY_CONTROLS } from '@/app/overlayControls';
+import { OVERLAY_CONTROLS } from '@/app/dials/overlayControls';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 // The hot store installs the controls host the slice's pref and transient go through.
 import { useControls } from '@/app/store';

@@ -4,7 +4,7 @@
  * Lab, the demand) and the `?hands=` override wins.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { liveHandCount } from '@/app/liveApply';
+import { liveHandCount } from '@/app/engine/liveApply';
 import { useControls } from '@/app/store';
 import { labDemandGroups } from '@/slices/lab/app/labDemand';
 

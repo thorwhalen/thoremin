@@ -15,7 +15,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { canvasOverlayNode, makeCanvasOverlayNode, OVERLAY_ELEMENTS, OVERLAY_CATEGORIES } from '@/nodes/output/canvas_overlay';
 import { CONTRIBUTIONS } from '@/host/contributions';
-import { OVERLAY_CONTROLS } from '@/app/overlayControls';
+import { OVERLAY_CONTROLS } from '@/app/dials/overlayControls';
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map';
 import {
   BLM,

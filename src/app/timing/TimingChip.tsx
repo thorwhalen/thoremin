@@ -11,9 +11,9 @@
  * `timing/describe.ts`, so they are unit-tested; the probe's panel prints the same.
  */
 import { useTimingStatus } from './timingStatus';
-import { describeTiming } from './timing/describe';
-import { useControls } from './store';
-import { latencyHintInForce, useLatencyHintInEffect } from './timing/audioPrefs';
+import { describeTiming } from './describe';
+import { useControls } from '../store';
+import { latencyHintInForce, useLatencyHintInEffect } from './audioPrefs';
 
 export default function TimingChip() {
   const reading = useTimingStatus((s) => s.reading);

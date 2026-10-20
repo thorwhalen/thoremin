@@ -22,7 +22,7 @@ import {
   setDefaultName,
 } from './instruments';
 import { registry } from '@/app/commands/registry';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
 export interface InstrumentsApi {
   /** Named instruments (excludes the reserved LAST_MODIFIED legacy autosave). */

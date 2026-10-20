@@ -25,7 +25,7 @@ import {
   CONFUSION_FER2013,
   type Emotion,
 } from '@/music/expression';
-import { EXPRESSION_HELP } from '@/app/expressionHelp';
+import { EXPRESSION_HELP } from '@/app/face/expressionHelp';
 
 const zeroActs = (): Record<Emotion, number> =>
   Object.fromEntries(EMOTIONS.map((e) => [e, 0])) as Record<Emotion, number>;

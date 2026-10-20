@@ -3,7 +3,7 @@
  * browser's localStorage and nowhere else (#133 settled the posture; #128 and #141
  * confirmed it for the generative layer).
  *
- * Lifted out of `src/plugins/assistant/providers.ts` (which re-exports it, so the
+ * Lifted out of `src/app/assistant/providers.ts` (which re-exports it, so the
  * assistant's imports are unchanged) so that a node-library module — the lazily
  * loaded `lyria_engine.ts` — can read the Google key without importing a React
  * plugin: the node library never depends on `src/plugins`. The storage key keeps

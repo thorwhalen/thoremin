@@ -3,7 +3,7 @@
  * registry, so adding an overlay element makes its controls appear here automatically.
  */
 import { OVERLAY_ELEMENT_CATEGORIES, OVERLAY_CATEGORIES, type OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
-import { controlsForSurface, type OverlayControlDesc } from '../../overlayControls';
+import { controlsForSurface, type OverlayControlDesc } from '../overlayControls';
 import { dispatchDialSetIn } from '../../dispatchDial';
 import { useDialsSettings } from '../useDialsSettings';
 import { CollapsibleSection, Toggle, selectCls } from '@thoremin/sdk-ui/primitives';

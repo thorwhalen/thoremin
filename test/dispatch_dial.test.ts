@@ -16,7 +16,7 @@ import { dispatchDialSet, dispatchDialSetIn, dispatchDialPatch } from '@/app/dis
 import { dialsStore } from '@/app/dials/settingsStore';
 import { voiceEditWrites } from '@/app/dials/settingsStore';
 import { useControls } from '@/app/store';
-import { useToasts } from '@/app/toasts';
+import { useToasts } from '@/app/shell/toasts';
 
 /** The dispatchers do not await, so let the dispatch promise settle before asserting. */
 const settled = () => new Promise((r) => setTimeout(r, 0));

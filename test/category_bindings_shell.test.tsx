@@ -10,12 +10,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react';
 import { createInMemoryProvider } from '@zodal/store';
 import { trainModel, type FeatureVector } from '@thoremin/sdk/enroll';
-import ToolsBar from '@/app/ToolsBar';
-import ToolsLauncher from '@/app/ToolsLauncher';
-import GesturesPanel from '@/app/GesturesPanel';
+import ToolsBar from '@/app/tools/ToolsBar';
+import ToolsLauncher from '@/app/tools/ToolsLauncher';
+import GesturesPanel from '@/app/gestures/GesturesPanel';
 // The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
-import ExtensionToolPanels from '@/app/ExtensionToolPanels';
-import { useTools } from '@/app/toolsStore';
+import ExtensionToolPanels from '@/app/tools/ExtensionToolPanels';
+import { useTools } from '@/app/tools/toolsStore';
 import { useTrainer } from '@/slices/trainer/app/store';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';

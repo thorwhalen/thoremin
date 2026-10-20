@@ -10,7 +10,7 @@ import { provideRecordingHost, recordingHost, type ChosenFolder, type RecordingH
 import { createJournal } from '@/app/commands/journal';
 import { installMiddleware } from '@/app/commands/middleware';
 import { defaultGetRisk, needsUserActivation } from '@/app/commands/confirmation';
-import { isGestureBindable } from '@/app/gestureDispatch';
+import { isGestureBindable } from '@/app/gestures/gestureDispatch';
 import type { ChooseFolderResult } from '@/app/recording/folder';
 
 const reg = createThoreminRegistry();

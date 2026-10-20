@@ -9,7 +9,7 @@
  *    accidentally acquire dispatch overhead.
  *  - Nothing under `packages/dag/src/` or `src/nodes/` may import the command registry, so a
  *    per-tick / audio event can never be routed through dispatch.
- *  - The AI assistant (`src/plugins/assistant/`, #87 Phase 3) is a registry CONSUMER —
+ *  - The AI assistant (`src/app/assistant/`, #87 Phase 3) is a registry CONSUMER —
  *    it may import React / the AI SDK / the registry / the dials read-side freely, but
  *    it must reach SOUND only by dispatching a command (which writes a dial). So it is
  *    forbidden the hot store / DAG / nodes / audio-host modules (a DENYlist, since a
@@ -125,10 +125,10 @@ describe('command-dispatch import firewall (#87)', () => {
       '../store',
       '../store.ts',
       '../store/state',
-      '@/app/useEngine',
-      '@/app/recorder',
+      '@/app/engine/useEngine',
+      '@/app/recording/recorder',
       '@/hooks/useAudioEngine',
-      '@/app/liveApply',
+      '@/app/engine/liveApply',
       '@/app/recording/useRecordingController',
       '@/nodes/output/webaudio_synth',
       '@/dag',
@@ -157,7 +157,7 @@ describe('command-dispatch import firewall (#87)', () => {
   });
 
   it('the AI assistant reaches sound only via dispatch (never the hot store / DAG / nodes / audio)', () => {
-    const files = tsFiles('src/plugins/assistant');
+    const files = tsFiles('src/app/assistant');
     expect(files.length).toBeGreaterThan(0); // guard: the assistant exists and is scanned
     for (const f of files) {
       for (const spec of importSpecifiers(readFileSync(f, 'utf8'))) {
@@ -192,10 +192,10 @@ describe('command-dispatch import firewall (#87)', () => {
     // Guard the guard: forbid the real-time path in both its `@/` alias and relative forms.
     for (const spec of [
       '@/app/store', '@/app/store.ts', '@/app/store/persist', '../store', './store', './store/index',
-      '@/app/useEngine', '@/app/recorder', '@/hooks/useAudioEngine',
+      '@/app/engine/useEngine', '@/app/recording/recorder', '@/hooks/useAudioEngine',
       '../../app/useEngine', '../../app/recorder', '../../hooks/useAudioEngine', // relative reach-outs
       // ...and the pieces extracted from the engine host (#392): the live re-wire and the take's lifecycle.
-      '@/app/liveApply', '@/app/recording/useRecordingController', '../../app/liveApply', '../recording/useRecordingController',
+      '@/app/engine/liveApply', '@/app/recording/useRecordingController', '../../app/liveApply', '../recording/useRecordingController',
       '@/dag', '@thoremin/dag', '@thoremin/dag/engine', '@/nodes/output/webaudio_synth',
     ]) {
       expect(isForbiddenFromAssistant(spec), `"${spec}" must be firewalled from the assistant`).toBe(true);

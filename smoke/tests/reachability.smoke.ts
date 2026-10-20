@@ -6,7 +6,7 @@
  * bundle. Two sweeps, both data-driven from the shell's own registries so a new
  * entry is covered the day it is added:
  *
- *   - every tool opens from the shell — core's (`src/app/tools.ts`) and every shipped
+ *   - every tool opens from the shell — core's (`src/app/tools/tools.ts`) and every shipped
  *     extension's (#600: a built-in feature moved into a slice takes its tool with it) — a
  *     pinned tool from its bar button, any other from the Tools launcher (Round 4, #271) —
  *     and a panel shows its close button, the palette its input, the assistant its chat, a

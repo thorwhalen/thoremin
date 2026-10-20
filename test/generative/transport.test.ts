@@ -5,7 +5,7 @@
  * command: nothing but a human press may start a paid stream); switching the layer off pauses it (the rule `applySettings` held in core).
  */
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_KEYMAP } from '@/app/keyboardShortcuts';
+import { DEFAULT_KEYMAP } from '@/app/shell/keyboardShortcuts';
 import { useControls } from '@/app/store';
 import { registry } from '@/app/commands/registry';
 import { pauseWhenDisabled } from '@/slices/generative/app/transport';

@@ -4,7 +4,7 @@
  * Web Audio + MediaRecorder APIs and is exercised in the browser.
  */
 import { describe, it, expect } from 'vitest';
-import { pickMimeType, extForMime, recordingFilename } from '@/app/recorder';
+import { pickMimeType, extForMime, recordingFilename } from '@/app/recording/recorder';
 
 describe('recorder helpers', () => {
   it('picks the first supported codec, preferring opus webm', () => {

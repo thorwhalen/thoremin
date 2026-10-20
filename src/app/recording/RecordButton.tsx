@@ -15,10 +15,10 @@
  */
 import { useEffect } from 'react';
 import { Circle, Square, X } from 'lucide-react';
-import { RECORDING_FORMATS } from './recording/formats';
-import { supportsOverlayAlpha } from './recording/caps';
-import { useRecordingConfig } from './recording/configStore';
-import { dispatchCommand } from './dispatchDial';
+import { RECORDING_FORMATS } from './formats';
+import { supportsOverlayAlpha } from './caps';
+import { useRecordingConfig } from './configStore';
+import { dispatchCommand } from '../dispatchDial';
 import type { RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 
 export interface RecordingControls {
