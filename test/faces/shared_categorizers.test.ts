@@ -9,12 +9,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { exportCategorizer, importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import {
+  entryModality,
   isSharedId,
   parseSharedIndex,
   readSharedFile,
   SHARED_INDEX_FORMAT,
   sharedId,
   sharedName,
+  SHARED_MODALITIES,
   withSlotIds,
 } from '@thoremin/ext-faces/lib/shared';
 import { copyName, copySharedToMine, createSharedSource } from '@thoremin/ext-faces/app/sharedModels';
@@ -83,12 +85,12 @@ describe('the shared index and files', () => {
     expect(readSharedFile(many)).toMatchObject({ ok: false, error: expect.stringMatching(/more than the 12/) });
   });
 
-  it('every shipped entry is a readable face categorizer, and its file is listed', () => {
+  it('every shipped entry is a readable categorizer of its modality, and its file is listed', () => {
     const { entries, error } = parseSharedIndex(read('index.json'));
     expect(error).toBeNull();
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) {
-      const r = readSharedFile(read(`${e.name}.json`));
+      const r = readSharedFile(read(`${e.name}.json`), SHARED_MODALITIES[entryModality(e)]);
       expect(r.ok, e.name).toBe(true);
     }
     const files = readdirSync(SHARED_PUBLIC_DIR).filter((f) => f !== 'index.json').map((f) => f.replace(/\.json$/, ''));

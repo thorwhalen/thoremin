@@ -15,6 +15,10 @@
  * or when the tool or the section opens.
  */
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
+import { sharedId } from './lib/shared';
+
+/** The categorizer chords id of a shipped categorizer (the app half's `sharedChordId`). */
+const sharedChordIdOf = (modality: 'hand' | 'body', name: string): string => `${modality}:${sharedId(name)}`;
 import type { FaceCategorizerPlay } from './lib/play';
 import type { PoseCategorizerPlay } from './lib/posePlay';
 import type { CategorizerChordPlay } from './lib/categorizerChord';
@@ -41,6 +45,13 @@ export const FACES_EXTENSION = defineExtension({
     transientPort<FaceCategorizerPlay>()('faceCategorizerModel', 'face-categorizer-model'),
     transientPort<PoseCategorizerPlay>()('poseCategorizerModel', 'pose-categorizer-model'),
     transientPort<CategorizerChordPlay>()('categorizerChordsModel', 'categorizer-chords-model'),
+  ],
+  // The categorizer chords' instruments, on the shipped demo categorizers (#330 P5, carved from the
+  // scripted hand and body, so they play on the synthetic sources too): each hand shape, or each
+  // pose, a chord of the key, Auto by position (the strongest chords first).
+  instruments: [
+    { name: 'Hand-shape Chords', patch: { categorizerChords: { id: sharedChordIdOf('hand', 'demo-hand-shapes') } } },
+    { name: 'Pose Chords', patch: { categorizerChords: { id: sharedChordIdOf('body', 'demo-poses') } } },
   ],
   // A personal face categorizer matters only where the face plays chords; a pose categorizer
   // whenever the instrument names one (it composes the body camera).

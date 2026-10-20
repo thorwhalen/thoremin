@@ -28,7 +28,7 @@ import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { retryCategorizerPlay, useCategorizerPlay } from '../app/categorizerPlay';
 import { createFaceModelStore, onFaceModelsChanged, withChangeNotice } from '../app/models';
 import { copySharedToMine, sharedSource, type SharedSource } from '../app/sharedModels';
-import { isSharedId, sharedId, sharedName, type SharedEntry } from '../lib/shared';
+import { entryModality, isSharedId, sharedId, sharedName, type SharedEntry } from '../lib/shared';
 import { AUTO_DEGREE, CATEGORY_SLOTS, chooseCategorizerWrites, DEFAULT_FACE_CATEGORIZER, GENERAL_CATEGORIZER, type FaceCategorizerDial } from '../schema';
 
 const DEGREES = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -57,7 +57,8 @@ function useSharedCategorizers(source: SharedSource): { entries: readonly Shared
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
-    void source.list().then((l) => live && setEntries(l.entries), () => undefined);
+    // The face's shared categorizers only (a hand-shape or pose one plays the categorizer chords).
+    void source.list().then((l) => live && setEntries(l.entries.filter((e) => entryModality(e) === 'face')), () => undefined);
     return () => {
       live = false;
     };

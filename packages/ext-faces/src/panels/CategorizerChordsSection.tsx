@@ -13,7 +13,9 @@ import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
 import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
-import { useCategorizerChords } from '../app/categorizerChords';
+import { sharedChordId, useCategorizerChords } from '../app/categorizerChords';
+import { sharedSource } from '../app/sharedModels';
+import { entryModality } from '../lib/shared';
 import { onFaceModelsChanged } from '../app/models';
 import { CHORD_MODALITY } from '../lib/categorizerChord';
 import { AUTO_DEGREE, BLEND_TARGETS, CATEGORY_SLOTS, chooseCategorizerChordsWrites, DEFAULT_CATEGORIZER_CHORDS, ORDER_DEGREES, UNSET_BLEND_VALUE, type CategorizerChordsDial } from '../schema';
@@ -24,15 +26,20 @@ const degreeName = (d: number): string => (d < 0 ? 'silence' : `degree ${ROMAN[d
 const BLEND_LABELS: Record<(typeof BLEND_TARGETS)[number], string> = { off: 'nothing (off)', brightness: 'brightness', tension: 'tension' };
 
 /** The player's saved hand-shape and pose categorizers, kept fresh across saves and deletes. */
-export function useSavedChordCategorizers(): { hand: NamedSummary[]; body: NamedSummary[] } {
-  const [saved, setSaved] = useState<{ hand: NamedSummary[]; body: NamedSummary[] }>({ hand: [], body: [] });
+export function useSavedChordCategorizers(): { hand: NamedSummary[]; body: NamedSummary[]; shared: NamedSummary[] } {
+  const [saved, setSaved] = useState<{ hand: NamedSummary[]; body: NamedSummary[]; shared: NamedSummary[] }>({ hand: [], body: [], shared: [] });
   useEffect(() => {
     const hand = createCategorizerStore(CHORD_MODALITY.hand);
     const body = createCategorizerStore(CHORD_MODALITY.body);
     let live = true;
+    // The shipped hand-shape and pose categorizers (#330 P5), by their categorizer chords id.
+    const shipped = () =>
+      sharedSource()
+        .list()
+        .then((l) => l.entries.flatMap((e) => { const m = entryModality(e); return m === 'face' ? [] : [{ id: sharedChordId(m, e.name), name: e.label } as NamedSummary]; }), () => [] as NamedSummary[]);
     const refresh = () =>
-      void Promise.all([hand.list(), body.list()]).then(
-        ([h, b]) => live && setSaved({ hand: h, body: b }),
+      void Promise.all([hand.list(), body.list(), shipped()]).then(
+        ([h, b, s]) => live && setSaved({ hand: h, body: b, shared: s }),
         () => undefined,
       );
     refresh();
@@ -50,7 +57,7 @@ export default function CategorizerChordsSection() {
   const dial = ((state.effective as Record<string, unknown>).categorizerChords as CategorizerChordsDial | undefined) ?? DEFAULT_CATEGORIZER_CHORDS;
   const saved = useSavedChordCategorizers();
   const play = useCategorizerChords();
-  const known = dial.id === '' || saved.hand.some((s) => s.id === dial.id) || saved.body.some((s) => s.id === dial.id);
+  const known = dial.id === '' || [saved.hand, saved.body, saved.shared].some((list) => list.some((s) => s.id === dial.id));
   return (
     <div className="space-y-2 text-[11px] text-white/80" data-categorizer-chords-section>
       <label className="flex items-center gap-2">
@@ -69,6 +76,15 @@ export default function CategorizerChordsSection() {
           {saved.body.length > 0 && (
             <optgroup label="Your poses">
               {saved.body.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {saved.shared.length > 0 && (
+            <optgroup label="Examples (shipped)">
+              {saved.shared.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>

@@ -133,6 +133,14 @@
       "name": "ASL Chords",
       "body": false,
       "silent": "plays a chord per recognised sign; the synthetic hands sign nothing"
+    },
+    {
+      "name": "Hand-shape Chords",
+      "body": false
+    },
+    {
+      "name": "Pose Chords",
+      "body": false
     }
   ]
 }
