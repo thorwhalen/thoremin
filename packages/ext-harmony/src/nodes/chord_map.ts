@@ -67,6 +67,7 @@ import {
   DEGREES,
   letterChordNames,
   chordMapGrid,
+  nearestOfDegree,
   createCellTracker,
   diatonicChords,
   ladderBand,
@@ -292,6 +293,8 @@ export interface ChordMapStatus {
   tension: number;
   /** With an idiom: where the player is on it (null: no idiom drawn). */
   idiom: IdiomStatus | null;
+  /** The chord in force's degree on a seven-chord map (the torus marks it), or null. */
+  degree: number | null;
 }
 
 export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
@@ -315,20 +318,8 @@ export const IDLE_CHORD_MAP_STATUS: ChordMapStatus = {
   mode: 'key',
   tension: 0,
   idiom: null,
+  degree: null,
 };
-
-/** The cell of a degree nearest the middle of its region (null: none of that degree). */
-function nearestOfDegree(cells: readonly MapCell[], degree: number, region: Region): number | null {
-  if (degree < 0) return null;
-  const cx = (region.x0 + region.x1) / 2;
-  const cy = (region.y0 + region.y1) / 2;
-  let best: number | null = null;
-  cells.forEach((cell, i) => {
-    if (cell.degree !== degree) return;
-    if (best === null || Math.hypot(cell.x - cx, cell.y - cy) < Math.hypot(cells[best].x - cx, cells[best].y - cy)) best = i;
-  });
-  return best;
-}
 
 /** The point a hand chooses with, in display fractions (the mirrored frame). */
 export function displayPoint(hand: Hand, frame: HandsFrame, point: (typeof CHORD_MAP_POINTS)[number] | (typeof STRUM_MAP_POINTS)[number]): { x: number; y: number } {
@@ -716,6 +707,7 @@ export const chordMapNode = defineNode<Params>({
           key: keyName(spec) + (spec.type === 'major' ? '' : 'm'),
           chord: active?.name ?? null,
           numeral: active?.numeral ?? null,
+          degree: active && degreeCount === DEGREES ? shown : null,
           melody: melodyNote,
           melodySet,
           // What changed, not what the face reads: a frown on a minor key changes nothing.

@@ -309,6 +309,10 @@
     "split": 0.65,
     "strumPoint": "wrist",
     "strumSpread": 0.012,
+    "torusOnVideo": {
+      "show": false,
+      "turnsPerMinute": 3
+    },
     "trailSteps": 3,
     "voicing": "spread",
     "volume": 0.7

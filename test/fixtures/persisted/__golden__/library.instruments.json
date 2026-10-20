@@ -21,6 +21,7 @@
     "Air Guitar",
     "Air Flute",
     "Chord Map",
+    "Chord Map Paths",
     "Chord Map + Face",
     "Pentatonic Map",
     "Play Along (MIDI)",
@@ -342,6 +343,10 @@
         "split": 0.65,
         "strumPoint": "wrist",
         "strumSpread": 0.012,
+        "torusOnVideo": {
+          "show": false,
+          "turnsPerMinute": 3
+        },
         "trailSteps": 3,
         "voicing": "spread",
         "volume": 0.7
@@ -1019,6 +1024,10 @@
         "split": 0.65,
         "strumPoint": "wrist",
         "strumSpread": 0.012,
+        "torusOnVideo": {
+          "show": false,
+          "turnsPerMinute": 3
+        },
         "trailSteps": 3,
         "voicing": "spread",
         "volume": 0.7

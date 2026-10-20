@@ -31,7 +31,8 @@ import { chordWheelNode } from './nodes/chord_wheel';
 import { chordChartNode } from './nodes/chord_chart';
 import type { MidiHeld } from './lib/midi_held';
 import type { AudioHeard } from './lib/audio_heard';
-import { CHORD_MAP_ELEMENT, CHORD_STRUM_OUT, CHORD_WHEEL_ELEMENT, HARMONY_BRANCHES } from './branches';
+import { CHORD_MAP_ELEMENT, CHORD_STRUM_OUT, CHORD_TORUS_ELEMENT, CHORD_WHEEL_ELEMENT, HARMONY_BRANCHES } from './branches';
+import { drawTorusElement } from './nodes/overlay/chord_torus';
 import { HARMONY_DIAL_SLICES } from './dials';
 import { HARMONY_EXTENSION_ID } from './id';
 
@@ -71,6 +72,8 @@ export const HARMONY_EXTENSION = defineExtension({
   overlay: [
     { name: CHORD_WHEEL_ELEMENT, category: 'guide', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordWheel' } },
     { name: CHORD_MAP_ELEMENT, category: 'guide', drawBefore: 'markers', inputs: [{ name: 'grid', kind: 'cell-grid' }], config: { dialKey: 'chordMap' } },
+    // The seven chords on a turning torus (#745), drawn over the rest, shown by `chordMap.torusOnVideo`.
+    { name: CHORD_TORUS_ELEMENT, category: 'guide', inputs: [{ name: 'status', kind: 'chord-map-status' }], config: { dialKey: 'chordMap' } },
   ],
   overlayElements: [
     {
@@ -82,6 +85,7 @@ export const HARMONY_EXTENSION = defineExtension({
         if (grid) drawCellGrid(g, frame.W, frame.H, grid);
       },
     },
+    { name: CHORD_TORUS_ELEMENT, draw: drawTorusElement },
     {
       name: CHORD_WHEEL_ELEMENT,
       draw(g, frame, inputs) {
@@ -110,6 +114,9 @@ export const HARMONY_EXTENSION = defineExtension({
     { name: 'Chord Map', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt' } } },
     // The same map coloured by the face (H7 of #613): a held smile turns A minor to A major, a
     // frown back; an open mouth with raised brows adds the seventh, then the ninth.
+    // A teaching map (#713, #714, #745): the moves captioned by what they do, Pachelbel's ground
+    // drawn ahead as a trail to follow, and the seven chords on a turning torus above the map.
+    { name: 'Chord Map Paths', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt', captionSet: 'computed', idiom: 'pachelbel', torusOnVideo: { show: true } } } },
     { name: 'Chord Map + Face', patch: { ...SILENT_THEREMIN, right: { root: 9, type: 'minor' }, faceChord: { voicing: 'voiceLed' }, chordMap: { enabled: true, melodyNotes: 'tilt', face: true } } },
     // A pentatonic's own five chords (#671): stacks of its own thirds, the sus chords and the
     // sixths of folk and pop harmony, laid out on five hexes (every step visits all five).

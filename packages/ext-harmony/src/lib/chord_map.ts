@@ -487,6 +487,19 @@ export function trailPoints(cells: readonly MapCell[], degrees: readonly (number
   return out;
 }
 
+/** The cell of a degree nearest the middle of its region (null: none of that degree). */
+export function nearestOfDegree(cells: readonly MapCell[], degree: number, region: Region): number | null {
+  if (degree < 0) return null;
+  const cx = (region.x0 + region.x1) / 2;
+  const cy = (region.y0 + region.y1) / 2;
+  let best: number | null = null;
+  cells.forEach((cell, i) => {
+    if (cell.degree !== degree) return;
+    if (best === null || Math.hypot(cell.x - cx, cell.y - cy) < Math.hypot(cells[best].x - cx, cells[best].y - cy)) best = i;
+  });
+  return best;
+}
+
 /** The chord map as the overlay's cell grid. */
 export function chordMapGrid(view: ChordMapView): CellGrid {
   const shape = LAYOUTS[view.layout].shape;

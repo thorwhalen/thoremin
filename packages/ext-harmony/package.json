@@ -25,7 +25,9 @@
     "./panels/chordChart": "./src/panels/chordChart.tsx",
     "./panels/chordMap": "./src/panels/chordMap.tsx",
     "./panels/chordWheel": "./src/panels/chordWheel.tsx",
-    "./ui": "./src/ui.tsx"
+    "./ui": "./src/ui.tsx",
+    "./lib/torus": "./src/lib/torus.ts",
+    "./nodes/overlay/chord_torus": "./src/nodes/overlay/chord_torus.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

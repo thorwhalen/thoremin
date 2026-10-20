@@ -144,3 +144,19 @@ export function drawTorus(g: CanvasRenderingContext2D, W: number, H: number, vie
   }
   g.restore();
 }
+
+/** The cycle a move between two chords runs along (1 seconds, 2 thirds, 3 fourths), or null for
+ *  no move (the same chord, or a degree off the seven). */
+export function cycleOfMove(from: number | null, to: number | null): number | null {
+  if (from === null || to === null || from < 0 || to < 0) return null;
+  const d = (((to - from) % TORUS_DEGREES) + TORUS_DEGREES) % TORUS_DEGREES;
+  return d === 0 ? null : Math.min(d, TORUS_DEGREES - d);
+}
+
+/** The torus's tilt toward the viewer, radians: enough to see the hole and both sides. */
+export const TORUS_PITCH = 0.6;
+
+/** The rotation at time `t` (seconds) turning `turnsPerMinute` times a minute about the vertical. */
+export function torusRotation(t: number, turnsPerMinute: number): Rotation {
+  return { yaw: (2 * Math.PI * turnsPerMinute * t) / 60, pitch: TORUS_PITCH };
+}

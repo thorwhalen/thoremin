@@ -878,6 +878,14 @@
         "kind": "chord-map-config"
       },
       {
+        "name": "harmonic-layers.chordTorus.status",
+        "kind": "chord-map-status"
+      },
+      {
+        "name": "harmonic-layers.chordTorus.config",
+        "kind": "chord-map-config"
+      },
+      {
         "name": "trainer-tool.hud.hud",
         "kind": "trainer-hud-config"
       },
