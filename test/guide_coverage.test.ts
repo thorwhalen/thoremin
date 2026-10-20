@@ -72,7 +72,7 @@ describe.runIf(SHIPPED)('the player guide covers everything a player can find', 
   });
 
   it('has a picture for every instrument and tool page', () => {
-    const media = join(ROOT, 'public', 'guide', 'media');
+    const media = join(ROOT, 'public', 'guide', 'pics');
     const want = [...built.covers.seeds.map((n) => `${guideSlug(n)}.jpg`), ...built.covers.tools.map((t) => `tool-${guideSlug(t)}.jpg`)];
     const missing = want.filter((f) => !existsSync(join(media, f)));
     expect(missing, `missing pictures (run \`npm run guide:media\` against a build): ${missing.join(', ')}`).toEqual([]);
@@ -86,10 +86,10 @@ describe.runIf(SHIPPED)('the player guide covers everything a player can find', 
         expect(existsSync(target), `${path} references ${m[1]}, which does not exist (npm run guide:media)`).toBe(true);
       }
     }
-    const mediaDir = join(dir, 'media');
+    const mediaDir = join(dir, 'pics');
     const bytes = existsSync(mediaDir) ? readdirSync(mediaDir).reduce((n, f) => n + statSync(join(mediaDir, f)).size, 0) : 0;
     const BUDGET = 6 * 1024 * 1024;
-    expect(bytes, `public/guide/media is ${(bytes / 1048576).toFixed(1)} MB, over the ${BUDGET / 1048576} MB budget: smaller captures, fewer clips`).toBeLessThanOrEqual(BUDGET);
+    expect(bytes, `public/guide/pics is ${(bytes / 1048576).toFixed(1)} MB, over the ${BUDGET / 1048576} MB budget: smaller captures, fewer clips`).toBeLessThanOrEqual(BUDGET);
   });
 
   it('is what the sources build: public/guide is up to date', () => {
