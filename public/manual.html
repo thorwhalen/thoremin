@@ -42,7 +42,7 @@
           letter-spacing: .06em; border-radius: 999px; padding: .1rem .4rem; margin-left: .35rem; vertical-align: 1px; }
 </style></head><body><div class="wrap">
   <h1>θ Thoremin — Capabilities Manual</h1>
-  <p class="gen">Auto-generated from the node registry. 60 nodes.</p>
+  <p class="gen">Auto-generated from the node registry. 61 nodes.</p>
   <p class="guide">Looking for how to <b>use</b> the app — playing, instruments, shortcuts, the assistant, recording, annotations, the Feature Lab? → <a href="https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md">the User Guide</a>. This page is the <b>node</b> catalog.</p>
   <p>Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed <b>nodes</b> into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.</p><p>The mapping layer spans a spectrum: <b>direct</b> (a gesture *is* a note/parameter — e.g. hand position → scale-snapped pitch) through <b>indirect</b> (a gesture expresses a high-level idea — e.g. openness → musical density steering an AI model), including <b>conductor</b> mode (direct a fixed piece's tempo and dynamics).</p><p>Everything runs <b>client-side</b>: gesture/face inference (MediaPipe), synthesis (Web Audio) and rendering (canvas) all happen in your browser. There is no backend — nothing you play, record, or annotate is uploaded anywhere. The only network calls are the ones you opt into by pasting your own API key (the AI assistant, and Lyria generative music), and those go straight from your browser to that provider.</p><p>This page catalogs the engine's building blocks — every node, its ports and its params. The DAG *is* the deployed instrument; a few nodes here are built and tested but are not wired into the default graph: the generative ones, and `transport` + `performance` (conductor mode's original clock and control mapping, kept for the non-conductor chain now that `conductor` + `score` are wired behind the Conductor dial, #187).</p>
   <h3>Example pipelines</h3>
@@ -562,7 +562,7 @@
     </div>
     <div class="node">
       <h4><code>pluck-out</code> <span class="title">Pluck out</span></h4>
-      <p>Sounds plucked-string note events (the air bass) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).</p>
+      <p>Sounds plucked-string note events (the air bass and guitar) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).</p>
       <dl>
         <dt>roles</dt><dd>synth</dd>
         <dt>in</dt><dd>notes:note-events, mute:boolean</dd>
@@ -598,6 +598,16 @@
         <dt>in</dt><dd>time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number</dd>
         <dt>out</dt><dd>params:synth-params, status:chord-chart-status, triad:number[]</dd>
         <dt>params</dt><dd>enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)</dd>
+      </dl>
+    </div>
+    <div class="node">
+      <h4><code>chord-strum-out</code> <span class="title">Chord strum out</span></h4>
+      <p>Sounds the chord map's strums (the chord's guitar voicing) on the audio clock at the time each was predicted for (WebAudio plucks from primitives, no samples).</p>
+      <dl>
+        <dt>roles</dt><dd>synth</dd>
+        <dt>in</dt><dd>notes:note-events, mute:boolean</dd>
+        <dt>out</dt><dd>—</dd>
+        <dt>params</dt><dd>timbre (enum(bass | guitar)="bass"), mono (boolean=true)</dd>
       </dl>
     </div></div></section>
 <section><h3>Sign language</h3><p class="blurb">Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key.</p><div class="grid">
@@ -689,7 +699,7 @@
       <p>Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.</p>
       <dl>
         <dt>roles</dt><dd>overlay</dd>
-        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.chordWheel.grid:cell-grid, air.chordWheel.config:chord-wheel-config, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.chordMap.grid:cell-grid, air.chordMap.config:chord-map-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector</dd>
+        <dt>in</dt><dd>hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector</dd>
         <dt>out</dt><dd>—</dd>
         <dt>params</dt><dd>video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), cellGrid (object={}), timbreLevels (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={}), trainerHud (object={})</dd>
       </dl>
