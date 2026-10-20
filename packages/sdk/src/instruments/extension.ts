@@ -227,6 +227,9 @@ export function transientPort<T>() {
 export interface ExtensionInstrument {
   name: string;
   patch: Readonly<Record<string, unknown>>;
+  /** The branches it needs, another extension's included (#697): a build that does not ship one
+   *  of them does not seed it. */
+  requires?: readonly string[];
 }
 
 /** Where "train this instrument" goes (`src/app/training/routes.ts` resolves a spec to one). */
@@ -368,6 +371,10 @@ export interface CatalogEntry {
   usesScale: boolean;
   /** True when these settings play it. Pure and cheap: it runs on every settings change. */
   on: (settings: ExtensionDerivationSettings) => boolean;
+  /** The branches it needs, another extension's included (#697: the chord chart needs the
+   *  conductor slice's `conductor`): a build that does not ship one of them withholds the row, and
+   *  the editor section of the same id with it. */
+  requires?: readonly string[];
 }
 
 /** What a LAZY extension's deferred half provides (`docs/design/lazy-extensions.md`): its node

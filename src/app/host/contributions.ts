@@ -68,7 +68,8 @@ checkUiDecls(EXTENSION_UI_DECLS);
 
 export const UI_CONTRIBUTIONS: UiContributions = {
   ids: EXTENSION_UI_IDS,
-  panels: EXTENSION_PANELS,
+  // A withheld catalog row's editor section goes with it (#697: the chord chart without the conductor).
+  panels: EXTENSION_PANELS.filter((p) => !CONTRIBUTIONS.withheld.catalog.includes(p.instrumentId)),
   toolDecls: EXTENSION_TOOL_DECLS,
   toolPanels: EXTENSION_TOOL_PANELS,
   toolDetached: EXTENSION_TOOL_DETACHED,
