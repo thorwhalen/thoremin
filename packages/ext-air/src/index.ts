@@ -52,7 +52,7 @@ const dialOn = (key: string) => (s: Readonly<Record<string, unknown>>): boolean 
 export const AIR_EXTENSION = defineExtension({
   id: 'air',
   // The class the air instruments are listed under (#600 S8: a contribution; core owns `field`).
-  classes: [{ id: 'air', label: 'Air instruments', emoji: '🌬️', colour: 'hsl(32 75% 50%)' }],
+  classes: [{ id: 'air', label: 'Air instruments', emoji: '🌬️', colour: 'hsl(32 75% 50%)', showEmpty: true }],
   // Its rows of the Instruments view's catalog, in display order: the id and emoji become the
   // system tag; the first row an instrument plays decides its class.
   catalog: [

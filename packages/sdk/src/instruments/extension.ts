@@ -352,6 +352,9 @@ export interface InstrumentClass {
   emoji: string;
   /** A CSS colour the view may tint a class's cards with. */
   colour: string;
+  /** Keep the class listed while it holds no instrument (and no search is typed), with its
+   *  "None saved. Turn on ..." hint, so a player finds how to fill it (#788: the air class). */
+  showEmpty?: boolean;
 }
 
 /**

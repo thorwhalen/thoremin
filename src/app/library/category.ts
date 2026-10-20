@@ -45,6 +45,7 @@ export {
   DEFAULT_CLASS,
   LEGACY_CLASS_IDS,
   normaliseClassId,
+  classShowsEmpty,
   type InstrumentClass,
   type InstrumentClassId,
 } from '@/instruments/classes';
@@ -55,11 +56,11 @@ export const INSTRUMENT_CATEGORIES = INSTRUMENT_CLASSES;
 /** @deprecated Use {@link InstrumentClassId}. */
 export type InstrumentCategory = InstrumentClassId;
 
-/** The class an instrument that plays these air instruments belongs to. An air
- *  instrument wins: a field instrument with a drum added is found where the drums are.
+/** The class an instrument that plays these catalog rows belongs to. A contributed row
+ *  wins: a field instrument with a drum added is found where the drums are.
  *  Among several, the first in {@link INSTRUMENT_CATALOG} order decides (the air ones lead). */
-export function categoryOfAir(air: readonly AirInstrumentId[]): InstrumentClassId {
-  const first = INSTRUMENT_CATALOG.find((a) => air.includes(a.id));
+export function categoryOfAir(played: readonly AirInstrumentId[]): InstrumentClassId {
+  const first = INSTRUMENT_CATALOG.find((a) => played.includes(a.id));
   return first ? first.class : DEFAULT_CLASS;
 }
 
