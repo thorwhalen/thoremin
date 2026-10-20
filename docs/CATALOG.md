@@ -354,7 +354,7 @@ Continuous control from a categorizer's memberships: each category's value, weig
 _Harmony kept in-key._
 
 #### `chord` — Chord
-Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
+Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 
 - **roles:** music
 - **in:** chord:chord-symbol, gain:number
@@ -362,7 +362,7 @@ Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
 - **params:** baseOctave (number=4), maxVoices (number=4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
 
 #### `progression` — Progression
-Roman-numeral progression in a key + position (0..1) → current chord symbol.
+Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.
 
 - **roles:** music
 - **in:** position:number

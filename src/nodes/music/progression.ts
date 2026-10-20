@@ -6,6 +6,11 @@
  *
  * This is the "guide toward tonal patterns" piece — the player moves freely, but
  * the harmony stays in-key. Pure + deterministic (Tonal.js), unit-testable.
+ *
+ * Deprecated: no instrument composes it. The harmonic layers (`@thoremin/sdk/harmony/*`, the
+ * chord map and the chord wheel of `@thoremin/ext-harmony`) do this with voice leading, figuration
+ * and the key's spelling, through the shared realizer; build a new chord instrument on them. Kept
+ * registered so a graph that names it still loads; removal is #783.
  */
 import { z } from 'zod';
 import { Key } from 'tonal';
@@ -41,7 +46,7 @@ export const progressionNode = defineNode<Params>({
   type: 'progression',
   roles: ['music'],
   title: 'Progression',
-  description: 'Roman-numeral progression in a key + position (0..1) → current chord symbol.',
+  description: 'Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.',
   inputs: [{ name: 'position', kind: 'number', default: 0 }],
   outputs: [
     { name: 'chord', kind: 'chord-symbol' },

@@ -420,7 +420,7 @@
 <section><h3>Music logic (tonal guidance)</h3><p class="blurb">Harmony kept in-key.</p><div class="grid">
     <div class="node">
       <h4><code>chord</code> <span class="title">Chord</span></h4>
-      <p>Chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).</p>
+      <p>Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>chord:chord-symbol, gain:number</dd>
@@ -430,7 +430,7 @@
     </div>
     <div class="node">
       <h4><code>progression</code> <span class="title">Progression</span></h4>
-      <p>Roman-numeral progression in a key + position (0..1) → current chord symbol.</p>
+      <p>Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.</p>
       <dl>
         <dt>roles</dt><dd>music</dd>
         <dt>in</dt><dd>position:number</dd>
