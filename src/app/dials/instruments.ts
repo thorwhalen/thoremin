@@ -216,6 +216,17 @@ export const SEED_INSTRUMENTS: SeedInstrument[] = [
     faceChord: { ...DEFAULTS.faceChord, sound: 'organ', voicing: 'close', rendering: 'pulse', bpm: 110 },
   }),
 
+  // --- Head-pose chords (#76): the face's control axes, not its emotions. Turn the head left
+  // to right through the key's chords, nod for the octave, open the mouth to sound it, smile to
+  // brighten, raise the brows for the seventh; voice-led, so each chord moves little.
+  seed('Head Chords', {
+    ...DEFAULTS,
+    right: { ...DEFAULTS.right, type: 'major', sound: 'warmPad' },
+    left: { ...DEFAULTS.left, type: 'major', sound: 'warmPad' },
+    faceMapping: 'controls',
+    faceChord: { ...DEFAULTS.faceChord, sound: 'warmPad', voicing: 'voiceLed', rendering: 'sustained' },
+  }),
+
   // --- Cue demo: wrist source + all fingers routed + BOTH the lines and the bar graph.
   seed('Finger Cues', {
     ...DEFAULTS,
@@ -267,7 +278,7 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 17;
+const SEED_VERSION = 18;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
 
 const readSeedVersion = (): number => {

@@ -90,7 +90,7 @@ describe('filter chips', () => {
     const chip = within(screen.getByRole('group', { name: 'Filter by starred' })).getByRole('button');
     expect(chip.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(chip);
-    await waitFor(() => expect(rowNames().length).toBe(29 + (ASL ? 2 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(30 + (ASL ? 2 : 0)));
   });
 
   it.runIf(AIR)('are behind a Filters toggle, with a chip per class and live counts', async () => {
@@ -102,7 +102,7 @@ describe('filter chips', () => {
     const air = within(byClass).getByRole('button', { name: /Air/ });
     const field = within(byClass).getByRole('button', { name: /Field/ });
     expect(air.textContent).toMatch(/^Air\s*16$/);
-    expect(field.textContent).toMatch(/^Field\s*13$/);
+    expect(field.textContent).toMatch(/^Field\s*14$/);
   });
 
   it.runIf(AIR)('narrow the list; the class chips keep their counts; the toggle stays open while one is on', async () => {
@@ -113,7 +113,7 @@ describe('filter chips', () => {
     fireEvent.click(within(byClass).getByRole('button', { name: /Air/ }));
     await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Chord Map Strum']));
     // The N+1 rule: the unpicked class chip still says how many it would add.
-    expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(/13/);
+    expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(/14/);
     // Closing the toggle does not hide an active filter.
     fireEvent.click(screen.getByRole('button', { name: /Filters 1/ }));
     expect(document.querySelector('[data-instrument-filters]')).toBeTruthy();
@@ -123,6 +123,6 @@ describe('filter chips', () => {
       .map((b) => b.textContent?.replace(/[^A-Za-z]/g, ''));
     expect(order).toEqual(['Field', 'Air', ...(ASL ? ['Sign'] : [])]);
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    await waitFor(() => expect(rowNames().length).toBe(29 + (ASL ? 2 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(30 + (ASL ? 2 : 0)));
   });
 });
