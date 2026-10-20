@@ -302,6 +302,7 @@
     "releaseS": 0.3,
     "rendering": "sustained",
     "sevenths": false,
+    "signDwellS": 0.2,
     "sound": "warmPad",
     "split": 0.65,
     "strumPoint": "wrist",
