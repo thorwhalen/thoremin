@@ -7,7 +7,9 @@
  * whose position is the exact integral of its rate), as the graph's delayed edges close it.
  */
 import { describe, it, expect } from 'vitest';
-import type { NodeContext, PortValues } from '@thoremin/dag';
+import { replayNode, type NodeContext, type PortValues } from '@thoremin/dag';
+import { syntheticHandsNode } from '@/nodes/sources/synthetic_hands';
+import type { HandsFrame } from '@/nodes';
 import { beatIndexAt, trackSongGrid, type MusicalTime, type ServoState } from '@thoremin/ictus';
 import { conductorNode } from '@/slices/conductor/nodes/conductor';
 import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
@@ -66,12 +68,21 @@ describe.runIf(SONG)('which branches compose', () => {
   });
 });
 
+/** The synthetic hands beating time (`conduct` mode), at 30 frames a second. */
+function conductingFrames(seconds: number): HandsFrame[] {
+  const h = syntheticHandsNode.make(syntheticHandsNode.params.parse({ conduct: true }));
+  return Array.from({ length: 30 * seconds }, (_, i) => (h.process({}, { tick: i, time: i / 30, dt: 1 / 30, resources: {} } as never) as { hands: HandsFrame }).hands);
+}
+
 describe.runIf(SONG)('the conductor node hands the score or the recording the beat, never both', () => {
   const ctx: NodeContext = { tick: 0, time: 0, dt: 0, resources: {} };
-  it('leading the score: the score plays, the song is not led', () => {
-    const out = conductorNode.make(conductorNode.params.parse({ enabled: true })).process({}, ctx);
-    expect(out.leadsScore).toBe(true);
-    expect(out.recordingTime).toBeUndefined();
+  it('leading the score: the score plays from the first stroke, the song is not led', async () => {
+    const h = conductorNode.make(conductorNode.params.parse({ enabled: true }));
+    // Before a stroke the conductor waits, and so does the score (nothing held on beat 0).
+    expect(h.process({}, ctx).leadsScore).toBe(false);
+    const outs = (await replayNode(h, { hands: conductingFrames(4) }, { dt: 1 / 30 })) as { leadsScore: boolean; recordingTime?: unknown }[];
+    expect(outs[outs.length - 1].leadsScore).toBe(true);
+    expect(outs.every((o) => o.recordingTime === undefined)).toBe(true);
   });
   it('leading the recording: the score is silent, the song gets the time', () => {
     const out = conductorNode.make(conductorNode.params.parse({ enabled: true, conducts: 'recording' })).process({}, ctx);

@@ -170,6 +170,7 @@ export const chordChart = defineBranch({
   edges: [
     to({ node: 'conductor', port: 'time' }, { node: 'chordChart', port: 'time' }),
     to({ node: 'conductor', port: 'leadsScore' }, { node: 'chordChart', port: 'leads' }),
+    to(ui('conductor'), { node: 'chordChart', port: 'conductor' }),
     to({ node: 'conductor', port: 'velocityScale' }, { node: 'chordChart', port: 'velocityScale' }),
     to(ui('scoreDoc'), { node: 'chordChart', port: 'doc' }),
     to(ui('chordChart'), { node: 'chordChart', port: 'config' }),

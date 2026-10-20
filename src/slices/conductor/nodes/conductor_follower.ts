@@ -178,8 +178,9 @@ export function createConductorFollower(p: ConductorDialParams) {
     confidence: time.confidence,
     enabled,
     // Before the body's transport has started, and after a cut-off, the score is silent.
-    // A dancer's piece is silent until it starts (#380).
-    leadsScore: enabled && sounding && c.conducts === 'score' && !tp.silences(time.anchors),
+    // A dancer's piece is silent until it starts (#380). So is the conducted one before its
+    // first stroke: the beat waits at 0, and the score would hold a note that starts there.
+    leadsScore: enabled && sounding && c.conducts === 'score' && (c.source === 'dancer' || time.anchors > 0) && !tp.silences(time.anchors),
     // A dancer leading the recording is the song following the dancer's pulse (the pace
     // law, `song-pace`), not the beat servo on a time derived from it.
     recordingTime: enabled && c.conducts === 'recording' && c.source !== 'dancer' ? time : undefined,
@@ -311,8 +312,9 @@ export function createConductorFollower(p: ConductorDialParams) {
     tp.prepare(rulesOn(c.source, c.transport.rules, c.bodyPoint), c.transport, ctx.time, () => ictus !== null && ictus.state().state === 'running');
     if (ictus && key !== coreKey) {
       resetFollower();
-      // A held fermata stays held, and the new follower's first stroke releases it
-      // (its anchor count starts again from 0).
+      // A held fermata's beat stays where it stopped, and the new follower's first stroke
+      // releases it (its anchor count starts again from 0). Until that stroke the score is
+      // silent, as before any first stroke (`leadsScore`).
       fermata.anchors = 0;
     }
     if (!wasEnabled || !ictus) {

@@ -491,15 +491,15 @@ Play a key's chords by pointing at them: the seven diatonic chords laid out on t
 A next-chord wheel: the chord in force in the centre, one move per wedge at a fixed angle (the key's diatonic moves, or the Tonnetz's P, L, R and their compounds); push the hand toward a move and hold it, the wheel recentres on the new chord. Off by default.
 
 - **roles:** feature, mapping, music
-- **in:** hands:hands-frame, config:chord-wheel-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number, expression:face-expression, time:musical-time, conductorTime:musical-time, face:face-features
+- **in:** hands:hands-frame, config:chord-wheel-config, spec:scale-spec, chordConfig:chord-config, octaveShift:number, expression:face-expression, time:musical-time, conductorTime:musical-time, face:face-features, signs:category-scores, poses:category-scores
 - **out:** params:synth-params, grid:cell-grid, status:chord-wheel-status, triad:number[]
-- **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true), steer (enum(hand | face | both)="hand"), faceMoves (object={}), faceFrames (number=6), walk (boolean=false), walkBeats (number=1), tension (enum(off | function | tps | profile)="off"), order (enum(fixed | likely)="fixed"), surprise (number=0), surpriseFrom (enum(dial | hand | face)="dial"), clock (enum(tempo | song | conductor)="tempo")
+- **params:** enabled (boolean=false), moves (enum(diatonic | tonnetz)="diatonic"), hand (enum(right | left)="left"), point (enum(palm | indexTip)="palm"), radius (number=0.3), dead (number=0.07), reach (number=0.14), enterFrames (number=3), releaseS (number=0.4), gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100), mirrorHandedness (boolean=true), steer (enum(hand | face | both | signs | categorizer)="hand"), faceMoves (object={}), categoryMoves (record={}), faceFrames (number=6), walk (boolean=false), walkBeats (number=1), tension (enum(off | function | tps | profile)="off"), order (enum(fixed | likely)="fixed"), surprise (number=0), surpriseFrom (enum(dial | hand | face)="dial"), clock (enum(tempo | song | conductor)="tempo")
 
 #### `chord-chart` — Chord chart
 Conduct a chord chart: the piece the conductor conducts, reduced to its chords beat by beat, walked by the conductor's beat; the chord in force sounds voice-led, its arpeggio stepping on his beats, holding through a fermata. Off by default.
 
 - **roles:** mapping, music
-- **in:** time:musical-time, doc:score-doc, leads:boolean, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
+- **in:** time:musical-time, doc:score-doc, leads:boolean, conductor:conductor-config, velocityScale:number, config:chord-chart-config, chordConfig:chord-config, octaveShift:number
 - **out:** params:synth-params, status:chord-chart-status, triad:number[]
 - **params:** enabled (boolean=false), step (number=1), gain (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="warmPad"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="voiceLed"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="arpUpDown"), bpm (number=100)
 
@@ -566,7 +566,7 @@ The conducted score played by a sampled orchestra (spessasynth_lib + a cut MuseS
 - **roles:** synth
 - **in:** time:musical-time, velocityScale:number, articulation:number, conducting:boolean, doc:score-doc, config:conductor-config, claimed:boolean
 - **out:** status:load-status, playing:boolean
-- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="raw"), parts (array=[])
+- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="written"), parts (array=[])
 
 #### `lyria` — Lyria Generative
 Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.

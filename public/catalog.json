@@ -1195,6 +1195,10 @@
         "default": false
       },
       {
+        "name": "conductor",
+        "kind": "conductor-config"
+      },
+      {
         "name": "velocityScale",
         "kind": "number",
         "default": 1
@@ -1683,6 +1687,14 @@
       {
         "name": "face",
         "kind": "face-features"
+      },
+      {
+        "name": "signs",
+        "kind": "category-scores"
+      },
+      {
+        "name": "poses",
+        "kind": "category-scores"
       }
     ],
     "outputs": [
@@ -1781,12 +1793,17 @@
       },
       {
         "name": "steer",
-        "type": "enum(hand | face | both)",
+        "type": "enum(hand | face | both | signs | categorizer)",
         "default": "hand"
       },
       {
         "name": "faceMoves",
         "type": "object",
+        "default": {}
+      },
+      {
+        "name": "categoryMoves",
+        "type": "record",
         "default": {}
       },
       {
@@ -3090,7 +3107,7 @@
       {
         "name": "dynamics",
         "type": "enum(raw | written)",
-        "default": "raw"
+        "default": "written"
       },
       {
         "name": "parts",
