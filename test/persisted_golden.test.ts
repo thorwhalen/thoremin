@@ -118,18 +118,27 @@ describe.runIf(SHIPPED)('the chord map grid\'s show flag moved with its element 
   });
 });
 
-describe.runIf(SHIPPED)('the air overlay options moved with their elements (#600 S10)', () => {
+describe.runIf(SHIPPED)('the air overlay options moved with their elements (#600 S10, #655)', () => {
   beforeEach(() => localStorage.clear());
+  // The legacy keys are gone from the overlay schema (#655): the move is checked against what the
+  // STORED blob carried there (the defaults when it carried nothing), which the slice step reads raw.
+  const DRUM_DEFAULT = { show: true };
+  const MOUTH_DEFAULT = { show: true, position: 'left' };
+  const storedOverlay = (v: number) => (JSON.parse(readFileSync(join(DIR, `controls.v${v}.json`), 'utf8')) as { state: { overlay?: Record<string, unknown> } }).state.overlay ?? {};
 
   for (const v of VERSIONS) {
-    it(`v${v}: airDrum.padsOnVideo and airFlute.breathCue equal overlay.drumPads and overlay.mouthCue`, async () => {
+    it(`v${v}: airDrum.padsOnVideo and airFlute.breathCue equal the stored overlay.drumPads and overlay.mouthCue`, async () => {
       const { useControls } = store;
       useControls.setState(useControls.getInitialState(), true);
       localStorage.setItem('thoremin-controls', readFileSync(join(DIR, `controls.v${v}.json`), 'utf8'));
       await useControls.persist.rehydrate();
       const s = useControls.getState() as unknown as Record<string, Record<string, unknown>>;
-      expect(s.airDrum.padsOnVideo).toEqual(s.overlay.drumPads);
-      expect(s.airFlute.breathCue).toEqual(s.overlay.mouthCue);
+      const stored = storedOverlay(v);
+      expect(s.airDrum.padsOnVideo).toEqual(stored.drumPads ?? DRUM_DEFAULT);
+      expect(s.airFlute.breathCue).toEqual(stored.mouthCue ?? MOUTH_DEFAULT);
+      // ...and the legacy keys no longer live in the overlay.
+      expect(s.overlay).not.toHaveProperty('drumPads');
+      expect(s.overlay).not.toHaveProperty('mouthCue');
     });
   }
 
@@ -138,9 +147,10 @@ describe.runIf(SHIPPED)('the air overlay options moved with their elements (#600
     for (const [k, val] of Object.entries(library)) localStorage.setItem(k, val);
     const { instruments, normalizeLayer } = await import('@/app/dials/instruments');
     for (const name of ['My Lab Rig', 'Pentatonic']) {
-      const layer = normalizeLayer((await instruments.load(name))!) as Record<string, Record<string, unknown>>;
-      expect(layer.airDrum.padsOnVideo, name).toEqual(layer.overlay.drumPads);
-      expect(layer.airFlute.breathCue, name).toEqual(layer.overlay.mouthCue);
+      const raw = (await instruments.load(name))! as Record<string, Record<string, unknown> | undefined>;
+      const layer = normalizeLayer(raw as never) as Record<string, Record<string, unknown>>;
+      expect(layer.airDrum.padsOnVideo, name).toEqual(raw.overlay?.drumPads ?? DRUM_DEFAULT);
+      expect(layer.airFlute.breathCue, name).toEqual(raw.overlay?.mouthCue ?? MOUTH_DEFAULT);
     }
   });
 
