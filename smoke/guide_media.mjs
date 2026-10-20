@@ -51,7 +51,12 @@ const wanted = (key) => ONLY.length === 0 || ONLY.includes(key);
 
 mkdirSync(OUT, { recursive: true });
 
-// The built app, served the way CI serves it.
+// The built app, served the way CI serves it. A server already on the port would be another
+// worktree's build (the --strictPort spawn below fails silently): refuse instead of photographing it.
+if (await fetch(BASE).then(() => true, () => false)) {
+  console.error(`guide:media: something already listens on port ${PORT} (another worktree's preview?). Stop it or pass --port <free port>.`);
+  process.exit(1);
+}
 const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
 const stop = () => server.kill();
 process.on('exit', stop);
