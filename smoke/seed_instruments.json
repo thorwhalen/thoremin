@@ -89,7 +89,8 @@
     },
     {
       "name": "Play Along (MIDI)",
-      "body": false
+      "body": false,
+      "silent": "a MIDI keyboard chooses the chord; the smoke has none (midi.smoke.ts plays one into it)"
     },
     {
       "name": "Play Along (microphone)",
@@ -102,7 +103,8 @@
     },
     {
       "name": "Face Wheel",
-      "body": false
+      "body": false,
+      "silent": "the face steers it, and there is no synthetic face"
     },
     {
       "name": "Tonnetz Wheel",
@@ -132,11 +134,13 @@
     },
     {
       "name": "Sign Map",
-      "body": false
+      "body": false,
+      "silent": "a chord lights only after a letter A..G is read, which the synthetic hands do only by chance"
     },
     {
       "name": "Chord Map Strum",
-      "body": false
+      "body": false,
+      "silent": "strums on the second hand, which the synthetic source does not show (one hand reads chords and strums nothing)"
     },
     {
       "name": "ASL Viewer",
