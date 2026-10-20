@@ -134,7 +134,8 @@
     },
     {
       "name": "Sign Map",
-      "body": false
+      "body": false,
+      "silent": "a chord lights only after a letter A..G is read, which the synthetic hands do only by chance"
     },
     {
       "name": "Chord Map Strum",
