@@ -52,6 +52,8 @@ const PARAMS: Record<string, readonly string[]> = {
   StereoPanner: ['pan'],
   DynamicsCompressor: ['threshold', 'knee', 'ratio', 'attack', 'release'],
   Convolver: [],
+  MediaElementSource: [],
+  BufferSource: [],
 };
 
 export interface FakeAudio {
@@ -105,9 +107,11 @@ export function fakeAudio({ sampleRate = 8000, currentTime = 0 }: { sampleRate?:
     createStereoPanner: () => make('StereoPanner'),
     createDynamicsCompressor: () => make('DynamicsCompressor'),
     createConvolver: () => make('Convolver'),
+    createBufferSource: () => make('BufferSource'),
+    createMediaElementSource: (element: unknown) => Object.assign(make('MediaElementSource'), { mediaElement: element }),
     createBuffer: (channels: number, length: number, rate: number) => {
       const data = Array.from({ length: channels }, () => new Float32Array(length));
-      return { numberOfChannels: channels, length, sampleRate: rate, getChannelData: (c: number) => data[c] };
+      return { numberOfChannels: channels, length, sampleRate: rate, duration: length / rate, getChannelData: (c: number) => data[c] };
     },
   };
   const master = { kind: 'master', gain: fakeParam(1), connect() {}, disconnect() {} };
