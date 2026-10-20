@@ -54,6 +54,7 @@ export const toolsCollection = defineCollection(ToolSchema, {
     hotkey: { searchable: false },
     href: { visible: false, searchable: false },
     runsDetached: { visible: false },
+    hushes: { visible: false, searchable: false },
   },
   operations: [
     { name: 'open', label: 'Open', scope: 'item' },

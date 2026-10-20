@@ -16,8 +16,8 @@ import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
 import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
 import { setClickPlayer } from '@thoremin/sdk-ui/enroll/click';
-import { registerRecordingController, type RecordingController } from '@/app/recording/controller';
-import type { RecordingSession } from '@/app/recording/schema';
+import { registerRecordingController, type RecordingController } from '@thoremin/sdk-ui/recording/controller';
+import type { RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 import { createInMemoryProvider } from '@zodal/store';
 
 const TAPS = STARTER_ROUTINES[0];

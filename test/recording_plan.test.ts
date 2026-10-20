@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { planRecording, videoExtForMime } from '@/app/recording/plan';
-import { RecordingSessionSchema, type RecordingSession } from '@/app/recording/schema';
+import { RecordingSessionSchema, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
 
 const STEM = 'demo-theremin-2026-07-05T14-30-12';
 const AUDIO_MIME = 'audio/webm;codecs=opus';

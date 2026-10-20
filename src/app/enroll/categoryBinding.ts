@@ -396,6 +396,7 @@ export function presenceFor(read: CategoryRead | undefined): number | undefined 
 
 // The host's binder (#385 E8; by id since #371): an extension's carve tool binds one of its saved
 // categorizers here, and the Gestures tool shows it for the player to give each category a command.
+// The Trainer keeps its model through the same seam (#600 S16c): save, the default name, the list.
 provideCategoryBinder({
   async bind({ id }) {
     const state = useCategoryBinding.getState();
@@ -404,4 +405,11 @@ provideCategoryBinder({
     if (useCategoryBinding.getState().activeId !== id) throw new Error('that categorizer is not in the collection');
     useTools.getState().openTool(CATEGORY_PANEL_TOOL);
   },
+  load: () => useCategoryBinding.getState().load(),
+  saveModel: async (name, model) => ({ id: (await useCategoryBinding.getState().saveModel(name, model)).id }),
+  active: () => {
+    const active = useCategoryBinding.getState().active;
+    return active ? { name: active.name, kind: active.kind ?? TRAINED_KIND } : null;
+  },
+  useSaved: () => useCategoryBinding((s) => s.saved),
 });

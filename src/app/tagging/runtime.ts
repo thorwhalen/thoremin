@@ -11,7 +11,7 @@
  * of truth; these just present it behind the stable seams the recorder / overlay expect.
  */
 import { useTagging } from './store';
-import type { TagStreamSource, TagTakeEnd, TagTakeMeta } from '../recording/tagStream';
+import type { TagStreamSource, TagTakeEnd, TagTakeMeta } from '@thoremin/sdk-ui/recording/tagStream';
 import type { TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 
 /** A TagStreamSource backed by the live tagging store, handed to the SessionRecorder. */

@@ -30,7 +30,13 @@
     "./tools": "./src/tools.ts",
     "./types": "./src/types.ts",
     "./keys": "./src/keys.ts",
-    "./loadStatus": "./src/LoadStatusReadout.tsx"
+    "./loadStatus": "./src/LoadStatusReadout.tsx",
+    "./recording/schema": "./src/recording/schema.ts",
+    "./recording/naming": "./src/recording/naming.ts",
+    "./recording/tagStream": "./src/recording/tagStream.ts",
+    "./recording/controller": "./src/recording/controller.ts",
+    "./recording/destination": "./src/recording/destination.ts",
+    "./recording/config": "./src/recording/config.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

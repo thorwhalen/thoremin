@@ -5,7 +5,7 @@
  * cannot be honoured by a browser that has no picker, so it must not be offered.
  */
 import { describe, it, expect } from 'vitest';
-import { describeTakeDestination, type TakeDestination, type TakeDestinationInput } from '@/app/recording/destination';
+import { describeTakeDestination, type TakeDestination, type TakeDestinationInput } from '@thoremin/sdk-ui/recording/destination';
 
 const ROWS: { case: string; input: TakeDestinationInput; expected: TakeDestination }[] = [
   {

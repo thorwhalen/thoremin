@@ -27,7 +27,7 @@ import {
   type TagState,
   type TaggingConfig,
 } from '@thoremin/taglog/affordances/schema';
-import type { TagStreamSource, TagTakeMeta } from '../recording/tagStream';
+import type { TagStreamSource, TagTakeMeta } from '@thoremin/sdk-ui/recording/tagStream';
 
 /** Tag ids the trainer writes, so a consumer can find them without guessing. */
 export const TRAINER_TAGS = {

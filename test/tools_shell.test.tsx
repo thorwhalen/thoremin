@@ -466,7 +466,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('"Record the take" is a per-device checkbox; Start goes through the recording controller', async () => {
     const { useTrainerPrefs } = await import('@/app/enroll/prefs');
-    const { registerRecordingController } = await import('@/app/recording/controller');
+    const { registerRecordingController } = await import('@thoremin/sdk-ui/recording/controller');
     const calls: string[] = [];
     const off = registerRecordingController({
       start: async (_s, o) => {

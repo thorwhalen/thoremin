@@ -21,7 +21,7 @@ import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
 import { createInMemoryProvider } from '@zodal/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
-import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
+import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import { journal } from '@/app/commands/registry';
 import type { FsDirHandle } from '@/app/recording/folder';
 

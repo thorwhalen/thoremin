@@ -13,15 +13,15 @@
  */
 import type { Engine } from '@thoremin/dag';
 import { recordingFormat, convertAudioFormats, type ConvertedFormat } from './formats';
-import { recordingStem, prefillName } from './naming';
+import { recordingStem, prefillName } from '@thoremin/sdk-ui/recording/naming';
 import { planRecording, audioFormatIds, type RecordingPlan, type PlannedFile } from './plan';
 import { buildManifest, serializeManifest, type RecordingStreamEntry } from './manifest';
 import { detectCaps, chooseSinkKind, pickAudioMime, pickVideoMime, pickAlphaMime } from './caps';
 import { createRecordingSink, type RecordingSink, type SinkResult } from './sink';
 import { FeatureJsonlTap } from './featureTap';
 import { saveBlob } from './save';
-import { hasAnyStream, type RecordingSession } from './schema';
-import type { TagStreamSource } from './tagStream';
+import { hasAnyStream, type RecordingSession } from '@thoremin/sdk-ui/recording/schema';
+import type { TagStreamSource } from '@thoremin/sdk-ui/recording/tagStream';
 import { chooseMicrophone } from './mic';
 
 /** Chunk media into ~2s slices so long takes stay constant-memory (#88 §1). */

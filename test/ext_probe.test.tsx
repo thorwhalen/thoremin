@@ -180,7 +180,7 @@ describe('the probe reaches every pure contribution point', () => {
 
   it('training: the probe route is known, and its branch leads to it', () => {
     expect(app.routes.routeById('probe')?.tool).toBe(PROBE_TOOL_ID);
-    expect(app.routes.trainingRouteFor({ training: undefined, branches: [PROBE_BRANCH_ID], features: [] } as never).id).toBe('probe');
+    expect(app.routes.trainingRouteFor({ training: undefined, branches: [PROBE_BRANCH_ID], features: [] } as never)?.id).toBe('probe');
   });
 });
 

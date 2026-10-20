@@ -62,3 +62,8 @@ export function describeTakeDestination({ location, folder, supported, remembere
     offerDownloads: true,
   };
 }
+
+/** Whether this browser offers a folder picker (Chrome, Edge): the `supported` input above. */
+export function folderPickerSupported(): boolean {
+  return typeof (globalThis as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
+}

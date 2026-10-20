@@ -4,7 +4,7 @@
  * older `recordingFilename` helper it supersedes.
  */
 import { describe, it, expect } from 'vitest';
-import { compactStamp, prefillName, recordingStem, fileName } from '@/app/recording/naming';
+import { compactStamp, prefillName, recordingStem, fileName } from '@thoremin/sdk-ui/recording/naming';
 
 const ISO = '2026-07-05T14:30:12.345Z';
 

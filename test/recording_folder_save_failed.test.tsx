@@ -19,7 +19,7 @@ import { useTools } from '@/app/toolsStore';
 import { useTrainer } from '@/app/enroll/store';
 import { useTrainerPrefs } from '@/app/enroll/prefs';
 import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
-import { DEFAULT_RECORDING_SESSION } from '@/app/recording/schema';
+import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import type { FsDirHandle } from '@/app/recording/folder';
 import { installFakeIndexedDb, type FakeIndexedDb } from './helpers/fakeIndexedDb';
 

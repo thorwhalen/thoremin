@@ -240,6 +240,9 @@ export interface TrainingRoute {
   section?: { label: string; anchor: string };
   /** A tool route: the shell tool to open. */
   tool?: string;
+  /** The route for an instrument no branch leads to a route (the Trainer's, #600 S16c); the first
+   *  listed wins, and with none an instrument offers no training link. */
+  fallback?: boolean;
 }
 
 /** The training an extension's instruments offer: its routes, and which of its branches leads

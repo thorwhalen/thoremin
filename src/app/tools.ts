@@ -81,7 +81,7 @@ export const ToolSchema = z.object({
   independent: z.boolean().optional(),
   /**
    * True when the tool keeps **doing something visible after its panel is closed**.
-   * The Feature Lab is the only one: its meters go on drawing over the video, which
+   * The Feature Lab (its slice's since #600 S16b) was the first: its meters go on drawing over the video, which
    * is deliberate — you want to watch them while you play, with the panel out of the
    * way.
    *
@@ -103,6 +103,12 @@ export const ToolSchema = z.object({
    * Conductor could be unpinned, or hidden on a phone, it needed the same way out.
    */
   runsDetached: z.boolean().optional(),
+  /**
+   * Set when the open tool hushes the instrument (a hush claim under the tool's id, so the click
+   * and a spoken cue are audible): what the shell's quiet badge says after "Instrument quiet", e.g.
+   * "while the Trainer is open" (#600 S16c: the badge reads it here instead of naming the Trainer).
+   */
+  hushes: z.string().min(1).optional(),
 });
 export type Tool = z.infer<typeof ToolSchema>;
 
@@ -127,6 +133,7 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     kind: 'panel',
     group: 'mode',
     defaultPinned: true,
+    hushes: 'while the Trainer is open',
   },
   {
     id: 'commands',

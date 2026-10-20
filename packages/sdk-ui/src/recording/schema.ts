@@ -9,10 +9,20 @@
  * Every field carries a `.default(...)` so a session blob saved by an older build
  * still parses after new fields are added — the same forward-compat discipline as
  * the settings schema. The picked directory handle is NOT stored here (handles
- * can't be JSON-serialized); it lives in IndexedDB (`./idb`).
+ * can't be JSON-serialized); it lives in IndexedDB (the app's recording folder store).
  */
 import { z } from 'zod';
-import { DEFAULT_RECORDING_FORMATS } from './formats';
+
+/**
+ * The default selection, and the SSOT for it: `RecordingSessionSchema.formats`
+ * defaults to a copy of this, and an empty/unknown selection heals back to it
+ * (see `audioFormatIds` in the app's recording plan). Preserves the prior behaviour: native WebM.
+ *
+ * `readonly` is a type-level guard against our own code mutating the shipped
+ * default in place; it is not fixing a runtime aliasing hazard (zod's `z.array`
+ * rebuilds the array on each parse, so a parsed session never aliases this).
+ */
+export const DEFAULT_RECORDING_FORMATS: readonly string[] = ['webm'];
 
 /** localStorage key holding the last-used recording session config. */
 export const RECORDING_SESSION_KEY = 'recording.session.last';
