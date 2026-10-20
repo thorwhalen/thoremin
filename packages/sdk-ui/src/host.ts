@@ -112,7 +112,7 @@ const missing = (seam: string, owner: string): Error =>
 
 /** The live control store. Throws, naming the module, if the app has not provided it. */
 export function controls(): ControlsHost {
-  if (!controlsHost) throw missing('controls', 'its hot store (src/app/store.ts)');
+  if (!controlsHost) throw missing('controls', 'its hot store (src/app/store/index.ts)');
   return controlsHost;
 }
 

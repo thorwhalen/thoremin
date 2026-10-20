@@ -82,8 +82,8 @@ const isAllowedFromCommands = (spec: string): boolean =>
 const FORBIDDEN_FROM_ASSISTANT: RegExp[] = [
   /(^|\/)nodes(\/|$)/, // the node library
   /(^|\/)dag(\/|$)/, // the DAG engine
-  /^@\/app\/store(\.tsx?)?$/, // the hot useControls store (@/ alias)
-  /^\.{1,2}\/store(\.tsx?)?$/, // ../store / ./store (relative hot store) — RELATIVE only, so it can't
+  /^@\/app\/store(\.tsx?|\/.*)?$/, // the hot useControls store (@/ alias), and its files since #600 S19b (`@/app/store/persist`)
+  /^\.{1,2}\/store(\.tsx?|\/.*)?$/, // ../store / ./store (relative hot store, and its files) — RELATIVE only, so it can't
   //                              swallow the sanctioned `@zodal/store` package or `@/app/dials/settingsStore`
   /(^|\/)useControls(\/|$)/, // the hot store hook by name
   /(^|\/)(useEngine|recorder|useAudioEngine|useRecordingController|liveApply)(\.tsx?)?$/, // the audio/engine host — BOTH the `@/` alias
@@ -120,8 +120,11 @@ describe('command-dispatch import firewall (#87)', () => {
     for (const spec of [
       '@/app/store',
       '@/app/store.ts',
+      '@/app/store/index',
+      '@/app/store/persist',
       '../store',
       '../store.ts',
+      '../store/state',
       '@/app/useEngine',
       '@/app/recorder',
       '@/hooks/useAudioEngine',
@@ -188,7 +191,7 @@ describe('command-dispatch import firewall (#87)', () => {
   it('the assistant denylist refuses the hot-path modules (alias AND relative) but allows its real consumer surface', () => {
     // Guard the guard: forbid the real-time path in both its `@/` alias and relative forms.
     for (const spec of [
-      '@/app/store', '@/app/store.ts', '../store', './store',
+      '@/app/store', '@/app/store.ts', '@/app/store/persist', '../store', './store', './store/index',
       '@/app/useEngine', '@/app/recorder', '@/hooks/useAudioEngine',
       '../../app/useEngine', '../../app/recorder', '../../hooks/useAudioEngine', // relative reach-outs
       // ...and the pieces extracted from the engine host (#392): the live re-wire and the take's lifecycle.
