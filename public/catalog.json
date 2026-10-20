@@ -3094,7 +3094,7 @@
       {
         "name": "dynamics",
         "type": "enum(raw | written)",
-        "default": "raw"
+        "default": "written"
       },
       {
         "name": "parts",

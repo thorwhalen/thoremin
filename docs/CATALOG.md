@@ -566,7 +566,7 @@ The conducted score played by a sampled orchestra (spessasynth_lib + a cut MuseS
 - **roles:** synth
 - **in:** time:musical-time, velocityScale:number, articulation:number, conducting:boolean, doc:score-doc, config:conductor-config, claimed:boolean
 - **out:** status:load-status, playing:boolean
-- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="raw"), parts (array=[])
+- **params:** lookaheadTicks (number=2), staccatoDepth (number=0.5), brightnessDepth (number=0.5), ccInterval (number=0.05), dynamics (enum(raw | written)="written"), parts (array=[])
 
 #### `lyria` — Lyria Generative
 Steers a generative engine (Lyria RealTime) from weighted prompts + config dials. Off by default; loads its SDK only when enabled, and needs a Gemini API key.
