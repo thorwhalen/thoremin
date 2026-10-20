@@ -117,6 +117,9 @@ export const chordWheelCategorizer = defineBranch({
   nodes: [],
   // The faces extension's pose categorizer node (`poseCat`) and its category port.
   edges: [to({ node: 'poseCat', port: 'category' }, { node: 'chordWheel', port: 'poses' })],
+});
+
+/**
  * Signs choose the chord map's chord: ASL's reading into the map, a letter A..G held lighting its
  * chord. Composed only while the map follows signs; requires the ASL plugin's reader (left out of
  * a build without the plugin, #697), whose own dial must be on for it to read.
