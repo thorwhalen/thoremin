@@ -767,5 +767,6 @@
   "trainerHud": {
     "position": "bottom",
     "show": false
-  }
+  },
+  "trainerHudSnapshot": null
 }

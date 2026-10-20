@@ -36,7 +36,10 @@
     "./recording/tagStream": "./src/recording/tagStream.ts",
     "./recording/controller": "./src/recording/controller.ts",
     "./recording/destination": "./src/recording/destination.ts",
-    "./recording/config": "./src/recording/config.ts"
+    "./recording/config": "./src/recording/config.ts",
+    "./enroll/speakable": "./src/enroll/speakable.ts",
+    "./enroll/voice": "./src/enroll/voice.ts",
+    "./enroll/voiceRuntime": "./src/enroll/voiceRuntime.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

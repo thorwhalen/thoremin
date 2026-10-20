@@ -7,7 +7,7 @@
  * The set comes from the same `speakableStrings()` the coverage test uses, so the
  * generator and the guard can never disagree about what needs a clip.
  */
-import { STARTER_CUES } from '@/app/enroll/starterCues';
-import { speakableStrings } from '@/app/enroll/speakable';
+import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
+import { speakableStrings } from '@thoremin/sdk-ui/enroll/speakable';
 
 process.stdout.write(JSON.stringify(speakableStrings(STARTER_CUES), null, 2) + '\n');

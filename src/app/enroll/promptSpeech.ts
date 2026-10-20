@@ -6,7 +6,7 @@
  * not the clip sink; the sound is the browser's, no key and no cost.
  */
 import { providePromptSpeech, type PromptSpeech } from '@thoremin/sdk-ui/enroll/speech';
-import { unlockVoice, useVoice } from './voiceRuntime';
+import { unlockVoice, useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 
 /** The browser's synthesizer, or null where there is none. */
 function synth(): SpeechSynthesis | null {

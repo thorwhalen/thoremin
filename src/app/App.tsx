@@ -38,7 +38,6 @@ import ToolsBar from './ToolsBar';
 import ToolsLauncher from './ToolsLauncher';
 import { publishHeight, TAKE_CLUSTER_HEIGHT_VAR } from './shellLayout';
 import GesturesPanel from './GesturesPanel';
-import TrainerPanel from './TrainerPanel';
 import { SHELL_TOOLS } from './shellTools';
 import { hushReason } from './hushReason';
 import ExtensionToolPanels from './ExtensionToolPanels';
@@ -198,8 +197,6 @@ export default function App({
       {/* The gesture-binding editor (#129) — renders when its tool is the open one. */}
       <GesturesPanel />
 
-      {/* Trainer mode (#160) — renders when its tool is the open one. */}
-      <TrainerPanel />
       {/* An extension's tools (#330): the shell's frame, the extension's content, loaded on open. */}
       <ExtensionToolPanels />
 

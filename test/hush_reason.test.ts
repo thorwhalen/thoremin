@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { hushReason } from '@/app/hushReason';
 import { SHELL_TOOLS } from '@/app/shellTools';
+import { TRAINER } from './helpers/extensions';
 
 const tools = [
   { id: 'trainer', hushes: 'while the Trainer is open' },
@@ -25,7 +26,7 @@ describe('hushReason', () => {
     expect(hushReason({ hushedBy: [], conducting: true }, { tools, hushes: [conducting] })).toBe('while conducting');
     expect(hushReason({ hushedBy: ['trainer'], conducting: true }, { tools, hushes: [conducting] })).toBe('while the Trainer is open');
   });
-  it('the shipped Trainer tool says its words (the badge text is unchanged)', () => {
+  it.runIf(TRAINER)('the shipped Trainer tool says its words (the badge text is unchanged)', () => {
     expect(SHELL_TOOLS.find((t) => t.id === 'trainer')?.hushes).toBe('while the Trainer is open');
   });
 });

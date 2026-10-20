@@ -116,7 +116,7 @@ export type Tool = z.infer<typeof ToolSchema>;
 /**
  * The shipped tools, in launcher order within each group. The default pins (Round 4,
  * #271) are the two modes and the command palette:
- *  - Conductor (the conductor slice's) and Trainer each take over a whole session, and are what a player comes
+ *  - Conductor and Trainer (the conductor and Trainer slices') each take over a whole session, and are what a player comes
  *    to the app to try, so they get a button;
  *  - Commands reaches every setting by name, and its pill teaches the ⌘K hotkey;
  *  - Song is used between sessions to pick music, and its stop control shows in the bar
@@ -126,16 +126,6 @@ export type Tool = z.infer<typeof ToolSchema>;
  *    do anything, and a player who sets one up can pin it; the Manual is reference.
  */
 export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
-  {
-    id: 'trainer',
-    label: 'Trainer',
-    description:
-      'Teach the instrument the faces you can actually make — a one-minute guided take, then pick how many categories.',
-    kind: 'panel',
-    group: 'mode',
-    defaultPinned: true,
-    hushes: 'while the Trainer is open',
-  },
   {
     id: 'commands',
     label: 'Commands',

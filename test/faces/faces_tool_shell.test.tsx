@@ -118,7 +118,7 @@ describe.runIf(FACES)('the face session tool is reachable from the shell', () =>
   });
 
   it('an extension tool may not reuse a core tool id', () => {
-    expect(() => withExtensionTools(TOOLS, [{ id: 'trainer', label: 'X', description: 'x', group: 'tool', defaultPinned: false }])).toThrow(/already uses/);
+    expect(() => withExtensionTools(TOOLS, [{ id: 'commands', label: 'X', description: 'x', group: 'tool', defaultPinned: false }])).toThrow(/already uses/);
   });
 });
 

@@ -6,8 +6,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { categoryKey, classify, type FeatureVector } from '@thoremin/sdk/enroll';
-import { useTrainer } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainer } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 
 const prng = (seed: number) => () => {

@@ -86,6 +86,11 @@ export interface ExtensionTool extends ExtensionToolDecl {
   /** Its icon in the bar, the launcher and the panel's frame (#600 S15; a lucide icon, say). An
    *  EAGER extension's only; absent, the tool is shown by its label (and the frame's generic icon). */
   icon?: ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
+  /** Who draws the panel's frame (#600 S16d): `shell` (the default: title, strapline, close) or
+   *  `own`, for a tool whose panel changes shape (the Trainer becomes a banner above every panel
+   *  while a routine runs), which then draws its own frame, close control and `data-tool` mark. The
+   *  host still mounts it only while the tool is open. An EAGER extension's only. */
+  frame?: 'shell' | 'own';
 }
 
 /** How the bar shows a detached tool (see {@link ExtensionTool.detached}). */

@@ -13,11 +13,13 @@ import { trainModel, type FeatureVector } from '@thoremin/sdk/enroll';
 import ToolsBar from '@/app/ToolsBar';
 import ToolsLauncher from '@/app/ToolsLauncher';
 import GesturesPanel from '@/app/GesturesPanel';
-import TrainerPanel from '@/app/TrainerPanel';
+// The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
-import { useTrainer } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainer } from '@/slices/trainer/app/store';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { createSavedCategoriesStore, setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
+import { TRAINER } from './helpers/extensions';
 
 function builtModel() {
   const vectors: FeatureVector[] = [0, 0.02, 0.01, 1, 0.98, 1.01].map((x) => ({ x }));
@@ -33,7 +35,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('category binding is reachable from the shell (#160)', () => {
+describe.runIf(TRAINER)('category binding is reachable from the shell (#160)', () => {
   it('cold load: Tools -> Gestures shows "Your categories", which points at the Trainer when empty', async () => {
     render(
       <>
@@ -60,7 +62,7 @@ describe('category binding is reachable from the shell (#160)', () => {
     useTools.setState({ open: 'trainer' });
     render(
       <>
-        <TrainerPanel />
+        <ExtensionToolPanels />
         <GesturesPanel />
       </>,
     );

@@ -10,13 +10,14 @@ import { TOOLS } from '../../../src/app/tools';
 import { SONG_TOOL } from '../../../src/slices/song/tool';
 import { CONDUCTOR_TOOL } from '../../../src/slices/conductor/tool';
 import { LAB_TOOL } from '../../../src/slices/lab/tool';
+import { TRAINER_TOOL } from '../../../src/slices/trainer/tool';
 import { FACES_TOOL, HANDS_TOOL, POSES_TOOL } from '../../../packages/ext-faces/src/tools';
 
 /** A tool as the sweeps need it: core's entries, and a slice's (always a panel). */
 export type SweptTool = Pick<(typeof TOOLS)[number], 'id' | 'label' | 'kind' | 'defaultPinned'>;
 
 /** Every shipped slice's or extension's tools. */
-export const EXTENSION_TOOLS: readonly SweptTool[] = [CONDUCTOR_TOOL, SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({
+export const EXTENSION_TOOLS: readonly SweptTool[] = [CONDUCTOR_TOOL, TRAINER_TOOL, SONG_TOOL, LAB_TOOL, FACES_TOOL, HANDS_TOOL, POSES_TOOL].map((t) => ({
   id: t.id,
   label: t.label,
   kind: 'panel' as const,

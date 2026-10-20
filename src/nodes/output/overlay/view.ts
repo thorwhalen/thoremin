@@ -7,7 +7,6 @@
 import type { CuePosition, OverlayCategory, OverlayParams } from '../canvas_overlay.schema';
 import type { ExpressionScores } from '@/music/expression';
 import type { TagOverlayFrame } from '@thoremin/taglog/presentation';
-import type { TrainerHudSnapshot } from '@/enroll/hud';
 import type { HandMap } from '../../mapping/hand_map';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 
@@ -62,9 +61,6 @@ export interface OverlayView {
     /** Burned-in tag HUD frame (#92): open tags + timecode + blink; null unless a
      *  take is recording. Computed in `process` from `ctx.resources.tagOverlay`. */
     tagOverlay?: TagOverlayFrame | null;
-    /** Trainer guidance (#163): null unless a routine is running. Read in `process`
-     *  from `ctx.resources.trainerHud`. */
-    trainerHud?: TrainerHudSnapshot | null;
     /** A classifier's reading (the ASL sign reader), for the category cues. */
     categories?: CategoryScores | null;
     /** Second bar labels aligned with `categories.labels` ('' for none): the chord a sign plays. */

@@ -7,13 +7,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TRAINING_ROUTES, goToTraining, routeById, trainingRouteFor } from '@/app/training/routes';
 import { TRAINING_ANCHORS } from '@thoremin/ext-air/training';
-import { AIR } from './helpers/extensions';
+import { AIR, TRAINER } from './helpers/extensions';
 
 describe('trainingRouteFor', () => {
-  it('falls back to the Trainer tool for an instrument no extension trains (core alone too)', () => {
-    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] })?.id).toBe('trainer');
-    expect(trainingRouteFor(undefined)?.id).toBe('trainer');
-    expect(TRAINING_ROUTES.at(-1)?.id).toBe('trainer');
+  it('falls back to the Trainer tool for an instrument no extension trains; core alone offers none (#600 S16d)', () => {
+    const fallback = TRAINER ? 'trainer' : undefined;
+    expect(trainingRouteFor({ branches: ['face-chord'], features: ['face-chord'] })?.id).toBe(fallback);
+    expect(trainingRouteFor(undefined)?.id).toBe(fallback);
+    if (TRAINER) expect(TRAINING_ROUTES.filter((r) => r.fallback).map((r) => r.id)).toEqual(['trainer']);
   });
 
   it.runIf(AIR)('derives the route from the composed branches, the flute, guitar and drum before the Trainer', () => {
@@ -38,14 +39,15 @@ describe('trainingRouteFor', () => {
       expect(Boolean(r.section) !== Boolean(r.tool)).toBe(true);
     }
     if (AIR) for (const anchor of Object.values(TRAINING_ANCHORS)) expect(TRAINING_ROUTES.some((r) => r.section?.anchor === anchor)).toBe(true);
-    expect(routeById('trainer')?.tool).toBe('trainer');
+    if (TRAINER) expect(routeById('trainer')?.tool).toBe('trainer');
   });
 });
 
 describe('goToTraining', () => {
   it('opens a tool route through the tools store', () => {
     const openTool = vi.fn();
-    expect(goToTraining(routeById('trainer')!, { openTool })).toBe(true);
+    // (A tool route of its own: the Trainer's is its slice's since #600 S16d.)
+    expect(goToTraining({ id: 'trainer', label: 'Train', hint: 'h', tool: 'trainer' }, { openTool })).toBe(true);
     expect(openTool).toHaveBeenCalledWith('trainer');
   });
 

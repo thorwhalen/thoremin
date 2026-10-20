@@ -10,7 +10,6 @@ import { OVERLAY_CORE_INPUTS, OverlayParamsSchema, captionsPort, categoryPool, c
 import { adaptContributed, contributedInputs, withContributed, type ContributedElement } from '../overlay_contributions';
 import type { ExpressionScores } from '@/music/expression';
 import { computeTagOverlay, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
-import type { TrainerHudSnapshot } from '@/enroll/hud';
 import type { HandMap } from '../../mapping/hand_map';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { pickCategories } from './elements/category';
@@ -88,10 +87,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
           // resource means frame === null and the tagHud element draws nothing.
           const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
           const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
-          // Trainer guidance (#163): null unless a routine is running; the element is then
-          // a no-op. Same holder-plus-synchronous-read shape as the tag HUD.
-          const trainerHudFn = ctx.resources.trainerHud as (() => TrainerHudSnapshot | null) | undefined;
-          const trainerHudSnapshot = trainerHudFn?.() ?? null;
 
           const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
           const view: OverlayView = {
@@ -122,7 +117,6 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               categoryTargets: inputs.categoryTargets as Record<string, string> | undefined,
               faceMapping: controls?.faceMapping,
               tagOverlay,
-              trainerHud: trainerHudSnapshot,
               ...pickCategories(
                 classifierSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined, captions: inputs[captionsPort(slot)] as readonly string[] | null | undefined })),
                 categorizerSlots.map((slot) => ({ scores: inputs[slot] as CategoryScores | null | undefined })),

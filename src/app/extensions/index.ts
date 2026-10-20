@@ -97,8 +97,8 @@ export const EXTENSION_PANELS: readonly ExtensionPanel[] = LISTED.flatMap((u) =>
 /** Every extension's shell tools, as data (eager and lazy alike), in `extensions.json`'s order. */
 export const EXTENSION_TOOL_DECLS: readonly (ExtensionToolDecl & { runsDetached?: true })[] = LISTED.flatMap((u) =>
   (u.tools ?? []).map((t) => {
-    const { id, label, description, group, defaultPinned, before } = t;
-    const decl = { id, label, description, group, defaultPinned, ...(before === undefined ? {} : { before }) };
+    const { id, label, description, group, defaultPinned, before, hushes } = t;
+    const decl = { id, label, description, group, defaultPinned, ...(before === undefined ? {} : { before }), ...(hushes === undefined ? {} : { hushes }) };
     // An eager tool that keeps working with its panel closed (#600 S15) runs detached.
     return 'detached' in t && t.detached ? { ...decl, runsDetached: true as const } : decl;
   }),
@@ -132,10 +132,10 @@ export const EXTENSION_COMMANDS: readonly ExtensionCommand[] = LISTED.flatMap((u
 
 /** Every extension tool's panel content, by tool id: an eager one's component, a lazy one's
  *  placeholder that loads the extension's React half when the tool first opens. */
-export const EXTENSION_TOOL_PANELS: readonly { id: string; Panel: ExtensionTool['Panel'] }[] = LISTED.flatMap((u) =>
+export const EXTENSION_TOOL_PANELS: readonly { id: string; Panel: ExtensionTool['Panel']; frame: 'shell' | 'own' }[] = LISTED.flatMap((u) =>
   isLazy(u)
-    ? (u.tools ?? []).map((decl) => ({ id: decl.id, Panel: lazyToolPanel(decl, () => loadExtensionUi(u.id)) }))
-    : (u.tools ?? []).map((t) => ({ id: t.id, Panel: t.Panel })),
+    ? (u.tools ?? []).map((decl) => ({ id: decl.id, Panel: lazyToolPanel(decl, () => loadExtensionUi(u.id)), frame: 'shell' as const }))
+    : (u.tools ?? []).map((t) => ({ id: t.id, Panel: t.Panel, frame: t.frame ?? 'shell' })),
 );
 
 /** The status hooks in hand now: every eager extension's, and each lazy one's once it loaded. */

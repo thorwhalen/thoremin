@@ -20,7 +20,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Engine, type NodeRegistry } from '@thoremin/dag';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import type { ExtensionUi, ExtensionUiStub } from '@thoremin/sdk-ui/types';
-import { PROBE_HUSH_ID, PROBE_HUSH_REASON, PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds, probeOverlay } from './fixtures/ext-probe/index';
+import { PROBE_HUSH_ID, PROBE_HUSH_REASON, PROBE_BODY_TYPE, PROBE_SENSE_BRANCH_ID, PROBE_SENSE_GROUP, probeDeriveSaw, PROBE_BRANCH_ID, PROBE_CHORD, PROBE_COMMAND_ID, PROBE_MODALITY_ID, PROBE_STORE, PROBE_ELEMENT_ID, PROBE_EXTENSION, PROBE_INSTRUMENT, PROBE_NODE_ID, PROBE_NODE_TYPE, PROBE_OWN_FRAME_HUSH, PROBE_OWN_FRAME_TOOL_ID, PROBE_TOOL_ID, PROBE_TRUNK_BRANCH_ID, PROBE_TRUNK_NODE_ID, PROBE_VOICE_ID, probeToolNeeds, probeOverlay } from './fixtures/ext-probe/index';
 import { PROBE_UI, probeSeen } from './fixtures/ext-probe/ui';
 import { makeRecordingCanvas } from './helpers/canvas';
 import { PROBE_LAZY_BRANCH_ID, PROBE_LAZY_COMMAND_ID, PROBE_LAZY_ELEMENT_ID, PROBE_LAZY_KEY, PROBE_LAZY_EXTENSION, PROBE_LAZY_NODE_ID, PROBE_LAZY_NODE_TYPE, PROBE_LAZY_TOOL_ID } from './fixtures/ext-probe/lazy_stub';
@@ -411,6 +411,20 @@ describe('the probe reaches every React contribution point', () => {
     fireEvent.click(screen.getByText('Open the lazy probe...'));
     expect(useTools.getState().open).toBe(PROBE_LAZY_TOOL_ID);
     act(() => useTools.getState().close());
+  });
+
+  it('a tool may draw its own frame (#600 S16d): the host mounts its content bare, and its hush names the reason', async () => {
+    const { default: ExtensionToolPanels } = await import('@/app/ExtensionToolPanels');
+    const { useTools } = await import('@/app/toolsStore');
+    act(() => useTools.getState().openTool(PROBE_OWN_FRAME_TOOL_ID));
+    const { container } = render(<ExtensionToolPanels />);
+    // No shell frame: no "Close the ... panel" button and no shell-tool-panel wrapper.
+    expect(container.querySelector('.shell-tool-panel')).toBeNull();
+    expect(screen.queryByLabelText(/Close the Probe own frame panel/)).toBeNull();
+    expect(container.querySelector('[data-probe-own-frame]')).toBeTruthy();
+    fireEvent.click(screen.getByText('close the probe frame'));
+    expect(useTools.getState().open).toBeNull();
+    expect(app.tools.shellToolById(PROBE_OWN_FRAME_TOOL_ID)?.hushes).toBe(PROBE_OWN_FRAME_HUSH);
   });
 
   it('tools and entry points: the shell lists both probe tools, and the entry point is offered in its context', () => {

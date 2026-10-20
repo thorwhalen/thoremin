@@ -33,16 +33,12 @@ const idb = (key: string, owner: string, purpose: string): StorageKeyEntry => ({
 export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   // The hot store and the shell's per-device stores.
   ls('thoremin-controls', 'core', 'the live controls: dials, device prefs and their slice versions'),
-  ls('thoremin-trainer-prefs', 'core', 'the trainer\'s preferences'),
-  ls('thoremin-trainer-voice', 'core', 'the trainer\'s spoken-cue voice'),
   ls('thoremin-category-binding', 'core', 'the category binding store'),
   // Named collections. Through the storage seam: every `createNamedCollectionStore` collection,
   // and since #659 the bar pins, the Instruments view, the library tags and the annotation tag
   // sets. Still their own localStorage provider: the tool pins, the categorizer copies, the bound
   // sets, the instrument meta, the profiles and the zustand persist stores (#659 lists them).
   ls('thoremin-presets', 'core', 'settings presets'),
-  ls('thoremin-cues', 'core', 'the trainer\'s cues'),
-  ls('thoremin-routines', 'core', 'the trainer\'s routines'),
   ls('thoremin.toolPins', 'core', 'which shell tools keep a bar button'),
   ls('thoremin.instrumentsView', 'core', 'the Instruments view\'s remembered choices'),
   // The instrument library.
@@ -63,6 +59,7 @@ export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   ls('thoremin:plugin:assistant:history', 'core', 'the assistant\'s chat history'),
   ls('thoremin:plugin:assistant:settings', 'core', 'the assistant\'s settings'),
   // The SDK's app half (`packages/sdk-ui`).
+  ls('thoremin-trainer-voice', 'sdk-ui', 'the trainer\'s spoken-cue voice'),
   ls('thoremin-sequences', 'sdk-ui', 'the trainer\'s scripted sequences'),
   ls('thoremin.barPins', 'sdk-ui', 'the carve bars\' pinned features'),
   ls('thoremin.categorizers', 'sdk-ui', 'the categorizers (the localStorage copy and fallback)'),

@@ -129,6 +129,15 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   ...(hasExtension('feature-lab') ? [{ from: { node: 'ui', port: 'featureLabConfig' }, to: { node: 'overlay', port: 'feature-lab.meters.lab' } }] : []),
   // #600 S18c: the beat ring's options arrive from the conductor's dial (they were core's overlay's).
   { from: { node: 'ui', port: 'conductor' }, to: { node: 'overlay', port: 'conductor-tool.conductorHud.config' } },
+  // #600 S16d: the trainer's guidance reaches its element on two ports: the HUD pref and the snapshot
+  // of what the trainer says (core's element read the pref from the overlay's params and the snapshot
+  // from a resource).
+  ...(hasExtension('trainer-tool')
+    ? [
+        { from: { node: 'ui', port: 'trainerHudConfig' }, to: { node: 'overlay', port: 'trainer-tool.hud.hud' } },
+        { from: { node: 'ui', port: 'trainerHudSnapshot' }, to: { node: 'overlay', port: 'trainer-tool.hud.snapshot' } },
+      ]
+    : []),
 ];
 
 /** Nodes the branch table gained after the snapshot, named for the same reason. */

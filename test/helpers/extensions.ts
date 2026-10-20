@@ -41,6 +41,9 @@ export const BODY = hasExtension('body-tracking');
 /** The conductor slice (#600 S18b): the conductor, its orchestra, the score library and loader. */
 export const CONDUCTOR = hasExtension('conductor-tool');
 
+/** True when the build ships the Trainer slice (#600 S16d). */
+export const TRAINER = hasExtension('trainer-tool');
+
 /** True when the build ships the Feature Lab slice (#600 S16b). */
 export const LAB = hasExtension('feature-lab');
 

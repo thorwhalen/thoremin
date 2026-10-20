@@ -13,9 +13,9 @@
  * store refuses to swap it mid-run.
  */
 import { useMemo, useState } from 'react';
-import { cueTags, filterCues } from './cueStore';
-import { useTrainer } from './store';
-import { useVoice, useVoiceManifest } from './voiceRuntime';
+import { cueTags, filterCues } from '../app/cueStore';
+import { useTrainer } from '../app/store';
+import { useVoice, useVoiceManifest } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 
 export default function RoutinePicker() {
   const cues = useTrainer((s) => s.cues);

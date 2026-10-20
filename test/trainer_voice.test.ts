@@ -6,10 +6,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { STARTER_CUES } from '@/app/enroll/starterCues';
-import { missingClips, speakableStrings, type VoiceManifest } from '@/app/enroll/speakable';
-import { createVoiceSink } from '@/app/enroll/voice';
-import type { TranscriptLine } from '@/app/enroll/store';
+import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
+import { missingClips, speakableStrings, type VoiceManifest } from '@thoremin/sdk-ui/enroll/speakable';
+import { createVoiceSink } from '@thoremin/sdk-ui/enroll/voice';
+import type { TranscriptLine } from '@/slices/trainer/app/store';
 
 const MANIFEST = resolve(process.cwd(), 'public/voice/manifest.json');
 const manifest = (): VoiceManifest => JSON.parse(readFileSync(MANIFEST, 'utf8')) as VoiceManifest;
@@ -231,7 +231,7 @@ describe('the voice sink', () => {
 describe('Stop reaches the sink through the store', () => {
   it('a routine stopped mid-instruction drops the queued lines and silences the clip', async () => {
     const { addGuidanceSink, resetGuidanceSinks } = await import('@thoremin/sdk-ui/enroll/guidance');
-    const { useTrainer } = await import('@/app/enroll/store');
+    const { useTrainer } = await import('@/slices/trainer/app/store');
     const { appFeatureDemand } = await import('@thoremin/sdk-ui/featureDemand');
     resetGuidanceSinks();
     useTrainer.getState().reset();
@@ -278,7 +278,7 @@ describe('Stop reaches the sink through the store', () => {
 
 describe('the voice runtime', () => {
   it('a missing or malformed manifest yields null (no clips, no error), a good one parses', async () => {
-    const { loadVoiceManifest } = await import('@/app/enroll/voiceRuntime');
+    const { loadVoiceManifest } = await import('@thoremin/sdk-ui/enroll/voiceRuntime');
     const nope = (async () => ({ ok: false, json: async () => ({}) })) as unknown as typeof fetch;
     expect(await loadVoiceManifest(nope)).toBeNull();
     const broken = (async () => ({ ok: true, json: async () => ({ nope: 1 }) })) as unknown as typeof fetch;
@@ -299,7 +299,7 @@ describe('the voice runtime', () => {
   });
 
   it('the pref is off by default and persists per device under its own key', async () => {
-    const { useVoice } = await import('@/app/enroll/voiceRuntime');
+    const { useVoice } = await import('@thoremin/sdk-ui/enroll/voiceRuntime');
     expect(useVoice.getState().enabled).toBe(false);
     useVoice.getState().setEnabled(true);
     expect(useVoice.getState().enabled).toBe(true);

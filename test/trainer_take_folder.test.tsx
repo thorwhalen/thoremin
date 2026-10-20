@@ -13,17 +13,19 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import ToolsBar from '@/app/ToolsBar';
-import TrainerPanel from '@/app/TrainerPanel';
+// The Trainer is an extension tool since #600 S16d: the shell's frame host mounts it while open.
+import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import { useTools } from '@/app/toolsStore';
-import { useTrainer, useTrainerStores } from '@/app/enroll/store';
-import { createCueStore, createRoutineStore } from '@/app/enroll/cueStore';
-import { STARTER_ROUTINES } from '@/app/enroll/realVsAirCues';
+import { useTrainer, useTrainerStores } from '@/slices/trainer/app/store';
+import { createCueStore, createRoutineStore } from '@/slices/trainer/app/cueStore';
+import { STARTER_ROUTINES } from '@/slices/trainer/app/realVsAirCues';
 import { createInMemoryProvider } from '@zodal/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { installRecording, useRecordingConfig } from '@/app/recording/configStore';
 import { DEFAULT_RECORDING_SESSION } from '@thoremin/sdk-ui/recording/schema';
 import { journal } from '@/app/commands/registry';
 import type { FsDirHandle } from '@/app/recording/folder';
+import { TRAINER } from './helpers/extensions';
 
 const g = globalThis as unknown as { showDirectoryPicker?: unknown };
 let pickerCalls = 0;
@@ -64,7 +66,7 @@ function openTrainerWithoutWhere() {
   render(
     <>
       <ToolsBar />
-      <TrainerPanel />
+      <ExtensionToolPanels />
     </>,
   );
   fireEvent.click(screen.getByText('Trainer'));
@@ -75,7 +77,7 @@ function openTrainer() {
   return screen.getByLabelText('Where takes go');
 }
 
-describe('the take folder is reachable from the Trainer (#257)', () => {
+describe.runIf(TRAINER)('the take folder is reachable from the Trainer (#257)', () => {
   it('with a folder picker: Trainer -> "Save takes to a folder..." picks, remembers, names and switches the location', async () => {
     installPicker(takesFolder);
     const where = openTrainer();

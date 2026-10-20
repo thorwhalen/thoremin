@@ -7,7 +7,7 @@
 import type { ExtensionUi, ExtensionToolPanelProps, ToolSectionContext } from '@thoremin/sdk-ui/types';
 import { defineCommand, ok } from 'acture';
 import { z } from 'zod';
-import { PROBE_COMMAND_ID, PROBE_NODE_ID, PROBE_TOOL_ID } from './index';
+import { PROBE_COMMAND_ID, PROBE_NODE_ID, PROBE_OWN_FRAME_HUSH, PROBE_OWN_FRAME_TOOL_ID, PROBE_TOOL_ID } from './index';
 
 /** What the host did with the probe's UI contributions, for the test to read. */
 export const probeSeen = {
@@ -130,6 +130,22 @@ export const PROBE_UI: ExtensionUi = {
         },
         hint: 'stop the probe',
       },
+    },
+    {
+      id: PROBE_OWN_FRAME_TOOL_ID,
+      label: 'Probe own frame',
+      description: 'A test-only tool that draws its own frame.',
+      group: 'tool',
+      defaultPinned: false,
+      hushes: PROBE_OWN_FRAME_HUSH,
+      frame: 'own',
+      Panel: ({ close }: ExtensionToolPanelProps) => (
+        <div data-tool={PROBE_OWN_FRAME_TOOL_ID} data-probe-own-frame>
+          <button type="button" onClick={close}>
+            close the probe frame
+          </button>
+        </div>
+      ),
     },
   ],
   // A section in the Conductor panel while it conducts a recording, hearing its Start and Stop (#600 S15).

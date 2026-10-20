@@ -19,12 +19,11 @@ import ToolsLauncher from '@/app/ToolsLauncher';
 // The Lab's panel, in the frame the shell opens an extension's tool in (#600 S16b).
 import ExtensionToolPanels from '@/app/ExtensionToolPanels';
 import GesturesPanel from '@/app/GesturesPanel';
-import TrainerPanel from '@/app/TrainerPanel';
 import { TOOLS, TOOL_IDS } from '@/app/tools';
 import { SHELL_TOOLS, withExtensionTools } from '@/app/shellTools';
-import { CONDUCTOR, LAB, SONG } from './helpers/extensions';
-import { STARTER_CUES } from '@/app/enroll/starterCues';
-import { ALL_STARTER_CUES } from '@/app/enroll/cueStore';
+import { CONDUCTOR, LAB, SONG, TRAINER } from './helpers/extensions';
+import { STARTER_CUES } from '@/slices/trainer/app/starterCues';
+import { ALL_STARTER_CUES } from '@/slices/trainer/app/cueStore';
 import { useTools } from '@/app/toolsStore';
 import { useToolPins } from '@/app/toolPins';
 import { isPinned, TOOL_PINS_STORAGE_KEY } from '@/app/toolsCollection';
@@ -39,8 +38,10 @@ import { useControls } from '@/app/store';
 import '@/slices/song/app/host';
 import { setSongHandle, setSongPlaying, songPlaying } from '@/slices/song/app/state';
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
-import { useTrainer } from '@/app/enroll/store';
-import { useTrainerPrefs } from '@/app/enroll/prefs';
+import { useTrainer } from '@/slices/trainer/app/store';
+import { setTrainerHud, trainerHud } from '@/slices/trainer/app/hud';
+import { defaultTrainerHud } from '@/slices/trainer/schema';
+import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { defaultFeatureLab } from '@/slices/lab/schema';
 import { GESTURE_IDS, GESTURE_LABELS, defaultGesturePrefs } from '@/app/gesturePrefs';
 import { OVERLAY_CONTROLS, controlsForSurface } from '@/app/overlayControls';
@@ -108,8 +109,9 @@ describe('the tools bar and its launcher are the shell entry point for every too
 
   it('an extension tool takes the place it names (`before`), else follows every tool listed', () => {
     const decl = (id: string, before?: string) => ({ id, label: id, description: id, group: 'mode' as const, defaultPinned: false, ...(before ? { before } : {}) });
-    const ids = withExtensionTools(TOOLS, [decl('x', 'trainer'), decl('y'), decl('z', 'no-such-tool')]).map((t) => t.id);
-    expect(ids.indexOf('x')).toBe(ids.indexOf('trainer') - 1);
+    // (A core tool to name: the command palette; the Trainer is its slice's since #600 S16d.)
+    const ids = withExtensionTools(TOOLS, [decl('x', 'commands'), decl('y'), decl('z', 'no-such-tool')]).map((t) => t.id);
+    expect(ids.indexOf('x')).toBe(ids.indexOf('commands') - 1);
     expect(ids.slice(-2)).toEqual(['y', 'z']);
   });
 
@@ -125,8 +127,8 @@ describe('the tools bar and its launcher are the shell entry point for every too
     expect(screen.getByText('⌘K')).toBeTruthy();
   });
 
-  it('clicking a pinned tool opens it (the button is wired, not decorative)', () => {
-    // The Trainer: core's own pinned tool (the Conductor is the conductor slice's since #600 S18b).
+  it.runIf(TRAINER)('clicking a pinned tool opens it (the button is wired, not decorative)', () => {
+    // The Trainer (its slice's since #600 S16d; the Conductor the conductor slice's since S18b).
     render(<ToolsBar />);
     fireEvent.click(screen.getByText('Trainer'));
     expect(useTools.getState().open).toBe('trainer');
@@ -142,7 +144,7 @@ describe('the tools bar and its launcher are the shell entry point for every too
     expect(screen.queryByRole('dialog', { name: 'Tools' })).toBeNull();
   });
 
-  it('at most one tool is open at a time', () => {
+  it.runIf(TRAINER)('at most one tool is open at a time', () => {
     render(<ToolsBar />);
     fireEvent.click(screen.getByText('Trainer'));
     fireEvent.click(screen.getByText('Commands'));
@@ -332,9 +334,9 @@ describe('every control surface has a home in the shell', () => {
   });
 });
 
-describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () => {
+describe.runIf(TRAINER)('the Trainer is reachable and runs a routine of cues (#160, #163)', () => {
   it('is closed until its tool is open', () => {
-    const { container } = render(<TrainerPanel />);
+    const { container } = render(<ExtensionToolPanels />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -342,7 +344,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     render(
       <>
         <ToolsBar />
-        <TrainerPanel />
+        <ExtensionToolPanels />
       </>,
     );
     expect(screen.queryByText('Find my categories')).toBeNull();
@@ -361,7 +363,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('Start runs the routine: the first cue\'s INSTRUCTION is shown large, and the rest are not running', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     expect(useTrainer.getState().index).toBe(0);
@@ -386,7 +388,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('while running, the instruction is a banner above every panel, and it wraps rather than truncates', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     const banner = document.querySelector('[data-banner]') as HTMLElement;
     expect(banner).toBeTruthy();
@@ -402,17 +404,17 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   it('hushes the instrument while open and lifts it on close, never touching the player\'s mute', () => {
     useControls.setState({ hushedBy: [], muted: false });
     useTools.setState({ open: 'trainer' });
-    const { rerender } = render(<TrainerPanel />);
+    const { rerender } = render(<ExtensionToolPanels />);
     expect(useControls.getState().hushedBy).toContain('trainer');
     act(() => useTools.setState({ open: null }));
-    rerender(<TrainerPanel />);
+    rerender(<ExtensionToolPanels />);
     expect(useControls.getState().hushedBy).not.toContain('trainer');
     expect(useControls.getState().muted).toBe(false);
   });
 
   it('Skip moves on, and the skipped cue is marked as such (visible once the full panel is back)', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     fireEvent.click(screen.getByText('Skip'));
     expect(useTrainer.getState().outcomes[0]).toBe('skipped');
@@ -423,10 +425,10 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   });
 
   it('voice is a toggle in the panel (and in the running strip); text is not', async () => {
-    const { useVoice } = await import('@/app/enroll/voiceRuntime');
+    const { useVoice } = await import('@thoremin/sdk-ui/enroll/voiceRuntime');
     useVoice.getState().setEnabled(false);
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     const toggle = () => screen.getByRole('button', { name: /^Voice (on|off)/ });
     expect(toggle().getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(toggle());
@@ -441,10 +443,10 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   });
 
   it('a cue with no cached clip is marked "text only" in the picker — but only when voice is on', async () => {
-    const { useVoice, useVoiceManifest, resetVoiceRuntime } = await import('@/app/enroll/voiceRuntime');
+    const { useVoice, useVoiceManifest, resetVoiceRuntime } = await import('@thoremin/sdk-ui/enroll/voiceRuntime');
     resetVoiceRuntime();
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     // A custom override of a starter, with a wording no clip was generated for.
     act(() => {
       useTrainer.setState({
@@ -465,7 +467,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   });
 
   it('"Record the take" is a per-device checkbox; Start goes through the recording controller', async () => {
-    const { useTrainerPrefs } = await import('@/app/enroll/prefs');
+    const { useTrainerPrefs } = await import('@/slices/trainer/app/prefs');
     const { registerRecordingController } = await import('@thoremin/sdk-ui/recording/controller');
     const calls: string[] = [];
     const off = registerRecordingController({
@@ -480,7 +482,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     });
     useTrainerPrefs.getState().setRecordTake(false);
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     const box = screen.getByLabelText(/Record the take/i) as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
@@ -506,17 +508,18 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('the HUD pref is a per-device checkbox in the panel, not an instrument dial', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
-    // Off by default since the running banner became the on-screen instruction.
-    expect(useControls.getInitialState().trainerHud.show).toBe(false);
+    render(<ExtensionToolPanels />);
+    // Off by default since the running banner became the on-screen instruction. (The pref is the
+    // Trainer slice's since #600 S16d: its default, and its own reader and writer.)
+    expect(defaultTrainerHud().show).toBe(false);
     // (Set explicitly: other tests leave the shared store's pref on.)
-    useControls.getState().setTrainerHud({ show: false });
+    act(() => setTrainerHud({ show: false }));
     const box = screen.getByLabelText(/instructions into the video/i) as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
-    expect(useControls.getState().trainerHud.show).toBe(true);
+    expect(trainerHud().show).toBe(true);
     fireEvent.click(box);
-    expect(useControls.getState().trainerHud.show).toBe(false);
+    expect(trainerHud().show).toBe(false);
   });
 
   it('recording the take is ON by default (the maintainer\'s call) and the box shows it', () => {
@@ -524,7 +527,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
     expect(useTrainerPrefs.getInitialState().recordTake).toBe(true);
     useTrainerPrefs.setState({ recordTake: true });
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     const box = screen.getByLabelText(/Record the take/i) as HTMLInputElement;
     expect(box.checked).toBe(true);
   });
@@ -532,7 +535,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   it('manual advance is a per-device checkbox, OFF by default, and toggling it wires the pref', () => {
     expect(useTrainerPrefs.getInitialState().manualAdvance).toBe(false);
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     const box = screen.getByLabelText(/I'll say when I'm done/i) as HTMLInputElement;
     expect(box.checked).toBe(false);
     fireEvent.click(box);
@@ -543,7 +546,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('the Done button ends the running cue as complete (the "I did it" override)', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     expect(useTrainer.getState().index).toBe(0);
@@ -555,7 +558,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('pressing Enter advances the cue (the keyboard override), but not while typing, and not on auto-repeat', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     // Enter from a text field is ignored (you might be naming something).
@@ -577,7 +580,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   it('in manual mode the routine never auto-advances — only Done/Enter moves it on', () => {
     useTrainerPrefs.setState({ manualAdvance: true });
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     // Drive far more than enough of the first (frames) cue directly through the store:
     // in manual mode it must NOT advance on its own.
@@ -602,7 +605,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   it('closing the panel mid-routine STOPS it (and releases the feature demand)', async () => {
     const { appFeatureDemand } = await import('@thoremin/sdk-ui/featureDemand');
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     expect(useTrainer.getState().status).toBe('running');
     expect(appFeatureDemand.groups()).not.toBeNull();
@@ -616,7 +619,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('the routine picker (#163 §3): filter narrows the list, a toggle changes the draft, Use applies it', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     // Idle: the picker is offered (collapsed); while running it is not.
     const picker = document.querySelector('[data-routine-picker]');
     expect(picker).toBeTruthy();
@@ -659,13 +662,13 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('cannot be trained from an empty take (the build button is disabled)', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     expect((screen.getByText('Find my categories') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('shows a coverage METER for the running cue, not a progress bar', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     expect(screen.queryAllByRole('progressbar')).toHaveLength(0);
     fireEvent.click(screen.getByText('Start'));
     const bars = screen.getAllByRole('progressbar');
@@ -677,7 +680,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
 
   it('never asks the player to imitate a specific face', () => {
     useTools.setState({ open: 'trainer' });
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     fireEvent.click(screen.getByText('Start'));
     const text = document.body.textContent ?? '';
     // The whole feature exists because prescribed categories are the ones the player
@@ -689,7 +692,7 @@ describe('the Trainer is reachable and runs a routine of cues (#160, #163)', () 
   });
 });
 
-describe('the projection view (#163 §7-§8) is reachable and labels categories in FULL feature space', () => {
+describe.runIf(TRAINER)('the projection view (#163 §7-§8) is reachable and labels categories in FULL feature space', () => {
   /** Drive a small many-pose take through the store so the panel can project it. */
   function buildTake() {
     const prng = (seed: number) => () => {
@@ -741,7 +744,7 @@ describe('the projection view (#163 §7-§8) is reachable and labels categories 
     const { categoryKey } = await import('@thoremin/sdk/enroll');
     useTools.setState({ open: 'trainer' });
     act(() => buildTake());
-    render(<TrainerPanel />);
+    render(<ExtensionToolPanels />);
     // The section is offered; opening it projects the take (after a double rAF, with a
     // "laying out" indicator) and then shows the canvas.
     fireEvent.click(screen.getByText(/Draw your own categories/));

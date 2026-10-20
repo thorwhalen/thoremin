@@ -15,7 +15,7 @@ import { labDemandGroups } from '@/slices/lab/app/labDemand';
 import { faceFeatureVectorNode, handFeatureVectorNode } from '@/nodes';
 import { makeHandKeypoints, type FaceFrame, type FeatureVector, type HandsFrame } from '@/nodes';
 import { appFeatureDemand, featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
-import { useTrainer } from '@/app/enroll/store';
+import { useTrainer } from '@/slices/trainer/app/store';
 
 const ctx = (resources: Record<string, unknown> = {}): NodeContext => ({ tick: 0, time: 0, dt: 1 / 30, resources });
 

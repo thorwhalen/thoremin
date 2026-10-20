@@ -42,7 +42,7 @@ import {
   type RoutineRecord,
   RoutineSpecSchema,
 } from '@thoremin/sdk/enroll';
-import { DEFAULT_ROUTINE_CUE_IDS, FACE_OMIT, FACE_TRAINING_GROUPS, STARTER_CUES } from '@/app/enroll/starterCues';
+import { DEFAULT_ROUTINE_CUE_IDS, FACE_OMIT, FACE_TRAINING_GROUPS, STARTER_CUES } from '@/slices/trainer/app/starterCues';
 import {
   CUES_STORAGE_KEY,
   ROUTINES_STORAGE_KEY,
@@ -55,7 +55,7 @@ import {
   loadStoredCues,
   mergeCues,
   ALL_STARTER_CUES,
-} from '@/app/enroll/cueStore';
+} from '@/slices/trainer/app/cueStore';
 import { FEATURE_BY_ID, FEATURE_GROUPS } from '@thoremin/sdk/features/catalog';
 
 // ---- Fixtures ----------------------------------------------------------------

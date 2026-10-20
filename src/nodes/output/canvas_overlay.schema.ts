@@ -68,19 +68,6 @@ export type CuePosition = z.infer<typeof CuePositionEnum>;
  * Per-element configuration. Each element has its own sub-object so it can be
  * toggled and parameterized independently.
  */
-/** The trainer HUD's params — exported so the control store can carry the per-device
- *  pref in exactly this shape and `store-controls` can compose it in. */
-export const TrainerHudParamsSchema = z
-  .object({
-    /** Off by default since the Trainer's own banner moved above every panel (the
-     *  on-screen instruction lives there now); on, the same words are also painted INTO
-     *  the video, which a screen recording of the composited canvas then carries. */
-    show: z.boolean().default(false),
-    /** Which edge the banner anchors to. */
-    position: z.enum(['bottom', 'top']).default('bottom'),
-  })
-  .prefault({});
-export type TrainerHudParams = z.infer<typeof TrainerHudParamsSchema>;
 
 const Params = z.object({
   /** Mirrored webcam backdrop. `alpha` is the "grey-out" amount (0 = hidden). */
@@ -213,30 +200,24 @@ const Params = z.object({
    * edge instead of painting over them. Per-device (not in the instrument's dial —
    * see {@link OverlayDialSchema}).
    */
-  trainerHud: TrainerHudParamsSchema,
 });
 type Params = z.infer<typeof Params>;
 
 /**
- * The overlay NODE's params — every element, including the Feature Lab. This is the
- * engine-facing contract: `store-controls` composes it each tick from the instrument's
- * overlay dial plus the per-device lab config.
+ * The overlay NODE's params — every core element. This is the engine-facing contract:
+ * `store-controls` passes the instrument's overlay dial each tick.
  */
 export const OverlayParamsSchema = Params;
 export type OverlayParams = Params;
 
 /**
- * The overlay DIAL's schema — the node's params minus `trainerHud`, and so the single
- * source of truth for the overlay portion of saved settings and of the overlay settings
- * panel.
- *
- * The trainer's guidance HUD (#163) is omitted on purpose: the trainer is a shell TOOL, and
- * hiding a training aid must not edit the instrument (the reason the Feature Lab's config left
- * the dial in #136, and the overlay params altogether when the Lab became a slice, #600 S16b).
- * It is a per-device tooling pref on the control store, composed into this node's params by
- * `store-controls` each tick.
+ * The overlay DIAL's schema — the single source of truth for the overlay portion of saved
+ * settings and of the overlay settings panel. It equals the node's params since the last
+ * per-device element left core: the Feature Lab's config (its slice's since #600 S16b) and the
+ * trainer's guidance HUD (the Trainer slice's since S16d), both tooling prefs that a training aid
+ * or a measurement must not edit into an instrument.
  */
-export const OverlayDialSchema = Params.omit({ trainerHud: true });
+export const OverlayDialSchema = Params;
 export type OverlayDialParams = z.infer<typeof OverlayDialSchema>;
 
 export type OverlayCategory = 'input' | 'output' | 'guide' | 'backdrop';
@@ -270,6 +251,5 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   categoryLabel: 'output',
   categoryBars: 'output',
   tagHud: 'output',
-  trainerHud: 'guide',
   fingerBars: 'output',
 };

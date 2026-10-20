@@ -20,7 +20,6 @@ import { landmarkDots } from './landmarks';
 import { scaleGuideElement } from './scale_guide';
 import { tagHud } from './tag_hud';
 import { timbreLevels } from './timbre_levels';
-import { trainerHud } from './trainer_hud';
 import type { OverlayElement } from '../view';
 
 /**
@@ -52,8 +51,7 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
   // the array's last element so the z-order invariant + concurrent additions hold.
   tagHud,
-  // The trainer's on-video guidance (#163): above the cues, below fingerBars, which
-  // stays the array's last element (the z-order invariant).
-  trainerHud,
+  // (The trainer's on-video guidance drew here: the Trainer slice's contributed cue since
+  // #600 S16d, placed before `fingerBars`.)
   fingerBarsCue,
 ];

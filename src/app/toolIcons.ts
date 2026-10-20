@@ -5,13 +5,12 @@
  * own (#600 S15: `ExtensionTool.icon`), folded in here.
  */
 import type { ComponentType } from 'react';
-import { Command, BookOpen, Hand, GraduationCap, Bot } from 'lucide-react';
+import { Command, BookOpen, Hand, Bot } from 'lucide-react';
 import { UI_CONTRIBUTIONS } from './host/contributions';
 
 export const TOOL_ICONS: Record<string, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>> = {
   commands: Command,
   gestures: Hand,
-  trainer: GraduationCap,
   assistant: Bot,
   manual: BookOpen,
   ...Object.fromEntries(UI_CONTRIBUTIONS.toolIcons.map((t) => [t.id, t.icon])),

@@ -26,8 +26,8 @@
  * element contract and what each element sees, `elements/<name>.ts` one element each and
  * `elements/index.ts` their draw order, `layout.ts` the cue layout, `node.ts` the node).
  */
-export { CuePositionEnum, OVERLAY_CATEGORIES, OVERLAY_ELEMENT_CATEGORIES, OverlayDialSchema, OverlayParamsSchema, TrainerHudParamsSchema } from './canvas_overlay.schema';
-export type { CuePosition, OverlayCategory, OverlayDialParams, OverlayParams, TrainerHudParams } from './canvas_overlay.schema';
+export { CuePositionEnum, OVERLAY_CATEGORIES, OVERLAY_ELEMENT_CATEGORIES, OverlayDialSchema, OverlayParamsSchema } from './canvas_overlay.schema';
+export type { CuePosition, OverlayCategory, OverlayDialParams, OverlayParams } from './canvas_overlay.schema';
 export type { ContributedElement } from './overlay_contributions';
 export type { OverlayView, OverlayElement } from './overlay/view';
 export type { CategorySlot } from './overlay/elements/category';
