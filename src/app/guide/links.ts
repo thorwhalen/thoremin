@@ -12,6 +12,15 @@
 /** The guide's home, relative to the app's base (the same way the manual is linked). */
 export const GUIDE_HOME = 'guide/index.html';
 
+/**
+ * The whole guide as one file, relative to the guide's own folder: one page of HTML (also the PDF
+ * route, printed) and the same content as Markdown. Both are generated with the pages.
+ */
+export const GUIDE_EXPORTS = { html: 'thoremin-guide.html', md: 'thoremin-guide.md' } as const;
+
+/** Where the live guide is served: the exports point their pictures and the app's links here. */
+export const GUIDE_LIVE_URL = 'https://apps.thorwhalen.com/thoremin/guide/';
+
 /** `Chord Map + Face` -> `chord-map-face`: lower-case words joined by single dashes. */
 export function guideSlug(name: string): string {
   return name

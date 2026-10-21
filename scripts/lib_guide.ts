@@ -19,7 +19,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { marked } from 'marked';
-import { guideSlug } from '../src/app/guide/links';
+import { GUIDE_EXPORTS, guideSlug } from '../src/app/guide/links';
 
 export interface Area {
   id: string;
@@ -36,6 +36,13 @@ interface Source {
 export interface Built {
   /** Output path (relative to `public/guide/`) -> HTML. */
   pages: Map<string, string>;
+  /**
+   * The same pages as Markdown, keyed like `pages`, for the exports (`lib_guide_export.ts`). Links
+   * are resolved as in the HTML (relative to the page), headings start at `#` (the page's title).
+   */
+  markdown: Map<string, { title: string; md: string }>;
+  /** Every page's path in reading order (home, instruments by area, tools, then the free pages). */
+  order: string[];
   /** The instrument names, tool ids and settings anchors the sources cover. */
   covers: { seeds: string[]; tools: string[]; sections: string[] };
   /** Files under `pics/` the pages reference. */
@@ -70,6 +77,12 @@ export function parseSource(file: string, text: string): Source {
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const str = (v: string | string[] | undefined): string => (Array.isArray(v) ? v.join(' ') : (v ?? ''));
 const list = (v: string | string[] | undefined): string[] => (Array.isArray(v) ? v : v ? v.split(',').map((x) => x.trim()).filter(Boolean) : []);
+
+const INSTRUMENTS_INTRO = 'Every instrument that comes with thoremin, grouped by what you play it with. Open one for what to do, and how it works.';
+const TOOLS_INTRO = 'What you use ON an instrument: measuring, teaching it your own faces, recording, conducting. Open the Tools menu in the app to reach them.';
+
+/** The free pages' place in the reading order, after the instruments and the tools; any other comes last. */
+const FREE_ORDER = ['conduct-and-dance.html', 'teach-it-yourself.html', 'settings.html', 'troubleshooting.html'];
 
 const listMd = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.md')).sort() : []);
 
@@ -145,10 +158,14 @@ export function buildGuide(root: string): Built {
   const headIds = (md: string): string =>
     md.replace(/^(#{2,3}) (.+?) \{#([a-z0-9-]+)\}\s*$/gm, (_m, h: string, text: string, id: string) => `<h${h.length} id="${id}">${esc(text)}</h${h.length}>\n`);
 
+  /** The whole guide as one file: one page of HTML, the same page printed to PDF, or Markdown. */
+  const exportMenu = (p: string): string =>
+    `<details class="export"><summary>Export</summary><div><a href="${p}${GUIDE_EXPORTS.html}" download data-export="html">One page (HTML)</a><a href="${p}${GUIDE_EXPORTS.html}#print" target="_blank" data-export="pdf">PDF (print, then Save as PDF)</a><a href="${p}${GUIDE_EXPORTS.md}" download data-export="md">Markdown</a></div></details>`;
+
   const nav = (out: string, current: string): string => {
     const p = prefixOf(out);
     const item = (key: string, label: string, href: string) => `<a href="${p}${href}"${key === current ? ' aria-current="page"' : ''}>${label}</a>`;
-    return `<nav aria-label="Guide">${item('home', 'Guide', 'index.html')}${item('instruments', 'Instruments', 'instruments.html')}${item('tools', 'Tools', 'tools.html')}${item('settings', 'Settings', 'settings.html')}${item('troubleshooting', 'Troubleshooting', 'troubleshooting.html')}<a href="${p}../manual.html">Manual</a><a class="app" href="${p}../">Back to the app</a></nav>`;
+    return `<nav aria-label="Guide">${item('home', 'Guide', 'index.html')}${item('instruments', 'Instruments', 'instruments.html')}${item('tools', 'Tools', 'tools.html')}${item('settings', 'Settings', 'settings.html')}${item('troubleshooting', 'Troubleshooting', 'troubleshooting.html')}<a href="${p}../manual.html">Manual</a>${exportMenu(p)}<a class="app" href="${p}../">Back to the app</a></nav>`;
   };
 
   const shell = (out: string, current: string, title: string, inner: string): string => `<!doctype html>
@@ -188,6 +205,14 @@ ${inner}
   const inlineOnly = (s: string, out: string, from: string): string => (marked.parseInline(resolveLinks(s, out, from), { async: false }) as string).trim();
 
   const pages = new Map<string, string>();
+  const markdown = new Map<string, { title: string; md: string }>();
+
+  // The Markdown twin of the HTML helpers: the same links, the same pictures (no clips).
+  const mdBody = (md: string, out: string, from: string): string => resolveLinks(md, out, from).replace(/^:::details (.+)\n([\s\S]*?)^:::\s*$/gm, (_m, title: string, inner: string) => `**${title}**\n\n${inner.trim()}\n`);
+  const mdFigure = (out: string, name: string, alt: string): string => (hasMedia(`${name}.jpg`) ? `![${alt}](${prefixOf(out)}pics/${name}.jpg)\n\n` : '');
+  const mdInline = (s: string, out: string, from: string): string => resolveLinks(s, out, from);
+  const mdDo = (items: string[], out: string, from: string): string => items.map((i, n) => `${n + 1}. ${mdInline(i, out, from)}`).join('\n');
+  const mdSettings = (out: string, labels: string[]): string => labels.map((label) => `[${label}](${hrefOf(out, `settings.html#${guideSlug(label)}`)})`).join(', ');
 
   // Free pages.
   for (const p of free) {
@@ -195,6 +220,7 @@ ${inner}
     const key = out === 'index.html' ? 'home' : out.replace('.html', '');
     const title = str(p.meta.title) || 'Guide';
     pages.set(out, shell(out, key, title, `<h1>${esc(title)}</h1>\n${out === 'index.html' ? figure(out, 'home', 'Thoremin, with the instrument list open') : ''}${render(p.body, out, p.file)}`));
+    markdown.set(out, { title, md: `# ${title}\n\n${out === 'index.html' ? mdFigure(out, 'home', 'Thoremin, with the instrument list open') : ''}${mdBody(p.body, out, p.file).trim()}\n` });
   }
 
   // Instruments: one page each, an area page, and the index of areas.
@@ -221,6 +247,18 @@ ${inner}
       `<p class="pager">${prev ? `<a href="${hrefOf(out, `instruments/${guideSlug(str(prev.meta.seed))}.html`)}">‹ ${esc(str(prev.meta.seed))}</a>` : '<span></span>'}${next ? `<a href="${hrefOf(out, `instruments/${guideSlug(str(next.meta.seed))}.html`)}">${esc(str(next.meta.seed))} ›</a>` : '<span></span>'}</p>`,
     ].join('\n');
     pages.set(out, shell(out, 'instruments', name, inner));
+    markdown.set(out, {
+      title: name,
+      md: [
+        `[Instruments](${hrefOf(out, 'instruments.html')}) › [${area?.title ?? ''}](${hrefOf(out, `areas/${area?.id}.html`)})`,
+        `# ${name}`,
+        mdFigure(out, slug, `${name}, as it looks on screen`).trim(),
+        '## What to do',
+        mdDo(list(s.meta.do), out, s.file),
+        mdBody(s.body, out, s.file).trim(),
+        `${list(s.meta.settings).length ? `Its settings: ${mdSettings(out, list(s.meta.settings))}. ` : ''}Every knob: [the manual](${hrefOf(out, '../manual.html')}).`,
+      ].filter(Boolean).join('\n\n') + '\n',
+    });
   }
   const card = (out: string, href: string, title: string, items: string[], img: string, from: string): string =>
     `<li class="card">${img ? `<a href="${hrefOf(out, href)}"><img src="${prefixOf(out)}pics/${img}" alt="" loading="lazy"></a>` : ''}<div><h3><a href="${hrefOf(out, href)}">${esc(title)}</a></h3><p>${inlineOnly(items[0] ?? '', out, from)}</p></div></li>`;
@@ -231,6 +269,8 @@ ${inner}
       if (hasMedia(`${slug}.jpg`)) media.add(`${slug}.jpg`);
       return card(out, `instruments/${slug}.html`, str(s.meta.seed), list(s.meta.do), hasMedia(`${slug}.jpg`) ? `${slug}.jpg` : '', s.file);
     });
+    const items = seedsOf(a.id).map((s) => `- [${str(s.meta.seed)}](${hrefOf(out, `instruments/${guideSlug(str(s.meta.seed))}.html`)}): ${mdInline(list(s.meta.do)[0] ?? '', out, s.file)}`);
+    markdown.set(out, { title: a.title, md: `[Instruments](${hrefOf(out, 'instruments.html')})\n\n# ${a.title}\n\n${a.blurb}\n\n${items.join('\n')}\n` });
     pages.set(out, shell(out, 'instruments', a.title, `<p class="crumbs"><a href="${hrefOf(out, 'instruments.html')}">Instruments</a></p><h1>${esc(a.title)}</h1><p>${esc(a.blurb)}</p><ul class="cards">${cards.join('')}</ul>`));
   }
   {
@@ -238,7 +278,9 @@ ${inner}
     const inner = areas
       .map((a) => `<h2><a href="${hrefOf(out, `areas/${a.id}.html`)}">${esc(a.title)}</a></h2><p>${esc(a.blurb)}</p><p class="chips">${seedsOf(a.id).map((s) => `<a href="${hrefOf(out, `instruments/${guideSlug(str(s.meta.seed))}.html`)}">${esc(str(s.meta.seed))}</a>`).join('')}</p>`)
       .join('\n');
-    pages.set(out, shell(out, 'instruments', 'Instruments', `<h1>Instruments</h1><p>Every instrument that comes with thoremin, grouped by what you play it with. Open one for what to do, and how it works.</p>\n${inner}`));
+    pages.set(out, shell(out, 'instruments', 'Instruments', `<h1>Instruments</h1><p>${INSTRUMENTS_INTRO}</p>\n${inner}`));
+    const md = areas.map((a) => `## [${a.title}](${hrefOf(out, `areas/${a.id}.html`)})\n\n${a.blurb}\n\n${seedsOf(a.id).map((s) => `[${str(s.meta.seed)}](${hrefOf(out, `instruments/${guideSlug(str(s.meta.seed))}.html`)})`).join(' · ')}`);
+    markdown.set(out, { title: 'Instruments', md: `# Instruments\n\n${INSTRUMENTS_INTRO}\n\n${md.join('\n\n')}\n` });
   }
 
   // Tools: one page each and the index.
@@ -258,6 +300,18 @@ ${inner}
       settings.length ? `<p class="more">Its settings: ${settings.join(', ')}.</p>` : '',
     ].join('\n');
     pages.set(out, shell(out, 'tools', str(t.meta.title), inner));
+    markdown.set(out, {
+      title: str(t.meta.title),
+      md: [
+        `[Tools](${hrefOf(out, 'tools.html')})`,
+        `# ${str(t.meta.title)}`,
+        mdFigure(out, `tool-${slug}`, `${str(t.meta.title)}, open in the app`).trim(),
+        '## What to do',
+        mdDo(list(t.meta.do), out, t.file),
+        mdBody(t.body, out, t.file).trim(),
+        list(t.meta.settings).length ? `Its settings: ${mdSettings(out, list(t.meta.settings))}.` : '',
+      ].filter(Boolean).join('\n\n') + '\n',
+    });
   }
   {
     const out = 'tools.html';
@@ -266,8 +320,13 @@ ${inner}
       if (hasMedia(`tool-${slug}.jpg`)) media.add(`tool-${slug}.jpg`);
       return card(out, `tools/${slug}.html`, str(t.meta.title), list(t.meta.do), hasMedia(`tool-${slug}.jpg`) ? `tool-${slug}.jpg` : '', t.file);
     });
-    pages.set(out, shell(out, 'tools', 'Tools', `<h1>Tools</h1><p>What you use ON an instrument: measuring, teaching it your own faces, recording, conducting. Open the Tools menu in the app to reach them.</p><ul class="cards">${cards.join('')}</ul>`));
+    pages.set(out, shell(out, 'tools', 'Tools', `<h1>Tools</h1><p>${TOOLS_INTRO}</p><ul class="cards">${cards.join('')}</ul>`));
+    const items = tools.map((t) => `- [${str(t.meta.title)}](${hrefOf(out, `tools/${guideSlug(str(t.meta.tool))}.html`)}): ${mdInline(list(t.meta.do)[0] ?? '', out, t.file)}`);
+    markdown.set(out, { title: 'Tools', md: `# Tools\n\n${TOOLS_INTRO}\n\n${items.join('\n')}\n` });
   }
 
-  return { pages, covers: { seeds: seeds.map((s) => str(s.meta.seed)), tools: tools.map((t) => str(t.meta.tool)), sections: anchors }, media: [...media], problems };
+  const head = ['index.html', 'instruments.html', ...areas.flatMap((a) => [`areas/${a.id}.html`, ...seedsOf(a.id).map((s) => `instruments/${guideSlug(str(s.meta.seed))}.html`)]), 'tools.html', ...tools.map((t) => `tools/${guideSlug(str(t.meta.tool))}.html`), ...FREE_ORDER];
+  const order = [...head.filter((p) => pages.has(p)), ...[...pages.keys()].filter((p) => !head.includes(p))];
+
+  return { pages, markdown, order, covers: { seeds: seeds.map((s) => str(s.meta.seed)), tools: tools.map((t) => str(t.meta.tool)), sections: anchors }, media: [...media], problems };
 }
