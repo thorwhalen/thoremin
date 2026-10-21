@@ -100,6 +100,7 @@ clip.
   [command dispatch](docs/design/command-dispatch.md).
 - [`docs/MAPPING_SPECTRUM.md`](docs/MAPPING_SPECTRUM.md) — direct↔indirect mapping + conductor mode.
 - [`docs/TESTING.md`](docs/TESTING.md) — the DAG-aware record/replay test strategy.
+- [`docs/research/compendium.md`](docs/research/compendium.md) — the research compendium: the project's research in one long document (what thoremin is for, what works, one chapter per research area, what lies ahead), written to be read or imported into NotebookLM.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what shipped, what is next.
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what's new, by PR.
 
