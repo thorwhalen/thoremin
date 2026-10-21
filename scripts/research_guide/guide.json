@@ -732,6 +732,20 @@
     101,
     146
    ]
+  },
+  {
+   "path": "docs/research/compendium.md",
+   "title": "thoremin: a research compendium (the whole research in one document, for reading or NotebookLM)",
+   "area": "architecture",
+   "abstract": "One long document that puts the project's research in the context of the project: what thoremin is trying to do, what works today, one chapter per research area (latency, sub-frame timing and the air instruments, rhythm and dance, conducting, face categorizers, hand and body poses, trainer mode, ASL, fingering priors, datasets, harmony, generative instruments), and what lies ahead, with a glossary and numbered references to the papers, repo files and issues. It summarises the other docs listed here, so when one of them changes, the matching chapter needs the same change.",
+   "status": "current",
+   "issues": [
+    613,
+    385,
+    386,
+    168
+   ],
+   "prs": []
   }
  ],
  "experiments": [
