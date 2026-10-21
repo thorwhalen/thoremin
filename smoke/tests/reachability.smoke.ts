@@ -129,4 +129,16 @@ test.describe('the player guide is reachable (shipping rule 4)', () => {
     const res = await page.request.get(new URL(href!, page.url()).toString());
     expect(res.status(), `${href} is served`).toBe(200);
   });
+
+  test('every guide page offers the whole guide as one file, and the app serves each export', async ({ page }) => {
+    await page.goto('guide/index.html');
+    await page.locator('details.export > summary').click();
+    for (const kind of ['html', 'pdf', 'md']) {
+      const link = page.locator(`a[data-export="${kind}"]`);
+      await expect(link).toBeVisible();
+      const href = await link.getAttribute('href');
+      const res = await page.request.get(new URL(href!, page.url()).toString());
+      expect(res.status(), `${href} is served`).toBe(200);
+    }
+  });
 });

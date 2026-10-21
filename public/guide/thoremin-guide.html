@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thoremin guide</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root {
+  --bg: #fbfaf7;
+  --fg: #1d1d1f;
+  --muted: #5d5d66;
+  --accent: #0b6b5a;
+  --card: #ffffff;
+  --line: #dcdad2;
+  --code: #efede6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101214;
+    --fg: #ececee;
+    --muted: #a0a0aa;
+    --accent: #5fd6bd;
+    --card: #181b1e;
+    --line: #2c3036;
+    --code: #1e2226;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+nav { display: flex; gap: .25rem 1rem; flex-wrap: wrap; padding: .6rem 16px; max-width: 46rem; margin: 0 auto; font-size: .92rem; }
+nav a { color: var(--muted); text-decoration: none; padding: .15rem 0; }
+nav a[aria-current="page"] { color: var(--fg); font-weight: 650; border-bottom: 2px solid var(--accent); }
+nav details.export { position: relative; border: 0; background: none; margin: 0; padding: 0; }
+nav details.export summary { color: var(--muted); font-weight: 400; padding: .15rem 0; list-style: none; }
+nav details.export summary::-webkit-details-marker { display: none; }
+nav details.export summary::after { content: " \25BE"; }
+nav details.export > div { position: absolute; z-index: 3; top: 1.8rem; left: 0; display: grid; gap: .1rem; min-width: 14rem; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .4rem .7rem; box-shadow: 0 4px 16px rgb(0 0 0 / .15); }
+nav details.export > div a { color: var(--accent); padding: .3rem 0; }
+@media (max-width: 600px) { nav details.export > div { position: fixed; top: auto; left: 16px; right: 16px; min-width: 0; } }
+@media print { nav details.export { display: none; } }
+nav a.app { margin-left: auto; color: var(--accent); font-weight: 650; }
+main, footer { max-width: 46rem; margin: 0 auto; padding: 0 16px; }
+main { padding-bottom: 2rem; }
+footer { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); margin-top: 2rem; padding-top: .5rem; padding-bottom: 2rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 1.4rem 0 .6rem; }
+h2 { font-size: 1.25rem; margin: 1.6rem 0 .4rem; }
+h3 { font-size: 1.05rem; margin: 1rem 0 .2rem; }
+a { color: var(--accent); }
+figure { margin: 1rem 0; }
+img, video { max-width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: block; }
+ol.do { padding-left: 1.4rem; font-size: 1.05rem; }
+ol.do li { margin: .35rem 0; }
+details { border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin: .7rem 0; padding: .1rem .9rem; }
+details[open] { padding-bottom: .5rem; }
+summary { cursor: pointer; font-weight: 600; padding: .55rem 0; }
+code { background: var(--code); padding: .05rem .3rem; border-radius: 5px; font-size: .9em; }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+.crumbs, .more { color: var(--muted); font-size: .9rem; }
+.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chips a { border: 1px solid var(--line); border-radius: 999px; padding: .15rem .7rem; text-decoration: none; background: var(--card); }
+ul.cards { list-style: none; padding: 0; display: grid; gap: .9rem; }
+li.card { display: grid; grid-template-columns: 7.5rem 1fr; gap: .8rem; align-items: start; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .6rem; }
+li.card:not(:has(img)) { grid-template-columns: 1fr; }
+li.card h3 { margin: 0 0 .15rem; }
+li.card p { margin: 0; color: var(--muted); font-size: .93rem; }
+@media (max-width: 420px) { li.card { grid-template-columns: 1fr; } }
+
+.export-bar p { max-width: 46rem; margin: 0 auto; padding: .6rem 16px; display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; font-size: .92rem; }
+.export-bar button { font: inherit; color: var(--bg); background: var(--accent); border: 0; border-radius: 999px; padding: .25rem .9rem; cursor: pointer; }
+nav.toc { display: block; padding: 0; max-width: none; font-size: 1rem; }
+nav.toc ol { padding-left: 1.2rem; }
+nav.toc ol ol { font-size: .93rem; }
+section.page { border-top: 1px solid var(--line); margin-top: 2.5rem; }
+@media print {
+  :root { --bg: #fff; --fg: #000; --muted: #444; --accent: #0b5a4c; --card: #fff; --line: #bbb; --code: #eee; }
+  header { position: static; display: none; }
+  body { font-size: 11pt; }
+  section.page { border-top: 0; margin-top: 0; break-before: page; }
+  img { max-height: 9cm; width: auto; break-inside: avoid; }
+  details > summary { list-style: none; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<header class="export-bar"><p><strong>Thoremin guide</strong><span>The whole guide on one page.</span><button type="button" onclick="print()">Save as PDF</button><a href="https://apps.thorwhalen.com/thoremin/guide/thoremin-guide.md">Markdown</a><a href="https://apps.thorwhalen.com/thoremin/guide/index.html">The guide online</a></p></header>
+<main>
+<h1>Thoremin guide</h1>
+<p>Thoremin turns your camera into a musical instrument. This is its player guide in one file; <a href="https://apps.thorwhalen.com/thoremin/guide/index.html">the guide online</a> is always the latest.</p>
+<nav class="toc" aria-label="Contents"><h2>Contents</h2><ol><li><a href="#index">Thoremin</a></li><li><a href="#instruments">Instruments</a><ol><li><a href="#areas-field">Field instruments</a><ol><li><a href="#instruments-bell-and-strings">Bell &amp; Strings</a></li><li><a href="#instruments-everything">Everything</a></li><li><a href="#instruments-finger-cues">Finger Cues</a></li><li><a href="#instruments-finger-fx">Finger FX</a></li><li><a href="#instruments-finger-gate">Finger Gate</a></li><li><a href="#instruments-glass-bells">Glass Bells</a></li><li><a href="#instruments-hand-shape-chords">Hand-shape Chords</a></li><li><a href="#instruments-head-chords">Head Chords</a></li><li><a href="#instruments-open-air-pad">Open Air Pad</a></li><li><a href="#instruments-pentatonic">Pentatonic</a></li><li><a href="#instruments-pitch-bender">Pitch Bender</a></li><li><a href="#instruments-pose-chords">Pose Chords</a></li><li><a href="#instruments-pulse-organ">Pulse Organ</a></li><li><a href="#instruments-split-voices">Split Voices</a></li><li><a href="#instruments-trigger-octaves">Trigger Octaves</a></li><li><a href="#instruments-wrist-theremin">Wrist Theremin</a></li></ol></li><li><a href="#areas-air">Air instruments</a><ol><li><a href="#instruments-air-bass">Air Bass</a></li><li><a href="#instruments-air-drum">Air Drum</a></li><li><a href="#instruments-air-flute">Air Flute</a></li><li><a href="#instruments-air-guitar">Air Guitar</a></li></ol></li><li><a href="#areas-chords">Chords and harmony</a><ol><li><a href="#instruments-chord-map-face">Chord Map + Face</a></li><li><a href="#instruments-chord-map-paths">Chord Map Paths</a></li><li><a href="#instruments-chord-map-strum">Chord Map Strum</a></li><li><a href="#instruments-chord-map">Chord Map</a></li><li><a href="#instruments-chord-wheel">Chord Wheel</a></li><li><a href="#instruments-conduct-the-chords-body">Conduct the Chords (Body)</a></li><li><a href="#instruments-conduct-the-chords">Conduct the Chords</a></li><li><a href="#instruments-face-wheel">Face Wheel</a></li><li><a href="#instruments-next-chord-wheel">Next-Chord Wheel</a></li><li><a href="#instruments-pentatonic-map">Pentatonic Map</a></li><li><a href="#instruments-play-along-microphone">Play Along (microphone)</a></li><li><a href="#instruments-play-along-midi">Play Along (MIDI)</a></li><li><a href="#instruments-tonnetz-wheel">Tonnetz Wheel</a></li><li><a href="#instruments-wheel-walk">Wheel Walk</a></li></ol></li><li><a href="#areas-sign">Sign instruments</a><ol><li><a href="#instruments-asl-chords">ASL Chords</a></li><li><a href="#instruments-asl-viewer">ASL Viewer</a></li><li><a href="#instruments-sign-map">Sign Map</a></li><li><a href="#instruments-sign-wheel">Sign Wheel</a></li></ol></li></ol></li><li><a href="#tools">Tools</a><ol><li><a href="#tools-annotations">Annotations</a></li><li><a href="#tools-assistant">Assistant</a></li><li><a href="#tools-commands">Commands</a></li><li><a href="#tools-conductor">Conductor</a></li><li><a href="#tools-faces">Your faces</a></li><li><a href="#tools-gestures">Gestures</a></li><li><a href="#tools-hand-shapes">Your hand shapes</a></li><li><a href="#tools-lab">Feature Lab</a></li><li><a href="#tools-patcher">Patcher</a></li><li><a href="#tools-poses">Your poses</a></li><li><a href="#tools-record">Record</a></li><li><a href="#tools-song">Song</a></li><li><a href="#tools-trainer">Trainer</a></li></ol></li><li><a href="#conduct-and-dance">Conduct and dance</a></li><li><a href="#teach-it-yourself">Teach it yourself</a></li><li><a href="#settings">Settings</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ol></nav>
+<section class="page" id="index">
+<h1>Thoremin</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/home.jpg" alt="Thoremin, with the instrument list open"></figure>
+<p>Thoremin turns your camera into a musical instrument. Hold a hand up and it plays; make a face and it plays chords; mime a drum, a bass, a guitar or a flute and it plays those; conduct an orchestra or dance to a song. It runs in your browser: nothing you play is uploaded.</p>
+<h2>Start in one minute</h2>
+<ol>
+<li>Open <a href="https://apps.thorwhalen.com/thoremin/">the app</a> in Chrome (other browsers work with a few gaps: see <a href="#troubleshooting">troubleshooting</a>) and allow the camera.</li>
+<li>Press <strong>Tap to play</strong>. Browsers need a tap before they will make any sound.</li>
+<li>Hold a hand up. Move it left and right for pitch, up and down for loudness. Raise a second hand for a second voice.</li>
+</ol>
+<p>No camera? Add <code>?slot.source=synthetic-hands</code> to the address and a pretend hand plays.</p>
+<h2>Pick something to try</h2>
+<ul>
+<li><strong><a href="#areas-field">Field instruments</a></strong>: play the air like a theremin, with fingers, faces and open hands shaping the sound.</li>
+<li><strong><a href="#areas-air">Air instruments</a></strong>: strike a drum, pluck a bass, strum a guitar, blow a flute, at nothing.</li>
+<li><strong><a href="#areas-chords">Chords and harmony</a></strong>: point at chords on a map or a wheel instead of notes.</li>
+<li><strong><a href="#areas-sign">Sign instruments</a></strong>: fingerspell and see or hear the letters.</li>
+<li><strong><a href="#conduct-and-dance">Conduct and dance</a></strong>: the <a href="#tools-conductor">Conductor</a> follows your beat; the <a href="#tools-song">Song</a> follows your pulse.</li>
+<li><strong><a href="#teach-it-yourself">Teach it yourself</a></strong>: <a href="#tools-faces">Your faces</a>, <a href="#tools-hand-shapes">Your hand shapes</a> and <a href="#tools-poses">Your poses</a> learn the faces, shapes and poses you can make.</li>
+</ul>
+
+<details open><summary>How the guide is arranged</summary>
+<p>Each page starts with what to do, in three lines. &quot;How it works&quot; and &quot;Settings&quot; are folded away until you want them. The <a href="#instruments">instruments</a> and the <a href="#tools">tools</a> each have a page; the <a href="#settings">settings</a> page explains every section of the instrument editor; and <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a> lists every knob. The <strong>Export</strong> menu at the top of every page gives you the whole guide as one file: one page of HTML, a PDF (it opens that page to print: choose Save as PDF) or Markdown.</p>
+</details>
+
+
+<details open><summary>Instruments, sounds and saving</summary>
+<p>An <strong>instrument</strong> is a named saved set of every setting: scales, sounds, ranges, finger routing, what the face does, what is drawn on the video. A <strong>sound</strong> is just the timbre (a bell, a pad, a reed). Open the instrument list to browse them: star the ones you like, give them your own tags, and hover one for a short summary. Editing an instrument marks it changed; <strong>Save</strong> asks before it overwrites the instrument; to keep both, type a name in the list&#39;s &quot;Save current sound as...&quot; box and press <strong>Save</strong>. Your working state survives a reload.</p>
+</details>
+
+
+</section>
+<section class="page" id="instruments">
+<h1>Instruments</h1><p>Every instrument that comes with thoremin, grouped by what you play it with. Open one for what to do, and how it works.</p>
+<h2><a href="#areas-field">Field instruments</a></h2><p>Play the air in front of the camera like a theremin: your hands choose the pitch and the loudness, and each instrument changes what the fingers, the face and the open hand do.</p><p class="chips"><a href="#instruments-bell-and-strings">Bell &amp; Strings</a><a href="#instruments-everything">Everything</a><a href="#instruments-finger-cues">Finger Cues</a><a href="#instruments-finger-fx">Finger FX</a><a href="#instruments-finger-gate">Finger Gate</a><a href="#instruments-glass-bells">Glass Bells</a><a href="#instruments-hand-shape-chords">Hand-shape Chords</a><a href="#instruments-head-chords">Head Chords</a><a href="#instruments-open-air-pad">Open Air Pad</a><a href="#instruments-pentatonic">Pentatonic</a><a href="#instruments-pitch-bender">Pitch Bender</a><a href="#instruments-pose-chords">Pose Chords</a><a href="#instruments-pulse-organ">Pulse Organ</a><a href="#instruments-split-voices">Split Voices</a><a href="#instruments-trigger-octaves">Trigger Octaves</a><a href="#instruments-wrist-theremin">Wrist Theremin</a></p>
+<h2><a href="#areas-air">Air instruments</a></h2><p>Mime an instrument and it plays: strike a drum, pluck a bass, strum a guitar or blow a flute at nothing.</p><p class="chips"><a href="#instruments-air-bass">Air Bass</a><a href="#instruments-air-drum">Air Drum</a><a href="#instruments-air-flute">Air Flute</a><a href="#instruments-air-guitar">Air Guitar</a></p>
+<h2><a href="#areas-chords">Chords and harmony</a></h2><p>Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct.</p><p class="chips"><a href="#instruments-chord-map-face">Chord Map + Face</a><a href="#instruments-chord-map-paths">Chord Map Paths</a><a href="#instruments-chord-map-strum">Chord Map Strum</a><a href="#instruments-chord-map">Chord Map</a><a href="#instruments-chord-wheel">Chord Wheel</a><a href="#instruments-conduct-the-chords-body">Conduct the Chords (Body)</a><a href="#instruments-conduct-the-chords">Conduct the Chords</a><a href="#instruments-face-wheel">Face Wheel</a><a href="#instruments-next-chord-wheel">Next-Chord Wheel</a><a href="#instruments-pentatonic-map">Pentatonic Map</a><a href="#instruments-play-along-microphone">Play Along (microphone)</a><a href="#instruments-play-along-midi">Play Along (MIDI)</a><a href="#instruments-tonnetz-wheel">Tonnetz Wheel</a><a href="#instruments-wheel-walk">Wheel Walk</a></p>
+<h2><a href="#areas-sign">Sign instruments</a></h2><p>Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter from A to G.</p><p class="chips"><a href="#instruments-asl-chords">ASL Chords</a><a href="#instruments-asl-viewer">ASL Viewer</a><a href="#instruments-sign-map">Sign Map</a><a href="#instruments-sign-wheel">Sign Wheel</a></p>
+</section>
+<section class="page" id="areas-field">
+<p class="crumbs"><a href="#instruments">Instruments</a></p><h1>Field instruments</h1><p>Play the air in front of the camera like a theremin: your hands choose the pitch and the loudness, and each instrument changes what the fingers, the face and the open hand do.</p><ul class="cards"><li class="card"><a href="#instruments-bell-and-strings"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/bell-and-strings.jpg" alt=""></a><div><h3><a href="#instruments-bell-and-strings">Bell &amp; Strings</a></h3><p>Raise both hands.</p></div></li><li class="card"><a href="#instruments-everything"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/everything.jpg" alt=""></a><div><h3><a href="#instruments-everything">Everything</a></h3><p>Play notes with your wrist.</p></div></li><li class="card"><a href="#instruments-finger-cues"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-cues.jpg" alt=""></a><div><h3><a href="#instruments-finger-cues">Finger Cues</a></h3><p>Hold a hand up so all your fingers show.</p></div></li><li class="card"><a href="#instruments-finger-fx"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-fx.jpg" alt=""></a><div><h3><a href="#instruments-finger-fx">Finger FX</a></h3><p>Hold a hand up so all your fingers show.</p></div></li><li class="card"><a href="#instruments-finger-gate"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-gate.jpg" alt=""></a><div><h3><a href="#instruments-finger-gate">Finger Gate</a></h3><p>Hold a hand up. Touch the index finger to the thumb to make a sound.</p></div></li><li class="card"><a href="#instruments-glass-bells"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/glass-bells.jpg" alt=""></a><div><h3><a href="#instruments-glass-bells">Glass Bells</a></h3><p>Look at the camera and change your expression: smile, open your mouth, raise your brows.</p></div></li><li class="card"><a href="#instruments-hand-shape-chords"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/hand-shape-chords.jpg" alt=""></a><div><h3><a href="#instruments-hand-shape-chords">Hand-shape Chords</a></h3><p>Make a hand shape and hold it a moment: an open hand, a fist, a pointing finger or a pinch.</p></div></li><li class="card"><a href="#instruments-head-chords"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/head-chords.jpg" alt=""></a><div><h3><a href="#instruments-head-chords">Head Chords</a></h3><p>Turn your head slowly from left to right to move through the key&#39;s chords.</p></div></li><li class="card"><a href="#instruments-open-air-pad"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/open-air-pad.jpg" alt=""></a><div><h3><a href="#instruments-open-air-pad">Open Air Pad</a></h3><p>Move a hand to play notes on a soft pad.</p></div></li><li class="card"><a href="#instruments-pentatonic"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pentatonic.jpg" alt=""></a><div><h3><a href="#instruments-pentatonic">Pentatonic</a></h3><p>Allow the camera, then tap anywhere to start the sound.</p></div></li><li class="card"><a href="#instruments-pitch-bender"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pitch-bender.jpg" alt=""></a><div><h3><a href="#instruments-pitch-bender">Pitch Bender</a></h3><p>Play a note by moving your hand.</p></div></li><li class="card"><a href="#instruments-pose-chords"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pose-chords.jpg" alt=""></a><div><h3><a href="#instruments-pose-chords">Pose Chords</a></h3><p>Stand back so the camera sees your whole body.</p></div></li><li class="card"><a href="#instruments-pulse-organ"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pulse-organ.jpg" alt=""></a><div><h3><a href="#instruments-pulse-organ">Pulse Organ</a></h3><p>Look at the camera and change your expression.</p></div></li><li class="card"><a href="#instruments-split-voices"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/split-voices.jpg" alt=""></a><div><h3><a href="#instruments-split-voices">Split Voices</a></h3><p>Raise both hands.</p></div></li><li class="card"><a href="#instruments-trigger-octaves"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/trigger-octaves.jpg" alt=""></a><div><h3><a href="#instruments-trigger-octaves">Trigger Octaves</a></h3><p>Play notes with your hand.</p></div></li><li class="card"><a href="#instruments-wrist-theremin"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/wrist-theremin.jpg" alt=""></a><div><h3><a href="#instruments-wrist-theremin">Wrist Theremin</a></h3><p>Hold a hand up and move it: the wrist, not the fingertip, plays the note.</p></div></li></ul>
+</section>
+<section class="page" id="instruments-bell-and-strings">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Bell &amp; Strings</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/bell-and-strings.jpg" alt="Bell &amp; Strings, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Raise both hands.</li><li>One hand rings like a bell, the other bows like strings.</li><li>Let the bells ring over a held string note.</li></ol>
+<p>A bell in one hand and strings in the other.</p>
+
+<details open><summary>How it works</summary>
+<p>The same two-voice setup as Split Voices, with a bell sound for one hand and a strings sound for the other.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><span></span><a href="#instruments-everything">Everything ›</a></p>
+</section>
+<section class="page" id="instruments-everything">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Everything</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/everything.jpg" alt="Everything, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Play notes with your wrist.</li><li>Bring the index, middle and ring fingertips toward the thumb for brightness, vibrato and pan; pinch the pinky to jump an octave.</li><li>Smile and change your expression to change the timbre.</li></ol>
+<p>Everything at once: wrist notes, all four fingers routed, the open hand brightening the tone, and the face shaping the timbre.</p>
+
+<details open><summary>How it works</summary>
+<p>It is a maximal setting of the same controls the other field instruments use, so it is a good place to see how much one instrument can hold. Switch things off in <strong>Hand</strong> and <strong>Face</strong> until it plays the way you like.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>, <a href="#settings--hand">Hand</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-bell-and-strings">‹ Bell &amp; Strings</a><a href="#instruments-finger-cues">Finger Cues ›</a></p>
+</section>
+<section class="page" id="instruments-finger-cues">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Finger Cues</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-cues.jpg" alt="Finger Cues, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a hand up so all your fingers show.</li><li>Watch the lines and the bars on the video: they show each finger&#39;s value.</li><li>Bring a fingertip toward the thumb to see its bar move and hear its effect.</li></ol>
+<p>Finger FX with every aid switched on, to learn how the fingers read.</p>
+
+<details open><summary>How it works</summary>
+<p>The four fingers are routed to effects as in Finger FX, and the video shows both a line from each fingertip to the thumb (with its value and effect) and a bar graph. The lines and bars are overlay elements: switch them on or off in <strong>Overlay</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--hand">Hand</a>, <a href="#settings--overlay">Overlay</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-everything">‹ Everything</a><a href="#instruments-finger-fx">Finger FX ›</a></p>
+</section>
+<section class="page" id="instruments-finger-fx">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Finger FX</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-fx.jpg" alt="Finger FX, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a hand up so all your fingers show.</li><li>Bring the index fingertip toward the thumb for a brighter tone, the middle for vibrato.</li><li>Bring the ring fingertip toward the thumb to pan, the pinky to bend the pitch.</li></ol>
+<p>Each finger is a control, measured by how close its tip is to your thumb. Lines on the video show which finger drives which effect, with its value.</p>
+
+<details open><summary>How it works</summary>
+<p>Every finger can be routed to an effect (brightness, vibrato, pan, pitch bend, octave, gate), continuously or as a trigger, with its own sensitivity. This instrument routes the index to brightness, the middle to vibrato, the ring to pan and the pinky to pitch bend.</p>
+</details>
+
+
+<details open><summary>Change the routing</summary>
+<p>In the editor, open <strong>Hand</strong>, then <strong>Finger effects</strong>. It lists the four fingers: pick an effect for each, continuous or trigger, and how strongly it reacts.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-finger-cues">‹ Finger Cues</a><a href="#instruments-finger-gate">Finger Gate ›</a></p>
+</section>
+<section class="page" id="instruments-finger-gate">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Finger Gate</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/finger-gate.jpg" alt="Finger Gate, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a hand up. Touch the index finger to the thumb to make a sound.</li><li>Let go to stop it.</li><li>Bring the middle fingertip toward the thumb to brighten the tone.</li></ol>
+<p>The index finger is a key: touching the thumb opens the sound, letting go closes it.</p>
+
+<details open><summary>How it works</summary>
+<p>The index finger is routed to the gate (the volume opens as the fingertip nears the thumb) and the middle finger to brightness. Your hand&#39;s position still chooses the note.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-finger-fx">‹ Finger FX</a><a href="#instruments-glass-bells">Glass Bells ›</a></p>
+</section>
+<section class="page" id="instruments-glass-bells">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Glass Bells</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/glass-bells.jpg" alt="Glass Bells, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Look at the camera and change your expression: smile, open your mouth, raise your brows.</li><li>Each expression plays a chord that rings as a shimmering arpeggio.</li><li>You can play with a hand at the same time.</li></ol>
+<p>Your face plays chords: the expression decides which chord of the key sounds, and the chord is played as a rising arpeggio.</p>
+
+<details open><summary>How it works</summary>
+<p>In <strong>Face</strong>, the mapping <em>Expression → chord</em> turns facial expressions into the chords of the key (a smile, a frown, a surprised face each pick a different one). The rendering <em>Arpeggio ↑</em> plays the chord&#39;s notes one after another at a steady tempo. Your own faces can replace the built-in ones: see <a href="#tools-faces">Your faces</a>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--face">Face</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-finger-gate">‹ Finger Gate</a><a href="#instruments-hand-shape-chords">Hand-shape Chords ›</a></p>
+</section>
+<section class="page" id="instruments-hand-shape-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Hand-shape Chords</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/hand-shape-chords.jpg" alt="Hand-shape Chords, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Make a hand shape and hold it a moment: an open hand, a fist, a pointing finger or a pinch.</li><li>Each shape plays its own chord of the key; a relaxed hand plays none.</li><li>Your hands&#39; height still plays the melody on top.</li></ol>
+<p>Four hand shapes, four chords. It plays a shipped example of a hand-shape categorizer, made from the app&#39;s own scripted hand, so it may not read your hand well: teach it your own shapes in <strong>Your hand shapes</strong> and choose them in <a href="#settings--categorizer-chords">Categorizer chords</a>.</p>
+
+<details open><summary>How it works</summary>
+<p>The shape of your hand is compared with the four shapes the example learned; the nearest one, held a moment, chooses the chord. The first shape plays the key&#39;s home chord, then the fourth, the fifth and the sixth (the strongest chords first); each can be changed in <strong>Categorizer chords</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--categorizer-chords">Categorizer chords</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-glass-bells">‹ Glass Bells</a><a href="#instruments-head-chords">Head Chords ›</a></p>
+</section>
+<section class="page" id="instruments-head-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Head Chords</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/head-chords.jpg" alt="Head Chords, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Turn your head slowly from left to right to move through the key&#39;s chords.</li><li>Open your mouth to sound the chord; close it to rest.</li><li>Smile to brighten it, raise your eyebrows to add the seventh, nod up or down for the octave.</li></ol>
+<p>Your head is a keyboard of chords: where you look picks the chord, your mouth plays it. Your expression does not choose the chord, so you can play it with a straight face.</p>
+
+<details open><summary>How it works</summary>
+<p>The head&#39;s turn is split into one slice per chord of the key, left to right, so a slow turn walks up the scale&#39;s chords. The chord sounds only while your mouth is open. A smile opens the sound and a frown darkens it, raised eyebrows add the seventh, and nodding up or down moves it an octave. Chords are voice-led: each one moves as little as it can from the last. The key and how the chord sounds are in <strong>Face</strong> and <strong>Sound</strong>. Your hands still play the melody on top.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--face">Face</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-hand-shape-chords">‹ Hand-shape Chords</a><a href="#instruments-open-air-pad">Open Air Pad ›</a></p>
+</section>
+<section class="page" id="instruments-open-air-pad">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Open Air Pad</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/open-air-pad.jpg" alt="Open Air Pad, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Move a hand to play notes on a soft pad.</li><li>Open your hand wide to make the sound brighter.</li><li>Close it to make it duller.</li></ol>
+<p>A glassy pad where the shape of your hand is the tone: open is bright, closed is dark.</p>
+
+<details open><summary>How it works</summary>
+<p>Notes come from the wrist. How open the hand is controls the brightness (a filter on the sound), so you can shape each note while you hold it.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>, <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-head-chords">‹ Head Chords</a><a href="#instruments-pentatonic">Pentatonic ›</a></p>
+</section>
+<section class="page" id="instruments-pentatonic">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Pentatonic</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pentatonic.jpg" alt="Pentatonic, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Allow the camera, then tap anywhere to start the sound.</li><li>Hold a hand up: left and right is pitch, up and down is loudness.</li><li>Raise a second hand for a second voice.</li></ol>
+<p>The gentle default. The index fingertip is the note, and the notes are snapped toward a five-note scale, so it is hard to play a wrong one.</p>
+
+<details open><summary>How it works</summary>
+<p>Your hand&#39;s position is read as a note of the scale (the pentatonic scale in C by default). <em>Magnetism</em> decides how hard the pitch snaps to the scale&#39;s notes: 0 % glides freely, 100 % jumps from note to note. Each hand is its own voice with its own scale, sound and range.</p>
+</details>
+
+
+<details open><summary>Make it yours</summary>
+<p>In the editor, <strong>Sound</strong> sets the root note, the scale, the octave range and the sound of each voice; <strong>Hand</strong> sets the magnetism and what the open hand and the pinch do. Save the result as your own instrument.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>, <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-open-air-pad">‹ Open Air Pad</a><a href="#instruments-pitch-bender">Pitch Bender ›</a></p>
+</section>
+<section class="page" id="instruments-pitch-bender">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Pitch Bender</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pitch-bender.jpg" alt="Pitch Bender, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Play a note by moving your hand.</li><li>Pinch the index finger toward the thumb to bend the pitch up.</li><li>Release to let it spring back down.</li></ol>
+<p>A whole-tone bend upward under your fingertips, like a guitar string.</p>
+
+<details open><summary>How it works</summary>
+<p>The distance between the index fingertip and the thumb is routed to pitch bend. A full bend is a whole tone, reached a little before your fingertip touches the thumb.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-pentatonic">‹ Pentatonic</a><a href="#instruments-pose-chords">Pose Chords ›</a></p>
+</section>
+<section class="page" id="instruments-pose-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Pose Chords</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pose-chords.jpg" alt="Pose Chords, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Stand back so the camera sees your whole body.</li><li>Hold a pose a moment: both arms up, the left arm out, the right arm out, or a crouch.</li><li>Each pose plays its own chord of the key; standing at rest plays none.</li></ol>
+<p>Four poses, four chords. It plays a shipped example of a pose categorizer, made from the app&#39;s own scripted body, so it may not read you well: teach it your own poses in <strong>Your poses</strong> and choose them in <a href="#settings--categorizer-chords">Categorizer chords</a>.</p>
+
+<details open><summary>How it works</summary>
+<p>The body camera reads your pose, and the nearest of the four poses the example learned, held a moment, chooses the chord. The first pose plays the key&#39;s home chord, then the fourth, the fifth and the sixth; each can be changed in <strong>Categorizer chords</strong>. It needs the body camera, so it starts a little slower than a hands-only instrument.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--categorizer-chords">Categorizer chords</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-pitch-bender">‹ Pitch Bender</a><a href="#instruments-pulse-organ">Pulse Organ ›</a></p>
+</section>
+<section class="page" id="instruments-pulse-organ">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Pulse Organ</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pulse-organ.jpg" alt="Pulse Organ, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Look at the camera and change your expression.</li><li>Each expression plays a chord that pulses like an organ.</li><li>Play a hand on top.</li></ol>
+<p>The same face-chord idea, but the chord is re-struck in a steady rhythm instead of arpeggiated.</p>
+
+<details open><summary>How it works</summary>
+<p>The rendering <em>pulse</em> repeats the chord at a tempo. Everything else works as in <a href="#instruments-glass-bells">Glass Bells</a>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--face">Face</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-pose-chords">‹ Pose Chords</a><a href="#instruments-split-voices">Split Voices ›</a></p>
+</section>
+<section class="page" id="instruments-split-voices">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Split Voices</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/split-voices.jpg" alt="Split Voices, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Raise both hands.</li><li>The right hand plays one sound, the left hand another.</li><li>Move each hand on its own.</li></ol>
+<p>Two different instruments, one in each hand.</p>
+
+<details open><summary>How it works</summary>
+<p>Each hand is a voice with its own scale, sound and range. In <strong>Sound</strong>, &quot;Sync both hands&quot; makes the left voice copy the right; switch it off to give the left hand its own scale, sound and range.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-pulse-organ">‹ Pulse Organ</a><a href="#instruments-trigger-octaves">Trigger Octaves ›</a></p>
+</section>
+<section class="page" id="instruments-trigger-octaves">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Trigger Octaves</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/trigger-octaves.jpg" alt="Trigger Octaves, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Play notes with your hand.</li><li>Pinch the index finger for a jump of one octave up.</li><li>Pinch the middle finger and hold it to let the sound through; let go and it stops.</li></ol>
+<p>Two discrete triggers instead of continuous ones: a pinch is a switch.</p>
+
+<details open><summary>How it works</summary>
+<p>Fingers can act as continuous controls or as triggers that fire once when you cross a threshold. Here the index trigger shifts the octave and the middle trigger opens the gate (no pinch, no sound).</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-split-voices">‹ Split Voices</a><a href="#instruments-wrist-theremin">Wrist Theremin ›</a></p>
+</section>
+<section class="page" id="instruments-wrist-theremin">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-field">Field instruments</a></p>
+<h1>Wrist Theremin</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/wrist-theremin.jpg" alt="Wrist Theremin, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a hand up and move it: the wrist, not the fingertip, plays the note.</li><li>Make a fist to silence that hand.</li><li>Open the hand again to bring the sound back.</li></ol>
+<p>Steadier and easier for a beginner than the fingertip: the whole hand is the pointer, and a closed fist mutes it.</p>
+
+<details open><summary>How it works</summary>
+<p>The note position comes from the wrist instead of the index fingertip, which jitters less. A closed hand is read as a fist and gates the voice off, an open hand lets it sound.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sound">Sound</a>, <a href="#settings--hand">Hand</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-trigger-octaves">‹ Trigger Octaves</a><span></span></p>
+</section>
+<section class="page" id="areas-air">
+<p class="crumbs"><a href="#instruments">Instruments</a></p><h1>Air instruments</h1><p>Mime an instrument and it plays: strike a drum, pluck a bass, strum a guitar or blow a flute at nothing.</p><ul class="cards"><li class="card"><a href="#instruments-air-bass"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-bass.jpg" alt=""></a><div><h3><a href="#instruments-air-bass">Air Bass</a></h3><p>Hold both hands up in front of you.</p></div></li><li class="card"><a href="#instruments-air-drum"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-drum.jpg" alt=""></a><div><h3><a href="#instruments-air-drum">Air Drum</a></h3><p>Hold a hand like you hold a drumstick and strike downward.</p></div></li><li class="card"><a href="#instruments-air-flute"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-flute.jpg" alt=""></a><div><h3><a href="#instruments-air-flute">Air Flute</a></h3><p>First teach it your fingerings (the editor&#39;s Air flute section).</p></div></li><li class="card"><a href="#instruments-air-guitar"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-guitar.jpg" alt=""></a><div><h3><a href="#instruments-air-guitar">Air Guitar</a></h3><p>First teach it your chord shapes (the editor&#39;s Air guitar section).</p></div></li></ul>
+</section>
+<section class="page" id="instruments-air-bass">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-air">Air instruments</a></p>
+<h1>Air Bass</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-bass.jpg" alt="Air Bass, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold both hands up in front of you.</li><li>Slide the distance between them to choose the note: that is the neck.</li><li>Pluck with your other hand to sound it.</li></ol>
+<p>A bass played in the air: one hand is the neck, the other plucks.</p>
+
+<details open><summary>How it works</summary>
+<p>The distance between the hands is read as a position on the neck, snapped to the notes of the scale. A plucking gesture of the other hand sounds the note, predicted before the frame that shows it so it sounds on time.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--air-bass">Air bass</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><span></span><a href="#instruments-air-drum">Air Drum ›</a></p>
+</section>
+<section class="page" id="instruments-air-drum">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-air">Air instruments</a></p>
+<h1>Air Drum</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-drum.jpg" alt="Air Drum, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a hand like you hold a drumstick and strike downward.</li><li>Strike once or twice to teach it where your plane is.</li><li>Right hand plays the kick, left hand the snare; add pads to give places on screen their own drums.</li></ol>
+<p>Strike at nothing and the drum sounds, on time.</p>
+
+<details open><summary>How it works</summary>
+<p>A stick tip is estimated from the way you hold your hand. The hit is <em>predicted</em> from how the stroke approaches, so it sounds when you meant it instead of a camera frame late. With no pads, each hand plays its own drum (right: kick, left: snare). Pads are places on the video: a stroke that lands on one plays that pad&#39;s sound. How fast the stroke was chooses how loud. Pads can be stacked and moved.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p><strong>Air drum</strong> in the editor has the pad editor, the stick point, each hand&#39;s drum sound, how fast a stroke must be to sound at full volume, the lead, and a pattern trainer that drills short drum patterns. Pad layouts can be saved.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--air-drum">Air drum</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-air-bass">‹ Air Bass</a><a href="#instruments-air-flute">Air Flute ›</a></p>
+</section>
+<section class="page" id="instruments-air-flute">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-air">Air instruments</a></p>
+<h1>Air Flute</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-flute.jpg" alt="Air Flute, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>First teach it your fingerings (the editor&#39;s Air flute section).</li><li>Lift fingers to choose the note.</li><li>Blow, with the mouth shape you taught, to make the sound.</li></ol>
+<p>Finger a note in the air and blow to play it.</p>
+
+<details open><summary>How it works</summary>
+<p>Which fingers are lifted chooses the note (charts for seven wind instruments are built in as a guide). A mouth shape you enrol as &quot;blowing&quot; gates the sound. A sequence trainer walks you through target notes.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--air-flute">Air flute</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-air-drum">‹ Air Drum</a><a href="#instruments-air-guitar">Air Guitar ›</a></p>
+</section>
+<section class="page" id="instruments-air-guitar">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-air">Air instruments</a></p>
+<h1>Air Guitar</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/air-guitar.jpg" alt="Air Guitar, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>First teach it your chord shapes (the editor&#39;s Air guitar section).</li><li>Make a chord shape with one hand.</li><li>Strum with the other: it plays that chord on six strings.</li></ol>
+<p>You decide what a chord shape looks like. It learns your own hand shapes, then plays the right chord when you strum.</p>
+
+<details open><summary>How it works</summary>
+<p>The chord shapes you enrol are the ones it recognises, so you can use any shapes you like. A strum is predicted before the frame that shows it. A hand-shape model you carved with <a href="#tools-hand-shapes">Your hand shapes</a> can be the chords.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--air-guitar">Air guitar</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-air-flute">‹ Air Flute</a><span></span></p>
+</section>
+<section class="page" id="areas-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a></p><h1>Chords and harmony</h1><p>Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct.</p><ul class="cards"><li class="card"><a href="#instruments-chord-map-face"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-face.jpg" alt=""></a><div><h3><a href="#instruments-chord-map-face">Chord Map + Face</a></h3><p>Point at a chord with your left hand, as on the Chord Map.</p></div></li><li class="card"><a href="#instruments-chord-map-paths"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-paths.jpg" alt=""></a><div><h3><a href="#instruments-chord-map-paths">Chord Map Paths</a></h3><p>Hold your left hand over C, the middle chord. A dashed trail shows the next chords of Pachelbel&#39;s Canon.</p></div></li><li class="card"><a href="#instruments-chord-map-strum"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-strum.jpg" alt=""></a><div><h3><a href="#instruments-chord-map-strum">Chord Map Strum</a></h3><p>Point at a chord with your left hand.</p></div></li><li class="card"><a href="#instruments-chord-map"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map.jpg" alt=""></a><div><h3><a href="#instruments-chord-map">Chord Map</a></h3><p>Hold your left hand over a chord on the map: that chord sounds and keeps sounding.</p></div></li><li class="card"><a href="#instruments-chord-wheel"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-wheel.jpg" alt=""></a><div><h3><a href="#instruments-chord-wheel">Chord Wheel</a></h3><p>Hold your left hand in the middle of the wheel: that chord keeps sounding.</p></div></li><li class="card"><a href="#instruments-conduct-the-chords-body"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/conduct-the-chords-body.jpg" alt=""></a><div><h3><a href="#instruments-conduct-the-chords-body">Conduct the Chords (Body)</a></h3><p>Stand back so the camera sees you from the head to the hips; it loads a Haydn string quartet.</p></div></li><li class="card"><a href="#instruments-conduct-the-chords"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/conduct-the-chords.jpg" alt=""></a><div><h3><a href="#instruments-conduct-the-chords">Conduct the Chords</a></h3><p>Choose this instrument; it loads a Haydn string quartet.</p></div></li><li class="card"><a href="#instruments-face-wheel"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/face-wheel.jpg" alt=""></a><div><h3><a href="#instruments-face-wheel">Face Wheel</a></h3><p>Look at the camera with a calm face.</p></div></li><li class="card"><a href="#instruments-next-chord-wheel"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/next-chord-wheel.jpg" alt=""></a><div><h3><a href="#instruments-next-chord-wheel">Next-Chord Wheel</a></h3><p>Hold a chord with your left hand.</p></div></li><li class="card"><a href="#instruments-pentatonic-map"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pentatonic-map.jpg" alt=""></a><div><h3><a href="#instruments-pentatonic-map">Pentatonic Map</a></h3><p>Point at a chord with your left hand.</p></div></li><li class="card"><a href="#instruments-play-along-microphone"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/play-along-microphone.jpg" alt=""></a><div><h3><a href="#instruments-play-along-microphone">Play Along (microphone)</a></h3><p>Allow the microphone, then play a guitar, a piano, or a recording.</p></div></li><li class="card"><a href="#instruments-play-along-midi"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/play-along-midi.jpg" alt=""></a><div><h3><a href="#instruments-play-along-midi">Play Along (MIDI)</a></h3><p>Connect a MIDI keyboard (in Chrome or Edge) and play chords on it.</p></div></li><li class="card"><a href="#instruments-tonnetz-wheel"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tonnetz-wheel.jpg" alt=""></a><div><h3><a href="#instruments-tonnetz-wheel">Tonnetz Wheel</a></h3><p>Hold a chord with your left hand.</p></div></li><li class="card"><a href="#instruments-wheel-walk"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/wheel-walk.jpg" alt=""></a><div><h3><a href="#instruments-wheel-walk">Wheel Walk</a></h3><p>Hold your left hand on a chord.</p></div></li></ul>
+</section>
+<section class="page" id="instruments-chord-map-face">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Chord Map + Face</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-face.jpg" alt="Chord Map + Face, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Point at a chord with your left hand, as on the Chord Map.</li><li>Hold a smile to turn the key major; hold a frown to turn it minor.</li><li>Open your mouth and raise your brows to add a seventh, then a ninth.</li></ol>
+<p>The chord map, coloured by your face. Your hands still choose the chord; your face changes its colour.</p>
+
+<details open><summary>How it works</summary>
+<p>Your face never chooses a chord: it colours the one your hands hold. A smile held for about a second turns the key to its major (A minor becomes A major), a frown back to minor, and a neutral face plays the key as set. Opening your mouth with raised brows adds tension: first the key&#39;s seventh, then its ninth. The face is read against your own face at rest, learned in the first calm seconds you play, so brows that naturally sit high or a shadow that looks like a frown count for nothing. This instrument starts in A minor so the smile has somewhere to go.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord map</strong>: whether the face colours the map, and separately whether it turns the key major or minor and whether it adds sevenths and ninths; how long a smile must be held; and whether the face is read against your rest (on) or against fixed levels. The face model itself is set up in <strong>Face</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><span></span><a href="#instruments-chord-map-paths">Chord Map Paths ›</a></p>
+</section>
+<section class="page" id="instruments-chord-map-paths">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Chord Map Paths</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-paths.jpg" alt="Chord Map Paths, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold your left hand over C, the middle chord. A dashed trail shows the next chords of Pachelbel&#39;s Canon.</li><li>Follow the trail one chord at a time; each chord you reach moves the trail on.</li><li>Read the words around your chord to see what each move does, and watch the torus above light up the loop of the move you just made.</li></ol>
+<p>The chord map as a teacher: it draws a famous chord path ahead of you, tells you what each move does, and shows the seven chords on a turning torus.</p>
+
+<details open><summary>How it works</summary>
+<p>This is the Chord Map with three helpers switched on. The dashed trail is Pachelbel&#39;s ground (I V vi iii IV I IV V), drawn from the chord you are holding to the next ones; play the next chord and the trail moves on, wander off and it waits where you left it. The words on the moves around your chord say how many notes the move keeps, whether it turns darker or brighter, and how expected it is after the chord you hold. The torus shows why every chord is one reach away: on its surface each of the seven touches all the others, along three loops (seconds, thirds, fourths), the same three directions as the honeycomb.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p><strong>Chord map</strong> in the editor: <strong>Trail to follow</strong> picks another path (the Romanesca, the circle of fifths, the Andalusian cadence, the fifties progression, and more) or none; <strong>Trail length</strong> how far ahead it shows; <strong>Move captions</strong> the words on the moves; <strong>Show the chords on a turning torus</strong> and its speed. The key is in <strong>Sound</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-chord-map-face">‹ Chord Map + Face</a><a href="#instruments-chord-map-strum">Chord Map Strum ›</a></p>
+</section>
+<section class="page" id="instruments-chord-map-strum">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Chord Map Strum</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map-strum.jpg" alt="Chord Map Strum, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Point at a chord with your left hand.</li><li>Strum down or up with your right hand.</li><li>The chord sounds as a guitar strum, timed to your stroke.</li></ol>
+<p>The chord map, strummed like the air guitar.</p>
+
+<details open><summary>How it works</summary>
+<p>Your left hand chooses the chord on the map exactly as on the Chord Map. Your right hand strums: each stroke is predicted a moment before the camera shows it, so the strum lands when you meant it rather than a frame late. The chord is voiced as a guitarist would play it, low string first, with strings it does not use muted. A stroke the camera only caught late still sounds, at once and a little softer.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord map</strong>, with play set to strum: which point of the strumming hand is followed (the wrist or a fingertip), how far apart the strings sound, how big and fast a stroke must be to count, how far ahead a strum is committed, and the strum&#39;s volume.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-chord-map-paths">‹ Chord Map Paths</a><a href="#instruments-chord-map">Chord Map ›</a></p>
+</section>
+<section class="page" id="instruments-chord-map">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Chord Map</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-map.jpg" alt="Chord Map, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold your left hand over a chord on the map: that chord sounds and keeps sounding.</li><li>Raise and lower your right hand to play a melody on the chord&#39;s notes.</li><li>Move the left hand to a neighbouring chord: the change is smooth, the shared notes held.</li></ol>
+<p>A key&#39;s seven chords laid out on the video like a map. Your left hand chooses the chord, your right hand sings over it.</p>
+
+<details open><summary>How it works</summary>
+<p>The map is a honeycomb of the key&#39;s chords (C major by default, the key the Sound section sets). Each chord&#39;s six neighbours are the other six chords, so any change is one short reach away: across is a fourth, the diagonals a third and a second. A chord is chosen when your hand&#39;s palm has been over it for a moment, and it stays chosen a little after your hand leaves the map, so a shaky hand at a border never flickers between two chords. Each change is played the way a pianist would, moving each voice as little as it can.</p>
+<p>Your right hand plays the melody: its height picks a note from the chord, an octave above it. Hold the hand upright for the chord&#39;s own notes, tilt it for a pentatonic, tilt it further for the whole scale.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p><strong>Chord map</strong> in the editor: the layout (the honeycomb map, one row by fifths, or one row in scale order); hold or strum; which hand points and with what (the palm or a fingertip); how big the chords are drawn; the melody&#39;s notes and volume; seventh chords; the words on each move (the interval, or what the move does); a known chord path to follow, drawn ahead of your chord as a trail; whether the map is drawn on the video; and what keeps the beat for arpeggios (the Chord sound&#39;s tempo, or the song loaded in the Song tool). A new chord can also wait for the next beat, so changes land in time. The key and the way a held chord sounds (sustained, arpeggiated, its tempo) are in <strong>Sound</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-chord-map-strum">‹ Chord Map Strum</a><a href="#instruments-chord-wheel">Chord Wheel ›</a></p>
+</section>
+<section class="page" id="instruments-chord-wheel">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Chord Wheel</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/chord-wheel.jpg" alt="Chord Wheel, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold your left hand in the middle of the wheel: that chord keeps sounding.</li><li>Push the hand toward one of the moves around it and hold a moment.</li><li>The chord changes to that move, and the wheel recentres on it.</li></ol>
+<p>The chord you are on sits in the middle; the ways to leave it sit around it. Push toward one to go there.</p>
+
+<details open><summary>How it works</summary>
+<p>Around the chord in the middle are the key&#39;s six moves from it: up a fourth, down a fourth, to the relative chord, and so on, each labelled with the chord it leads to. Push your hand out past a small dead zone toward a move and hold it there briefly; the chord changes and the wheel turns so the new chord is in the middle. Each change is played smoothly, every voice moving as little as it can.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p><strong>Chord wheel</strong> in the editor: which moves (the key&#39;s, or the Tonnetz&#39;s, which leave the key); which hand steers, and with what; the wheel&#39;s size; how far to push and how long to hold before a move is made; walking on the beat; the tension shown under each chord and which model measures it; the order of the moves (fixed, or the likeliest next chord on top); and what keeps the beat for arpeggios. The key and how chords sound are in <strong>Sound</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-chord-map">‹ Chord Map</a><a href="#instruments-conduct-the-chords-body">Conduct the Chords (Body) ›</a></p>
+</section>
+<section class="page" id="instruments-conduct-the-chords-body">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Conduct the Chords (Body)</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/conduct-the-chords-body.jpg" alt="Conduct the Chords (Body), as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Stand back so the camera sees you from the head to the hips; it loads a Haydn string quartet.</li><li>Open the Conductor tool and conduct with your whole arm, as on a podium.</li><li>The quartet&#39;s chords play on your beats; raise your arm and hold still to pause, drop it to stop.</li></ol>
+<p><a href="#instruments-conduct-the-chords">Conduct the Chords</a>, conducted with your body instead of a hand held up to the camera: the body camera follows your beating arm and your trunk, so you can stand back and move freely.</p>
+
+<details open><summary>How it works</summary>
+<p>The body camera finds the beat in your beating arm and the bounce of your trunk. Raise the arm and hold still to get ready, give one upbeat, and the next stroke is the downbeat. Hold the arm up and still to pause, drop it to stop. Everything else works as in <a href="#instruments-conduct-the-chords">Conduct the Chords</a>. It needs the Conductor and the body camera, so it starts a little slower than a hands-only instrument.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-chart">Chord chart</a>, <a href="#settings--conductor">Conductor</a>, <a href="#settings--sound">Sound</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-chord-wheel">‹ Chord Wheel</a><a href="#instruments-conduct-the-chords">Conduct the Chords ›</a></p>
+</section>
+<section class="page" id="instruments-conduct-the-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Conduct the Chords</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/conduct-the-chords.jpg" alt="Conduct the Chords, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Choose this instrument; it loads a Haydn string quartet.</li><li>Open the Conductor tool and start conducting: beat time in front of the camera.</li><li>The quartet&#39;s chords play on your beats, under the first violin&#39;s tune.</li></ol>
+<p>Conduct a piece and hear its harmony: the chords of the score, played on your beat.</p>
+
+<details open><summary>How it works</summary>
+<p>The piece is read for its chords, beat by beat, setting aside passing notes and drums. As you conduct, the chord of the moment is played voice-led and arpeggiated on your beat, while the conductor plays the first violin&#39;s melody; the quartet is not doubled. Where the score marks a pause, the chord holds as long as you hold it; when you speed up or slow down, the chords follow. This instrument needs the Conductor.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p><strong>Chord chart</strong> in the editor: on or off, and how much of the piece is read as one chord (every beat for fast harmony, two beats or a bar for slow). How the chord sounds is the chord sound in <strong>Sound</strong>; the piece, the parts and the conducting are in <strong>Conductor</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-chart">Chord chart</a>, <a href="#settings--conductor">Conductor</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-conduct-the-chords-body">‹ Conduct the Chords (Body)</a><a href="#instruments-face-wheel">Face Wheel ›</a></p>
+</section>
+<section class="page" id="instruments-face-wheel">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Face Wheel</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/face-wheel.jpg" alt="Face Wheel, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Look at the camera with a calm face.</li><li>Hold an expression for a moment: a smile moves to one chord, a sad face to another.</li><li>Each expression you hold is a move on the wheel.</li></ol>
+<p>The chord wheel steered by your face instead of your hand.</p>
+
+<details open><summary>How it works</summary>
+<p>Each expression stands for one of the wheel&#39;s moves: for example a smile goes to the dominant and a sad face to the relative minor. Hold the expression for a short moment and the move is made, then relax before the next one. Only your face moves the wheel, so your hands make no sound here; the chord sounds as you change it. Set the wheel to steer with both if you also want to push it with a hand.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord wheel</strong>: what steers it (your hand, your face, or both) and how long an expression must be held. The face model itself is set up in <strong>Face</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-conduct-the-chords">‹ Conduct the Chords</a><a href="#instruments-next-chord-wheel">Next-Chord Wheel ›</a></p>
+</section>
+<section class="page" id="instruments-next-chord-wheel">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Next-Chord Wheel</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/next-chord-wheel.jpg" alt="Next-Chord Wheel, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a chord with your left hand.</li><li>The likeliest next chord is on top; push up to take it.</li><li>Raise your right hand to bring rarer, more surprising chords to the top.</li></ol>
+<p>A wheel that turns to put the most usual next chord on top, with how far each chord is from home written under it.</p>
+
+<details open><summary>How it works</summary>
+<p>The wheel ranks the key&#39;s moves from the chord you are on by how often composers make them, so the top move is always the expected one: pushing up from C plays the classic C, F, G, C. Under each chord a number says how far it is from the key&#39;s home chord, so you can see tension rise and fall. Raising your right hand (or the surprise setting) brings the less usual moves to the top, where music starts to sound fresh.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord wheel</strong>: the order of the moves (fixed, or likeliest on top), how surprising the top moves are and what sets it (the setting, your other hand&#39;s height, or your face), and the tension shown under each chord with the model that measures it (they disagree, so the model is always named).</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-face-wheel">‹ Face Wheel</a><a href="#instruments-pentatonic-map">Pentatonic Map ›</a></p>
+</section>
+<section class="page" id="instruments-pentatonic-map">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Pentatonic Map</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/pentatonic-map.jpg" alt="Pentatonic Map, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Point at a chord with your left hand.</li><li>Play a melody with your right hand.</li><li>The map holds the five chords made from the pentatonic scale itself.</li></ol>
+<p>The chord map for a pentatonic scale&#39;s own five chords: open, folky harmony where nothing clashes.</p>
+
+<details open><summary>How it works</summary>
+<p>Instead of a key&#39;s seven chords, the map lays out the chords you get by stacking the pentatonic&#39;s own notes: in C, a C6, a Gsus4, an Asus4, a C and a Dsus4. These are the suspended, open sounds of folk and pop harmony. The five chords sit on five cells, and every step between neighbours reaches all five. The melody hand plays the notes of the chord you are on, which all come from the scale, so nothing clashes. Choose the pentatonic or tilt under Melody notes to play the whole scale.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord map</strong>: the chords can come from the key (seven chords) or from the scale itself (here, five). The scale is chosen in <strong>Sound</strong>; with a pentatonic (major or minor) the map can use the scale&#39;s own five chords, and any other scale uses its key&#39;s seven.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-next-chord-wheel">‹ Next-Chord Wheel</a><a href="#instruments-play-along-microphone">Play Along (microphone) ›</a></p>
+</section>
+<section class="page" id="instruments-play-along-microphone">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Play Along (microphone)</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/play-along-microphone.jpg" alt="Play Along (microphone), as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Allow the microphone, then play a guitar, a piano, or a recording.</li><li>The chords it hears light up on the map a moment later.</li><li>Play a melody over them with your hand.</li></ol>
+<p>The microphone chooses the chords; your hand plays the melody over them.</p>
+
+<details open><summary>How it works</summary>
+<p>The app listens for the notes sounding and matches them against the chords it knows. Only a clear chord counts, and only once it has lasted about a quarter of a second, so a passing note does not change the chord. The microphone is opened only while a map follows it, and the browser asks your permission first. Play the chords near the computer; a quiet room helps.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord map</strong>: what chooses the chords (your hand, a MIDI keyboard, or the microphone), and how long a heard chord must last before it counts.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-pentatonic-map">‹ Pentatonic Map</a><a href="#instruments-play-along-midi">Play Along (MIDI) ›</a></p>
+</section>
+<section class="page" id="instruments-play-along-midi">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Play Along (MIDI)</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/play-along-midi.jpg" alt="Play Along (MIDI), as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Connect a MIDI keyboard (in Chrome or Edge) and play chords on it.</li><li>The chord you hold lights up on the map.</li><li>Play a melody over it with your hand.</li></ol>
+<p>A MIDI keyboard chooses the chords; your hand plays the melody over them.</p>
+
+<details open><summary>How it works</summary>
+<p>Hold a chord on the keyboard, in any inversion, and after a very short pause it lights up on the map, as if your hand were pointing at it. Your other hand plays the melody on that chord, or strums it if the map is set to strum. The app listens to MIDI keyboards only while a map follows MIDI, and the browser asks your permission the first time. Safari has no MIDI support: use Chrome or Edge.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord map</strong>: what chooses the chords (your hand, a MIDI keyboard, or the microphone), and how long a held chord must be steady before it counts.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-play-along-microphone">‹ Play Along (microphone)</a><a href="#instruments-tonnetz-wheel">Tonnetz Wheel ›</a></p>
+</section>
+<section class="page" id="instruments-tonnetz-wheel">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Tonnetz Wheel</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tonnetz-wheel.jpg" alt="Tonnetz Wheel, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold a chord with your left hand.</li><li>Push toward a move and hold.</li><li>These moves leave the key: each changes one or two notes of the chord.</li></ol>
+<p>The chord wheel with moves that wander out of the key, the way film music slides between distant chords.</p>
+
+<details open><summary>How it works</summary>
+<p>The Tonnetz is a map of chords where neighbours share two of their three notes. Each move here changes one note (or two) and keeps the rest: C major to C minor, C major to A minor, C major to E minor, and so on. Because no key holds them in, a few moves take you far from where you started while every single step still sounds close. Each move undoes itself, so pushing the same way twice brings you back.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord wheel</strong>: the move set (the key&#39;s moves or the Tonnetz&#39;s), and everything else as on the <a href="#instruments-chord-wheel">Chord Wheel</a>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-play-along-midi">‹ Play Along (MIDI)</a><a href="#instruments-wheel-walk">Wheel Walk ›</a></p>
+</section>
+<section class="page" id="instruments-wheel-walk">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-chords">Chords and harmony</a></p>
+<h1>Wheel Walk</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/wheel-walk.jpg" alt="Wheel Walk, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Hold your left hand on a chord.</li><li>Push toward a move and keep holding it out.</li><li>The wheel keeps making that move, one per beat: up walks the cycle of fourths.</li></ol>
+<p>Walk a chain of chords on the beat by holding a push.</p>
+
+<details open><summary>How it works</summary>
+<p>Instead of one change per push, a push held out keeps making the same move on every beat. Pushing toward the fourth walks all seven chords of the key and comes home. The chords are arpeggiated so you can hear the beat, and the beat is the Chord sound&#39;s tempo (or a song you loaded). Bring your hand back to the middle to stop.</p>
+</details>
+
+
+<details open><summary>Settings</summary>
+<p>In <strong>Chord wheel</strong>: walking on the beat, and every how many beats a move is made. The tempo and the arpeggio pattern are in <strong>Sound</strong>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-tonnetz-wheel">‹ Tonnetz Wheel</a><span></span></p>
+</section>
+<section class="page" id="areas-sign">
+<p class="crumbs"><a href="#instruments">Instruments</a></p><h1>Sign instruments</h1><p>Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter from A to G.</p><ul class="cards"><li class="card"><a href="#instruments-asl-chords"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/asl-chords.jpg" alt=""></a><div><h3><a href="#instruments-asl-chords">ASL Chords</a></h3><p>Fingerspell the letters A to G.</p></div></li><li class="card"><a href="#instruments-asl-viewer"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/asl-viewer.jpg" alt=""></a><div><h3><a href="#instruments-asl-viewer">ASL Viewer</a></h3><p>Allow the camera and hold a hand up.</p></div></li><li class="card"><a href="#instruments-sign-map"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/sign-map.jpg" alt=""></a><div><h3><a href="#instruments-sign-map">Sign Map</a></h3><p>Fingerspell a letter from A to G with your higher hand: its chord lights up on the map.</p></div></li><li class="card"><a href="#instruments-sign-wheel"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/sign-wheel.jpg" alt=""></a><div><h3><a href="#instruments-sign-wheel">Sign Wheel</a></h3><p>Fingerspell a letter from A to G and hold it a moment.</p></div></li></ul>
+</section>
+<section class="page" id="instruments-asl-chords">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-sign">Sign instruments</a></p>
+<h1>ASL Chords</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/asl-chords.jpg" alt="ASL Chords, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Fingerspell the letters A to G.</li><li>Each letter plays the chord of the key rooted on that letter.</li><li>The chord&#39;s name shows under the sign.</li></ol>
+<p>Letters play chords: in D major, F plays F-sharp minor and C plays C-sharp diminished, because the key&#39;s accidentals apply.</p>
+
+<details open><summary>How it works</summary>
+<p>The recognised letter is turned into the chord of the key, then voiced like the face chords. The key, sound and voicing are the same settings as the face chords (<strong>Face</strong>); the Sign language section also has the key, the sound and the volume. With the voicing set to Voice-led, each chord moves as little as it can from the one before, keeping the notes they share, as on the chord wheel.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sign-language">Sign language</a>, <a href="#settings--sound">Sound</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><span></span><a href="#instruments-asl-viewer">ASL Viewer ›</a></p>
+</section>
+<section class="page" id="instruments-asl-viewer">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-sign">Sign instruments</a></p>
+<h1>ASL Viewer</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/asl-viewer.jpg" alt="ASL Viewer, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Allow the camera and hold a hand up.</li><li>Fingerspell a letter or sign a word.</li><li>The sign is written large on the video, with a bar for every sign it knows.</li></ol>
+<p>See what the camera reads: the American Sign Language alphabet and a few common words (yes, no, hello, thank you, please, bye). The moving letters J and Z and the word sorry are not read reliably yet: the reader is trained only on openly licensed recordings, and too few of those show them.</p>
+
+<details open><summary>How it works</summary>
+<p>A small recogniser reads the shape of your hand. It downloads only when you first open an ASL instrument, so the rest of the app never pays for it.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--sign-language">Sign language</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-asl-chords">‹ ASL Chords</a><a href="#instruments-sign-map">Sign Map ›</a></p>
+</section>
+<section class="page" id="instruments-sign-map">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-sign">Sign instruments</a></p>
+<h1>Sign Map</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/sign-map.jpg" alt="Sign Map, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Fingerspell a letter from A to G with your higher hand: its chord lights up on the map.</li><li>Raise or lower your right hand to play a melody on that chord&#39;s notes.</li><li>The chord stays while you play; spell another letter to change it.</li></ol>
+<p>One hand chooses the chord by spelling it, the other plays over it. In D major, F lights F-sharp minor and C lights C-sharp diminished.</p>
+
+<details open><summary>How it works</summary>
+<p>The sign reader names your letter. A letter read for a fifth of a second lights its chord on the chord map, and the chord holds while your hand passes through other shapes. The melody hand&#39;s height picks a note from the chord, and tilting it changes the set (chord tones, pentatonic, the scale). Your right hand plays the melody; change that with Chord hand in <a href="#settings--chord-map">Chord map</a>. The key is in <strong>Sound</strong>; how the chord sounds is in <strong>Face</strong>, once you set the face to <em>chord</em>.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-map">Chord map</a>, <a href="#settings--sign-language">Sign language</a>, <a href="#settings--sound">Sound</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-asl-viewer">‹ ASL Viewer</a><a href="#instruments-sign-wheel">Sign Wheel ›</a></p>
+</section>
+<section class="page" id="instruments-sign-wheel">
+<p class="crumbs"><a href="#instruments">Instruments</a> › <a href="#areas-sign">Sign instruments</a></p>
+<h1>Sign Wheel</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/sign-wheel.jpg" alt="Sign Wheel, as it looks on screen"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Fingerspell a letter from A to G and hold it a moment.</li><li>The wheel turns to that letter&#39;s chord in the key, and its wedges show the chords one move away.</li><li>Spell the next letter to go on; your hand does not need to rest in between.</li></ol>
+<p>The chord wheel, steered by your letters instead of your pushes. In D major, F goes to F-sharp minor and C to C-sharp diminished, because the key&#39;s accidentals apply. Watching the wedges as you spell shows which move each letter was from the last chord: a fourth up, a third down.</p>
+
+<details open><summary>How it works</summary>
+<p>The sign reader names your letter. A letter held for a few readings goes to its chord, and the chords are voice-led, so each one moves as little as it can from the one before. Signs that are not A to G change nothing. A letter is taken after about six readings in a row (a fifth of a second). The key is in <strong>Sound</strong>; how the chord sounds is in <strong>Face</strong>, once you set the face to <em>chord</em>; the wheel&#39;s own settings are in <a href="#settings--chord-wheel">Chord wheel</a>. Spelling needs Sign language on, which this instrument turns on.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--chord-wheel">Chord wheel</a>, <a href="#settings--sign-language">Sign language</a>, <a href="#settings--sound">Sound</a>, <a href="#settings--face">Face</a>. Every knob: <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>.</p>
+<p class="pager"><a href="#instruments-sign-map">‹ Sign Map</a><span></span></p>
+</section>
+<section class="page" id="tools">
+<h1>Tools</h1><p>What you use ON an instrument: measuring, teaching it your own faces, recording, conducting. Open the Tools menu in the app to reach them.</p><ul class="cards"><li class="card"><a href="#tools-annotations"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-annotations.jpg" alt=""></a><div><h3><a href="#tools-annotations">Annotations</a></h3><p>Press <strong>Annotations</strong> at the bottom right and switch <strong>Annotation mode</strong> on, before you record.</p></div></li><li class="card"><a href="#tools-assistant"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-assistant.jpg" alt=""></a><div><h3><a href="#tools-assistant">Assistant</a></h3><p>Open Tools, then Assistant.</p></div></li><li class="card"><a href="#tools-commands"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-commands.jpg" alt=""></a><div><h3><a href="#tools-commands">Commands</a></h3><p>Press Cmd or Ctrl and K.</p></div></li><li class="card"><a href="#tools-conductor"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-conductor.jpg" alt=""></a><div><h3><a href="#tools-conductor">Conductor</a></h3><p>Open Tools, then Conductor, and press <strong>Start conducting</strong>.</p></div></li><li class="card"><a href="#tools-faces"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-faces.jpg" alt=""></a><div><h3><a href="#tools-faces">Your faces</a></h3><p>Open Tools, then Your faces, then Record my faces.</p></div></li><li class="card"><a href="#tools-gestures"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-gestures.jpg" alt=""></a><div><h3><a href="#tools-gestures">Gestures</a></h3><p>Open Tools, then Gestures.</p></div></li><li class="card"><a href="#tools-hand-shapes"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-hand-shapes.jpg" alt=""></a><div><h3><a href="#tools-hand-shapes">Your hand shapes</a></h3><p>Open Tools, then Your hand shapes, then Record my hand shapes.</p></div></li><li class="card"><a href="#tools-lab"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-lab.jpg" alt=""></a><div><h3><a href="#tools-lab">Feature Lab</a></h3><p>Open Tools, then Feature Lab, and press <strong>Start measuring</strong>.</p></div></li><li class="card"><a href="#tools-patcher"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-patcher.jpg" alt=""></a><div><h3><a href="#tools-patcher">Patcher</a></h3><p>Open Tools, then Patcher.</p></div></li><li class="card"><a href="#tools-poses"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-poses.jpg" alt=""></a><div><h3><a href="#tools-poses">Your poses</a></h3><p>Open Tools, then Your poses, then Record my poses.</p></div></li><li class="card"><a href="#tools-record"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-record.jpg" alt=""></a><div><h3><a href="#tools-record">Record</a></h3><p>Press <strong>Tap to play</strong>, then <strong>Record</strong> at the bottom right.</p></div></li><li class="card"><a href="#tools-song"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-song.jpg" alt=""></a><div><h3><a href="#tools-song">Song</a></h3><p>Open Tools, then Song, and load a song file.</p></div></li><li class="card"><a href="#tools-trainer"><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-trainer.jpg" alt=""></a><div><h3><a href="#tools-trainer">Trainer</a></h3><p>Open Tools, then Trainer.</p></div></li></ul>
+</section>
+<section class="page" id="tools-annotations">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Annotations</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-annotations.jpg" alt="Annotations, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Press <strong>Annotations</strong> at the bottom right and switch <strong>Annotation mode</strong> on, before you record.</li><li>Press Record, then tap a label (or press 1 to 9) to mark what is happening.</li><li>Export the labels from the Export panel.</li></ol>
+<p>Mark what was happening, when, so a recording can be cut into labelled segments afterwards.</p>
+
+<details open><summary>How it works</summary>
+<p>Name your annotations in the sheet. An <em>interval</em> has a start and an end, a <em>point</em> is an instant; group annotations so turning one on turns the others off, and give one a lead-in if you want its first moments trimmed. Open annotations blink and are burned into the video corner. Annotations are written next to the features, on the same clock. Export them as an Audacity label track, WebVTT, CSV, Praat TextGrid or OTIO.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-assistant">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Assistant</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-assistant.jpg" alt="Assistant, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Assistant.</li><li>Paste an API key for one provider (it stays in your browser).</li><li>Say what you want: &quot;make the left hand an octave lower&quot;.</li></ol>
+<p>A chat that operates the instrument for you. It uses the same commands as the palette and the keyboard, so it can only do things you could have done yourself.</p>
+
+<details open><summary>Your key</summary>
+<p>It is bring-your-own-key: you paste a key for one provider (OpenAI, Anthropic or Google). The key is stored in your browser and sent only to that provider; there is no thoremin server in the middle. Anything that could lose your work, such as saving over an instrument, stops and asks you first.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-commands">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Commands</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-commands.jpg" alt="Commands, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Press Cmd or Ctrl and K.</li><li>Type the name of any setting.</li><li>Press Enter to set it.</li></ol>
+<p>The fastest way to change anything: every setting is a searchable command. An option setting gives you a dropdown; a number gives you a small form with the real bounds. It works while playing.</p>
+
+<details open><summary>Keyboard shortcuts</summary>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Up / Down</td>
+<td>Octave up / down</td>
+</tr>
+<tr>
+<td>Right / Left</td>
+<td>Magnetism up / down</td>
+</tr>
+<tr>
+<td>m</td>
+<td>Mute everything</td>
+</tr>
+<tr>
+<td>t</td>
+<td>Open the Tools list</td>
+</tr>
+<tr>
+<td>Cmd/Ctrl + Z</td>
+<td>Undo the last setting change</td>
+</tr>
+<tr>
+<td>Cmd/Ctrl + Shift + Z</td>
+<td>Redo</td>
+</tr>
+<tr>
+<td>1 to 9</td>
+<td>Toggle annotation 1 to 9, while annotation mode is on</td>
+</tr>
+<tr>
+<td>Cmd/Ctrl + K</td>
+<td>Command palette</td>
+</tr>
+</tbody></table>
+<p>Shortcuts never fire while you are typing in a text field.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-conductor">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Conductor</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-conductor.jpg" alt="Conductor, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Conductor, and press <strong>Start conducting</strong>.</li><li>Beat time in front of the camera.</li><li>The score follows your tempo and your loudness.</li></ol>
+<p>Conduct a score with your hand or your body. A loaded MIDI or MusicXML score (or a demo) plays through a sampled orchestra that follows you; the orchestra is optional: tick <strong>Play with the orchestra</strong> and it downloads the first time (a few MB), otherwise the piece plays on the instrument&#39;s own sound.</p>
+
+<details open><summary>Hand, body or dancing</summary>
+<p><em>Conduct with</em> your <strong>hand</strong> (the default; the strokes of your beating hand are the beats) or your <strong>body</strong> (start, hold, fermata and cut-off come from the body, and a second hand can shape loudness and staccato). <em>Dance the orchestra</em> makes the score follow a dancer&#39;s stride instead. <em>Learn my timing</em> (with <em>Conduct with body</em> on and conducting stopped) measures how far each joint lags a click, and keeps the ones it measured clearly.</p>
+</details>
+
+
+<details open><summary>Conduct the chords</summary>
+<p>The instrument <a href="#instruments-conduct-the-chords">Conduct the Chords</a> plays the chords of a piece on your beat.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--conductor">Conductor</a>.</p>
+</section>
+<section class="page" id="tools-faces">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Your faces</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-faces.jpg" alt="Your faces, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Your faces, then Record my faces.</li><li>Stay relaxed while it learns your rest, then make your faces one after another.</li><li>Press <strong>Stop and carve</strong>, name the groups it finds, and press Play it.</li></ol>
+<p>Teach the instrument YOUR faces instead of fixed expressions. It records you, finds the groups, and plays chords from them.</p>
+
+<details open><summary>How a take goes</summary>
+<ol>
+<li><strong>Record.</strong> <em>Record my faces</em> opens a screen with live feature bars (pin the ones you care about). <em>Start capturing</em> first asks for a few seconds of rest (a ring fills while it learns your rest), then you make your faces one after another. A ring shows when a face is held and taken. <strong>Space</strong> pauses and resumes.</li>
+<li><strong>Bursts and names.</strong> Hold <strong>B</strong> (or the button) and every frame becomes one hold; type a name first and it goes straight into the category of that name.</li>
+<li><strong>Light.</strong> If the room is too dark, a line says so: add light, or record again in this light.</li>
+</ol>
+</details>
+
+
+<details open><summary>Sort the groups</summary>
+<p>Stop, and the holds are carved into groups. Pick how many with the <em>How many</em> slider, then fix them: drag stills between groups, press a group&#39;s number, <strong>N</strong> for Neutral or <strong>S</strong> to set aside, <strong>Delete</strong> to drop a hold, merge or split a group, name them, undo and redo. Whatever you move is <em>pinned</em>, so changing the number later keeps your choices. <strong>Neutral</strong> is a class you teach (&quot;do nothing&quot;); one switch decides whether an untaught face reads as Neutral or as the nearest group.</p>
+<p>Each group shows dots for how clearly it differs from its nearest neighbour, and plain hints when two are close. <em>Show a map of the holds</em> draws every hold as a dot, with a red ring for the face the camera sees now, and lets you drag a box around holds to select them.</p>
+</details>
+
+
+<details open><summary>Try it, save it, play it</summary>
+<p><em>Trying</em> shows what the instrument reads live, with a margin meter for how deep inside a group you are. <em>Quiz me</em> names each group twice in random order; the <em>Everyday check</em> counts accidental fires in a minute of doing nothing. Models are saved in your browser, several per person, and export and import as files. <em>Play it</em> makes the model play chords on the instrument; an instrument can pick its model in the editor&#39;s Face categorizer section. A saved model can also fire commands (see <a href="#tools-gestures">Gestures</a>).</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--face-categorizer">Face categorizer</a>.</p>
+</section>
+<section class="page" id="tools-gestures">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Gestures</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-gestures.jpg" alt="Gestures, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Gestures.</li><li>Choose a command for a hand pose: fist, open palm or pinch.</li><li>Make the pose: the command runs, hands-free.</li></ol>
+<p>Run commands without touching the screen. Bind a hand pose, or any group you taught in <a href="#tools-faces">Your faces</a>, <a href="#tools-hand-shapes">Your hand shapes</a> or <a href="#tools-poses">Your poses</a>, to a command such as mute, octave up or load an instrument.</p>
+
+<details open><summary>Your categories</summary>
+<p><em>Your categories</em> binds each group of a saved model to a command: entering the group fires the command. Commands that could lose your work (saving over an instrument) are not allowed here.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-hand-shapes">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Your hand shapes</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-hand-shapes.jpg" alt="Your hand shapes, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Your hand shapes, then Record my hand shapes.</li><li>Make your shapes one after another, as in Your faces.</li><li>Sort and name the groups, then bind them to commands or to the air guitar.</li></ol>
+<p>The same tool as <a href="#tools-faces">Your faces</a>, for the shape of one hand. A shape is read relative to the hand, so left and right hands share it, or you can choose a hand.</p>
+
+<details open><summary>Where the shapes go</summary>
+<p>A saved shape model can be the air guitar&#39;s chords (<a href="#instruments-air-guitar">Air Guitar</a>), or fire a command when you make a shape (<a href="#tools-gestures">Gestures</a>).</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-lab">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Feature Lab</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-lab.jpg" alt="Feature Lab, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Feature Lab, and press <strong>Start measuring</strong>.</li><li>Open <strong>Groups</strong> and pick which groups of features to show.</li><li>Move your face or hands and watch the meters.</li></ol>
+<p>A measuring instrument, not a sound: what can you actually control? A live grid of meters over more than 300 features of the face, hands and body.</p>
+
+<details open><summary>How it works</summary>
+<p>Every feature is normalized as you move, so a blendshape (0 to 1), a finger curl and a head angle all read as comparable levels. Each feature has a hint: <em>easy</em>, <em>moderate</em> or <em>involuntary</em>. You can write your own formula over any features and it becomes another meter. Save named views and load them back.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-patcher">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Patcher</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-patcher.jpg" alt="Patcher, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Patcher.</li><li>Click a box to see what flows through it.</li><li>Change a setting in the box&#39;s panel and hear it at once.</li></ol>
+<p>A map of the instrument as it is wired right now: every part that reads the camera, works out your hands and face, chooses notes and makes the sound, as a box, with lines for what flows between them. Switch instruments and the map changes with it.</p>
+
+<details open><summary>How it works</summary>
+<p>Each box is one part of the instrument; the lines show where its numbers come from and where they go, left to right. A dashed line carries the value from the moment before (a loop back). Clicking a box shows the numbers it is sending right now and the settings that feed it, the same settings as in the instrument editor: change one here and it changes there, and Undo takes it back. Drag the boxes, scroll to zoom. You cannot rewire the instrument here yet: the map shows the wiring, it does not change it.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-poses">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Your poses</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-poses.jpg" alt="Your poses, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Your poses, then Record my poses.</li><li>Do the three short demonstrations (closer and further, a step aside, a slight turn), then each pose, held for a moment.</li><li>Sort and name the groups. The conductor can use them to start, hold and stop.</li></ol>
+<p>The same tool as <a href="#tools-faces">Your faces</a>, for your body. It needs most of your body in view, otherwise it says &quot;Cannot see you&quot;.</p>
+
+<details open><summary>Left and right</summary>
+<p>Tick <em>Left and right are the same pose</em> before you record if one arm up should be one pose, whichever arm.</p>
+</details>
+
+
+<details open><summary>Use them</summary>
+<p>A pose model can start, hold and cut off the <a href="#tools-conductor">Conductor</a>. In the editor, the Pose categorizer section chooses which model an instrument plays.</p>
+</details>
+
+
+<p class="more">Its settings: <a href="#settings--pose-categorizer">Pose categorizer</a>.</p>
+</section>
+<section class="page" id="tools-record">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Record</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-record.jpg" alt="Record, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Press <strong>Tap to play</strong>, then <strong>Record</strong> at the bottom right.</li><li>Choose which streams to capture, then Rec now.</li><li>Press Stop: the take is written as one folder (or a zip).</li></ol>
+<p>Capture what you play. Choose any of six streams: the audio you hear, the video with the overlays, the raw camera, the overlays alone on transparency (Chrome and Edge, experimental), every feature value as a file, and the room&#39;s microphone, raw (for pairing a real instrument with the air one).</p>
+
+<details open><summary>Where it goes</summary>
+<p>A take is one folder with every stream and a manifest that says where each stream starts on a shared clock, so audio, video and features line up. By default a take downloads as a zip. In Chrome and Edge, pick a folder once (the sheet&#39;s Location, or the Trainer&#39;s <em>Save takes to a folder...</em>) and every later take is written straight into it.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-song">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Song</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-song.jpg" alt="Song, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Song, and load a song file.</li><li>Press Play.</li><li>Tick Follow the dancer to make the song follow your pulse.</li></ol>
+<p>Dance or play along to a song. Its beat is tracked in your browser and it plays at any tempo without changing pitch.</p>
+
+<details open><summary>Follow the dancer</summary>
+<p>With <em>Follow the dancer</em> on, the song&#39;s tempo follows your pulse (your stride or bounce) within a range you set, ignoring whether you bounce on every beat or every other. <em>Start on your step</em> lands a beat of the song on your step when you press Play. Pausing the song keeps the lock.</p>
+</details>
+
+
+<details open><summary>Conduct a recording</summary>
+<p>In the <a href="#tools-conductor">Conductor</a> you can make the song itself follow your conducting: choose which beat of the song your first beat lands on (in the Conductor tool), and on a hold the song can fade instead of cutting (<em>Fade on a conductor&#39;s hold</em>, in the Song tool).</p>
+</details>
+
+
+
+</section>
+<section class="page" id="tools-trainer">
+<p class="crumbs"><a href="#tools">Tools</a></p>
+<h1>Trainer</h1>
+<figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-trainer.jpg" alt="Trainer, open in the app"></figure>
+
+<h2>What to do</h2>
+<ol class="do"><li>Open Tools, then Trainer.</li><li>Start the one-minute guided take and follow the cues.</li><li>Pick how many categories it should find.</li></ol>
+<p>A guided take: it asks you to look left, smile, open your mouth and so on, and learns from what you do. <a href="#tools-faces">Your faces</a> is the newer, easier way to teach faces; the Trainer is where cues and routines live.</p>
+
+<details open><summary>Where takes go</summary>
+<p>In a browser with a folder picker (Chrome, Edge), press <em>Save takes to a folder...</em> under the Start button and every take is written straight into it. Safari and Firefox have no folder picker, and take a zip instead.</p>
+</details>
+
+
+
+</section>
+<section class="page" id="conduct-and-dance">
+<h1>Conduct and dance</h1>
+<p>Your whole body can lead the music. Open the <a href="#tools-conductor">Conductor</a> and the <a href="#tools-song">Song</a> tools to try these; each page there starts with what to do.</p>
+<h2>Conduct a score</h2>
+<p>Load a MIDI or MusicXML score (a demo is built in), press <strong>Start conducting</strong> and beat time in front of the camera. A sampled orchestra plays and follows your tempo and your loudness. You choose which parts play, and the orchestra is optional: tick <strong>Play with the orchestra</strong> and it downloads the first time.</p>
+
+<details open><summary>Hand or body</summary>
+<p>By default your beating hand&#39;s strokes are the beats. Choose <strong>body</strong> and several joints (arm and trunk) are read: start, hold, fermata and cut-off come from your body, and your other hand can shape loudness and staccato. <em>Learn my timing</em> measures how far each joint lags a click and keeps the ones it measured clearly, so the beat lands when you meant it. Body conducting needs most of your upper body in view.</p>
+</details>
+
+
+<details open><summary>Start, hold and stop with poses</summary>
+<p>A pose model you taught in <a href="#tools-poses">Your poses</a> can start, hold and cut off the conductor: raise your arm and keep still to get ready, then give the upbeat. See <a href="#tools-poses">Your poses</a> for how to teach &quot;ready&quot;, &quot;hold&quot; and &quot;cut off&quot;.</p>
+</details>
+
+<h2>Dance the orchestra</h2>
+<p>Choose <strong>Dance the orchestra</strong> and the score follows a dancer instead of a conductor: the tempo follows your stride, a written fermata holds for one cycle of yours, and the piece loops while you keep dancing. Turn body tracking on in the editor&#39;s <a href="#settings--body">Body</a> section first, or let the conductor ask for it.</p>
+<h2>A song that follows you</h2>
+<p>In the <a href="#tools-song">Song</a> tool, load a song file. Its beat is tracked in your browser. Tick <em>Follow the dancer</em> and the song&#39;s tempo follows your pulse within a range you set (10 percent by default), whether you bounce on every beat or every other. <em>Start on your step</em> lands a beat of the song on your step when you press Play. Pausing the song keeps the lock.</p>
+
+<details open><summary>Conduct a recording</summary>
+<p>The song itself can follow your conducting: you choose which beat of the song your first beat lands on, and on a hold the song can fade and slow down instead of cutting. Both are off until you set them.</p>
+</details>
+
+<h2>Conduct the chords</h2>
+<p><a href="#instruments-conduct-the-chords">Conduct the Chords</a> plays the chords of a piece, voice-led and arpeggiated, on your beat.</p>
+
+</section>
+<section class="page" id="teach-it-yourself">
+<h1>Teach it yourself</h1>
+<p>Instead of fixed expressions, shapes and poses, you can show thoremin YOURS and it learns to tell them apart. One tool, three ways to use it:</p>
+<ul>
+<li><a href="#tools-faces">Your faces</a>: the faces you can make. Play chords with them, or fire commands.</li>
+<li><a href="#tools-hand-shapes">Your hand shapes</a>: the shapes of one hand. They can be the air guitar&#39;s chords, or fire commands.</li>
+<li><a href="#tools-poses">Your poses</a>: your body&#39;s poses. They can start, hold and stop the conductor.</li>
+</ul>
+<h2>How it goes, in five steps</h2>
+<ol>
+<li><strong>Record.</strong> Press <em>Record my faces</em> (or hand shapes, or poses). Stay relaxed for a few seconds while it learns your rest, then make your faces one after another.</li>
+<li><strong>Sort.</strong> Stop, and your holds are grouped. Pick how many groups, drag holds between them, name them. Undo and redo are there.</li>
+<li><strong>Check.</strong> Each group shows how clearly it differs from its neighbours, and says in plain words what to do when two are close.</li>
+<li><strong>Try it.</strong> <em>Trying</em> shows live what it reads. <em>Quiz me</em> names each group twice, in random order, and shows which you can find again.</li>
+<li><strong>Use it.</strong> Save it, then press <em>Play it</em>, choose it in the editor&#39;s <a href="#settings--face-categorizer">Face categorizer</a> or <a href="#settings--pose-categorizer">Pose categorizer</a> section, or bind it to commands in <a href="#tools-gestures">Gestures</a>.</li>
+</ol>
+
+<details open><summary>Good takes</summary>
+<p>Use even light on your face (&quot;Too dark&quot; shows when the room is too dim). Make each face clearly different from the others and hold it for a moment. Teach &quot;Neutral&quot; (a relaxed face that should play nothing) so an untaught face is not mistaken for a group.</p>
+</details>
+
+
+</section>
+<section class="page" id="settings">
+<h1>Settings</h1>
+<p>The instrument editor (the Edit button next to an instrument) is made of sections. Each page about an instrument says which ones matter for it. Every knob is in <a href="https://apps.thorwhalen.com/thoremin/manual.html">the manual</a>; this page says what each section is for.</p>
+<h2 id="settings--sound">Sound</h2><p>Per voice (right and left): the root note, the scale (major, minor, pentatonic, blues, chromatic...), the octave range, the base octave and the sound (the timbre); the master volume sits at the top. <em>Sync both hands</em> makes the left voice copy the right.</p>
+<h2 id="settings--hand">Hand</h2><p>Where the note comes from (the index fingertip or the steadier wrist), the maximum volume, the stereo pan spread, a handedness dwell that stops the camera swapping left and right, and what the open hand, the pinch, the closed fist and the position on screen do. Each finger can also be routed to an effect: brightness, vibrato, pan, pitch bend, octave or gate, continuous or as a trigger, with its own sensitivity.</p>
+<h2 id="settings--face">Face</h2><p>What the face does: nothing; <em>timbre</em> (a smile brightens, an open mouth adds vibrato); <em>chord</em> (an expression plays a chord of the key); or <em>controls</em> (a deliberate head, jaw or brow pose plays a chord). Plus the chord sound, volume, voicing (open, bass + triad, close, shell, power, voice-led), the rendering (sustained pad, strum, arpeggio up, down or up-down, pulse, alberti) and which chord each expression plays.</p>
+<h2 id="settings--overlay">Overlay</h2><p>What is drawn on the video: the video itself, the hand landmarks, the control markers, pitch and scale guides, chord names, the keyboard strip, the face mesh, the finger lines and bars. Switch things off for a clean picture.</p>
+<h2 id="settings--keyboard">Keyboard</h2><p>The keyboard shortcuts, listed. See also <a href="#tools-commands">Commands</a>.</p>
+<h2 id="settings--air-drum">Air drum</h2><p>Switch the drum on; choose which hand strikes, each hand&#39;s drum sound (right: kick, left: snare), the stick point (wrist, index fingertip or stick tip), how fast a stroke must be to sound at full volume, how far ahead a hit is committed (Lead), how much the timing is pulled to the beat; the pads (move, resize, stack, give each a sound); whether the pads and sticks are drawn on the video; saved pad layouts; and the pattern trainer.</p>
+<h2 id="settings--air-bass">Air bass</h2><p>Switch the bass on; choose the plucking hand and the point that plucks, how far apart the hands are at the highest and the lowest note (in palm widths), and the volume. The notes themselves are the Sound section&#39;s scale.</p>
+<h2 id="settings--air-guitar">Air guitar</h2><p>Switch the guitar on; choose the strumming hand and point, the volume, teach your chord shapes (enrol them one by one) or run the chord sequence trainer.</p>
+<h2 id="settings--air-flute">Air flute</h2><p>Switch the flute on; choose how a note is started (your blowing mouth, or fingers only: a held fingering sounds on its own), the volume, teach your fingerings and your blowing mouth, pick a wind instrument&#39;s fingering chart as a guide, show the breath cue, and run the sequence trainer.</p>
+<h2 id="settings--chord-map">Chord map</h2><p>The chord map&#39;s own settings; the key is the <strong>Sound</strong> section&#39;s root and scale, and the way a held chord sounds (sustained or arpeggiated, its voicing and tempo) is there too.</p>
+<ul>
+<li><strong>Layout</strong>: the honeycomb map, where every chord&#39;s neighbours are the other six; one row by fifths; or one row in scale order. <strong>Letters</strong> keeps the map in place when the key changes, so a new key lights up the chords it changes instead of moving everything.</li>
+<li><strong>Hold or strum</strong>: hold a chord and play a melody over it, or strum it like the air guitar.</li>
+<li><strong>Which hand points</strong>, and with what: the palm or a fingertip. <strong>Chord size</strong>: bigger chords are easier to hit, smaller ones show more of the map.</li>
+<li><strong>Move captions</strong>: the words on each move from the chord you hold. <strong>Intervals</strong> says the move in scale steps (4th up, 3rd down); <strong>Computed</strong> says what it does: how many notes it keeps, whether it turns darker or brighter, and how expected it is after the chord you hold (Piston&#39;s table of usual progressions); <strong>Yours</strong> says what you said when you rated the move (below), and nothing on a move you have not rated yet.</li>
+<li><strong>Rate this move</strong>: a practice that plays a move between two chords (C major&#39;s for major keys, A minor&#39;s for minor) and asks where it sits for you, from dark to bright and from settled to tense. Press Play, place the two sliders, Save rating; the next move is one you have rated least. A move rated in C is the same move in every major key (I to vi is I to vi anywhere), and it keeps your last twelve ratings, so its words follow you if you hear it differently later. Your ratings stay in this browser.</li>
+<li><strong>Trail to follow</strong>: a well-known chord path (Pachelbel&#39;s Canon, the Romanesca, the circle of fifths, the Andalusian cadence, the fifties progression...) drawn ahead of your chord as a dashed trail. Play the next chord on it and the trail moves on; wander off and it waits where you left it. <strong>Trail length</strong> is how many chords ahead it shows.</li>
+<li><strong>Torus</strong>: the seven chords drawn on a slowly turning ring-shaped surface above the map. On it every chord touches all six others, and the three loops are the three kinds of move (by a second, a third, a fourth), the same three directions as the honeycomb. The loop of the move you just made lights up. <strong>Torus turns</strong> sets its speed (0 holds it still).</li>
+<li><strong>Melody</strong>: on or off, its notes (the chord&#39;s tones, a pentatonic, the whole scale, or chosen by tilting the hand), its volume. <strong>Seventh chords</strong> turns the key&#39;s chords into sevenths. Also: draw the map on the video, the chords&#39; share of the screen and the strum volume.</li>
+<li><strong>Face</strong>: whether your face colours the chords (a smile major, a frown minor; an open mouth with raised brows adds a seventh, then a ninth), and whether it is read against your face at rest.</li>
+<li><strong>What chooses the chords</strong>: your hand, a MIDI keyboard (Chrome or Edge), the microphone, or your signs: fingerspell a letter A to G and that letter&#39;s chord in the key lights up while your other hand plays over it (turn on <strong>Sign language</strong> too). <strong>Chords from</strong>: the key&#39;s seven, or a pentatonic&#39;s own five.</li>
+<li><strong>Timing</strong>: what keeps the beat (the Chord sound&#39;s tempo, a song loaded in the Song tool, or the conductor while you conduct), and whether a new chord waits for the next beat.</li>
+<li><strong>Grid on the video</strong>: draw the map over the video, or play it undrawn.</li>
+</ul>
+<h2 id="settings--chord-wheel">Chord wheel</h2><p>The chord wheel&#39;s own settings; the key and how chords sound are in <strong>Sound</strong>.</p>
+<ul>
+<li><strong>Moves</strong>: the key&#39;s six moves, or the Tonnetz&#39;s, which leave the key one or two changed notes at a time.</li>
+<li><strong>Steering</strong>: your hand, your face, or both, your signs, or your poses; which hand and which point of it; the wheel&#39;s size; and how far to push and how long to hold before a hand move is made. With signs, a fingerspelled letter A to G goes to that letter&#39;s chord in the key, and the next letter goes straight on (turn on <strong>Sign language</strong> too). With your poses, your first pose makes the top move, the next pose the next move clockwise (choose the poses in <strong>Pose categorizer</strong>).</li>
+<li><strong>Order</strong>: the moves in a fixed place, or the likeliest next chord on top. <strong>Surprise</strong> brings rarer moves to the top, from this setting, your other hand&#39;s height, or your face.</li>
+<li><strong>Tension</strong>: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named).</li>
+<li><strong>Walk on the beat</strong>: a push held out keeps making that move, every one to four beats.</li>
+<li><strong>Timing</strong>: what keeps the beat for arpeggios and walks (the Chord sound&#39;s tempo, a song loaded in the Song tool, or the conductor while you conduct).</li>
+</ul>
+<h2 id="settings--chord-chart">Chord chart</h2><p>For conducting a piece&#39;s chords (it needs the <strong>Conductor</strong>, which chooses the piece and the parts).</p>
+<ul>
+<li><strong>Play the chord chart</strong>: on or off.</li>
+<li><strong>A chord every</strong>: how much of the piece is read as one chord, every beat for fast harmony, two beats or a bar for slow.</li>
+<li>How the chord sounds (its voicing and arpeggio) is the chord sound in <strong>Sound</strong>.</li>
+</ul>
+<h2 id="settings--sign-language">Sign language</h2><p>Switch the ASL reader on, include the movement signs (J, Z and the words), set how confident and how smooth the reading must be, and choose whether A to G play chords, whether the chord holds between letters, and the key, sound and volume of those chords.</p>
+<h2 id="settings--midi">MIDI</h2><p>Send the voices you hear to an external instrument or a music program. Off by default; it needs a browser with Web MIDI (Chrome and Edge, not Safari). A device plugged in later appears after you switch MIDI off and on.</p>
+<h2 id="settings--generative">Generative</h2><p>Steer an AI music model with your gestures. Off by default; it needs your own Google API key (the Assistant&#39;s key serves both), and says plainly when it cannot connect.</p>
+<h2 id="settings--body">Body</h2><p>Turn on body tracking (the most expensive thing the app can run, so it is off until you ask), choose the model (lite or full), and route a body feature to a sound aspect.</p>
+<h2 id="settings--conductor">Conductor</h2><p>Switch conducting on, choose the piece, the orchestra and its parts, conduct with the hand or the body, where the loudness comes from, and how closely the score follows you.</p>
+<h2 id="settings--face-categorizer">Face categorizer</h2><p>Choose which of your saved face models the instrument plays, and which chord each of its groups plays.</p>
+<h2 id="settings--pose-categorizer">Pose categorizer</h2><p>Choose which of your saved pose models the instrument plays, and whether it starts, holds and cuts off the conductor.</p>
+<h2 id="settings--categorizer-chords">Categorizer chords</h2><p>The chords your own categories play, one degree of the key per group. Besides your own hand-shape and pose categorizers, <strong>Chords from</strong> lists two shipped examples (a few hand shapes, a few poses), which the Hand-shape Chords and Pose Chords instruments play.</p>
+
+</section>
+<section class="page" id="troubleshooting">
+<h1>Troubleshooting</h1>
+<h2>No sound</h2>
+<p>Browsers will not make sound until you tap. Press <strong>Tap to play</strong> once. If the status still says it is waiting, check that the tab is not muted and the device volume is up. The <strong>m</strong> key mutes everything the instrument plays: press it again.</p>
+<h2>The camera does not start</h2>
+<ul>
+<li>Allow the camera when the browser asks. If you said no, the address bar&#39;s camera icon lets you change it.</li>
+<li>Close other programs that use the camera (video calls). Only one can have it.</li>
+<li>The page must be opened from its real address (<code>https://</code>), not from a file.</li>
+<li>Without a camera, add <code>?slot.source=synthetic-hands</code> to the address to try the instruments with a pretend hand.</li>
+</ul>
+<h2>It does not see my hand, or jitters</h2>
+<ul>
+<li>Light the room from the front or the side, not from behind you. The face tools say &quot;Too dark: add light, or record again in this light&quot; when it is too dim.</li>
+<li>Keep your hand in view and a little away from the camera, with the palm toward it.</li>
+<li>The <strong>Wrist Theremin</strong> instrument is steadier than the fingertip.</li>
+<li>With two hands close together the second can be missed; move them apart.</li>
+</ul>
+<h2>Browsers</h2>
+<p>Chrome and Edge work best. Safari and Firefox work for playing, with gaps: no folder picker for saving takes (they download a zip), and Safari has no Web MIDI. The first time you open the sign-language reader it downloads a little.</p>
+<h2>MIDI</h2>
+<p>Needs Chrome or Edge. Switch <strong>MIDI</strong> on in the editor, then choose the port. A device you plug in later appears after you switch MIDI off and on. <a href="#instruments-play-along-midi">Play Along (MIDI)</a>) needs a MIDI keyboard connected before you open it.</p>
+<h2>Microphone</h2>
+<p><a href="#instruments-play-along-microphone">Play Along (microphone)</a>) asks to use the microphone. Allow it; if you said no, the address bar&#39;s icon lets you change it. It hears a guitar, a piano or a recording through the speakers; it hears chords best when the sound is clear.</p>
+<h2>Latency (the sound comes late)</h2>
+<ul>
+<li>Use headphones or a wired speaker: Bluetooth adds a noticeable delay.</li>
+<li>Close other heavy tabs. The hand model is the most expensive part.</li>
+<li>The air instruments predict the hit before the frame that shows it, so they sound on time even at 30 frames a second; a bright, steady picture helps them most.</li>
+<li>Add <code>?probe=latency</code> to the address to see where the time goes, stage by stage.</li>
+</ul>
+<h2>Something broke</h2>
+<p>Reloading restores your saved instruments and your working state. If a setting seems wrong, reselecting the instrument reverts it to its saved version.</p>
+
+</section>
+</main>
+<script>if (location.hash === '#print') addEventListener('load', function () { setTimeout(function () { print(); }, 300); });</script>
+</body>
+</html>

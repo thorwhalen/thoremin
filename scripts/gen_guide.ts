@@ -1,6 +1,7 @@
 /**
  * Build the in-app player guide: `guide/` (Markdown sources) -> `public/guide/` (static HTML that
- * Vite copies into the build, served at `<base>guide/`). The maintenance rules (when to add a
+ * Vite copies into the build, served at `<base>guide/`), plus the whole guide as one HTML page and
+ * one Markdown file (`lib_guide_export.ts`). The maintenance rules (when to add a
  * page, how to regenerate the pictures) are the `thoremin-dev-guide` skill.
  *
  * Usage: vite-node scripts/gen_guide.ts [--check]
@@ -11,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildGuide } from './lib_guide';
+import { buildExports } from './lib_guide_export';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'public', 'guide');
@@ -27,7 +29,7 @@ function ownedFiles(dir: string, base = ''): string[] {
 
 const built = buildGuide(ROOT);
 const css = readFileSync(join(ROOT, 'guide', 'guide.css'), 'utf8');
-const files = new Map<string, string>([...built.pages, ['guide.css', css]]);
+const files = new Map<string, string>([...built.pages, ['guide.css', css], ...buildExports(built, { css })]);
 
 if (built.problems.length) {
   console.error(`gen_guide: ${built.problems.length} problem(s)\n  ${built.problems.join('\n  ')}`);
@@ -50,4 +52,4 @@ for (const [p, text] of files) {
   mkdirSync(dirname(join(OUT, p)), { recursive: true });
   writeFileSync(join(OUT, p), text);
 }
-console.log(`gen_guide: ${built.pages.size} pages, ${built.media.length} media files -> public/guide/`);
+console.log(`gen_guide: ${built.pages.size} pages, 2 exports, ${built.media.length} media files -> public/guide/`);

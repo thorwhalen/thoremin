@@ -15,6 +15,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildGuide } from '../scripts/lib_guide';
+import { buildExports } from '../scripts/lib_guide_export';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { UI_CONTRIBUTIONS } from '@/app/host/contributions';
 import { ALL_TOOLS } from '../smoke/tests/helpers/allTools';
@@ -95,7 +96,7 @@ describe.runIf(SHIPPED)('the player guide covers everything a player can find', 
   it('is what the sources build: public/guide is up to date', () => {
     const dir = join(ROOT, 'public', 'guide');
     const css = readFileSync(join(ROOT, 'guide', 'guide.css'), 'utf8');
-    const files = new Map<string, string>([...built.pages, ['guide.css', css]]);
+    const files = new Map<string, string>([...built.pages, ['guide.css', css], ...buildExports(built, { css })]);
     const stale = [...files].filter(([p, text]) => !existsSync(join(dir, p)) || readFileSync(join(dir, p), 'utf8') !== text).map(([p]) => p);
     expect(stale, `public/guide is stale for: ${stale.join(', ')}. Run \`npm run guide\` and commit the result.`).toEqual([]);
   });

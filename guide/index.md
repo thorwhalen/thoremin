@@ -22,7 +22,7 @@ No camera? Add `?slot.source=synthetic-hands` to the address and a pretend hand 
 - **[Teach it yourself](teach-it-yourself.html)**: [Your faces](tool:faces), [Your hand shapes](tool:hand-shapes) and [Your poses](tool:poses) learn the faces, shapes and poses you can make.
 
 :::details How the guide is arranged
-Each page starts with what to do, in three lines. "How it works" and "Settings" are folded away until you want them. The [instruments](instruments.html) and the [tools](tools.html) each have a page; the [settings](settings.html) page explains every section of the instrument editor; and [the manual](manual:) lists every knob.
+Each page starts with what to do, in three lines. "How it works" and "Settings" are folded away until you want them. The [instruments](instruments.html) and the [tools](tools.html) each have a page; the [settings](settings.html) page explains every section of the instrument editor; and [the manual](manual:) lists every knob. The **Export** menu at the top of every page gives you the whole guide as one file: one page of HTML, a PDF (it opens that page to print: choose Save as PDF) or Markdown.
 :::
 
 :::details Instruments, sounds and saving

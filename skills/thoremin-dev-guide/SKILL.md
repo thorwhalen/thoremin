@@ -50,7 +50,7 @@ A feature a player can find has a guide entry. `test/guide_coverage.test.ts` enf
 2. **A new tool or shell control.** `guide/tools/<id>.md` with `tool: <id>` (the tool's id), `title:`, `do:` (as above). Links out of the app (the manual, the guide) need no page.
 3. **A new editor section** (an extension's `panels`, or a core section): add `## <Name> {#<slug>}` to `guide/settings.md` and say what the section is for. A removed section loses its heading.
 4. **Links between pages**: `[text](instrument:Name)`, `(tool:id)`, `(settings:Name)`, `(area:id)`, `(manual:)`, `(app:)`. The builder fails on a link that names nothing.
-5. `npm run guide` (writes `public/guide/*.html`; `npm run guide:check` fails when the committed pages are stale; the coverage test runs the same check). Commit the generated pages with the sources.
+5. `npm run guide` (writes `public/guide/*.html`, and the whole guide as one file: `thoremin-guide.html`, which the Export menu also prints to PDF, and `thoremin-guide.md`, both from `scripts/lib_guide_export.ts`; `npm run guide:check` fails when the committed pages are stale; the coverage test runs the same check). Commit the generated pages with the sources.
 6. **The picture**: `npm run build`, then `npm run guide:media -- --only "<Instrument name>"` (or `--only tool:<id>`). It captures the BUILT app on the synthetic sources and writes `public/guide/pics/<slug>.jpg` (`tool-<id>.jpg` for tools). Per-scene knobs (extra query, settle time, a clip) are data in `smoke/guide_scenes.json`. Commit the picture.
 
 ### Media rules
@@ -69,7 +69,7 @@ New or renamed seed; new or removed tool; a section added or removed; a visible 
 
 ### Where the pieces live
 
-`guide/` sources (`areas.json`, `index.md`, `settings.md`, `troubleshooting.md`, `instruments/`, `tools/`, `guide.css`); `scripts/lib_guide.ts` (the builder) and `scripts/gen_guide.ts` (`npm run guide`); `smoke/guide_media.mjs` and `smoke/guide_scenes.json` (`npm run guide:media`); `src/app/guide/` (the address functions and the editor's link); `test/guide_coverage.test.ts` (the guard). `docs/USER_GUIDE.md` is a pointer to the guide.
+`guide/` sources (`areas.json`, `index.md`, `settings.md`, `troubleshooting.md`, `instruments/`, `tools/`, `guide.css`); `scripts/lib_guide.ts` (the builder: each page as HTML and as Markdown, and the reading order), `scripts/lib_guide_export.ts` (the one-file exports and the Export menu's targets) and `scripts/gen_guide.ts` (`npm run guide`); `smoke/guide_media.mjs` and `smoke/guide_scenes.json` (`npm run guide:media`); `src/app/guide/` (the address functions and the editor's link); `test/guide_coverage.test.ts` (the guard). `docs/USER_GUIDE.md` is a pointer to the guide.
 
 ## Research guide
 
