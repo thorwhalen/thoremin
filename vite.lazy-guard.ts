@@ -19,6 +19,7 @@ export const LAZY_PACKAGES: readonly string[] = [
   '@tonejs/midi', // the MIDI score parser (#187 PR 3), via src/slices/conductor/score/midi.ts
   'musicxml-io', // the MusicXML score parser (#187 PR 3), via src/slices/conductor/score/musicxml.ts
   'signalsmith-stretch', // the song's time-stretch worklet (#187 PR 7), via src/slices/song/app/song_stretcher_signalsmith.ts
+  'three', // a 3-D renderer, via @thoremin/ext-draw/lazy_ui (thorwhalen/thoremin-ar)
 ];
 
 /** The slice of a Rollup output chunk the guard reads. */

@@ -4,6 +4,7 @@
     { "id": "air", "module": "@thoremin/ext-air", "ui": "@thoremin/ext-air/ui" },
     { "id": "harmonic-layers", "module": "@thoremin/ext-harmony", "ui": "@thoremin/ext-harmony/ui" },
     { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui", "lazy": { "module": "@thoremin/ext-asl/lazy", "ui": "@thoremin/ext-asl/lazy_ui" } },
+    { "id": "drawn-pieces", "module": "@thoremin/ext-draw", "ui": "@thoremin/ext-draw/ui", "lazy": { "module": "@thoremin/ext-draw/lazy", "ui": "@thoremin/ext-draw/lazy_ui" } },
     { "id": "midi-output", "module": "@/slices/midi", "ui": "@/slices/midi/ui" },
     { "id": "generative-layer", "module": "@/slices/generative", "ui": "@/slices/generative/ui" },
     { "id": "song-tool", "module": "@/slices/song", "ui": "@/slices/song/ui" },

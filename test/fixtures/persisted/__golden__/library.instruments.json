@@ -38,6 +38,7 @@
     "Chord Map Strum",
     "ASL Viewer",
     "ASL Chords",
+    "Drawn Pieces",
     "Hand-shape Chords",
     "Pose Chords"
   ],
@@ -456,6 +457,15 @@
           "stopAfterPeriods": 1,
           "upbeat": "speed"
         }
+      },
+      "drawnPieces": {
+        "defaultShape": 0.6,
+        "depthMatch": false,
+        "enabled": false,
+        "hitSpeed": 4,
+        "mode": "shape",
+        "pieces": [],
+        "volume": 0.7
       },
       "face.mapping": "none",
       "faceCategorizer": {
@@ -1137,6 +1147,15 @@
           "stopAfterPeriods": 1,
           "upbeat": "speed"
         }
+      },
+      "drawnPieces": {
+        "defaultShape": 0.6,
+        "depthMatch": false,
+        "enabled": false,
+        "hitSpeed": 4,
+        "mode": "shape",
+        "pieces": [],
+        "volume": 0.7
       },
       "face.mapping": "none",
       "faceCategorizer": {

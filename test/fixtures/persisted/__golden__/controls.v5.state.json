@@ -429,6 +429,15 @@
   "conductorPrefs": {
     "leadOffsets": {}
   },
+  "drawnPieces": {
+    "defaultShape": 0.6,
+    "depthMatch": false,
+    "enabled": false,
+    "hitSpeed": 4,
+    "mode": "shape",
+    "pieces": [],
+    "volume": 0.7
+  },
   "faceCalibration": null,
   "faceCategorizer": {
     "degrees": {

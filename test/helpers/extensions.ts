@@ -23,6 +23,9 @@ export const HARMONY = hasExtension('harmonic-layers');
 /** True when the build ships the ASL sign reader and its instruments. */
 export const ASL = hasExtension('asl');
 
+/** True when the build ships the drawn pieces (thorwhalen/thoremin-ar): shapes drawn in the air, played. */
+export const DRAWN = hasExtension('drawn-pieces');
+
 /** True when the build ships the face categorizer session (#330). */
 export const FACES = hasExtension('faces');
 

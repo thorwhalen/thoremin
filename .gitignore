@@ -68,3 +68,4 @@ __pycache__/
 
 # An installed extension's own tests, copied in while developing it (its README); never committed here.
 test/ext-asl/
+test/ext-draw/

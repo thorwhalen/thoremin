@@ -157,6 +157,11 @@
       "silent": "plays a chord per recognised sign; the synthetic hands sign nothing"
     },
     {
+      "name": "Drawn Pieces",
+      "body": false,
+      "silent": "starts with no pieces; it sounds only once a shape is drawn and struck"
+    },
+    {
       "name": "Hand-shape Chords",
       "body": false
     },
