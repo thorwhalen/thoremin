@@ -193,6 +193,7 @@ The plan is done through step 9; what remains is measurement, a supported range,
 - **[#82]** The configuration calculus for composable instruments (design only; waits on a #168 answer).
 - **[#283]**, **[#322]** migrate the in-repo zodal stand-ins and adopt `@zodal/store-localstorage` 0.3 once published.
 - **[#331]** Accounts, cloud save and tiers (future).
+- Augmented reality ([thorwhalen/thoremin-ar](https://github.com/thorwhalen/thoremin-ar), research only so far): **[#815]** a latched pinch state and pointer nodes, **[#816]** the MediaPipe version bump, **[#817]** one frame-to-display transform for the overlay, **[#818]** space-tagged point ports; footage for tuning them is **[#819]**.
 - **[#262]** What to open-source and what to keep private; it gates the repository split (O3 of the extensions ADR) and publishing `ictus`.
 - Hygiene: **[#308]** (a recorder folder write that fails at stop), **[#312]** (untyped React hooks defeat the ratchet), **[#314]** (air instruments and the ASL reader ignore the handedness dwell), **[#342]** (`check:lazy` and barrel imports), and the **[#355]** sprint-review checklist (6 should-fix items and 6 nits across 18 merged PRs).
 
