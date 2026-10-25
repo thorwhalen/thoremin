@@ -17,6 +17,7 @@
     "packages/ext-air/src",
     "packages/ext-harmony/src",
     "node_modules/@thoremin/ext-asl/src",
+    "node_modules/@thoremin/ext-draw/src",
     "packages/ext-faces/src",
     "packages/ext-patcher/src",
     "src/instruments",

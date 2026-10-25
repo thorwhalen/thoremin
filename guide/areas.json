@@ -18,5 +18,10 @@
     "id": "sign",
     "title": "Sign instruments",
     "blurb": "Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter from A to G."
+  },
+  {
+    "id": "drawn",
+    "title": "Drawn instruments",
+    "blurb": "Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings."
   }
 ]

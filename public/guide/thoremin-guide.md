@@ -48,6 +48,8 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
     - [ASL Viewer](#instruments-asl-viewer)
     - [Sign Map](#instruments-sign-map)
     - [Sign Wheel](#instruments-sign-wheel)
+  - [Drawn instruments](#areas-drawn)
+    - [Drawn Pieces](#instruments-drawn-pieces)
 - [Tools](#tools)
   - [Annotations](#tools-annotations)
   - [Assistant](#tools-assistant)
@@ -130,6 +132,12 @@ Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard
 Fingerspell American Sign Language to the camera and see the sign, or hear a chord for each letter from A to G.
 
 [ASL Chords](#instruments-asl-chords) · [ASL Viewer](#instruments-asl-viewer) · [Sign Map](#instruments-sign-map) · [Sign Wheel](#instruments-sign-wheel)
+
+### [Drawn instruments](#areas-drawn)
+
+Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings.
+
+[Drawn Pieces](#instruments-drawn-pieces)
 
 
 <a id="areas-field"></a>
@@ -1150,6 +1158,41 @@ The sign reader names your letter. A letter held for a few readings goes to its 
 Its settings: [Chord wheel](#settings--chord-wheel), [Sign language](#settings--sign-language), [Sound](#settings--sound), [Face](#settings--face). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
 
 
+<a id="areas-drawn"></a>
+
+[Instruments](#instruments)
+
+## Drawn instruments
+
+Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings.
+
+- [Drawn Pieces](#instruments-drawn-pieces): Pinch your thumb and index finger and draw a shape in the air.
+
+
+<a id="instruments-drawn-pieces"></a>
+
+[Instruments](#instruments) › [Drawn instruments](#areas-drawn)
+
+## Drawn Pieces
+
+![Drawn Pieces, as it looks on screen](https://apps.thorwhalen.com/thoremin/guide/pics/drawn-pieces.jpg)
+
+### What to do
+
+1. Pinch your thumb and index finger and draw a shape in the air.
+2. Close the shape for a drum; leave it open for a string.
+3. Pinch a piece to move it; drag it off the edge to delete it.
+4. Press D to play: tap a drum, rest a finger on it, or swipe across a string.
+
+Draw your own instrument in the air, then play it. Bigger pieces sound lower, and every stroke sounds a little different: how fast you strike, where you land (centre or rim, middle or end of a string) and how sharply you stop all change the sound, as on a real drum.
+
+**How it works**
+
+Each piece has three dials in the Drawn pieces section. **Shape** goes from freeform (your stroke as drawn) to perfect (snapped to the nearest circle, rectangle, triangle, line or arc), and can be changed after drawing. **Feel** sets how much your touch matters: at the left every stroke sounds the same, at the right every nuance is heard. **Tone** goes from dark, soft and long to bright, hard and short. A piece's note comes from its size, in the instrument's scale, unless you pick one. The pieces are drawn in 3-D over the video and are saved with the instrument. It lives in a separate plugin, [thoremin-ar](https://github.com/thorwhalen/thoremin-ar), loaded only when you pick it.
+
+Its settings: [Drawn pieces](#settings--drawn-pieces). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
+
+
 <a id="tools"></a>
 
 ## Tools
@@ -1650,6 +1693,12 @@ For conducting a piece's chords (it needs the **Conductor**, which chooses the p
 ### Sign language
 
 Switch the ASL reader on, include the movement signs (J, Z and the words), set how confident and how smooth the reading must be, and choose whether A to G play chords, whether the chord holds between letters, and the key, sound and volume of those chords.
+
+<a id="settings--drawn-pieces"></a>
+
+### Drawn pieces
+
+Switch between shaping (a pinch draws or moves a piece) and playing (the fingertips strike, touch and pluck them), set the volume and the Shape new pieces start with, and give each piece its Shape, Feel, Tone, sound and note. Under Advanced: how hard a stroke must be to count as a hit, and whether only pieces near your hand's distance from the camera can be struck.
 
 <a id="settings--midi"></a>
 

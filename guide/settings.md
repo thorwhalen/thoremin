@@ -80,6 +80,10 @@ For conducting a piece's chords (it needs the **Conductor**, which chooses the p
 
 Switch the ASL reader on, include the movement signs (J, Z and the words), set how confident and how smooth the reading must be, and choose whether A to G play chords, whether the chord holds between letters, and the key, sound and volume of those chords.
 
+## Drawn pieces {#drawn-pieces}
+
+Switch between shaping (a pinch draws or moves a piece) and playing (the fingertips strike, touch and pluck them), set the volume and the Shape new pieces start with, and give each piece its Shape, Feel, Tone, sound and note. Under Advanced: how hard a stroke must be to count as a hit, and whether only pieces near your hand's distance from the camera can be struck.
+
 ## MIDI {#midi}
 
 Send the voices you hear to an external instrument or a music program. Off by default; it needs a browser with Web MIDI (Chrome and Edge, not Safari). A device plugged in later appears after you switch MIDI off and on.

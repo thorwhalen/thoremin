@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { shiftOctave, adjustMagnetism, toggleMute, DEFAULT_KEYMAP } from '../src/app/shell/keyboardShortcuts';
-import { GENERATIVE } from './helpers/extensions';
+import { DRAWN, GENERATIVE } from './helpers/extensions';
 import { registry } from '../src/app/commands/registry';
 import { useControls } from '../src/app/store';
 
@@ -72,6 +72,8 @@ describe('keyboard shortcuts (#90)', () => {
       'ArrowUp',
       // A carve tool's capture (#385 E2), only while one is live (else the browser's).
       'Space',
+      // The drawn pieces' shape / play switch (thorwhalen/thoremin-ar), while they are on.
+      ...(DRAWN ? ['d'] : []),
       'm',
       // The generative layer's transport (#188; its slice's binding since #600 S14).
       ...(GENERATIVE ? ['p'] : []),

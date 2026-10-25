@@ -886,6 +886,18 @@
         "kind": "chord-map-config"
       },
       {
+        "name": "drawn-pieces.pieces.scene",
+        "kind": "drawn-scene"
+      },
+      {
+        "name": "drawn-pieces.pieces.contacts",
+        "kind": "drawn-contacts"
+      },
+      {
+        "name": "drawn-pieces.pieces.config",
+        "kind": "drawn-pieces-config"
+      },
+      {
         "name": "trainer-tool.hud.hud",
         "kind": "trainer-hud-config"
       },
@@ -2177,6 +2189,69 @@
         "default": 1
       }
     ]
+  },
+  {
+    "type": "drawn-hands",
+    "title": "Drawn pieces: hands",
+    "description": "Shape mode: a pinch draws a piece (closed is a drum, open a string) or grabs and moves one. Play mode: the fingertips hit, touch and pluck the pieces. Emits the live scene, finished edits for the dial, and contact events for the voice.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "drawn-pieces-config"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "scene",
+        "kind": "drawn-scene"
+      },
+      {
+        "name": "edits",
+        "kind": "drawn-edit"
+      },
+      {
+        "name": "contacts",
+        "kind": "drawn-contacts"
+      }
+    ],
+    "params": []
+  },
+  {
+    "type": "drawn-voice",
+    "title": "Drawn pieces: voice",
+    "description": "Sounds the drawn pieces: hits and plucks strike, touches hold until released; each stroke shaped by the piece's Feel and Tone (WebAudio from primitives, no samples).",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "contacts",
+        "kind": "drawn-contacts"
+      },
+      {
+        "name": "config",
+        "kind": "drawn-pieces-config"
+      },
+      {
+        "name": "scale",
+        "kind": "number[]"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
+      }
+    ],
+    "outputs": [],
+    "params": []
   },
   {
     "type": "drum-out",
@@ -4087,6 +4162,10 @@
       {
         "name": "asl",
         "kind": "asl-config"
+      },
+      {
+        "name": "drawnPieces",
+        "kind": "drawn-pieces-config"
       },
       {
         "name": "midi",

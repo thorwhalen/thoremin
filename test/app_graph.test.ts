@@ -15,7 +15,7 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR, LAB } from './helpers/extensions';
+import { AIR, ASL, DRAWN, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR, LAB } from './helpers/extensions';
 
 describe('production app graph', () => {
   it.runIf(BODY)('builds with a valid topology', () => {
@@ -92,7 +92,7 @@ describe('production app graph', () => {
     // slice's since #600 S13, counted with it (29 core nodes + 1).
     // The generative pair (indirect-map + lyria) is its slice's since #600 S14 (27 core nodes + 2).
     // The song player and the pace controller are the song slice's since #600 S15 (25 core nodes + 2).
-    expect(order).toHaveLength((AIR ? 36 : 25) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (SONG ? 2 : 0) + (ASL ? 2 : 0) + (FACES ? 4 : 0));
+    expect(order).toHaveLength((AIR ? 36 : 25) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (SONG ? 2 : 0) + (ASL ? 2 : 0) + (DRAWN ? 2 : 0) + (FACES ? 4 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     // (Both are the song slice's since #600 S15: checked while it is listed.)

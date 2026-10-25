@@ -157,6 +157,8 @@ describe('every node that makes real-time output honours the boundary', () => {
       orchestra: 'src/slices/conductor/nodes/orchestra.ts',
       // The song slice's (#600 S15).
       'song-player': 'src/slices/song/nodes/song_player.ts',
+      // The drawn pieces' voice (thorwhalen/thoremin-ar).
+      'drawn-voice': 'node_modules/@thoremin/ext-draw/src/nodes/drawn_voice.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));
     expect(
