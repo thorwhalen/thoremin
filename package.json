@@ -48,7 +48,7 @@
     "@tensorflow/tfjs-converter": "^4.22.0",
     "@tensorflow/tfjs-core": "^4.22.0",
     "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#8468842053a6e9b5b781a534d6b136b22761f815",
-    "@thoremin/ext-draw": "github:thorwhalen/thoremin-ar#6ec722d4ac711b7d9d313af2118a746c8d151982",
+    "@thoremin/ext-draw": "github:thorwhalen/thoremin-ar#e18581316f915be91eb35b0496269c590f31fe83",
     "@tonejs/midi": "^2.0.28",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^5.0.4",
