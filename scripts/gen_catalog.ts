@@ -26,6 +26,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['conductor', 'transport', 'score', 'performance'] },
   { name: 'Air instruments', blurb: 'Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249).', types: ['air-drum', 'drum-out', 'air-bass', 'air-guitar', 'air-flute', 'pluck-out', 'chord-map', 'chord-wheel', 'chord-chart', 'chord-strum-out'] },
   { name: 'Sign language', blurb: 'Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key.', types: ['asl-signs', 'sign-chord'] },
+  { name: 'Drawn pieces', blurb: 'Shapes drawn in the air with a pinch become drums and strings on the video, played by the fingertips (thorwhalen/thoremin-ar).', types: ['drawn-hands', 'drawn-voice'] },
   { name: 'Song', blurb: 'Play a song to dance or play along to: its beat tracked in the browser, its tempo changed without its pitch (#186).', types: ['song-player', 'pace-controller'] },
   { name: 'Synthesis & generation', blurb: 'Make sound — direct synthesis, steered AI music, or an external MIDI instrument.', types: ['webaudio-synth', 'orchestra', 'lyria', 'midi-out'] },
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
