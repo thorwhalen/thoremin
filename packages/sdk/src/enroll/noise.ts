@@ -106,7 +106,7 @@ export interface NoiseSnapshot {
 }
 
 export interface NoiseEstimator {
-  /** Fold one frame in. `tMs` must be non-decreasing within a cue; a repeat of the previous stamp is ignored. */
+  /** Fold one frame in. `tMs` must be non-decreasing. */
   push(vector: FeatureVector, tMs: number): void;
   /** The effective sigma for `id` — the jitter estimate floored by the range — or
    *  `NaN` when the feature has never been seen. */
@@ -153,28 +153,26 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
   const o = { ...DEFAULTS, ...options };
   const stats = new Map<string, Stat>();
   let frames = 0;
-  let lastPushT = NaN;
 
   return {
     push(vector, tMs) {
-      // The same stamp again is the same camera frame offered twice (a poll faster than
-      // the camera, a stalled frame), not a new reading: folding it in would count a zero
-      // difference and halve the warm-up sigma. (A stamp that goes BACK is a new cue's
-      // clock restarting, and is still folded in.)
-      if (tMs === lastPushT) return;
-      lastPushT = tMs;
-      frames += 1;
+      let advanced = false;
       for (const id of Object.keys(vector)) {
         const x = vector[id];
         if (!Number.isFinite(x)) continue;
         const s = stats.get(id);
         if (!s) {
           stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, warm: [], lo: x, hi: x, step: Infinity });
+          advanced = true;
           continue;
         }
+        const dt = tMs - s.lastT;
+        // The same stamp again is the same camera frame offered twice, not a new reading:
+        // folding it in would count a zero difference and halve the warm-up sigma.
+        if (dt === 0) continue;
+        advanced = true;
         if (x < s.lo) s.lo = x;
         if (x > s.hi) s.hi = x;
-        const dt = tMs - s.lastT;
         if (dt > o.maxGapMs) {
           // Too long since this feature was last seen: re-anchor, do not measure.
           s.last = x;
@@ -182,7 +180,8 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
           continue;
         }
         // Per-frame difference, normalised to a nominal 33 ms frame so a dropped frame
-        // does not read as a burst of noise. Guard dt<=0 (duplicate stamp) as one frame.
+        // does not read as a burst of noise. A stamp that went BACK (a cue's clock
+        // restarting) is still folded in, unscaled.
         const perFrame = Math.abs(x - s.last) * (dt > 0 ? Math.min(3, 33 / dt) : 1);
         const rawStep = Math.abs(x - s.last);
         if (rawStep > 0 && rawStep < s.step) s.step = rawStep;
@@ -202,6 +201,7 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
         const alpha = dt > 0 ? 1 - Math.exp(-dt / o.tauMs) : 0;
         s.sigma += alpha * (d - s.sigma);
       }
+      if (advanced) frames += 1;
     },
     sigma(id) {
       const s = stats.get(id);
@@ -227,7 +227,6 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
     reset() {
       stats.clear();
       frames = 0;
-      lastPushT = NaN;
     },
   };
 }

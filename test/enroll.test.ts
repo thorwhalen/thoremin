@@ -155,6 +155,22 @@ describe('noise units — the estimator every distance is measured in (#163)', (
     expect(twice.isWarm('deg')).toBe(once.isWarm('deg'));
   });
 
+  it('a repeated stamp is ignored per feature, however the pushes interleave (#856)', () => {
+    const n = createNoiseEstimator();
+    n.push(v({ a: 1 }), 10);
+    n.push(v({ a: 5 }), 5); // a cue's clock restarting
+    n.push(v({ a: 5 }), 10);
+    n.push(v({ a: 5 }), 10);
+    expect(n.snapshot().frames).toBe(3);
+    const m = createNoiseEstimator();
+    m.push(v({ a: 1 }), 10);
+    m.push(v({ a: 1, b: 2 }), 10); // b is new at this stamp: kept
+    expect(m.features().sort()).toEqual(['a', 'b']);
+    m.reset();
+    m.push(v({ a: 1 }), 10);
+    expect(m.snapshot().frames).toBe(1);
+  });
+
   it('a deliberate move barely inflates the estimate (the clip), so the next hold still reads as held', () => {
     const n = createNoiseEstimator();
     const r = prng(7);
