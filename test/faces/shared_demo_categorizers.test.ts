@@ -111,6 +111,10 @@ async function carve(d: Demo): Promise<PersonalCategorizer> {
   return { ...c, name: d.name, categories: c.categories.map((cat) => ({ ...cat, label: named.get(cat.id) ?? cat.label })) };
 }
 
+/** Parsed JSON with every number rounded to 10 significant digits: platform noise in the last bits drops out, a real change does not. */
+const roundedJson = (text: string): unknown =>
+  JSON.parse(text, (_k, v) => (typeof v === 'number' && Number.isFinite(v) ? Number(v.toPrecision(10)) : v));
+
 describe.runIf(FACES)('the shipped hand-shape and pose demo categorizers', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -125,7 +129,8 @@ describe.runIf(FACES)('the shipped hand-shape and pose demo categorizers', () =>
       const text = `${exportCategorizer(c)}\n`;
       const path = join(DIR, `${d.file}.json`);
       if (UPDATE) writeFileSync(path, text);
-      expect(readFileSync(path, 'utf8')).toBe(text);
+      // Numerically equal, not byte-equal: the last bit of a trained weight depends on the platform's `Math` (#828).
+      expect(roundedJson(readFileSync(path, 'utf8'))).toEqual(roundedJson(text));
     }, 60_000);
   }
 

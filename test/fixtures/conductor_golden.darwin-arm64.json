@@ -1,0 +1,72 @@
+{
+ "body/video_body_conducting_44/default": {
+  "hash": "27992d33e7023d88cda08c109d4ea4c3c04fc77818047a787a5feac4f1873e95",
+  "ticks": 720,
+  "running": 608,
+  "holds": 35,
+  "endBeat": 32
+ },
+ "body/video_body_conducting_44/auto-fermata": {
+  "hash": "801472f284040b0e89e2eb0669af04e6f0e60b9af8c8f32fcb76cd6b3b708f72",
+  "ticks": 720,
+  "running": 570,
+  "holds": 73,
+  "endBeat": 30
+ },
+ "body/44/point-head": {
+  "hash": "3b0252e6ade3c8b10c45e97569ac2de06b333f1d5b78f194e435fd4a10b0fee5",
+  "ticks": 720,
+  "running": 366,
+  "holds": 326,
+  "endBeat": 24.201
+ },
+ "body/44/expression-body-flow": {
+  "hash": "1fdcc9f76db5ec2094244fde0127527eb9597e145d297e0b1117a41519088566",
+  "ticks": 720,
+  "running": 570,
+  "holds": 73,
+  "endBeat": 30
+ },
+ "body/44/recording": {
+  "hash": "70dc81361093f03e4deccc00a047ae24a26cdb4626861de87d03f65056a57029",
+  "ticks": 720,
+  "running": 608,
+  "holds": 35,
+  "endBeat": 32
+ },
+ "script/pose-override": {
+  "hash": "899829094581c3b73dfa00d40bc1d5aabeccde1dd4c9539ceeb0ae82e07b4e13",
+  "ticks": 934,
+  "running": 481,
+  "holds": 138,
+  "endBeat": 26.221
+ },
+ "dancer/score": {
+  "hash": "453abc5e6fb00a4c54102f055553172c0d4b4bdd97c6ecbc0655e560de9a0062",
+  "ticks": 600,
+  "running": 319,
+  "holds": 0,
+  "endBeat": 22.02
+ },
+ "dancer/no-doc": {
+  "hash": "3847d2649adabdf2025d9b0fc05f86076eaf80f6c79494d99b969979e6fb83b9",
+  "ticks": 600,
+  "running": 319,
+  "holds": 0,
+  "endBeat": 22.014
+ },
+ "dancer/recording": {
+  "hash": "00cc20505109d424ef3bdcebd6e17c2f2f7cadf85cf26f4ae48f8edafbab1f3a",
+  "ticks": 600,
+  "running": 319,
+  "holds": 0,
+  "endBeat": 22.014
+ },
+ "dancer/switch-away-and-back": {
+  "hash": "29f77ff12de5ce1fe5676b58358b3eb33b7b574ea962da76e8155b3cd222ee8c",
+  "ticks": 600,
+  "running": 144,
+  "holds": 0,
+  "endBeat": 10.003
+ }
+}
