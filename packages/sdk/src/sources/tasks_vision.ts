@@ -9,10 +9,13 @@
  *
  * Nothing here touches the browser — it is data, safe to import from tests.
  */
-export const TASKS_VISION_VERSION = '0.10.35';
+export const TASKS_VISION_VERSION = '1.1.1';
 
 /** The wasm fileset every tasks-vision landmarker loads through `FilesetResolver`. */
 export const TASKS_VISION_WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
 
 /** Google's model bucket — every `.task` file below lives under it. */
 export const MEDIAPIPE_MODELS_BASE = 'https://storage.googleapis.com/mediapipe-models';
+
+/** The float16 hand landmarker model (21 landmarks per hand). */
+export const HAND_MODEL_URL = `${MEDIAPIPE_MODELS_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;

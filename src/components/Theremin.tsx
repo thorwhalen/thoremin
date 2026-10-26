@@ -2,8 +2,8 @@
 // excluded from refactors by convention. See the note at the top of src/App.tsx; the
 // DAG app (src/app/App.tsx) is the product.
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import * as handPoseDetection from '@tensorflow-models/hand-pose-detection';
-import '@tensorflow/tfjs-backend-webgl';
+import type { HandLandmarker } from '@mediapipe/tasks-vision';
+import { TASKS_VISION_WASM_BASE, HAND_MODEL_URL } from '@thoremin/sdk/sources/tasks_vision';
 import { useAudioEngine, VoiceSettings } from '../hooks/useAudioEngine';
 import { Activity, Sliders, Info, BookOpen } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -12,16 +12,16 @@ import SettingsPanel from './SettingsPanel';
 import InfoModal from './InfoModal';
 import { usePluginManager } from '../plugins/PluginProvider';
 
-const detectorConfig = {
-  runtime: 'mediapipe',
-  solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands',
-  modelType: 'full'
-};
+/** One detected hand in the legacy loop's terms: pixel index-fingertip and a handedness label. */
+interface LegacyHand {
+  handedness: string;
+  keypoints: { x: number; y: number; name?: string }[];
+}
 
 export default function Theremin() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const detectorRef = useRef<handPoseDetection.HandDetector | null>(null);
+  const detectorRef = useRef<HandLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +70,16 @@ export default function Theremin() {
 
   const initDetector = async () => {
     try {
-      const model = handPoseDetection.SupportedModels.MediaPipeHands;
-      detectorRef.current = await handPoseDetection.createDetector(model, detectorConfig as any);
+      const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
+      const fileset = await FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
+      const create = (delegate: 'GPU' | 'CPU') =>
+        HandLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
+          numHands: 2,
+          runningMode: 'VIDEO',
+        });
+      // No WebGL on this client: the CPU delegate is slower but works.
+      detectorRef.current = await create('GPU').catch(() => create('CPU'));
       setIsReady(true);
     } catch (err) {
       setError('Failed to load hand tracking model.');
@@ -82,7 +90,29 @@ export default function Theremin() {
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current || !canvasRef.current) return;
 
-    const hands = await detectorRef.current.estimateHands(videoRef.current);
+    const video = videoRef.current;
+    // No frame yet (metadata arrives first), or a throw from the model: skip this frame, keep the loop alive.
+    let result: ReturnType<HandLandmarker['detectForVideo']> | null = null;
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      try {
+        result = detectorRef.current.detectForVideo(video, performance.now());
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    if (!result) {
+      rafRef.current = requestAnimationFrame(detect);
+      return;
+    }
+    const hands: LegacyHand[] = result.landmarks.map((lms, i) => ({
+      handedness: result.handedness[i]?.[0]?.categoryName ?? 'Right',
+      // Landmark 8 is the index fingertip; tasks-vision gives normalized coordinates.
+      keypoints: lms.map((l, j) => ({
+        x: l.x * video.videoWidth,
+        y: l.y * video.videoHeight,
+        name: j === 8 ? 'index_finger_tip' : undefined,
+      })),
+    }));
     setHandsCount(hands.length);
 
     const ctx = canvasRef.current.getContext('2d');
@@ -99,7 +129,7 @@ export default function Theremin() {
       hands.forEach((hand) => {
         const indexTip = hand.keypoints.find(kp => kp.name === 'index_finger_tip');
         if (indexTip) {
-          const handednessStr = typeof hand.handedness === 'string' ? hand.handedness : (hand as any).label || 'Right';
+          const handednessStr = hand.handedness;
           const isRightHand = handednessStr.toLowerCase().includes('left');
 
           const x = 1 - (indexTip.x / videoRef.current!.videoWidth);
@@ -133,7 +163,7 @@ export default function Theremin() {
         }
       });
 
-      const presentHandedness = hands.map(h => typeof h.handedness === 'string' ? h.handedness : (h as any).label || 'Right');
+      const presentHandedness = hands.map(h => h.handedness);
       if (!presentHandedness.some(h => h.toLowerCase().includes('left'))) updateVoice(0, 0, 0, false, rightVoiceSettings);
       if (!presentHandedness.some(h => h.toLowerCase().includes('right'))) updateVoice(1, 0, 0, false, leftVoiceSettings);
     }
