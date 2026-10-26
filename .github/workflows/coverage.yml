@@ -1,7 +1,7 @@
 # The weekly coverage reading (#772).
 #
-# `npm run test:coverage` runs the whole suite under v8 instrumentation. A full run takes about
-# twice as long as the plain suite, so it is NOT a per-PR job (docs/CI_COST.md tracks CI time);
+# `npm run test:coverage` runs the whole suite under v8 instrumentation, which is much slower than
+# the plain suite, so it is NOT a per-PR job (docs/CI_COST.md tracks CI time);
 # it runs weekly and on demand. It is a reading, not a ratchet: no threshold gates anything. If a
 # ratchet is wanted later, a committed per-package baseline that may only go up (the shape of
 # test/architecture_ratchet.test.ts) fits better than a global threshold.
@@ -38,7 +38,12 @@ jobs:
 
       - name: Run the suite with coverage
         id: cov
-        # Tests that fail only under instrumentation must not hide the report.
+        # Tests that fail only under instrumentation must not hide the report, so the step may
+        # fail (pipefail makes vitest's status the step's) and the job goes on; the last step
+        # turns "no report was written" (a crash, an OOM) red again.
+        shell: bash
+        env:
+          NO_COLOR: "1" # plain text, so the summary greps below match
         run: npm run test:coverage 2>&1 | tee coverage-run.log
         continue-on-error: true
 
@@ -61,9 +66,10 @@ jobs:
         with:
           name: coverage-report
           path: |
-            coverage/coverage-summary.json
-            coverage/index.html
-            coverage/**/*.html
+            coverage/
             coverage-run.log
           retention-days: 90
           if-no-files-found: warn
+
+      - name: Fail if no report was written
+        run: test -f coverage/coverage-summary.json
