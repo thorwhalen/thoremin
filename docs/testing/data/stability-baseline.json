@@ -770,5 +770,234 @@
       "blips": 0,
       "latency": null
     }
+  },
+  {
+    "instrument": "Conduct the Chords",
+    "stream": "conducting",
+    "branches": [
+      "chord-chart",
+      "conductor"
+    ],
+    "chord": {
+      "durationS": 13.5,
+      "heldS": 1.0000000000000002,
+      "soundingS": 11.6,
+      "changes": 11,
+      "changesWhileHeld": 1,
+      "changesPerHeldS": 0.9999999999999998,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 13.5,
+      "heldS": 1.0000000000000002,
+      "soundingS": 10.4,
+      "changes": 23,
+      "changesWhileHeld": 2,
+      "changesPerHeldS": 1.9999999999999996,
+      "flickers": 1,
+      "flickersPerMin": 4.444444444444445,
+      "spuriousNoHand": 1,
+      "entryFlickers": 0,
+      "shortChords": 2,
+      "blips": 0,
+      "latency": null
+    }
+  },
+  {
+    "instrument": "Conduct the Chords",
+    "stream": "choir",
+    "branches": [
+      "chord-chart",
+      "conductor"
+    ],
+    "chord": {
+      "durationS": 19.999999999999996,
+      "heldS": 1.8666666666666663,
+      "soundingS": 14.166666666666663,
+      "changes": 10,
+      "changesWhileHeld": 1,
+      "changesPerHeldS": 0.5357142857142858,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 19.999999999999996,
+      "heldS": 1.8666666666666663,
+      "soundingS": 11.033333333333331,
+      "changes": 27,
+      "changesWhileHeld": 3,
+      "changesPerHeldS": 1.6071428571428574,
+      "flickers": 1,
+      "flickersPerMin": 3.0000000000000004,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 6,
+      "blips": 0,
+      "latency": null
+    }
+  },
+  {
+    "instrument": "Hand-shape Chords",
+    "stream": "signs-gaps",
+    "branches": [
+      "field-voices",
+      "hand-chords"
+    ],
+    "chord": {
+      "durationS": 42.9,
+      "heldS": 12.899999999999972,
+      "soundingS": 0,
+      "changes": 0,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 42.9,
+      "heldS": 12.899999999999972,
+      "soundingS": 30.63333333333334,
+      "changes": 112,
+      "changesWhileHeld": 17,
+      "changesPerHeldS": 1.3178294573643439,
+      "flickers": 75,
+      "flickersPerMin": 104.8951048951049,
+      "spuriousNoHand": 0,
+      "entryFlickers": 26,
+      "shortChords": 5,
+      "blips": 0,
+      "latency": null
+    }
+  },
+  {
+    "instrument": "Hand-shape Chords",
+    "stream": "choir",
+    "branches": [
+      "field-voices",
+      "hand-chords"
+    ],
+    "chord": {
+      "durationS": 19.999999999999996,
+      "heldS": 1.8666666666666663,
+      "soundingS": 0,
+      "changes": 0,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 19.999999999999996,
+      "heldS": 1.8666666666666663,
+      "soundingS": 19.999999999999996,
+      "changes": 3,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 1,
+      "flickersPerMin": 3.0000000000000004,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    }
+  },
+  {
+    "instrument": "Pose Chords",
+    "stream": "body-conducting",
+    "branches": [
+      "field-voices",
+      "pose-chords"
+    ],
+    "chord": {
+      "durationS": 23.999999999999996,
+      "heldS": 0,
+      "soundingS": 0,
+      "changes": 0,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 23.999999999999996,
+      "heldS": 0,
+      "soundingS": 0,
+      "changes": 0,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    }
+  },
+  {
+    "instrument": "Head Chords",
+    "stream": "head",
+    "branches": [
+      "field-voices",
+      "face-source",
+      "face-controls"
+    ],
+    "chord": {
+      "durationS": 13.5,
+      "heldS": 0,
+      "soundingS": 1.4333333333333336,
+      "changes": 2,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    },
+    "heard": {
+      "durationS": 13.5,
+      "heldS": 0,
+      "soundingS": 1.4333333333333336,
+      "changes": 2,
+      "changesWhileHeld": 0,
+      "changesPerHeldS": 0,
+      "flickers": 0,
+      "flickersPerMin": 0,
+      "spuriousNoHand": 0,
+      "entryFlickers": 0,
+      "shortChords": 0,
+      "blips": 0,
+      "latency": null
+    }
   }
 ]

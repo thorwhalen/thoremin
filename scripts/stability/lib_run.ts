@@ -5,7 +5,8 @@
  * chord display, `chordSel.chord`, which every chord instrument feeds) and the pitch classes its
  * voices sound, so the stability metrics (`lib_metrics.ts`) read what a player sees and hears.
  */
-import { Engine, StreamRecorder } from '@thoremin/dag';
+import { defineNode, Engine, StreamRecorder } from '@thoremin/dag';
+import { z } from 'zod';
 import type { HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { createAppRegistry } from '@/nodes/browser';
 import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
@@ -24,7 +25,35 @@ export interface SeedRunOptions {
   resources?: Record<string, unknown>;
   /** Other recorded streams to keep (`node.port`). */
   record?: string[];
+  /** A recorded body stream, played by `replay-body` in the body slot (for a seed that reads the body). */
+  body?: readonly unknown[];
+  /** A recorded face stream, played in place of the face camera (for a seed that reads the face). */
+  face?: readonly unknown[];
 }
+
+/** The face camera's stand-in: a recorded `FaceFrame` stream, one per tick (the face has no
+ *  source slot, so the harness swaps the node itself). The status says ready and seen. */
+const replayFaceNode = defineNode<{ frames: unknown[] }>({
+  type: 'stability-replay-face',
+  roles: ['source'],
+  title: 'Replay face (stability harness)',
+  description: 'A recorded face stream, one frame per tick, in place of the face camera.',
+  inputs: [],
+  outputs: [
+    { name: 'face', kind: 'face-frame' },
+    { name: 'status', kind: 'face-status' },
+  ],
+  params: z.object({ frames: z.array(z.unknown()).default([]) }) as never,
+  make({ frames }) {
+    let n = 0;
+    return {
+      process() {
+        const face = frames[Math.min(n++, frames.length - 1)];
+        return { face, status: { phase: 'ready', present: !!(face as { present?: boolean } | undefined)?.present } };
+      },
+    };
+  },
+});
 
 export interface SeedRun {
   t: number[];
@@ -61,10 +90,25 @@ export async function runSeed(name: string, frames: readonly HandsFrame[], opts:
   const settings = seedSettings(name, opts.patch);
   const branches = branchIdsFor(settings);
   const registry = createAppRegistry();
-  const { spec } = composeInstrumentGraph(branches, { source: 'replay-hands' }, registry);
+  if (opts.face) registry.register(replayFaceNode);
+  const { spec } = composeInstrumentGraph(branches, { source: 'replay-hands', ...(opts.body ? { body: 'replay-body' } : {}) }, registry);
   const cam = spec.nodes.find((n) => n.id === 'cam');
   if (!cam) throw new Error('runSeed: the composed graph has no source node "cam"');
-  cam.params = { frames };
+  // Stamped with their capture time, as the live camera stamps every frame: the nodes that count
+  // camera frames (a hysteresis over frames, not ticks) tell one frame from the next by its stamp.
+  const dt0 = opts.dt ?? 1 / 30;
+  cam.params = { frames: frames.map((f, i) => (f.t === undefined ? { ...f, t: i * dt0 } : f)) };
+  if (opts.body) {
+    const camBody = spec.nodes.find((n) => n.id === 'camBody');
+    if (!camBody) throw new Error(`runSeed: "${name}" composes no body source to replay a body stream into`);
+    camBody.params = { frames: opts.body };
+  }
+  if (opts.face) {
+    const camFace = spec.nodes.find((n) => n.id === 'camFace');
+    if (!camFace) throw new Error(`runSeed: "${name}" composes no face source to replay a face stream into`);
+    camFace.type = replayFaceNode.type;
+    camFace.params = { frames: opts.face };
+  }
   const dt = opts.dt ?? 1 / 30;
   const snapshot = { ...settings, ...(opts.transients ?? {}) };
   // The engine ticked here rather than by `runHeadless`: a lazily loaded model (the sign

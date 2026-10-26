@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRecords, FIXTURES } from '../helpers/fixtures';
 import { INSTRUMENTS, measure, type CaseResult } from '../../scripts/stability/suite';
-import { ASL, HARMONY } from '../helpers/extensions';
+import { ASL, BODY, CONDUCTOR, FACES, HARMONY } from '../helpers/extensions';
 
 const meta = JSON.parse(readFileSync(join(FIXTURES, 'real_hands_signs', 'meta.json'), 'utf8'));
 const baseline = JSON.parse(readFileSync(join(FIXTURES, '..', '..', 'docs', 'testing', 'data', 'stability-baseline.json'), 'utf8')) as CaseResult[];
@@ -35,7 +35,17 @@ const HELD: readonly { name: string; read: (r: CaseResult) => number }[] = [
   { name: 'seconds of chord with nobody signing', read: (r) => (SIGN_INSTRUMENTS.includes(r.instrument) && r.stream === 'choir' ? Math.round(r.chord.soundingS * 10) / 10 : 0) },
 ];
 
-const needs = (instrument: string) => (SIGN_INSTRUMENTS.includes(instrument) ? HARMONY && ASL : HARMONY);
+/** The extensions each instrument is built from (a build without one has no such seed). */
+const needs = (instrument: string): boolean =>
+  SIGN_INSTRUMENTS.includes(instrument)
+    ? HARMONY && ASL
+    : instrument === 'Conduct the Chords'
+      ? HARMONY && CONDUCTOR
+      : instrument === 'Hand-shape Chords' || instrument === 'Pose Chords'
+        ? FACES && BODY
+        : instrument === 'Head Chords'
+          ? true
+          : HARMONY;
 
 describe('the baseline covers the suite', () => {
   it('has one entry per instrument and stream, and none for a case the suite dropped', () => {
