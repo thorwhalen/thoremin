@@ -61,7 +61,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 const BASE_PATH = '/thoremin/';
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
-const TASKS_VISION_VERSION = '0.10.35';
+const TASKS_VISION_VERSION = '1.1.1';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 /** Must match `CAPTURE` in `src/app/engine/camera.ts` (what the app asks the camera for). */
 const APP_CAPTURE = '1280x720';

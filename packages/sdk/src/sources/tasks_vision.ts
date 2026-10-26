@@ -9,7 +9,7 @@
  *
  * Nothing here touches the browser — it is data, safe to import from tests.
  */
-export const TASKS_VISION_VERSION = '0.10.35';
+export const TASKS_VISION_VERSION = '1.1.1';
 
 /** The wasm fileset every tasks-vision landmarker loads through `FilesetResolver`. */
 export const TASKS_VISION_WASM_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;

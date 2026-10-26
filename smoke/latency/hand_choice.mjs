@@ -28,7 +28,7 @@ import { chromium } from '@playwright/test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
-const TASKS_VISION_VERSION = '0.10.35';
+const TASKS_VISION_VERSION = '1.1.1';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 
 function parseArgs(argv) {
