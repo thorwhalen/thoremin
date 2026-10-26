@@ -106,7 +106,7 @@ export interface NoiseSnapshot {
 }
 
 export interface NoiseEstimator {
-  /** Fold one frame in. `tMs` must be non-decreasing. */
+  /** Fold one frame in. `tMs` must be non-decreasing within a cue; a repeat of the previous stamp is ignored. */
   push(vector: FeatureVector, tMs: number): void;
   /** The effective sigma for `id` — the jitter estimate floored by the range — or
    *  `NaN` when the feature has never been seen. */
@@ -153,9 +153,16 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
   const o = { ...DEFAULTS, ...options };
   const stats = new Map<string, Stat>();
   let frames = 0;
+  let lastPushT = NaN;
 
   return {
     push(vector, tMs) {
+      // The same stamp again is the same camera frame offered twice (a poll faster than
+      // the camera, a stalled frame), not a new reading: folding it in would count a zero
+      // difference and halve the warm-up sigma. (A stamp that goes BACK is a new cue's
+      // clock restarting, and is still folded in.)
+      if (tMs === lastPushT) return;
+      lastPushT = tMs;
       frames += 1;
       for (const id of Object.keys(vector)) {
         const x = vector[id];
@@ -220,6 +227,7 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
     reset() {
       stats.clear();
       frames = 0;
+      lastPushT = NaN;
     },
   };
 }

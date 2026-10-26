@@ -141,6 +141,20 @@ describe('noise units — the estimator every distance is measured in (#163)', (
     expect(ratio).toBeLessThan(60);
   });
 
+  it('a repeated timestamp is the same frame, not a zero difference (#856)', () => {
+    const once = createNoiseEstimator();
+    const twice = createNoiseEstimator();
+    const r = prng(7);
+    for (let i = 0; i < 120; i++) {
+      const frame = v({ deg: 10 + 0.3 * r(), bs: 0.2 + 0.01 * r() });
+      once.push(frame, i * 33);
+      twice.push(frame, i * 33);
+      twice.push(frame, i * 33);
+    }
+    expect(twice.snapshot()).toEqual(once.snapshot());
+    expect(twice.isWarm('deg')).toBe(once.isWarm('deg'));
+  });
+
   it('a deliberate move barely inflates the estimate (the clip), so the next hold still reads as held', () => {
     const n = createNoiseEstimator();
     const r = prng(7);
