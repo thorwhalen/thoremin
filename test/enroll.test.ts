@@ -141,6 +141,36 @@ describe('noise units — the estimator every distance is measured in (#163)', (
     expect(ratio).toBeLessThan(60);
   });
 
+  it('a repeated timestamp is the same frame, not a zero difference (#856)', () => {
+    const once = createNoiseEstimator();
+    const twice = createNoiseEstimator();
+    const r = prng(7);
+    for (let i = 0; i < 120; i++) {
+      const frame = v({ deg: 10 + 0.3 * r(), bs: 0.2 + 0.01 * r() });
+      once.push(frame, i * 33);
+      twice.push(frame, i * 33);
+      twice.push(frame, i * 33);
+    }
+    expect(twice.snapshot()).toEqual(once.snapshot());
+    expect(twice.isWarm('deg')).toBe(once.isWarm('deg'));
+  });
+
+  it('a repeated stamp is ignored per feature, however the pushes interleave (#856)', () => {
+    const n = createNoiseEstimator();
+    n.push(v({ a: 1 }), 10);
+    n.push(v({ a: 5 }), 5); // a cue's clock restarting
+    n.push(v({ a: 5 }), 10);
+    n.push(v({ a: 5 }), 10);
+    expect(n.snapshot().frames).toBe(3);
+    const m = createNoiseEstimator();
+    m.push(v({ a: 1 }), 10);
+    m.push(v({ a: 1, b: 2 }), 10); // b is new at this stamp: kept
+    expect(m.features().sort()).toEqual(['a', 'b']);
+    m.reset();
+    m.push(v({ a: 1 }), 10);
+    expect(m.snapshot().frames).toBe(1);
+  });
+
   it('a deliberate move barely inflates the estimate (the clip), so the next hold still reads as held', () => {
     const n = createNoiseEstimator();
     const r = prng(7);
