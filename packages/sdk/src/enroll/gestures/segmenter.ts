@@ -28,7 +28,9 @@
  * A break in the stream INTERRUPTS: a frame the meter cannot judge (an attended feature with
  * no warm noise estimate: a hand that just came into view) or a gap (frames missing: the hand
  * left the shot) abandons an open run and disarms. A trace with a hole in it would be a
- * corrupt template for the matcher, and half a wave is not a repetition. A repeated stamp is
+ * corrupt template for the matcher, and half a wave is not a repetition. The meter reports a
+ * gap past two windows (200 ms, six frames at 30 fps); a shorter dropout is kept inside the
+ * trace, as the sampler keeps it inside a dwell. A repeated stamp is
  * skipped: it is the same frame read twice, not a frame.
  *
  * ## The noise estimate is the caller's

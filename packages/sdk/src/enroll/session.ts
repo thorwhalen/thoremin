@@ -288,7 +288,12 @@ export function createSession(options: SessionOptions = {}): Session {
       }
       // A frame with none of the cue's features is not a sample of this cue (no face in
       // shot, say) — it must not count toward "enough".
-      if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) return;
+      if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) {
+        // Not a sample of the cue, but still noise for every other feature (the face while
+        // the hand is out of view), as it is in any other cue.
+        if (segmenter && !segmenter.inRun()) noise.push(vector, tMs);
+        return;
+      }
       lastInCue = { v: vector, t: tMs };
       if (sampler) {
         const p = sampler.push(vector, tMs);
