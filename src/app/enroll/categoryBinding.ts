@@ -41,7 +41,7 @@
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { hostValues, noopValues } from '@thoremin/sdk-ui/storage';
+import { hostPersistValues, noopValues } from '@thoremin/sdk-ui/storage';
 import { z } from 'zod';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
@@ -334,7 +334,7 @@ export const useCategoryBinding = create<CategoryBindingState>()(
       name: CATEGORY_PREFS_STORAGE_KEY,
       // The host's key-value target (the storage seam, #659: localStorage in the browser, as
       // zustand's default was); a no-op where the host has none (Node).
-      storage: createJSONStorage(() => hostValues(noopValues)),
+      storage: createJSONStorage(() => hostPersistValues(noopValues)),
       partialize: (s) => ({ activeId: s.activeId, enabled: s.enabled, holdMs: s.holdMs }),
       merge: (persisted, current) => ({ ...current, ...healPrefs(persisted, current) }),
     },

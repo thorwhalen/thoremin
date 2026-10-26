@@ -150,6 +150,42 @@ export function hostValues(fallback: ValueStorage): ValueStorage {
   };
 }
 
+/**
+ * `storage` whose writes never throw. A full or disabled localStorage throws from `setItem`
+ * (`QuotaExceededError`), and zustand's persist middleware calls it synchronously inside every
+ * `set(...)` AFTER the in-memory state changed, so one failed write would break the caller of
+ * each action (#738). The value stays in memory for the session; the failure is reported once
+ * per page through `warn`, not once per write.
+ */
+export function bestEffortWrites(storage: ValueStorage, warn: (err: unknown) => void = defaultWarn): ValueStorage {
+  let warned = false;
+  const guard = (write: () => void): void => {
+    try {
+      write();
+    } catch (err) {
+      if (!warned) {
+        warned = true;
+        warn(err);
+      }
+    }
+  };
+  return {
+    getItem: (key) => storage.getItem(key),
+    setItem: (key, value) => guard(() => storage.setItem(key, value)),
+    removeItem: (key) => guard(() => storage.removeItem(key)),
+  };
+}
+
+const defaultWarn = (err: unknown): void => console.warn('[thoremin] storage write failed; keeping the value in memory for this session', err);
+
+/**
+ * {@link hostValues} for a zustand `persist` store: a failed write is warned about once and
+ * dropped. A caller that must know a write failed (the instrument profiles) uses `hostValues`.
+ */
+export function hostPersistValues(fallback: ValueStorage): ValueStorage {
+  return bestEffortWrites(hostValues(fallback));
+}
+
 /** Whether the host has a key-value target now (false in plain Node with the default host). */
 export function hasHostValues(): boolean {
   return currentValues() !== null;

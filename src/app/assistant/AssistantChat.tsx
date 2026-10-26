@@ -42,7 +42,11 @@ export default function AssistantChat({ onClose }: { onClose: () => void }) {
     }
     const persist = () => {
       if (session.busy) return; // wait for the turn to settle before writing
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
+      } catch {
+        /* storage full / disabled — the chat history is best-effort (#738) */
+      }
     };
     session.addEventListener('change', persist);
     return () => {
