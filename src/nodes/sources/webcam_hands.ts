@@ -4,8 +4,7 @@
  * latest {@link HandsFrame}.
  *
  * It uses **tasks-vision** — the SAME runtime as `webcam-face` — rather than the
- * `@mediapipe/hands` Emscripten "solution" (via @tensorflow-models/hand-pose-
- * detection's `runtime: 'mediapipe'`). Two *different* MediaPipe Emscripten
+ * old `@mediapipe/hands` Emscripten "solution" (retired in #816). Two *different* MediaPipe Emscripten
  * modules collide on the global `Module` object, which aborts the FaceLandmarker
  * load whenever both are present. Running hands and face on one tasks-vision
  * runtime lets them coexist (one Emscripten module hosting two tasks), and keeps
@@ -34,7 +33,7 @@ import { defineNode } from '@thoremin/dag';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
-import { MEDIAPIPE_MODELS_BASE, TASKS_VISION_WASM_BASE } from './tasks_vision';
+import { HAND_MODEL_URL, TASKS_VISION_WASM_BASE } from './tasks_vision';
 import type { Hand, Handedness, HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
 import { DelegateChoiceSchema, resolveDelegate } from './delegate';
 import { copyFramesOnCpu } from './model_input';
@@ -58,8 +57,7 @@ export { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hand
 // tasks-vision assets, loaded from a CDN on demand. The wasm fileset is pinned to
 // the installed `@mediapipe/tasks-vision` version (shared with `webcam-face`), and
 // the model is the float16 `hand_landmarker.task` (21 landmarks per hand).
-const MODEL_URL =
-  `${MEDIAPIPE_MODELS_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;
+const MODEL_URL = HAND_MODEL_URL;
 
 const Params = z.object({
   // Retained for graph/preset compatibility; tasks-vision ships a single

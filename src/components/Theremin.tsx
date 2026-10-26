@@ -3,7 +3,7 @@
 // DAG app (src/app/App.tsx) is the product.
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import type { HandLandmarker } from '@mediapipe/tasks-vision';
-import { TASKS_VISION_WASM_BASE, MEDIAPIPE_MODELS_BASE } from '@thoremin/sdk/sources/tasks_vision';
+import { TASKS_VISION_WASM_BASE, HAND_MODEL_URL } from '@thoremin/sdk/sources/tasks_vision';
 import { useAudioEngine, VoiceSettings } from '../hooks/useAudioEngine';
 import { Activity, Sliders, Info, BookOpen } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -11,8 +11,6 @@ import { NOTES, SCALE_TYPES, HandSettings, defaultSettings, generateScale } from
 import SettingsPanel from './SettingsPanel';
 import InfoModal from './InfoModal';
 import { usePluginManager } from '../plugins/PluginProvider';
-
-const HAND_MODEL_URL = `${MEDIAPIPE_MODELS_BASE}/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`;
 
 /** One detected hand in the legacy loop's terms: pixel index-fingertip and a handedness label. */
 interface LegacyHand {
@@ -74,11 +72,14 @@ export default function Theremin() {
     try {
       const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
       const fileset = await FilesetResolver.forVisionTasks(TASKS_VISION_WASM_BASE);
-      detectorRef.current = await HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: 'GPU' },
-        numHands: 2,
-        runningMode: 'VIDEO',
-      });
+      const create = (delegate: 'GPU' | 'CPU') =>
+        HandLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
+          numHands: 2,
+          runningMode: 'VIDEO',
+        });
+      // No WebGL on this client: the CPU delegate is slower but works.
+      detectorRef.current = await create('GPU').catch(() => create('CPU'));
       setIsReady(true);
     } catch (err) {
       setError('Failed to load hand tracking model.');
@@ -90,7 +91,19 @@ export default function Theremin() {
     if (!detectorRef.current || !videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
-    const result = detectorRef.current.detectForVideo(video, performance.now());
+    // No frame yet (metadata arrives first), or a throw from the model: skip this frame, keep the loop alive.
+    let result: ReturnType<HandLandmarker['detectForVideo']> | null = null;
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      try {
+        result = detectorRef.current.detectForVideo(video, performance.now());
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    if (!result) {
+      rafRef.current = requestAnimationFrame(detect);
+      return;
+    }
     const hands: LegacyHand[] = result.landmarks.map((lms, i) => ({
       handedness: result.handedness[i]?.[0]?.categoryName ?? 'Right',
       // Landmark 8 is the index fingertip; tasks-vision gives normalized coordinates.
@@ -150,7 +163,7 @@ export default function Theremin() {
         }
       });
 
-      const presentHandedness = hands.map(h => typeof h.handedness === 'string' ? h.handedness : (h as any).label || 'Right');
+      const presentHandedness = hands.map(h => h.handedness);
       if (!presentHandedness.some(h => h.toLowerCase().includes('left'))) updateVoice(0, 0, 0, false, rightVoiceSettings);
       if (!presentHandedness.some(h => h.toLowerCase().includes('right'))) updateVoice(1, 0, 0, false, leftVoiceSettings);
     }

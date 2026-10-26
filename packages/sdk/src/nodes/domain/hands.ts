@@ -1,7 +1,7 @@
 /**
  * Hands on the DAG's edges: keypoints, a hand, a frame of hands and their schemas, the
- * finger features, the MediaPipe Hands landmark indices (21 points; named keypoints as
- * emitted by @tensorflow-models/hand-pose-detection are tolerated) and the synthetic hand
+ * finger features, the MediaPipe Hands landmark indices (21 points; named keypoints, as the
+ * retired hand-pose-detection emitted them, are still tolerated) and the synthetic hand
  * geometry the synthetic source and the tests use. Part of the domain types
  * (`../domain.ts` re-exports it).
  */

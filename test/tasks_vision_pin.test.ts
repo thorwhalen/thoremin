@@ -8,6 +8,12 @@ import { describe, expect, it } from 'vitest';
 import { TASKS_VISION_VERSION } from '@thoremin/sdk/sources/tasks_vision';
 
 describe('tasks-vision pin', () => {
+  it('the smoke scripts copy the same version', () => {
+    for (const f of ['smoke/latency/hand_choice.mjs', 'smoke/latency/measure.mjs']) {
+      expect(readFileSync(f, 'utf8')).toContain(`TASKS_VISION_VERSION = '${TASKS_VISION_VERSION}'`);
+    }
+  });
+
   it('the wasm version constant equals the installed package version', () => {
     const pkg = JSON.parse(readFileSync('node_modules/@mediapipe/tasks-vision/package.json', 'utf8'));
     expect(TASKS_VISION_VERSION).toBe(pkg.version);

@@ -13,8 +13,9 @@
  * Frozen means: kept working, NOT developed. By convention this tree is excluded from
  * refactors — do not "clean it up", re-point it at new abstractions, or dedupe its
  * helpers against the DAG app's. It keeps its own copies on purpose, so a change to the
- * live app can never break it. Its dependency footprint (the TensorFlow.js hand-pose
- * stack, @mediapipe/hands) is retained for the same reason.
+ * live app can never break it. Its hands run on the same
+ * `@mediapipe/tasks-vision` runtime as the DAG app (#816 retired the TensorFlow.js
+ * hand-pose stack), pinned through `@thoremin/sdk/sources/tasks_vision`.
  *
  * The frozen tree is: this file → `components/Theremin.tsx` → `hooks/useAudioEngine.ts`,
  * `constants.ts`, the rest of `components/`, and the `plugins/` tree (the Lyria AI-DJ).

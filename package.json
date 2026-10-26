@@ -40,7 +40,7 @@
     "@ai-sdk/openai": "^4.0.11",
     "@google/genai": "^1.29.0",
     "@jsep-plugin/ternary": "^1.1.4",
-    "@mediapipe/tasks-vision": "~1.1.1",
+    "@mediapipe/tasks-vision": "1.1.1",
     "@tailwindcss/vite": "^4.1.14",
     "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#8468842053a6e9b5b781a534d6b136b22761f815",
     "@thoremin/ext-draw": "github:thorwhalen/thoremin-ar#e18581316f915be91eb35b0496269c590f31fe83",
