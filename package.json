@@ -43,7 +43,7 @@
     "@jsep-plugin/ternary": "^1.1.4",
     "@mediapipe/tasks-vision": "1.1.1",
     "@tailwindcss/vite": "^4.1.14",
-    "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#8468842053a6e9b5b781a534d6b136b22761f815",
+    "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#d2b5a897540269e9902da8c696c3c930faa38c08",
     "@thoremin/ext-draw": "github:thorwhalen/thoremin-ar#e18581316f915be91eb35b0496269c590f31fe83",
     "@tonejs/midi": "^2.0.28",
     "@types/three": "^0.186.0",

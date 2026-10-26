@@ -48,9 +48,9 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Chord Map Strum | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
 | Chord Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Chord Wheel | conducting | 13.3 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| ASL Chords | signs-gaps | 25.7 | 0.08 | 0.00 | 0 | 0 | 0 | 1367 (3167) | 1/8 | 0 |
-| ASL Chords | signs-flow | 28.2 | 0.15 | 0.00 | 0 | 0 | 0 | 1033 (2500) | 1/9 | 0 |
-| ASL Chords | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| ASL Chords | signs-gaps | 23.9 | 0.23 | 0.00 | 1 | 0 | 1 | 1567 (3367) | 3/8 | 0 |
+| ASL Chords | signs-flow | 28.0 | 0.37 | 0.00 | 0 | 0 | 0 | 1233 (3067) | 1/9 | 0 |
+| ASL Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Sign Map | signs-gaps | 41.0 | 0.16 | 0.00 | 0 | 0 | 1 | 1600 (3400) | 3/8 | 0 |
 | Sign Map | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 1267 (3100) | 1/9 | 0 |
 | Sign Map | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
