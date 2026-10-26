@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createInMemoryProvider } from '@zodal/store';
+import { jsonCloseTo } from '../helpers/platform_golden';import { createInMemoryProvider } from '@zodal/store';
 import { createCategorizerStore, type CategorizerRecord } from '@thoremin/sdk-ui/enroll/categorizers';
 import { exportCategorizer, modelFromCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { classify } from '@thoremin/sdk/enroll/classify';
@@ -125,7 +125,10 @@ describe.runIf(FACES)('the shipped hand-shape and pose demo categorizers', () =>
       const text = `${exportCategorizer(c)}\n`;
       const path = join(DIR, `${d.file}.json`);
       if (UPDATE) writeFileSync(path, text);
-      expect(readFileSync(path, 'utf8')).toBe(text);
+      // Numerically equal (relative 1e-12) with the layout exact, not byte-equal: the last bit of a
+      // trained weight depends on the platform's `Math` (#828).
+      const committed = JSON.parse(readFileSync(path, 'utf8'));
+      expect(jsonCloseTo(committed, JSON.parse(text)), 'the committed demo and the carve differ beyond platform noise').toBe(true);
     }, 60_000);
   }
 

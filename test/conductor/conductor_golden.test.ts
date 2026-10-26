@@ -11,12 +11,13 @@
  * patterns (priors, servo, levels, fermatas, recording lead, config toggling), the split
  * role with two hands, the body conductor on A1's fixtures and on scripted transport
  * gestures (rules, pose override, lead offsets, expression from the body), and the dancer
- * leading the score and the recording. `CONDUCTOR_GOLDEN_UPDATE=1` rewrites the file;
+ * leading the score and the recording. `CONDUCTOR_GOLDEN_UPDATE=1` rewrites the file (on a
+ * platform other than CI's, only its own override file: `helpers/platform_golden.ts`);
  * do that only when a behaviour change is intended.
  */
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { replayNode } from '@thoremin/dag';
 import { type BodyFrame, type HandsFrame } from '@/nodes';
@@ -25,6 +26,7 @@ import { bodyPulseNode } from '@/slices/body/nodes/body_pulse';
 import { conduct, type Gesture } from '../helpers/body_conduct';
 import { loadStream } from '../helpers/fixtures';
 import { CONDUCTOR } from '../helpers/extensions';
+import { overrideProblems, readGolden, writeGolden } from '../helpers/platform_golden';
 
 const GOLDEN = join(__dirname, '..', 'fixtures', 'conductor_golden.json');
 const FPS = 30;
@@ -200,7 +202,7 @@ async function summarise(s: Scenario, name: string) {
 
 describe.runIf(CONDUCTOR)('the conductor node: outputs byte-identical to the recorded golden (#470)', () => {
   const update = process.env.CONDUCTOR_GOLDEN_UPDATE === '1';
-  const golden: Record<string, ReturnType<typeof Object>> = update ? {} : JSON.parse(readFileSync(GOLDEN, 'utf8'));
+  const golden: Record<string, ReturnType<typeof Object>> = update ? {} : readGolden(GOLDEN);
   const produced: Record<string, Awaited<ReturnType<typeof summarise>>> = {};
 
   for (const [name, make] of Object.entries(scenarios)) {
@@ -213,9 +215,13 @@ describe.runIf(CONDUCTOR)('the conductor node: outputs byte-identical to the rec
     });
   }
 
+  it('this platform\'s override names only base scenarios that really differ', () => {
+    expect(overrideProblems(GOLDEN)).toEqual([]);
+  });
+
   it('covers every golden entry and no scenario is an empty run', () => {
     if (update) {
-      writeFileSync(GOLDEN, JSON.stringify(produced, null, 1) + '\n');
+      writeGolden(GOLDEN, produced);
       return;
     }
     expect(Object.keys(golden).sort()).toEqual(Object.keys(scenarios).sort());

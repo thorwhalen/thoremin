@@ -28,6 +28,7 @@ import { createHandednessDwell, DEFAULT_HANDEDNESS_DWELL_FRAMES } from '@thoremi
 import { createCoreRegistry, handFeaturesNode, handFeatureVectorNode, type HandFeatures, type HandsFrame } from '@/nodes';
 import { LAB_HANDEDNESS_DWELL_FRAMES } from '@/nodes/features/hand_feature_vector';
 import { storeControlsNode } from '@/nodes/sources/store_controls';
+import { PLATFORM } from './helpers/platform_golden';
 import type { NodeContext } from '@thoremin/dag';
 import { defaultGraph } from '@/app/graph';
 import { useControls } from '@/app/store';
@@ -116,6 +117,17 @@ const GOLDEN: Record<string, { feat: string; map: string }> = {
   },
 };
 
+/** Digests that differ on a platform whose `Math` rounds a last bit differently (`helpers/platform_golden.ts`, #828); the rest fall back to GOLDEN. */
+const PLATFORM_GOLDEN: Record<string, Record<string, { feat: string; map: string }>> = {
+  'darwin-arm64': {
+    video_hand_pinch: {
+      feat: 'b792c901f41daba14d2c45e68c7366f673337c19a6386fdfe9b9be2e2fc70d72',
+      map: '02afac4912544de08a155cd0d51cb18061ccd4a906b17c4c8729f3033e7b977e',
+    },
+  },
+};
+const goldenOf = (scenario: string): { feat: string; map: string } => PLATFORM_GOLDEN[PLATFORM]?.[scenario] ?? GOLDEN[scenario]!;
+
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 
 function soundPathSpec(scenario: string, featParams: Record<string, unknown> = {}): GraphSpec {
@@ -134,7 +146,8 @@ function soundPathSpec(scenario: string, featParams: Record<string, unknown> = {
 }
 
 describe('hand-features at dwell 0 is byte-identical to its stateless self (#148)', () => {
-  for (const [scenario, golden] of Object.entries(GOLDEN)) {
+  for (const scenario of Object.keys(GOLDEN)) {
+    const golden = goldenOf(scenario);
     it(`${scenario}: the feature stream and the note stream digest to the pre-#148 goldens`, async () => {
       const ticks = loadStream(scenario, 'src.hands').length;
       const { recorder } = await runHeadless(soundPathSpec(scenario), createCoreRegistry(), { ticks, nominalDt: 1 / 30 });
