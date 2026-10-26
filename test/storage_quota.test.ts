@@ -5,7 +5,7 @@
  * `setItem` used to come out of each action (and stop the engine starting).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bestEffortWrites, memoryValues } from '@thoremin/sdk-ui/storage';
+import { bestEffortWrites, memoryValues, skipUnchangedWrites } from '@thoremin/sdk-ui/storage';
 import { useControls } from '@/app/store';
 import { useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
@@ -91,5 +91,72 @@ describe('the instrument metadata blob (#823)', () => {
       throw quota();
     });
     await expect(writeInstrumentMeta({})).resolves.toBeUndefined();
+  });
+});
+
+describe('two tabs over one localStorage (#739)', () => {
+  it("a tab's transient-only set does not write its stale blob over the other tab's saved pref", async () => {
+    vi.resetModules();
+    const A = await import('@/app/store');
+    vi.resetModules();
+    const B = await import('@/app/store');
+    const stored = () => JSON.parse(localStorage.getItem('thoremin-controls') ?? '{}').state as Record<string, unknown>;
+
+    // B's first write is its own (it may have healed or migrated the blob); then it is in sync with storage.
+    B.useControls.getState().setMasterVolume(0.31);
+    // Tab A learns a lead offset and saves it.
+    A.useControls.getState().setPref('conductorPrefs', { leadOffsets: { wrist: 0.05 } });
+    expect((stored().conductorPrefs as { leadOffsets: Record<string, number> }).leadOffsets.wrist).toBe(0.05);
+
+    // Tab B only switches instrument (a transient): it must not touch the saved blob.
+    B.useControls.getState().setGraphElements(['x']);
+    expect((stored().conductorPrefs as { leadOffsets: Record<string, number> }).leadOffsets.wrist).toBe(0.05);
+  });
+});
+
+describe('skipUnchangedWrites', () => {
+  const counting = () => {
+    const inner = memoryValues();
+    const set = vi.spyOn(inner, 'setItem');
+    return { inner, set };
+  };
+
+  it('skips a write of what it last wrote or read, and passes a change', () => {
+    const { inner, set } = counting();
+    inner.setItem('a', '1');
+    set.mockClear();
+    const s = skipUnchangedWrites(inner);
+    s.getItem('a');
+    s.setItem('a', '1');
+    expect(set).not.toHaveBeenCalled();
+    s.setItem('a', '2');
+    s.setItem('a', '2');
+    expect(set).toHaveBeenCalledTimes(1);
+    s.setItem('a', '1'); // back to an older value is a change
+    expect(set).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed write is not remembered, so the next one is tried again', () => {
+    const { inner, set } = counting();
+    const s = skipUnchangedWrites(inner);
+    set.mockImplementationOnce(() => {
+      throw quota();
+    });
+    expect(() => s.setItem('a', '1')).toThrow();
+    s.setItem('a', '1');
+    expect(inner.getItem('a')).toBe('1');
+  });
+
+  it('a removed key is written again; a changed scope forgets what it knew', () => {
+    const { inner, set } = counting();
+    let scope = 'one';
+    const s = skipUnchangedWrites(inner, () => scope);
+    s.setItem('a', '1');
+    s.removeItem('a');
+    s.setItem('a', '1');
+    expect(set).toHaveBeenCalledTimes(2);
+    scope = 'two';
+    s.setItem('a', '1');
+    expect(set).toHaveBeenCalledTimes(3);
   });
 });

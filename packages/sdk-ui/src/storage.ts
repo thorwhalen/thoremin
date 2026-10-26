@@ -179,11 +179,52 @@ export function bestEffortWrites(storage: ValueStorage, warn: (err: unknown) => 
 const defaultWarn = (err: unknown): void => console.warn('[thoremin] storage write failed; keeping the value in memory for this session', err);
 
 /**
+ * `storage` that skips a write of the value this wrapper last read or wrote under that key (#739).
+ * zustand's persist rewrites the whole blob on EVERY `set`, including ones that touch only
+ * transient fields; a tab that held an older copy in memory would then write its stale blob over
+ * a newer one another tab saved, losing a pref with no error, and pay a `JSON.stringify` for
+ * nothing. Writing only what this tab changed leaves the other tab's save alone. `scope` names
+ * the target in force: when it changes (a host swapped its storage) what was remembered no longer
+ * describes the new target and is dropped.
+ */
+export function skipUnchangedWrites(storage: ValueStorage, scope: () => unknown = () => storage): ValueStorage {
+  const known = new Map<string, string>();
+  let lastScope = scope();
+  const sync = (): void => {
+    const now = scope();
+    if (now !== lastScope) {
+      lastScope = now;
+      known.clear();
+    }
+  };
+  return {
+    getItem(key) {
+      sync();
+      const v = storage.getItem(key);
+      if (v === null) known.delete(key);
+      else known.set(key, v);
+      return v;
+    },
+    setItem(key, value) {
+      sync();
+      if (known.get(key) === value) return;
+      storage.setItem(key, value);
+      known.set(key, value);
+    },
+    removeItem(key) {
+      sync();
+      known.delete(key);
+      storage.removeItem(key);
+    },
+  };
+}
+
+/**
  * {@link hostValues} for a zustand `persist` store: a failed write is warned about once and
  * dropped. A caller that must know a write failed (the instrument profiles) uses `hostValues`.
  */
 export function hostPersistValues(fallback: ValueStorage): ValueStorage {
-  return bestEffortWrites(hostValues(fallback));
+  return bestEffortWrites(skipUnchangedWrites(hostValues(fallback), () => currentValues()));
 }
 
 /** Whether the host has a key-value target now (false in plain Node with the default host). */
