@@ -3900,6 +3900,11 @@
         "default": 0.3
       },
       {
+        "name": "letterDwellS",
+        "type": "number",
+        "default": 0.2
+      },
+      {
         "name": "sound",
         "type": "enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)",
         "default": "triangle"
