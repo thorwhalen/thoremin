@@ -7,7 +7,7 @@
 import type { CuePosition, OverlayCategory, OverlayParams } from '../canvas_overlay.schema';
 import type { ExpressionScores } from '@/music/expression';
 import type { TagOverlayFrame } from '@thoremin/taglog/presentation';
-import { makeFrameView, type FrameView } from '@thoremin/sdk/view/frame_view';
+import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { HandMap } from '../../mapping/hand_map';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 
@@ -118,10 +118,6 @@ export interface OverlayElement {
   update?(view: OverlayView): void;
 }
 
-/** @deprecated Use `view.display.px(...)` (#817): the one transform. Kept until the last element moves. */
-export function mirrorX(xPx: number, frameW: number, W: number): number {
-  return makeFrameView({ width: W, height: 1 }, { width: frameW, height: 1 }).px(xPx, 0, { width: frameW, height: 1 }).x;
-}
 export function isDisplayedRight(handedness: string): boolean {
   return handedness === 'Left';
 }

@@ -9,7 +9,7 @@ import { FACE_COLOR, type OverlayElement } from '../view';
 export const faceMesh: OverlayElement = {
   name: 'faceLandmarks',
   category: 'input',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { display, inputs, params }) {
     if (!params.faceLandmarks.show) return;
     const face = inputs.faceFrame;
     if (!face?.present || !face.landmarks?.length) return;
@@ -19,8 +19,7 @@ export const faceMesh: OverlayElement = {
     const r = 1.1;
     g.beginPath();
     for (const lm of face.landmarks) {
-      const sx = (1 - lm.x) * W;
-      const sy = lm.y * H;
+      const { x: sx, y: sy } = display.unit(lm.x, lm.y);
       g.moveTo(sx + r, sy);
       g.arc(sx, sy, r, 0, Math.PI * 2);
     }

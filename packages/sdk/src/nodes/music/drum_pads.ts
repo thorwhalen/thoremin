@@ -14,8 +14,8 @@
  * behaves exactly as before (each hand plays its own sound).
  *
  * The space. Pad coordinates are fractions of the DISPLAYED frame: x from the left edge
- * of the mirrored view the player sees (the overlay always mirrors the webcam; see
- * `canvas_overlay.ts`'s `mirrorX`), y from the top. So a pad drawn at the player's left
+ * of the mirrored view the player sees (the overlay mirrors the webcam; see
+ * `view/frame_view.ts`), y from the top. So a pad drawn at the player's left
  * is struck by the hand the player sees there. {@link toDisplay} is that map.
  *
  * Pure and Node-safe; the node and the overlay import it, the pad-layout collection

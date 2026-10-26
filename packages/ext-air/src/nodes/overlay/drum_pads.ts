@@ -39,8 +39,6 @@ function drumStickLengthOf(c: DrumConfig | undefined): number | null {
   return c?.enabled && c.point === 'stickTip' && typeof c.stickLength === 'number' ? c.stickLength : null;
 }
 
-const mirrorX = (xPx: number, frameW: number, W: number): number => W - (xPx / frameW) * W;
-
 /** How bright each pad flashes now, 0..1, from the hits seen so far (`lastHit`: when each pad was
  *  last struck, in engine seconds; kept in the element's memo between frames). */
 function padFlash(lastHit: Partial<Record<PadId, number>>, raw: unknown, now: number): Partial<Record<PadId, number>> {
@@ -58,7 +56,7 @@ function padFlash(lastHit: Partial<Record<PadId, number>>, raw: unknown, now: nu
 
 export const drumPadsElement: OverlayElementImpl = {
   name: DRUM_PADS_ELEMENT,
-  draw(g, { W, H, t }, inputs, memo) {
+  draw(g, { display, t }, inputs, memo) {
     const config = inputs.config as DrumConfig | undefined;
     const lastHit = (memo.lastHit ??= {}) as Partial<Record<PadId, number>>;
     // The flash's clock runs whether or not the pads are shown, as it did in core.
@@ -78,8 +76,10 @@ export const drumPadsElement: OverlayElementImpl = {
         const f = gripFulcrum(hand.keypoints);
         const tip = stickTip(hand.keypoints, stickLength);
         g.beginPath();
-        g.moveTo(mirrorX(f.x, frame.width, W), (f.y / frame.height) * H);
-        g.lineTo(mirrorX(tip.x, frame.width, W), (tip.y / frame.height) * H);
+        const from = display.px(f.x, f.y, frame);
+        const to = display.px(tip.x, tip.y, frame);
+        g.moveTo(from.x, from.y);
+        g.lineTo(to.x, to.y);
         g.stroke();
       }
     }
@@ -89,10 +89,9 @@ export const drumPadsElement: OverlayElementImpl = {
       const p = pads[id];
       if (!p.on) continue;
       const lit = flash[id] ?? 0;
-      const cx = p.x * W;
-      const cy = p.y * H;
-      const rw = (p.w * W) / 2;
-      const rh = (p.h * H) / 2;
+      const { x: cx, y: cy } = display.shown(p.x, p.y);
+      const rw = (p.w * display.rect.w) / 2;
+      const rh = (p.h * display.rect.h) / 2;
       g.beginPath();
       if (p.shape === 'circle') g.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
       else g.rect(cx - rw, cy - rh, 2 * rw, 2 * rh);

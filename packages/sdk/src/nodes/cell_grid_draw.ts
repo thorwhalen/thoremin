@@ -4,6 +4,7 @@
  * picture of a grid serves every layout. In the SDK because an extension may not import core. Pure canvas calls, the ones the recording
  * canvas of the overlay tests records (no `measureText`, no `closePath`).
  */
+import type { Rect } from '../view/frame_view';
 import { CellGridSchema, type CellGrid, type GridCell, type GridTrail } from './cell_grid';
 
 /** How strongly a cell is lit, per state: fill alpha, outline alpha, outline width (px). */
@@ -132,6 +133,19 @@ function drawTrail(g: CanvasRenderingContext2D, W: number, H: number, trail: Gri
     g.font = '11px sans-serif';
     g.fillText(trail.label, p.x * W, p.y * H - TRAIL_DOT_R - 8);
   }
+}
+
+/**
+ * {@link drawCellGrid} onto the displayed frame's rectangle (`view.rect`, #817): the grid's
+ * fractions are the frame's, so under `cover` or `contain` they follow the video. With `stretch`
+ * the rectangle is the canvas and nothing is translated.
+ */
+export function drawCellGridOn(g: CanvasRenderingContext2D, rect: Rect, grid: CellGrid): void {
+  if (rect.x === 0 && rect.y === 0) return drawCellGrid(g, rect.w, rect.h, grid);
+  g.save();
+  g.translate(rect.x, rect.y);
+  drawCellGrid(g, rect.w, rect.h, grid);
+  g.restore();
 }
 
 /**
