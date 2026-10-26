@@ -51,15 +51,11 @@
  * and has no real audio device, so its inference and audio numbers are not the
  * machine's. The report says which renderer and audio device it got.
  */
-import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { fakeCameraFlags, startPreview } from './lib/harness.mjs';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, '..', '..');
-const BASE_PATH = '/thoremin/';
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
 const TASKS_VISION_VERSION = '1.1.1';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
@@ -91,25 +87,6 @@ function parseArgs(argv) {
     else throw new Error(`unknown argument ${k}`);
   }
   return a;
-}
-
-async function startPreview(port) {
-  // vite itself, not through npx: killing an npx wrapper can leave the server running
-  // and the next run failing on --strictPort.
-  const vite = resolve(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  const proc = spawn(process.execPath, [vite, 'preview', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
-  const url = `http://localhost:${port}${BASE_PATH}`;
-  for (let i = 0; i < 100; i++) {
-    try {
-      const r = await fetch(url);
-      if (r.ok) return { proc, url };
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  proc.kill();
-  throw new Error(`vite preview did not come up on ${url} (did you run npm run build?)`);
 }
 
 async function measureApp(page, url, args) {
@@ -285,8 +262,7 @@ function summarize(xs) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const { proc, url } = await startPreview(args.port);
-  const launchArgs = ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'];
-  if (args.video) launchArgs.push(`--use-file-for-fake-video-capture=${args.video}`);
+  const launchArgs = fakeCameraFlags(args.video);
   let browser;
   try {
     browser = await chromium.launch({ headless: !args.headed, args: launchArgs });

@@ -18,25 +18,24 @@
  *
  *   npm run build && node smoke/latency/held_frame.mjs [--video hands.y4m] [--seconds 12] [--runners main,worker] [--out report.json]
  *
+ * It reads every backdrop-sized image a canvas of 640 px or more draws, so a recorder's canvas
+ * would count too; in the app that is the overlay's.
+ *
  * `--video` defaults to ~/.local/share/thoremin/latency/hands_720p30.y4m (see measure.mjs for
  * how to make one). Needs ffmpeg and the smoke harness's Playwright (`npm run smoke:setup`).
  */
-import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, '..', '..');
-const BASE_PATH = '/thoremin/';
+import { DEFAULT_CLIP, fakeCameraFlags, startPreview } from './lib/harness.mjs';
 /** The barcode: this many bits, each a square of BIT_PX luma pixels, in the top-left corner. */
 const BITS = 16;
 const BIT_PX = 16;
 
 function parseArgs(argv) {
-  const a = { video: join(homedir(), '.local/share/thoremin/latency/hands_720p30.y4m'), seconds: 12, runners: ['main', 'worker'], out: null, port: 4175, headed: false };
+  const a = { video: DEFAULT_CLIP, seconds: 12, runners: ['main', 'worker'], out: null, port: 4175, headed: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--video') a.video = resolve(argv[++i]);
@@ -52,29 +51,19 @@ function parseArgs(argv) {
 
 /** The clip with its frame index burned in, and how many frames it has (the camera loops it). */
 function burnBarcode(video) {
-  const frames = Number(spawnSync('ffprobe', ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', video], { encoding: 'utf8' }).stdout.trim());
+  const probe = spawnSync('ffprobe', ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', video], { encoding: 'utf8' });
+  if (probe.error) throw new Error(`ffprobe is needed (brew install ffmpeg): ${probe.error.message}`);
+  const frames = Number(probe.stdout.trim());
   if (!Number.isFinite(frames) || frames < 2) throw new Error(`ffprobe could not count the frames of ${video}`);
-  const out = join(mkdtempSync(join(tmpdir(), 'held-frame-')), 'barcoded.y4m');
+  const dir = mkdtempSync(join(tmpdir(), 'held-frame-'));
+  const out = join(dir, 'barcoded.y4m');
   const geq = `lum='if(lt(Y,${BIT_PX})*lt(X,${BITS * BIT_PX}),255*bitand(floor(N/pow(2,floor(X/${BIT_PX}))),1),lum(X,Y))':cb='cb(X,Y)':cr='cr(X,Y)'`;
   const r = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', video, '-vf', `geq=${geq}`, '-pix_fmt', 'yuv420p', out], { encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`ffmpeg failed: ${r.stderr}`);
-  return { path: out, frames };
-}
-
-async function startPreview(port) {
-  const vite = resolve(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  const proc = spawn(process.execPath, [vite, 'preview', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
-  const url = `http://localhost:${port}${BASE_PATH}`;
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await fetch(url)).ok) return { proc, url };
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 200));
+  if (r.error || r.status !== 0) {
+    rmSync(dir, { recursive: true, force: true });
+    throw new Error(`ffmpeg failed: ${r.error?.message ?? r.stderr}`);
   }
-  proc.kill();
-  throw new Error(`vite preview did not come up on ${url} (did you run npm run build?)`);
+  return { path: out, frames, dir };
 }
 
 /** In the page: wrap drawImage to read the barcode of every full-size backdrop the overlay draws. */
@@ -120,25 +109,47 @@ async function run(browser, url, runner, hold, args, frames) {
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 90_000 });
   await page.waitForFunction(() => window.thoremin?.audio().state === 'running', null, { timeout: 30_000 });
   await page.waitForTimeout(3000);
-  await page.evaluate(() => (window.__heldDraws.length = 0));
+  // The hit counts run from page load: take the baseline where the draws are cleared, report the difference.
+  const before = await page.evaluate(() => {
+    window.__heldDraws.length = 0;
+    return window.thoremin.holdStats();
+  });
   await page.waitForTimeout(args.seconds * 1000);
-  const { draws, stats } = await page.evaluate(() => ({ draws: window.__heldDraws.slice(), stats: window.thoremin.holdStats() }));
+  const { draws, after } = await page.evaluate(() => ({ draws: window.__heldDraws.slice(), after: window.thoremin.holdStats() }));
   await context.close();
+  const stats = before && after ? { exact: after.exact - before.exact, earlier: after.earlier - before.earlier, none: after.none - before.none } : null;
   const kinds = {};
   for (const d of draws) kinds[d.kind] = (kinds[d.kind] ?? 0) + 1;
-  // Frames the drawn picture lags the live video (the camera loops the clip, so modulo its length).
-  const lag = draws.filter((d) => d.idx >= 0 && d.live >= 0).map((d) => (((d.live - d.idx) % frames) + frames) % frames).sort((a, b) => a - b);
-  const monotone = draws.filter((d) => d.idx >= 0).every((d, i, a) => i === 0 || (((d.idx - a[i - 1].idx) % frames) + frames) % frames < frames / 2);
-  return { runner, hold, draws: draws.length, kinds, undecoded: draws.filter((d) => d.idx < 0).length, lagFrames: lag.length ? { p50: q(lag, 0.5), p95: q(lag, 0.95), max: lag[lag.length - 1] } : null, indicesNeverGoBack: monotone, holdStats: stats };
+  // Frames the drawn picture lags the live video, in the camera's looping clip: signed within half
+  // a loop. Only the held bitmaps count in held mode (a fallback to the live video is reported apart).
+  const signed = (d) => (((d + frames / 2) % frames) + frames) % frames - frames / 2;
+  const shown = draws.filter((d) => d.idx >= 0 && d.live >= 0 && (!hold || d.kind === 'bitmap'));
+  const lag = shown.map((d) => signed(d.live - d.idx)).sort((a, b) => a - b);
+  const bitmaps = draws.filter((d) => d.idx >= 0 && d.kind === (hold ? 'bitmap' : 'video'));
+  const forward = bitmaps.every((d, i, a) => i === 0 || signed(d.idx - a[i - 1].idx) >= 0);
+  return {
+    runner,
+    hold,
+    draws: draws.length,
+    kinds,
+    undecoded: draws.filter((d) => d.idx < 0).length,
+    lagFrames: lag.length ? { p50: q(lag, 0.5), p95: q(lag, 0.95), min: lag[0], max: lag[lag.length - 1] } : null,
+    indicesNeverGoBack: forward,
+    // Lookups of the hand result's frame over the window, per overlay tick (the same result is looked up on each tick it is on screen).
+    holdStats: stats,
+  };
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { path, frames } = burnBarcode(args.video);
-  const { proc, url } = await startPreview(args.port);
-  const launchArgs = ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${path}`];
+  const { path, frames, dir } = burnBarcode(args.video);
+  const launchArgs = fakeCameraFlags(path);
   let browser;
+  let proc;
   try {
+    const preview = await startPreview(args.port);
+    proc = preview.proc;
+    const url = preview.url;
     browser = await chromium.launch({ headless: !args.headed, args: launchArgs });
     const results = [];
     for (const runner of args.runners) for (const hold of [false, true]) results.push(await run(browser, url, runner, hold, args, frames));
@@ -148,7 +159,8 @@ async function main() {
     console.log(json);
   } finally {
     await browser?.close();
-    proc.kill();
+    proc?.kill();
+    rmSync(dir, { recursive: true, force: true }); // the barcoded copy is ~240 MB
   }
 }
 
