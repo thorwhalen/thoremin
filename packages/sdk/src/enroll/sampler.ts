@@ -22,6 +22,9 @@
  * frame at the end of it — averaging a held pose is free noise reduction, and the
  * player was holding still by definition.
  *
+ * The measurement itself is `motion.ts`'s (#751), shared with the motion segmenter that
+ * keeps what this sampler throws away, so "held" here and "not moving" there are one test.
+ *
  * **Displacement is measured over a short WINDOW (`speedWindowMs`), not frame to frame.**
  * This was a real bug before it was a design note. A frame-to-frame difference is
  * frame-rate dependent in the worst way: a feature jittering +/-0.01 per frame is
@@ -48,7 +51,8 @@
  * dwell-time histogram instead of a vocabulary — the pose you happened to rest on
  * longest would dominate every cluster it touched.
  */
-import { createNoiseEstimator, type NoiseEstimator } from './noise';
+import { createWindowMotion, meanAbsDistance, MOTION_DEFAULTS, noiseDistance } from './motion';
+import type { NoiseEstimator } from './noise';
 import type { FeatureVector, StillPoint } from './types';
 
 export interface SamplerOptions {
@@ -117,88 +121,20 @@ export interface SamplerOptions {
   noise?: NoiseEstimator;
 }
 
-/**
- * `stillSigma` is set from the recorded face clip, not from theory. Over a genuinely
- * held face the 100 ms displacement is NOT ~sqrt(3) per-frame jitters — MediaPipe's
- * output wanders at low frequency too — and measures p50 1.3, p75 3.3, p90 4, max
- * ~5 sigma; a deliberate head turn reads 8-12. Three would have flagged a quarter of
- * held frames as motion; five sits in the gap.
- */
+/** The held threshold, dwell and window are the meter's (`MOTION_DEFAULTS`, where the
+ *  `stillSigma` calibration is written down), so a gesture's "not moving" is this "held". */
 const DEFAULTS = {
   metric: 'noise-relative' as const,
-  stillSigma: 5,
+  stillSigma: MOTION_DEFAULTS.stillSigma,
   speedThreshold: 0.35,
-  dwellMs: 220,
-  speedWindowMs: 100,
+  dwellMs: MOTION_DEFAULTS.dwellMs,
+  speedWindowMs: MOTION_DEFAULTS.speedWindowMs,
   cue: 'vocabulary',
   armed: true,
 };
 
 /** Per-metric default separation: 3 sigma, or 0.05 raw (the v1 value). */
 const SEPARATION_DEFAULT = { 'noise-relative': 3, absolute: 0.05 };
-
-/** Mean absolute difference per second between two vectors over `dtMs` (the v1 rule). */
-function absoluteSpeed(a: FeatureVector, b: FeatureVector, dtMs: number): number {
-  if (dtMs <= 0) return 0;
-  const keys = Object.keys(a);
-  if (keys.length === 0) return 0;
-  let sum = 0;
-  let n = 0;
-  for (const k of keys) {
-    const x = a[k];
-    const y = b[k];
-    // A feature reports NaN for "not measurable this frame"; it must not poison the
-    // speed estimate (NaN would compare false against the threshold forever and the
-    // sampler would silently never emit).
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    sum += Math.abs(x - y);
-    n += 1;
-  }
-  if (n === 0) return 0;
-  return (sum / n) / (dtMs / 1000);
-}
-
-/** Mean absolute distance between two vectors over their shared finite features. */
-export function meanAbsDistance(a: FeatureVector, b: FeatureVector): number {
-  let sum = 0;
-  let n = 0;
-  for (const k of Object.keys(a)) {
-    const x = a[k];
-    const y = b[k];
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    sum += Math.abs(x - y);
-    n += 1;
-  }
-  return n === 0 ? 0 : sum / n;
-}
-
-/**
- * RMS over `features` of `(a - b) / sigma(feature)` — the distance between two
- * vectors in noise units. Features absent from either side, or with no usable sigma
- * yet, are skipped; with nothing comparable the distance is 0 ("cannot tell they
- * differ").
- */
-export function noiseDistance(
-  a: FeatureVector,
-  b: FeatureVector,
-  sigma: (id: string) => number,
-  features: readonly string[],
-): number {
-  let sum = 0;
-  let n = 0;
-  for (const k of features) {
-    const x = a[k];
-    const y = b[k];
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    const s = sigma(k);
-    if (!Number.isFinite(s)) continue;
-    const d = s > 0 ? (x - y) / s : x === y ? 0 : Infinity;
-    sum += d * d;
-    n += 1;
-  }
-  if (n === 0) return 0;
-  return Math.sqrt(sum / n);
-}
 
 export interface StillPointSampler {
   /** Feed one live frame. Returns a still-point on the tick one is completed. */
@@ -222,17 +158,21 @@ export interface StillPointSampler {
 /**
  * Build a still-point sampler. Stateful (it has to be — dwell is temporal) but
  * self-contained: no clock of its own, no globals, `tMs` is supplied by the caller so
- * tests drive it deterministically.
+ * tests drive it deterministically. The motion it judges "held" by is `motion.ts`'s.
  */
 export function createStillPointSampler(options: SamplerOptions = {}): StillPointSampler {
   const o = { ...DEFAULTS, ...options };
   const minSeparation = options.minSeparation ?? SEPARATION_DEFAULT[o.metric];
-  const noise = o.noise ?? createNoiseEstimator();
-  const ownNoise = !o.noise;
+  const meter = createWindowMotion({
+    metric: o.metric,
+    speedWindowMs: o.speedWindowMs,
+    features: o.features,
+    noise: o.noise,
+    seed: o.seed,
+  });
+  const noise = meter.noise;
   const captured: StillPoint[] = [];
 
-  /** Recent frames, trimmed to just cover the speed window. */
-  const history: { v: FeatureVector; t: number }[] = o.seed ? [o.seed] : [];
   /** When the current held run began, or null when moving. */
   let settlingSince: number | null = null;
   /** Running sum and count PER KEY for the dwell-window mean: a feature measurable on
@@ -243,7 +183,6 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
   /** Set after an emit; cleared once the player moves again. */
   let armed = o.armed;
   let lastEmitted: FeatureVector | null = options.lastEmitted ?? null;
-  let lastSpeed = 0;
   let moved = false;
 
   const resetAccumulator = () => {
@@ -252,52 +191,22 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
   };
 
   const attention = (v: FeatureVector): readonly string[] => o.features ?? Object.keys(v);
-
-  /** Noise-relative only: every attention feature PRESENT in this frame must have a
-   *  warm noise estimate, or "held" cannot be judged yet (see noise.ts). */
-  const judgeable = (v: FeatureVector): boolean => {
-    if (o.metric === 'absolute') return true;
-    for (const k of attention(v)) if (Number.isFinite(v[k]) && !noise.isWarm(k)) return false;
-    return true;
-  };
-
-  const motion = (ref: FeatureVector, now: FeatureVector, dt: number): number => {
-    if (o.metric === 'absolute') return absoluteSpeed(ref, now, dt);
-    return noiseDistance(now, ref, noise.sigma, attention(now));
-  };
   const threshold = o.metric === 'absolute' ? o.speedThreshold : o.stillSigma;
   const separation = (a: FeatureVector, b: FeatureVector): number =>
     o.metric === 'absolute' ? meanAbsDistance(a, b) : noiseDistance(a, b, noise.sigma, attention(a));
 
   return {
     push(vector, tMs) {
-      // A private estimator learns only from what it is shown; a shared one is fed by
-      // the session and must not see every frame twice.
-      if (ownNoise) noise.push(vector, tMs);
-      if (!judgeable(vector)) {
-        // Still warming up: no dwell may begin, and nothing may be emitted. The history
-        // is kept (the seed, or the last judged frame): the reference survives a cold
-        // stretch and is re-anchored by the window trim on the next judged push.
+      const v = meter.push(vector, tMs);
+      if (v === 'cold') {
+        // Still warming up: no dwell may begin, and nothing may be emitted.
         settlingSince = null;
         resetAccumulator();
         return null;
       }
-      history.push({ v: vector, t: tMs });
-      // Keep one sample older than the window, and drop the rest.
-      while (history.length > 2 && tMs - history[1].t >= o.speedWindowMs) history.shift();
-      if (history.length < 2) return null;
-      const ref = history[0];
-      const dt = tMs - ref.t;
-      // Not enough history to judge yet — do not guess "held".
-      if (dt <= 0) return null;
-      // A reference far older than the window (a stale seed, a long cold stretch) is
-      // not a 100 ms displacement and must not be judged as one.
-      if (history.length === 2 && dt > 2 * o.speedWindowMs) {
-        history.shift();
-        return null;
-      }
-      const v = motion(ref.v, vector, dt);
-      lastSpeed = v;
+      // Not enough history to judge yet — do not guess "held". (A gap re-anchors the
+      // reference; the next frame is judged against it.)
+      if (v === 'pending' || v === 'gap') return null;
 
       if (v > threshold) {
         // Moving: abandon any dwell in progress, and re-arm — the player has left the
@@ -341,18 +250,15 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
     points: () => captured.slice(),
     reset() {
       captured.length = 0;
-      history.length = 0;
-      if (o.seed) history.push(o.seed);
+      meter.reset();
       settlingSince = null;
       resetAccumulator();
       armed = o.armed;
       lastEmitted = options.lastEmitted ?? null;
-      lastSpeed = 0;
       moved = false;
-      if (ownNoise) noise.reset();
     },
     isSettling: () => settlingSince !== null,
-    lastSpeed: () => lastSpeed,
+    lastSpeed: () => meter.last(),
     hasMoved: () => moved,
     isArmed: () => armed,
   };

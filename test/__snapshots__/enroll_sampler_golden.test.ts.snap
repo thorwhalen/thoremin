@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the still-point sampler over the real head-pose clip (golden) > a session take: a rest cue, then a vocabulary cue over the rest of the clip 1`] = `
+{
+  "hash": "bf736075176571f4",
+  "n": 6,
+}
+`;
+
+exports[`the still-point sampler over the real head-pose clip (golden) > absolute (the v1 rule), on the 0..1 features it assumes 1`] = `
+{
+  "hash": "35e52c1e7a7b24e8",
+  "n": 4,
+}
+`;
+
+exports[`the still-point sampler over the real head-pose clip (golden) > noise-relative (the default), every key attended 1`] = `
+{
+  "first": [
+    {
+      "cue": "vocabulary",
+      "t": 3276.45051,
+      "v": {
+        "jaw": 0.05933,
+        "pitch": 15.45571,
+        "roll": -1.40362,
+        "smile": 0.00053,
+        "yaw": 0.51879,
+      },
+    },
+    {
+      "cue": "vocabulary",
+      "t": 5255.9727,
+      "v": {
+        "jaw": 0.3776,
+        "pitch": -6.43075,
+        "roll": 1.61753,
+        "smile": 0.94052,
+        "yaw": 1.47379,
+      },
+    },
+  ],
+  "hash": "cb8edc04c61c4e7b",
+  "n": 7,
+}
+`;
+
+exports[`the still-point sampler over the real head-pose clip (golden) > noise-relative on the head only, disarmed, seeded from frame 0 1`] = `
+{
+  "hash": "13cc7de9c0e8db2b",
+  "n": 7,
+}
+`;

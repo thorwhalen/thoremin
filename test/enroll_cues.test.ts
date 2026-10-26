@@ -164,6 +164,32 @@ describe('cue schema — what a cue IS (the zodal SSOT)', () => {
     expect(routine.routine.cueIds).toEqual(['rest']);
     expect(RoutineRecordSchema.safeParse({ id: 'r', name: 'R', createdAt: 1, routine: { cueIds: [] } }).success).toBe(false);
   });
+
+  describe('a gesture cue (#751): names its gesture and counts repetitions', () => {
+    const gesture = (overrides: Partial<CueSpecInput> = {}) =>
+      specInput({ instruction: 'Wave five times; pause between.', collects: { groups: ['hand.position.raw'] }, produces: 'gesture', gesture: 'wave', sufficiency: { kind: 'repetitions' }, ...overrides });
+
+    it('parses with its defaults: five repetitions, thirty seconds of patience', () => {
+      const spec = CueSpecSchema.parse(gesture());
+      expect(spec.gesture).toBe('wave');
+      expect(spec.sufficiency).toEqual({ kind: 'repetitions', minTraces: 5, patienceMs: 30000 });
+    });
+
+    it('refuses a gesture cue with no name, or a blank one', () => {
+      expect(issuePaths(CueSpecSchema, gesture({ gesture: undefined }))).toEqual(['gesture']);
+      expect(issuePaths(CueSpecSchema, gesture({ gesture: '  ' }))).toContain('gesture');
+    });
+
+    it('refuses a gesture name on any other cue, and repetitions anywhere else', () => {
+      expect(issuePaths(CueSpecSchema, specInput({ gesture: 'wave' }))).toEqual(['gesture']);
+      expect(issuePaths(CueSpecSchema, specInput({ sufficiency: { kind: 'repetitions' } }))).toEqual(['sufficiency']);
+      expect(issuePaths(CueSpecSchema, gesture({ sufficiency: { kind: 'variety' } }))).toEqual(['sufficiency']);
+    });
+
+    it('leaves every older cue as it parsed before: no gesture field appears', () => {
+      for (const c of STARTER_CUES) expect(CueSchema.parse(c).gesture).toBeUndefined();
+    });
+  });
 });
 
 // ---- 2. Wording rules ---------------------------------------------------------
@@ -275,6 +301,8 @@ describe('cue helpers — modality-neutral, over a toy registry', () => {
     expect(samplingFor({ produces: 'baseline' })).toBe('continuous');
     expect(samplingFor({ produces: 'nuisance' })).toBe('continuous');
     expect(samplingFor({ produces: 'vocabulary' })).toBe('still-points');
+    expect(samplingFor({ produces: 'performance' })).toBe('continuous');
+    expect(samplingFor({ produces: 'gesture' })).toBe('segments');
   });
 
   it('cueFeatures resolves groups to ids and applies omit — the cue never names a feature id itself', () => {

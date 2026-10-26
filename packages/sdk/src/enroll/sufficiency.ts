@@ -29,8 +29,8 @@
  * blendshape and for an angle.
  */
 import { clickPlan, type Cue } from './cue';
-import { noiseDistance } from './sampler';
-import type { FeatureVector, StillPoint } from './types';
+import { noiseDistance } from './motion';
+import type { FeatureVector, StillPoint, Trace } from './types';
 
 export type Verdict =
   | { verdict: 'need-more' }
@@ -64,6 +64,8 @@ export interface SufficiencyInput {
   /** Frames captured for this cue so far (continuous cues) — only frames that carried
    *  at least one attention feature count. */
   frames: number;
+  /** Repetitions cut for this cue so far (gesture cues, #751). */
+  traces: readonly Trace[];
   /** Milliseconds since the cue started. */
   elapsedMs: number;
   /** Milliseconds since the last sample (still-point or counted frame), or `elapsedMs`
@@ -186,6 +188,16 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
       const plan = clickPlan(cue);
       if (plan && input.elapsedMs >= plan.endMs) {
         return input.frames === 0 ? { verdict: 'cannot', why: CANNOT_REASONS.unseen } : { verdict: 'enough' };
+      }
+      return { verdict: 'need-more' };
+    }
+
+    case 'repetitions': {
+      // Phase 1 counts. Whether the repetitions AGREE is the trace-quality chip of #753, and
+      // the spoken repetition prompt is #754's; until then nothing is said mid-cue.
+      if (input.traces.length >= s.minTraces) return { verdict: 'enough' };
+      if (outOfPatience) {
+        return { verdict: 'cannot', why: input.moved ? CANNOT_REASONS.tooFew : CANNOT_REASONS.noMove };
       }
       return { verdict: 'need-more' };
     }

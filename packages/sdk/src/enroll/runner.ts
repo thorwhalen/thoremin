@@ -64,7 +64,7 @@ export interface RunnerState {
   /** Index of the active (or, between cues, the next) cue; -1 when idle/done. */
   index: number;
   cue: Cue | null;
-  /** Samples captured for the active cue (still-points or counted frames). */
+  /** Samples captured for the active cue (still-points, traces or counted frames). */
   samples: number;
   /** Fraction of the cue's declared minimum captured so far — the coverage meter. */
   coverage: number;
@@ -128,7 +128,7 @@ export function cueCoverage(cue: Cue, samples: number, elapsedMs = 0): number {
     const end = clickPlan(cue)?.endMs ?? 0;
     return end <= 0 ? 1 : Math.max(0, Math.min(1, elapsedMs / end));
   }
-  const min = s.kind === 'frames' ? s.minFrames : s.minPoints;
+  const min = s.kind === 'frames' ? s.minFrames : s.kind === 'repetitions' ? s.minTraces : s.minPoints;
   return min <= 0 ? 1 : Math.max(0, Math.min(1, samples / min));
 }
 
@@ -162,8 +162,13 @@ export function createRunner(options: RunnerOptions): Runner {
 
   const activeCue = (): Cue | null => (index >= 0 && index < cues.length ? cues[index] : null);
 
-  const samplesOf = (cue: Cue): number =>
-    samplingFor(cue) === 'still-points' ? session.pointsFor(cue.id).length : session.framesFor(cue.id);
+  /** Samples per sampling: held points, cut traces, or counted frames. */
+  const samplesOf = (cue: Cue): number => {
+    const sampling = samplingFor(cue);
+    if (sampling === 'still-points') return session.pointsFor(cue.id).length;
+    if (sampling === 'segments') return session.tracesFor(cue.id).length;
+    return session.framesFor(cue.id);
+  };
 
   const beginCue = (i: number, tMs: number) => {
     index = i;
@@ -226,6 +231,7 @@ export function createRunner(options: RunnerOptions): Runner {
       features: session.featuresFor(cue),
       points: session.pointsFor(cue.id),
       frames: session.framesFor(cue.id),
+      traces: session.tracesFor(cue.id),
       elapsedMs: tMs - startedAt,
       sinceLastSampleMs: lastSampleAt === null ? tMs - startedAt : tMs - lastSampleAt,
       moved: session.moved(),

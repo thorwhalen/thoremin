@@ -44,6 +44,31 @@ export interface StillPoint {
   cue: string;
 }
 
+/** One frame of a {@link Trace}: the whole live vector, and when (the caller's clock, ms). */
+export interface TraceSample {
+  vector: FeatureVector;
+  t: number;
+}
+
+/**
+ * One repetition of a named dynamic gesture (#751): the run of frames the motion segmenter
+ * cut out of a take, from a window before the motion began to its last moving frame.
+ *
+ * The complement of a {@link StillPoint}: a still-point is what the player HELD, a trace is
+ * what they DID between holds. Its frames carry the full vector, as a still-point does; which
+ * features a gesture is matched on is the matcher's choice, made later (`dynamic-gestures.md`).
+ */
+export interface Trace {
+  /** Stable within a take (`<cueId>#<n>`, n from 1): what dropping or flagging one
+   *  repetition refers to, as a hold id does for a still-point. */
+  id: string;
+  /** The gesture's name, from the cue that asked for it ("wave"). */
+  gesture: string;
+  /** The id of the cue that captured it. */
+  cue: string;
+  samples: TraceSample[];
+}
+
 /**
  * A nuisance profile: how much each feature moved while the player demonstrated
  * something that should NOT count as a change (moving closer to the camera, turning

@@ -120,6 +120,17 @@ export const SufficiencySchema = z.discriminatedUnion('kind', [
     leadInMs: z.number().min(0).max(20000).default(3000),
     patienceMs: z.number().min(1000).default(120000),
   }),
+  /**
+   * A gesture cue (#751): enough once the motion segmenter has cut `minTraces` repetitions
+   * of the named gesture out of the take. Five is what the prompt asks for ("do the wave
+   * five times"); the gesture-recognition literature's usual floor is three to five
+   * (`dynamic-gestures.md` 7.2), and the trace-agreement chip of #753 is what judges them.
+   */
+  z.object({
+    kind: z.literal('repetitions'),
+    minTraces: z.number().int().min(1).default(5),
+    patienceMs: z.number().min(1000).default(30000),
+  }),
   z.object({
     kind: z.literal('variety'),
     minPoints: z.number().int().min(1).default(6),
@@ -150,6 +161,16 @@ export const CueProductSchema = z.enum([
    * pairing script (`scripts/cue/`) joins them to the take's microphone audio.
    */
   'performance',
+  /**
+   * A named dynamic gesture (#751): the motion segmenter cuts each repetition out of the
+   * take as a trace. Nothing is clustered (the player named the gesture); the traces are
+   * what the window matcher of #752 is derived from. Only the frames BETWEEN its
+   * repetitions feed the session's noise estimate (a wave is deliberate motion, as a
+   * nuisance demonstration is), so a routine runs a rest cue before it: the segmenter
+   * judges motion in noise units, and those should already be known when the first
+   * repetition comes.
+   */
+  'gesture',
 ]);
 export type CueProduct = z.infer<typeof CueProductSchema>;
 
@@ -192,6 +213,10 @@ export const CueSpecSchema = z
     tags: z.array(z.string()).default([]),
     /** For a performance cue: which half of which real-versus-air pair it is. */
     pairing: CuePairingSchema.optional(),
+    /** For a gesture cue: the gesture's name ("wave"), stamped on every trace it cuts.
+     *  Unlike a face, a gesture is named by the player: a cluster of unnamed motion has no
+     *  still centre to find (`dynamic-gestures.md` section 3). */
+    gesture: z.string().trim().min(1).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.produces === 'nuisance' && c.collects.axes.length === 0) {
@@ -208,6 +233,13 @@ export const CueSpecSchema = z
     // its click, and a click on any other cue would be a metronome nobody plays to.
     if ((c.produces === 'performance') !== (c.sufficiency.kind === 'clicked')) {
       ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: "a performance cue, and only a performance cue, has a 'clicked' sufficiency" });
+    }
+    // A gesture cue counts repetitions and names what it asks for; no other cue does either.
+    if ((c.produces === 'gesture') !== (c.sufficiency.kind === 'repetitions')) {
+      ctx.addIssue({ code: 'custom', path: ['sufficiency'], message: "a gesture cue, and only a gesture cue, has a 'repetitions' sufficiency" });
+    }
+    if ((c.produces === 'gesture') !== (c.gesture !== undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['gesture'], message: 'a gesture cue, and only a gesture cue, names its gesture' });
     }
     if (c.pairing && c.produces !== 'performance') {
       ctx.addIssue({ code: 'custom', path: ['pairing'], message: 'only a performance cue can be half of a real-versus-air pair' });
@@ -253,11 +285,22 @@ export const RoutineRecordSchema = z.object({
 });
 export type RoutineRecord = z.infer<typeof RoutineRecordSchema>;
 
-/** How a cue samples: every frame (its content is the spread) or held poses only. */
-export type CueSampling = 'continuous' | 'still-points';
+/** How a cue samples: every frame (its content is the spread), held poses only, or the
+ *  moving runs between them (a gesture's repetitions). */
+export type CueSampling = 'continuous' | 'still-points' | 'segments';
+
+/** A table, not a conditional: a new product fails to compile here until it says how it
+ *  samples, instead of silently falling into `continuous`. */
+const SAMPLING: Record<CueProduct, CueSampling> = {
+  baseline: 'continuous',
+  nuisance: 'continuous',
+  performance: 'continuous',
+  vocabulary: 'still-points',
+  gesture: 'segments',
+};
 
 export function samplingFor(cue: Pick<Cue, 'produces'>): CueSampling {
-  return cue.produces === 'vocabulary' ? 'still-points' : 'continuous';
+  return SAMPLING[cue.produces];
 }
 
 /**
