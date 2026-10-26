@@ -44,7 +44,7 @@
  */
 import type { Stretcher, StretcherFactory, StretcherOptions } from '../nodes/song_player.schema';
 import { createMediaElementStretcher } from './song_stretcher';
-import { rampGain } from '@/nodes/output/gain_ramp';
+import { rampGain } from '@thoremin/sdk/timing/gain_ramp';
 
 /** Signalsmith's entry: a node factory resolving once its worklet says it is ready. */
 export type SignalsmithFactory = (audioContext: BaseAudioContext) => Promise<AudioNode>;

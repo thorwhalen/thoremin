@@ -250,6 +250,18 @@ describe.runIf(GENERATIVE)('the Lyria engine', () => {
     ]);
   });
 
+  it('play during a pause fade resumes from the current level, not from 0 (#735)', async () => {
+    const { engine } = await opened();
+    await engine.play();
+    const [out] = fa.of('Gain');
+    const gain = param(out, 'gain');
+    await engine.pause();
+    gain.calls.length = 0;
+    gain.value = 0.3; // mid-fade
+    await engine.play();
+    expect(gain.calls[1]).toEqual(['set', 0.3, 10]);
+  });
+
   it('the volume is clamped and applied at once only while playing', async () => {
     const { engine } = await opened();
     engine.setVolume(3);
