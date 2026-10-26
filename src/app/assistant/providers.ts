@@ -37,6 +37,7 @@ import type { ProviderId } from './types';
 import {
   getStoredKey as _getStoredKey,
   setStoredKey as _setStoredKey,
+  trySetStoredKey as _trySetStoredKey,
   removeStoredKey as _removeStoredKey,
 } from '@/keys/providerKeys';
 
@@ -184,4 +185,5 @@ export function isKnownModel(id: ProviderId, modelId: string): boolean {
 // assistant's API (and the stored keys) are unchanged.
 export const getStoredKey = (id: ProviderId): string | null => _getStoredKey(id);
 export const setStoredKey = (id: ProviderId, key: string): void => _setStoredKey(id, key);
+export const trySetStoredKey = (id: ProviderId, key: string): string | null => _trySetStoredKey(id, key);
 export const removeStoredKey = (id: ProviderId): void => _removeStoredKey(id);

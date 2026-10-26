@@ -28,6 +28,16 @@ export function setStoredKey(provider: string, key: string): void {
   localStorage.setItem(keyStorageKey(provider), key.trim());
 }
 
+/** The reason a key could not be saved, or null when it was (storage full or disabled throws on write). */
+export function trySetStoredKey(provider: string, key: string): string | null {
+  try {
+    setStoredKey(provider, key);
+    return null;
+  } catch {
+    return "This browser would not store the key (storage is full or disabled). Free some site data and try again; the key was not saved.";
+  }
+}
+
 export function removeStoredKey(provider: string): void {
   localStorage.removeItem(keyStorageKey(provider));
 }

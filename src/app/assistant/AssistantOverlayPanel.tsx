@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ChevronDown, Settings as SettingsIcon, Send, Loader2, Check, X, ExternalLink, Trash2 } from 'lucide-react';
 import type { AssistantSession } from './AssistantSession';
-import { PROVIDERS, PROVIDER_LIST, recommendedModel, getStoredKey, setStoredKey, removeStoredKey } from './providers';
+import { PROVIDERS, PROVIDER_LIST, recommendedModel, getStoredKey, trySetStoredKey, removeStoredKey } from './providers';
 import type { AssistantSettings, ChatMessage, ProviderId, ToolTrace, PendingApproval } from './types';
 
 interface Props {
@@ -26,6 +26,7 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
   const [input, setInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
+  const [keyError, setKeyError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Re-render whenever the session changes (messages stream, traces land, approvals appear).
@@ -51,12 +52,15 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
   const selectProvider = (id: ProviderId) => {
     onSettings({ provider: id, model: recommendedModel(id) });
     setKeyDraft('');
+    setKeyError(null);
   };
 
   const saveKey = () => {
     const k = keyDraft.trim();
     if (!k) return;
-    setStoredKey(settings.provider, k);
+    const failure = trySetStoredKey(settings.provider, k);
+    setKeyError(failure);
+    if (failure) return; // keep the draft: the player has not been connected
     setKeyDraft('');
     bumpKey();
   };
@@ -160,6 +164,7 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
           <KeyGate
             providerId={settings.provider}
             keyDraft={keyDraft}
+            keyError={keyError}
             setKeyDraft={setKeyDraft}
             onSave={saveKey}
             onSelectProvider={selectProvider}
@@ -230,12 +235,14 @@ export function AssistantOverlayPanel({ session, settings, onSettings, onClose }
 function KeyGate({
   providerId,
   keyDraft,
+  keyError,
   setKeyDraft,
   onSave,
   onSelectProvider,
 }: {
   providerId: ProviderId;
   keyDraft: string;
+  keyError: string | null;
   setKeyDraft: (v: string) => void;
   onSave: () => void;
   onSelectProvider: (id: ProviderId) => void;
@@ -290,6 +297,11 @@ function KeyGate({
       >
         Connect {provider.label}
       </button>
+      {keyError && (
+        <p role="alert" className="text-[10px] leading-relaxed text-red-400">
+          {keyError}
+        </p>
+      )}
       <p className="text-[10px] leading-relaxed text-white/30">
         You can switch provider or model anytime from the{' '}
         <SettingsIcon className="inline h-3 w-3 align-text-bottom" /> settings.
