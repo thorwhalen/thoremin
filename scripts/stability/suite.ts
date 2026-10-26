@@ -68,7 +68,7 @@ export const INSTRUMENTS: Readonly<Record<string, readonly StreamId[]>> = {
   'Sign Map': ['signs-gaps', 'signs-flow', 'choir'],
   'Sign Wheel': ['signs-gaps', 'signs-flow', 'choir'],
   'Conduct the Chords': ['conducting', 'choir'],
-  'Hand-shape Chords': ['signs-gaps', 'choir'],
+  'Hand-shape Chords': ['signs-gaps', 'signs-flow', 'choir'],
   'Pose Chords': ['body-conducting'],
   'Head Chords': ['head'],
 };
@@ -123,9 +123,10 @@ function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta, in
     frames,
     hand: frames.map((f) => f.hands.length > 0),
     held: heldAll(frames),
-    target: instrument === 'Hand-shape Chords' && which === 'gaps' ? (run) => {
+    target: instrument === 'Hand-shape Chords' ? (run) => {
       const spec = (run.values('ui.chordSpec') as (ScaleSpec | undefined)[]).find(Boolean);
-      return sign.map((s) => (spec && s && HAND_SHAPE_SIGNS[s] ? handShapeChord(spec, HAND_SHAPE_SIGNS[s]!) : undefined));
+      // A shape's sign claims its chord; any other letter claims SILENCE (a false chord on it is a miss); the gaps claim nothing.
+      return sign.map((s) => (!spec || !s ? undefined : HAND_SHAPE_SIGNS[s] ? handShapeChord(spec, HAND_SHAPE_SIGNS[s]!) : null));
     } : !SIGN_INSTRUMENTS.includes(instrument) ? undefined : (run) => {
       const spec = (run.values('ui.chordSpec') as (ScaleSpec | undefined)[]).find(Boolean);
       return sign.map((s) => {

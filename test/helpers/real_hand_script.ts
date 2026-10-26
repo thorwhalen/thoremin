@@ -5,8 +5,8 @@
  * (SignAlphaSet, CC BY 4.0), so a categorizer carved from it has met a real hand's jitter,
  * size and shape.
  *
- * Which sign stands for which shape: the open palm is B, the fist A, the pointing hand D, the
- * pinch F, and the relaxed hand C (a loose cup, the nearest thing to "doing nothing" in the
+ * Which sign stands for which shape: the open palm is B, the fist A, the pointing hand G (a
+ * sideways point), the pinch O (a closed ring), and the relaxed hand C (a loose cup, the nearest thing to "doing nothing" in the
  * alphabet).
  */
 import { readFileSync } from 'node:fs';
@@ -50,7 +50,8 @@ export function realHandScript(): SyntheticScript {
     const frames = bySign.get(sign);
     if (!frames?.length) throw new Error(`the signer fixture has no frames for ${sign} (${shape})`);
     // The stillest second of the sign (its start and end are the hand arriving and leaving): the
-    // carve looks for holds, and a hand sweeping through its sign is not one.
+    // carve looks for holds, and a hand sweeping through its sign is not one. (Taking a second,
+    // different window for the take's second pass was tried: it carved no open palm at all.)
     const size = { width: frames[0]!.width, height: frames[0]!.height };
     const held = stillestRun(frames.map((f) => f.hands[0] ?? null), Math.min(HOLD_FRAMES, frames.length)).flatMap((h) => (h ? [{ ...size, hands: [h] } as HandsFrame] : []));
     vectors.set(shape, held.map((f) => handsFrameVector(f, { mirrorX: true, mirrorHandedness: false })));
