@@ -104,6 +104,7 @@
     "./score/schema": "./src/score/schema.ts",
     "./timing/audio": "./src/timing/audio.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
+    "./timing/gain_ramp": "./src/timing/gain_ramp.ts",
     "./timing/glitches": "./src/timing/glitches.ts",
     "./timing/output_stage": "./src/timing/output_stage.ts",
     "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",

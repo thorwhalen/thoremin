@@ -177,6 +177,7 @@ describe.runIf(GENERATIVE)('the Lyria engine', () => {
     const [out] = fa.of('Gain');
     expect(out.connections).toEqual([dest]);
     expect(param(out, 'gain').calls).toEqual([
+      ['cancel', 10],
       ['set', 0, 10],
       ['linear', 0.6, 10.1],
     ]);
@@ -233,6 +234,34 @@ describe.runIf(GENERATIVE)('the Lyria engine', () => {
     expect(s.resetContext).toHaveBeenCalledOnce();
   });
 
+  it('pause fades from the current level: the ramp is anchored (cancel, set now) before it goes to 0 (#735)', async () => {
+    const { engine } = await opened();
+    await engine.play();
+    const [out] = fa.of('Gain');
+    const gain = param(out, 'gain');
+    gain.calls.length = 0;
+    fa.setTime(70);
+    gain.value = 0.8; // what the AudioParam reports mid-play
+    await engine.pause();
+    expect(gain.calls).toEqual([
+      ['cancel', 70],
+      ['set', 0.8, 70],
+      ['linear', 0, 70.1],
+    ]);
+  });
+
+  it('play during a pause fade resumes from the current level, not from 0 (#735)', async () => {
+    const { engine } = await opened();
+    await engine.play();
+    const [out] = fa.of('Gain');
+    const gain = param(out, 'gain');
+    await engine.pause();
+    gain.calls.length = 0;
+    gain.value = 0.3; // mid-fade
+    await engine.play();
+    expect(gain.calls[1]).toEqual(['set', 0.3, 10]);
+  });
+
   it('the volume is clamped and applied at once only while playing', async () => {
     const { engine } = await opened();
     engine.setVolume(3);
@@ -241,7 +270,7 @@ describe.runIf(GENERATIVE)('the Lyria engine', () => {
     await engine.play();
     engine.setVolume(-1);
     expect(param(out, 'gain').calls.at(-1)).toEqual(['target', 0, 10, 0.05]);
-    expect(param(out, 'gain').calls[1]).toEqual(['linear', 1, 10.1]);
+    expect(param(out, 'gain').calls[2]).toEqual(['linear', 1, 10.1]);
   });
 
   it('stop ends and closes the session, survives one that throws, and starts a fresh bus', async () => {

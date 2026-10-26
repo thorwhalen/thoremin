@@ -34,6 +34,7 @@ import { providerKey } from '@thoremin/sdk-ui/keys';
 import { LYRIA_KEY_PROVIDER } from '../nodes/lyria.schema';
 import type { LoadResult } from '@thoremin/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from '../nodes/generative';
+import { rampGain } from '@thoremin/sdk/timing/gain_ramp';
 
 function decodeBase64(base64: string): Uint8Array {
   const bin = atob(base64);
@@ -98,7 +99,7 @@ export class LyriaEngine implements GenerativeEngine {
     this.model = opts.model ?? DEFAULT_MODEL;
     this.ac = opts.audioContext;
     this.dest = opts.destination;
-    this.out = this.ac.createGain();
+    this.out = this.silentGain();
     this.bufferTime = opts.bufferSeconds ?? DEFAULT_BUFFER_SECONDS;
   }
 
@@ -177,12 +178,18 @@ export class LyriaEngine implements GenerativeEngine {
     this.nextStartTime += buffer.duration;
   }
 
+  /** A bus gain that starts silent (a fresh GainNode is at 1), so the first play fades in from 0. */
+  private silentGain(): GainNode {
+    const g = this.ac.createGain();
+    g.gain.value = 0;
+    return g;
+  }
+
   async play(): Promise<void> {
     if (!this.session) await this.connect();
     if (this.ac.state === 'suspended') await this.ac.resume();
     this.out.connect(this.dest);
-    this.out.gain.setValueAtTime(0, this.ac.currentTime);
-    this.out.gain.linearRampToValueAtTime(this.volume, this.ac.currentTime + GAIN_RAMP_SECONDS);
+    rampGain(this.out.gain, this.volume, GAIN_RAMP_SECONDS, this.ac.currentTime);
     this.playing = true;
     this.session?.play();
   }
@@ -190,7 +197,8 @@ export class LyriaEngine implements GenerativeEngine {
   async pause(): Promise<void> {
     this.playing = false;
     this.session?.pause();
-    this.out.gain.linearRampToValueAtTime(0, this.ac.currentTime + GAIN_RAMP_SECONDS);
+    // Anchored at the current level: a bare ramp would start from the end of the play ramp.
+    rampGain(this.out.gain, 0, GAIN_RAMP_SECONDS, this.ac.currentTime);
     this.nextStartTime = 0;
   }
 
@@ -210,7 +218,7 @@ export class LyriaEngine implements GenerativeEngine {
     }
     this.session = null;
     this.out.disconnect();
-    this.out = this.ac.createGain();
+    this.out = this.silentGain();
     this.nextStartTime = 0;
   }
 
