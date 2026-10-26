@@ -33,6 +33,7 @@ import type { ConductorSettings } from '@/slices/conductor/schema';
 const conductorDial = () => dialsStore.getState().effective.conductor as ConductorSettings;
 const setConducting = (enabled: boolean) => dialsStore.set('conductor', { ...conductorDial(), enabled });
 import { useControls } from '@/app/store';
+import { useReplay } from '@/app/replay/replayStore';
 // The song commands' host (#186 PR G): the Song tool's stop control dispatches `song.pause`.
 // The song is its slice's since #600 S15 (its tool runs detached through `ExtensionTool.detached`).
 import '@/slices/song/app/host';
@@ -73,6 +74,7 @@ beforeEach(() => {
   // The Lab is its slice's (#600 S16b): its pref exists while the slice is listed.
   if (LAB) setLab(defaultFeatureLab());
   setSongHandle(null);
+  useReplay.getState().clear();
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
   // Recording defaults ON in production (its own test below covers that path); the
@@ -803,6 +805,14 @@ const DETACHED: Record<string, { start: () => void; running: () => boolean }> = 
     },
     running: () => songPlaying(),
   },
+  // Core's: a loaded recording replays until it is stopped.
+  replay: {
+    start: () =>
+      useReplay.setState({
+        replay: { id: 1, name: 'take.jsonl', frames: [{ width: 640, height: 480, hands: [] }], times: [0], loop: true, format: 'stream', skipped: 0, durationS: 0 },
+      }),
+    running: () => useReplay.getState().replay !== null,
+  },
 };
 
 // Every shell tool, core's and the extensions' (the song's is its slice's since #600 S15).
@@ -811,10 +821,9 @@ const detachedTools = SHELL_TOOLS.filter((t) => t.runsDetached);
 describe('a tool that keeps running after its panel closes', () => {
   it('declares at least one such tool, and each has a harness here', () => {
     // If this fails you added `runsDetached` without teaching this file how to drive
-    // it — which would let the rest of the block silently cover nothing. Every detached tool is an
-    // extension's since #600 S16b (the Lab was core's last), so core alone declares none.
-    if (LAB || SONG || CONDUCTOR) expect(detachedTools.length).toBeGreaterThan(0);
-    else expect(detachedTools).toEqual([]);
+    // it — which would let the rest of the block silently cover nothing.
+    // Core's Replay runs detached (a loaded take plays on with the panel closed), so every build has one.
+    expect(detachedTools.length).toBeGreaterThan(0);
     for (const t of detachedTools) {
       expect(DETACHED[t.id], `no start/running harness for tool '${t.id}'`).toBeTruthy();
     }

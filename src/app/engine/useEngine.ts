@@ -49,6 +49,7 @@ import { createGestureDispatcher } from '../gestures/gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBinding';
 import { cameraConstraints } from './camera';
+import { HAND_REPLAY_RESOURCE_KEY, useReplay } from '../replay/replayStore';
 import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -261,6 +262,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         timing.noteCamera(stream);
         resources[TIMING_RESOURCE_KEY] = () => timing!.reading();
         resources[HAND_COUNT_RESOURCE_KEY] = () => handCountRef.current;
+        // A recording the player loaded to replay in place of the camera (the Replay tool,
+        // `?replay=`): the `replay-hands` source reads it each tick, by time.
+        resources[HAND_REPLAY_RESOURCE_KEY] = () => useReplay.getState().replay;
         // Where the hand model runs (#326): `?hands.runner=main|worker|auto` overrides the
         // node's `runner` param, so both paths can be measured and compared on one machine.
         resources[HAND_RUNNER_RESOURCE_KEY] = new URLSearchParams(window.location.search).get('hands.runner') ?? undefined;

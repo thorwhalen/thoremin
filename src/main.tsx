@@ -15,18 +15,25 @@
  * `?slot.<name>=<nodeType>` (e.g. `?slot.mapping=voice-mapping`) picks which
  * implementation fills a role-typed swap point in the graph — a developer-facing
  * seam; see {@link parseSlotSelection}.
+ *
+ * `?replay=<url>` replays a recorded hand stream (the Record tool's `.features.jsonl`, or a
+ * `hands.ndjson[.gz]` fixture) in place of the camera once it has loaded; see `app/replay/`.
  */
 import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import DagApp from './app/App.tsx';
 import {parseSourceSpec} from './app/engine/sourceSpec';
 import {parseSlotSelection} from './app/graph';
+import {loadReplayLink, replayUrlFrom} from './app/replay/replayStore';
 import './index.css';
 
 const engineParam = new URLSearchParams(window.location.search).get('engine');
 const useLegacyEngine = engineParam === 'legacy' || engineParam === 'classic';
 const source = parseSourceSpec(window.location.search);
 const slots = parseSlotSelection(window.location.search);
+// The source slot follows the loaded recording (App), so a link that fails leaves the camera on.
+const replayUrl = replayUrlFrom(window.location.search);
+if (replayUrl && !useLegacyEngine) void loadReplayLink(replayUrl);
 
 const LegacyApp = lazy(() => import('./App.tsx'));
 

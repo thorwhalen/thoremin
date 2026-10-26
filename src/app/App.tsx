@@ -13,9 +13,11 @@
 import './host/storage';
 // The AI-provider key store, for an extension's engine (#600 S14).
 import './host/keys';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Play, VolumeX } from 'lucide-react';
 import { useThoreminEngine } from './engine/useEngine';
+import { useReplay } from './replay/replayStore';
+import ReplayPanel from './replay/ReplayPanel';
 import { DEFAULT_SOURCE, type SourceSpec } from './engine/sourceSpec';
 import { NO_SLOTS, type SlotSelection } from './graph';
 import { installKeyboardShortcuts } from './shell/keyboardShortcuts';
@@ -121,12 +123,16 @@ function HushBadge() {
 
 export default function App({
   source = DEFAULT_SOURCE,
-  slots = NO_SLOTS,
+  slots: urlSlots = NO_SLOTS,
 }: {
   source?: SourceSpec;
   /** Developer-facing node-swap selection (`?slot.<name>=<type>`); see `graph.ts`. */
   slots?: SlotSelection;
 }) {
+  // A loaded recording replays in place of the camera (the Replay tool): the source slot is the
+  // replay while one is loaded, whatever the URL chose.
+  const replaying = useReplay((s) => s.replay !== null);
+  const slots = useMemo(() => (replaying ? { ...urlSlots, source: 'replay-hands' } : urlSlots), [replaying, urlSlots]);
   const { videoRef, canvasRef, status, error, audioOn, startAudio, recording } =
     useThoreminEngine(source, slots);
   // The take cluster publishes its height, so the Instruments panel ends above it however
@@ -196,6 +202,9 @@ export default function App({
 
       {/* The gesture-binding editor (#129) — renders when its tool is the open one. */}
       <GesturesPanel />
+
+      {/* Replay a recorded take in place of the camera (renders when its tool is open). */}
+      <ReplayPanel />
 
       {/* An extension's tools (#330): the shell's frame, the extension's content, loaded on open. */}
       <ExtensionToolPanels />

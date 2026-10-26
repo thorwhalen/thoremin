@@ -126,6 +126,9 @@ describe('the slot selection reaches the graph', () => {
 
   it('App forwards it to the engine hook', () => {
     expect(code(app)).toMatch(/useThoreminEngine\(\s*source,\s*slots\s*\)/);
+    // ...the URL's selection, with the source slot taken by a loaded replay (the Replay tool).
+    expect(code(app)).toMatch(/slots: urlSlots/);
+    expect(code(app)).toMatch(/replaying \? \{ \.\.\.urlSlots, source: 'replay-hands' \} : urlSlots/);
   });
 
   it('useEngine builds the graph WITH the selection and the registry', () => {

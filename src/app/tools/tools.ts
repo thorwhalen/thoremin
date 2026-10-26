@@ -154,6 +154,16 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     defaultPinned: false,
   },
   {
+    id: 'replay',
+    label: 'Replay',
+    description: 'Play a recorded take of your hands into the instrument instead of the camera, to hear again what it did.',
+    kind: 'panel',
+    group: 'tool',
+    defaultPinned: false,
+    // The take plays on with the panel closed; the bar shows it running and stops it.
+    runsDetached: true,
+  },
+  {
     id: 'manual',
     label: 'Manual',
     description: 'The generated capabilities manual: every node, dial, sound and overlay element.',
