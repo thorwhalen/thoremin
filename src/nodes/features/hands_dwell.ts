@@ -11,11 +11,17 @@
  *
  * At dwell 0 (the dial's default) nothing is held and the input frame itself is returned: the
  * node is the identity, and an instrument that never raises the dial plays as it always did.
+ *
+ * One correction is made at any dwell: two hands the model gave the SAME label (a frame in eight
+ * on real two-hand takes) are told apart by where they are (`createLabelOrder`), since an
+ * instrument that looks for the other label would otherwise lose that hand for the frame (the
+ * chord map dropped its chord hand and sounded its melody from the wrong one). That is not a
+ * dwell: nothing is held, and a frame whose labels differ passes through untouched.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { resolveSide, type HandSide } from '@thoremin/sdk/features/catalog';
-import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES, createHandednessDwell } from '@thoremin/sdk/features/handedness';
+import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES, createHandednessDwell, createLabelOrder } from '@thoremin/sdk/features/handedness';
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SOURCE_SLOT_OUTPUT } from '../sources/source_contract';
 
@@ -46,14 +52,17 @@ export const handsDwellNode = defineNode<Params>({
   params: Params,
   make(p) {
     const dwell = createHandednessDwell({ dwellFrames: p.handednessDwellFrames });
+    const order = createLabelOrder();
     return {
       process(inputs) {
         const frame = inputs.hands as HandsFrame | undefined;
         const live = inputs.handednessDwell as number | undefined;
         const dwellFrames = typeof live === 'number' && Number.isFinite(live) ? live : p.handednessDwellFrames;
         const hands = frame?.hands ?? [];
+        // Two hands with one label: told apart by position first (the wrist's x), then dwelled.
+        const labels = order.step(hands.map((h) => ({ label: h.handedness, x: h.keypoints[0]?.x ?? 0 })));
         // An empty frame still steps the tracker: a dropout counts toward its window.
-        const sides = dwell.step(hands.map((h) => resolveSide(h.handedness, p.mirrorHandedness)), { dwellFrames });
+        const sides = dwell.step(labels.map((l) => resolveSide(l, p.mirrorHandedness)), { dwellFrames });
         if (!frame) return { hands: undefined };
         let changed = false;
         const relabelled = hands.map((h, i) => {

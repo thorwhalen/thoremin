@@ -38,10 +38,10 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 |---|---|---|---|---|---|---|---|---|---|---|
 | Chord Map | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
 | Chord Map | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
-| Chord Map | conducting | 3.7 | 0.00 | 0.00 | 2 | 0 | 0 | - | - | 8 |
+| Chord Map | conducting | 3.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 5 |
 | Chord Map Paths | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
 | Chord Map Paths | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
-| Chord Map Paths | conducting | 3.7 | 0.00 | 0.00 | 2 | 0 | 0 | - | - | 8 |
+| Chord Map Paths | conducting | 3.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 5 |
 | Chord Map Strum | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
 | Chord Map Strum | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
 | Chord Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |

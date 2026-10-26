@@ -132,3 +132,61 @@ export function createHandednessDwell(options: HandednessDwellOptions = {}): Han
     reset,
   };
 }
+
+/** One hand as the label order reads it: the model's label and where the hand is across the image. */
+export interface LabelledHand {
+  label: 'Left' | 'Right';
+  /** The hand's horizontal position in the image (any unit, the same for every hand). */
+  x: number;
+}
+
+export interface LabelOrderOptions {
+  /** How many recent two-hand frames with distinct labels the order is voted from. */
+  window?: number;
+}
+
+export interface LabelOrder {
+  /** One frame's hands in, each hand's label out (same order): a collision resolved, else as given. */
+  step(hands: readonly LabelledHand[]): ('Left' | 'Right')[];
+  reset(): void;
+}
+
+/** Recent frames the order is voted from: a second at 30 fps. */
+export const LABEL_ORDER_WINDOW = 30;
+
+/**
+ * Two hands given the SAME label (#827's measurement: 12 to 19 % of the two-hand frames of real
+ * conducting takes) are two hands, so one of them is the other side. Which one is read from where
+ * they are: the order of the two labels across the image, voted over the recent two-hand frames
+ * whose labels differed (a player facing the camera keeps the same order unless the arms cross).
+ * Before any such frame, MediaPipe's own convention on an unmirrored camera frame, measured on
+ * real takes (the hand labelled Right is the one further LEFT in the image: 285 to 2, 580 to 0
+ * and 708 to 3 frames on three conductor clips).
+ *
+ * Only a collision is changed: one hand, two distinct labels, or more than two hands pass through.
+ * Pure over labels and positions; the caller maps them back onto its hands.
+ */
+export function createLabelOrder(options: LabelOrderOptions = {}): LabelOrder {
+  const window = options.window ?? LABEL_ORDER_WINDOW;
+  // Recent votes: true when the Right-labelled hand was the one further left.
+  let votes: boolean[] = [];
+  const rightIsLeftmost = () => votes.length === 0 || votes.filter(Boolean).length * 2 >= votes.length;
+  return {
+    step(hands) {
+      if (hands.length !== 2) return hands.map((h) => h.label);
+      const [a, b] = hands;
+      if (a.label !== b.label) {
+        votes.push((a.label === 'Right' ? a.x : b.x) < (a.label === 'Right' ? b.x : a.x));
+        if (votes.length > window) votes = votes.slice(votes.length - window);
+        return [a.label, b.label];
+      }
+      const aLeft = a.x <= b.x;
+      const right = rightIsLeftmost();
+      const aLabel: 'Left' | 'Right' = aLeft === right ? 'Right' : 'Left';
+      return [aLabel, aLabel === 'Right' ? 'Left' : 'Right'];
+    },
+    reset() {
+      votes = [];
+    },
+  };
+}
