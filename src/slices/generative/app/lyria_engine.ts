@@ -34,6 +34,7 @@ import { providerKey } from '@thoremin/sdk-ui/keys';
 import { LYRIA_KEY_PROVIDER } from '../nodes/lyria.schema';
 import type { LoadResult } from '@thoremin/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from '../nodes/generative';
+import { rampGain } from '@/nodes/output/gain_ramp';
 
 function decodeBase64(base64: string): Uint8Array {
   const bin = atob(base64);
@@ -181,8 +182,11 @@ export class LyriaEngine implements GenerativeEngine {
     if (!this.session) await this.connect();
     if (this.ac.state === 'suspended') await this.ac.resume();
     this.out.connect(this.dest);
-    this.out.gain.setValueAtTime(0, this.ac.currentTime);
-    this.out.gain.linearRampToValueAtTime(this.volume, this.ac.currentTime + GAIN_RAMP_SECONDS);
+    // Start silent (a fresh GainNode is at 1) and drop any ramp left over from a pause.
+    const now = this.ac.currentTime;
+    this.out.gain.cancelScheduledValues(now);
+    this.out.gain.setValueAtTime(0, now);
+    this.out.gain.linearRampToValueAtTime(this.volume, now + GAIN_RAMP_SECONDS);
     this.playing = true;
     this.session?.play();
   }
@@ -190,7 +194,8 @@ export class LyriaEngine implements GenerativeEngine {
   async pause(): Promise<void> {
     this.playing = false;
     this.session?.pause();
-    this.out.gain.linearRampToValueAtTime(0, this.ac.currentTime + GAIN_RAMP_SECONDS);
+    // Anchored at the current level: a bare ramp would start from the end of the play ramp.
+    rampGain(this.out.gain, 0, GAIN_RAMP_SECONDS, this.ac.currentTime);
     this.nextStartTime = 0;
   }
 

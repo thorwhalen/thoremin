@@ -9,7 +9,7 @@
  * first need and Node tests inject their own stretcher instead.
  */
 import type { Stretcher, StretcherFactory } from '../nodes/song_player.schema';
-import { rampGain } from './gain_ramp';
+import { rampGain } from '@/nodes/output/gain_ramp';
 
 export const createMediaElementStretcher: StretcherFactory = ({ audioContext, destination }): Stretcher => {
   const el = document.createElement('audio');

@@ -1,6 +1,7 @@
 /**
  * A gain ramp from wherever the gain is now, shared by the song stretchers' hold fade
- * (#366). Its own module so each stretcher imports it without importing the other.
+ * (#366) and the Lyria engine's pause fade (#735). Its own module under `nodes/output` so no
+ * slice imports another slice for it.
  */
 /** Ramp a gain to `level` over `seconds` from wherever it is now (0 s = at once). */
 export function rampGain(param: AudioParam, level: number, seconds: number, at: number): void {
