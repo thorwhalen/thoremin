@@ -111,6 +111,7 @@
     "./timing/tracker": "./src/timing/tracker.ts",
     "./util/ids": "./src/util/ids.ts",
     "./view/frame_view": "./src/view/frame_view.ts",
+    "./view/frame_hold": "./src/view/frame_hold.ts",
     "./sources/frame_pump": "./src/sources/frame_pump.ts",
     "./sources/tasks_vision": "./src/sources/tasks_vision.ts",
     "./sources/delegate": "./src/sources/delegate.ts",

@@ -31,6 +31,8 @@ export interface OverlayView {
   /** The frame-to-display transform of THIS pass's canvas (#817): the one place a landmark becomes a pixel. */
   display: FrameView;
   video?: HTMLVideoElement;
+  /** The frame the hand result on this tick was inferred on (#842), when the host holds it; the backdrop draws it in place of the live `video`. */
+  held?: CanvasImageSource;
   inputs: {
     hands?: HandsFrame;
     features?: HandFeatures;
