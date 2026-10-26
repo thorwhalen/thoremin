@@ -105,10 +105,8 @@ describe('the keyboard-source node', () => {
     expect(() => node.dispose!()).not.toThrow();
   });
 
-  // dispose() removes its listeners from `globalThis.window`, while init() added them to
-  // `ctx.resources.window` when one is handed. The app hands the real window, so the two
-  // agree there; a host (or a test) that hands another target keeps the listeners alive
-  // after dispose (#748).
+  // dispose removes from the target init listened on (`ctx.resources.window` when one is handed),
+  // so a host that hands another target does not keep listeners alive after dispose (#748).
   it('dispose removes its listeners from the window it was handed', () => {
     const { node, target } = setup();
     node.dispose!();
