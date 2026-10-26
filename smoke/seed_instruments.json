@@ -134,12 +134,12 @@
     {
       "name": "Sign Wheel",
       "body": false,
-      "silent": "a chord sounds only after a letter A..G is read, which the synthetic hands do only by chance"
+      "silent": "a chord sounds only after a letter A..G is read, which the synthetic hands do only by chance (replay_signs.smoke.ts replays a real signer into it)"
     },
     {
       "name": "Sign Map",
       "body": false,
-      "silent": "a chord lights only after a letter A..G is read, which the synthetic hands do only by chance"
+      "silent": "a chord lights only after a letter A..G is read, which the synthetic hands do only by chance (replay_signs.smoke.ts replays a real signer into it)"
     },
     {
       "name": "Chord Map Strum",
@@ -154,7 +154,7 @@
     {
       "name": "ASL Chords",
       "body": false,
-      "silent": "plays a chord per recognised sign; the synthetic hands sign nothing"
+      "silent": "plays a chord per recognised sign; the synthetic hands sign nothing (replay_signs.smoke.ts replays a real signer into it)"
     },
     {
       "name": "Drawn Pieces",
