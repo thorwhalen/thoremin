@@ -553,6 +553,7 @@ describe('the default evaluator, directly', () => {
     settling: false,
     sigma,
     askedVariations: 0,
+    traces: [],
   };
 
   it('excursion without a baseline counts points only (nothing to measure against)', () => {

@@ -15,7 +15,9 @@
  *
  * | stage | module | what it does |
  * |---|---|---|
+ * | Motion | `motion.ts` | the window displacement in noise units the sampler and the segmenter share (#751) |
  * | Sample | `sampler.ts` | velocity-gate the live vector; keep poses actually HELD |
+ * | Cut | `gestures/` | the sampler's complement: cut a named gesture's repetitions out of a take as traces (#751) |
  * | Condition | `invariance.ts` | down-weight what moved during a nuisance demo; consume #131's declarations |
  * | Carve | `cluster.ts` | agglomerative hierarchy; cut at k — **before or after** |
  * | Reject | `classify.ts` | no-man's-land by demonstration, hysteretic, holds rather than silences |
@@ -41,12 +43,16 @@
  * DAG, React or the audio layer.
  */
 export {
-  createStillPointSampler,
+  createWindowMotion,
   meanAbsDistance,
+  MOTION_DEFAULTS,
   noiseDistance,
-  type SamplerOptions,
-  type StillPointSampler,
-} from './sampler';
+  type MotionReading,
+  type WindowMotion,
+  type WindowMotionOptions,
+} from './motion';
+export { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
+export { createMotionSegmenter, SEGMENTER_DEFAULTS, type MotionSegmenter, type SegmenterOptions } from './gestures';
 export {
   applyWeights,
   createNoiseEstimator,
@@ -215,6 +221,8 @@ export type {
   FeatureWeights,
   NuisanceProfile,
   StillPoint,
+  Trace,
+  TraceSample,
   TrainedModel,
 } from './types';
 export {

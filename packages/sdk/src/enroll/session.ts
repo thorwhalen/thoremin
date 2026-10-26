@@ -2,8 +2,8 @@
  * The trainer session (#160, reworked for #163) — the take, and the model built from it.
  *
  * This is the one stateful object a host holds. It owns the per-cue capture (a
- * still-point sampler for vocabulary cues, raw accumulation for the baseline and
- * nuisance cues), the session-wide noise estimator every distance is measured in, and
+ * still-point sampler for vocabulary cues, a motion segmenter for gesture cues, raw
+ * accumulation for the baseline and nuisance cues), the session-wide noise estimator every distance is measured in, and
  * turns the accumulated take into a {@link TrainedModel} on demand.
  *
  * **`retrain(k)` is deliberately cheap and repeatable.** It re-cuts the already-built
@@ -20,6 +20,8 @@
  * cue — "look left" and "your faces" alike — form one pool the hierarchy is built over.
  * Each still-point remembers its cue, so a category can report which cues fed it (a
  * free label suggestion: a category that is 90% "look left" points is probably that).
+ * A `gesture` cue (#751) keeps the traces its segmenter cuts, per cue; they are never
+ * clustered (the player named the gesture), and `build()` does not see them.
  *
  * ## Units (#163)
  *
@@ -46,7 +48,8 @@ import {
 } from './invariance';
 import { applyWeights, createNoiseEstimator, scaleWeights, type NoiseEstimator, type NoiseOptions } from './noise';
 import { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
-import type { FeatureVector, FeatureWeights, StillPoint, TrainedModel } from './types';
+import { createMotionSegmenter, type MotionSegmenter } from './gestures/segmenter';
+import type { FeatureVector, FeatureWeights, StillPoint, Trace, TrainedModel } from './types';
 
 export interface SessionOptions {
   /** Cap on how many features the model uses. See `rankFeatures` for why a cap exists. */
@@ -91,6 +94,10 @@ export interface Session {
   pointsFor(cueId: string): StillPoint[];
   /** Every still-point, across all vocabulary cues. */
   points(): StillPoint[];
+  /** Traces cut for a gesture cue (#751). */
+  tracesFor(cueId: string): Trace[];
+  /** Every trace, across all gesture cues. */
+  traces(): Trace[];
   /** Frames captured for a continuous cue (those carrying >= 1 attention feature). */
   framesFor(cueId: string): number;
   /** A cue's resolved attention features. */
@@ -98,7 +105,8 @@ export interface Session {
   /** Mean of the baseline cue's frames, if one has been captured. */
   baseline(): FeatureVector | undefined;
   /** Whether the player has MOVED since the active cue began (the sampler crossed its
-   *  held threshold at least once). False for continuous cues and when idle. */
+   *  held threshold, or the segmenter its start threshold, at least once). False for
+   *  continuous cues and when idle. */
   moved(): boolean;
   /** Whether the vector is currently held (the active sampler is in a dwell). */
   settling(): boolean;
@@ -169,12 +177,15 @@ export function createSession(options: SessionOptions = {}): Session {
   const points = new Map<string, StillPoint[]>();
   /** Raw frames per continuous cue. */
   const frames = new Map<string, FeatureVector[]>();
+  /** Traces per gesture cue. */
+  const traces = new Map<string, Trace[]>();
   /** Every cue that has run, by id (for `produces` / `axes` at build time). */
   const cuesSeen = new Map<string, Cue>();
 
   let active: Cue | null = null;
   let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
+  let segmenter: MotionSegmenter | null = null;
   /** The last frame the active cue sampled. */
   let lastInCue: { v: FeatureVector; t: number } | null = null;
   /**
@@ -217,6 +228,7 @@ export function createSession(options: SessionOptions = {}): Session {
       activeFeatures = featuresFor(cue);
       points.delete(cue.id);
       frames.delete(cue.id);
+      traces.delete(cue.id);
       // The pool is about to change: a hierarchy built over the old one would index
       // the wrong points. Build again when the take is finished.
       hierarchy = { heights: [], size: 0 };
@@ -240,9 +252,22 @@ export function createSession(options: SessionOptions = {}): Session {
           ...(seed ? { seed } : {}),
           ...(options.after ? { lastEmitted: options.after } : {}),
         });
+        segmenter = null;
         points.set(cue.id, []);
+      } else if (samplingFor(cue) === 'segments') {
+        // The segmenter arms itself on quiet, so a cue begun mid-wave yields no half wave.
+        sampler = null;
+        segmenter = createMotionSegmenter({
+          gesture: cue.gesture ?? cue.id,
+          cue: cue.id,
+          features: activeFeatures,
+          noise,
+          ...(seed ? { seed } : {}),
+        });
+        traces.set(cue.id, []);
       } else {
         sampler = null;
+        segmenter = null;
         frames.set(cue.id, []);
       }
     },
@@ -250,8 +275,10 @@ export function createSession(options: SessionOptions = {}): Session {
     push(vector, tMs) {
       // A nuisance demonstration is deliberate motion (closer and further, a step aside, a
       // turn): it sets the nuisance profile and never the noise every distance is measured
-      // in (#460). Its frames are a gap to the estimator, which re-anchors after it.
-      if (active?.produces !== 'nuisance') noise.push(vector, tMs);
+      // in (#460). Its frames are a gap to the estimator, which re-anchors after it. A
+      // gesture is deliberate motion too (#751): five waves folded into the jitter estimate
+      // would inflate the very unit the segmenter judges them in.
+      if (active?.produces !== 'nuisance' && active?.produces !== 'gesture') noise.push(vector, tMs);
       if (!active) {
         idle?.push(vector, tMs);
         lastIdle = { v: vector, t: tMs };
@@ -264,6 +291,9 @@ export function createSession(options: SessionOptions = {}): Session {
       if (sampler) {
         const p = sampler.push(vector, tMs);
         if (p) points.get(active.id)!.push(p);
+      } else if (segmenter) {
+        const trace = segmenter.push(vector, tMs);
+        if (trace) traces.get(active.id)!.push(trace);
       } else {
         frames.get(active.id)!.push(vector);
       }
@@ -276,6 +306,7 @@ export function createSession(options: SessionOptions = {}): Session {
       lastIdle = null;
       active = null;
       sampler = null;
+      segmenter = null;
       activeFeatures = [];
     },
 
@@ -289,10 +320,12 @@ export function createSession(options: SessionOptions = {}): Session {
     activeCue: () => active,
     pointsFor: (id) => (points.get(id) ?? []).slice(),
     points: vocabulary,
+    tracesFor: (id) => (traces.get(id) ?? []).slice(),
+    traces: () => [...traces.values()].flat(),
     framesFor: (id) => frames.get(id)?.length ?? 0,
     featuresFor,
     baseline: () => meanOf(framesWhere('baseline')),
-    moved: () => sampler?.hasMoved() ?? false,
+    moved: () => (sampler ?? segmenter)?.hasMoved() ?? false,
     settling: () => sampler?.isSettling() ?? false,
     armed: () => sampler?.isArmed() ?? false,
     built: () => hierarchy.size > 0 && hierarchy.size === vocabulary().length,
@@ -387,11 +420,13 @@ export function createSession(options: SessionOptions = {}): Session {
     reset() {
       points.clear();
       frames.clear();
+      traces.clear();
       cuesSeen.clear();
       noise.reset();
       active = null;
       activeFeatures = [];
       sampler = null;
+      segmenter = null;
       lastInCue = null;
       idle = null;
       lastIdle = null;

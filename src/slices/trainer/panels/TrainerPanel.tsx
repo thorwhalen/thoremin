@@ -52,7 +52,7 @@
  */
 import { useEffect, useState } from 'react';
 import { GraduationCap, Volume2, VolumeX, X } from 'lucide-react';
-import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
+import { categoryKey, samplingFor, type Category, type CueSampling, type TrainedModel } from '@thoremin/sdk/enroll';
 import RoutinePicker from './RoutinePicker';
 import ProjectionView from './ProjectionView';
 import { unlockVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
@@ -75,6 +75,9 @@ import {
 
 /** The tool id, and the id of the Trainer's hush claim. */
 export const TOOL_ID = TRAINER_TOOL_ID;
+
+/** What the cue's sample count counts, by how the cue samples. */
+const SAMPLE_WORD: Record<CueSampling, string> = { 'still-points': 'held', segments: 'repetitions', continuous: 'frames' };
 
 /** The coverage meter — the Face ID ring, flattened. */
 function Coverage({ value }: { value: number }) {
@@ -351,7 +354,7 @@ export default function TrainerPanel({ close, openTool }: ExtensionToolPanelProp
             <BeatCounter />
           ) : (
             <span className="text-[10px] tabular-nums text-white/40">
-              {samples} {activeCue.produces === 'vocabulary' ? 'held' : 'frames'}
+              {samples} {SAMPLE_WORD[samplingFor(activeCue)]}
             </span>
           )}
           <VoiceToggle on={voiceOn} setOn={setVoice} />

@@ -48,6 +48,7 @@ const CUE_COLOR: Record<Cue['produces'], string> = {
   nuisance: '#f59e0b',
   vocabulary: '#34d399',
   performance: '#c084fc',
+  gesture: '#38bdf8',
 };
 
 /** The tag set a routine's take is annotated with. */
