@@ -239,11 +239,11 @@ export const webcamHandsNode = defineNode<Params>({
       () => video,
       (stamp, v) => {
         if (!runner || followHandCount(runner)) return false;
-        const offered = runner.offer(v, stamp);
-        // The held-frame option (#842): keep the frame this result will be inferred on, by its
-        // stamp, for the overlay to draw. Snapshotted in this callback, like the model's own.
-        if (offered) holdFrame(resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined, v, stamp.tMs / 1000);
-        return offered;
+        // The held-frame option (#842): keep each frame that is really inferred (not the ones a
+        // busy worker drops), by its stamp, for the overlay to draw. Snapshotted in this callback,
+        // like the model's own.
+        const hold = resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined;
+        return runner.offer(v, stamp, hold && ((video, s) => holdFrame(hold, video, s.tMs / 1000)));
       },
     );
 

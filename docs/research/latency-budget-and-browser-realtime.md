@@ -152,17 +152,18 @@ It serves the built bundle, drives `?probe=latency` in Chromium (muted, unless `
 
 ### 5.4 The dot that trails the fingertip: overlay offset, live and held (#817, #842)
 
-The overlay draws the newest video frame, but its landmarks come from the frame inferred earlier, so on a moving hand the drawn dot is where the fingertip was. The offset is the distance the tip travels during the pipeline lag in front of the drawing: the camera-to-delivery 5.5 ms (step 2 of the timing plan) plus the hand model's 20.5 ms (row 4 of the table in section 1), about 26 ms.
+The overlay draws the newest video frame, but its landmarks come from a frame inferred earlier. The video element and the model both see frames at the camera's capture times, so the gap is a whole number of camera frames: the frames that arrived while the model ran (one at 30 fps for a model of about 20 ms, two at 60 fps), plus one more when the draw tick misses the delivery. The camera-to-delivery delay is common to both and cancels. On a moving hand the drawn dot is where the fingertip was that many frames ago.
 
-`vite-node scripts/overlay_offset.ts` turns that lag and a recorded sweep into pixels. On the committed `video_hand_sweep` fixture (121 frames of one hand, index tip), with the frame fitted to a 1280 px wide canvas:
+`vite-node scripts/overlay_offset.ts [--frames-behind N]` turns a frame gap and a recorded sweep into pixels. On the committed `video_hand_sweep` fixture (121 frames of one hand at 24 fps, index tip), with the frame fitted to a 1280 px wide canvas:
 
 | | p50 | p95 | max |
 |---|---:|---:|---:|
 | tip speed (canvas px/s) | 221 | 1037 | 5849 |
-| live-mode trail at 26 ms (canvas px) | 5.7 | 27.0 | 152 |
-| held-frame trail (`?overlay.hold=hands`) | 0 | 0 | 0 |
+| live trail, 1 frame behind (41.7 ms) | 9.2 | 43.2 | 244 |
+| live trail, 2 frames behind (83.3 ms) | 18.4 | 72.6 | 260 |
+| held frame (`?overlay.hold=hands`) | 0 if paired | | |
 
-Read this honestly. It is derived, not measured: a recorded motion times a measured lag. It does not include the sensor's exposure-to-arrival constant, the display's latency or whether anyone perceives a 6 to 27 px trail (the maximum is one detection jump, not a hand speed). Held-frame mode shows the frame the landmarks were inferred on, so the dot sits on the tip by construction; what it costs is that the video itself then shows the same 26 ms late, plus one GPU bitmap per inferred frame (about 3.5 MB at 720p, four held; the worker runner drops offers while busy and the ring has to outlast them). Whether that trade is worth it is a player's call, so it stays off unless the URL asks. The real-camera numbers belong on the live-verification list (#146).
+Read this honestly. The live rows are derived, not measured: a recorded motion times an assumed frame gap, and the maximum is one detection jump, not a hand speed. They leave out the sensor's exposure-to-arrival constant, the display's latency and whether anyone perceives the trail. The held row is not a measurement: held mode draws the frame the landmarks were inferred on, so the offset is zero if the two are paired. The unit tests prove the key match and that only inferred frames are held; a camera run proves the rest (#146). What held mode costs: the video then shows the same gap late, one GPU bitmap per inferred frame (about 3.5 MB at 720p, 33 MB at 4K, two held plus the one in flight), and it registers hands only (face and body come from other pumps). Whether that trade is worth it is a player's call, so it stays off unless the URL asks. `resources.frameHold.stats()` counts exact, earlier and missing hits, so a hold that never hits is visible.
 
 ## 6. Caveats
 

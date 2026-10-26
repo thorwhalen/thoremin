@@ -104,7 +104,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
             t: ctx.time,
             elementState,
             video,
-            held: hands?.t === undefined ? undefined : (ctx.resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined)?.get(hands.t),
+            held: hands?.t === undefined ? undefined : (ctx.resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined)?.at(hands.t),
             params: liveConfig ?? p,
             layout: {},
             inputs: {

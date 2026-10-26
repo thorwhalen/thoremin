@@ -1,16 +1,16 @@
 /**
  * How far a drawn landmark trails the fingertip it marks (#842, #817): the library half.
  *
- * The overlay draws the newest video frame, but the landmarks come from the frame inferred a
- * pipeline-lag earlier (capture to delivery, plus the model). While the hand moves, the dot is
- * where the fingertip WAS. With a recorded sweep as ground truth the offset is the distance the
- * tip travels in that lag. This does not measure the lag (a camera and the latency probe do,
- * `?probe=latency`, `smoke/latency/measure.mjs`): it turns a measured lag and a recorded motion
- * into pixels, and says nothing a camera would add (sensor delay, display latency, perception).
+ * The overlay draws the newest video frame, but the landmarks come from the frame inferred
+ * earlier. Both see frames at the camera's capture times, so the gap is whole camera frames (the
+ * frames that arrived while the model ran). While the hand moves, the dot is where the fingertip
+ * WAS. With a recorded sweep as ground truth the offset is the distance the tip travels over that
+ * gap. This does not measure the gap (a camera and the latency probe do, `?probe=latency`,
+ * `smoke/latency/measure.mjs`): it turns a frame gap and a recorded motion into pixels, and says nothing a camera would add (sensor delay, display latency, perception).
  *
  * Held-frame mode (`?overlay.hold=hands`) draws the frame the landmarks were inferred on, so the
- * dot-to-tip offset is zero by construction; the cost moves to the video, which then shows the
- * same lag late. `videoDelayMs` reports it.
+ * dot-to-tip offset is zero when the two are paired (the unit tests prove the key match; a camera
+ * run proves the rest); the cost moves to the video, which then shows the same gap late.
  */
 
 export interface TipSample {
