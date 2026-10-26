@@ -95,7 +95,7 @@ describe('the instrument metadata blob (#823)', () => {
 });
 
 describe('two tabs over one localStorage (#739)', () => {
-  it("a tab's transient-only set does not write its stale blob over the other tab's saved pref", async () => {
+  it("a tab's transient-only set does not write its stale blob over the other tab's saved setting", async () => {
     vi.resetModules();
     const A = await import('@/app/store');
     vi.resetModules();
@@ -104,13 +104,13 @@ describe('two tabs over one localStorage (#739)', () => {
 
     // B's first write is its own (it may have healed or migrated the blob); then it is in sync with storage.
     B.useControls.getState().setMasterVolume(0.31);
-    // Tab A learns a lead offset and saves it.
-    A.useControls.getState().setPref('conductorPrefs', { leadOffsets: { wrist: 0.05 } });
-    expect((stored().conductorPrefs as { leadOffsets: Record<string, number> }).leadOffsets.wrist).toBe(0.05);
+    // Tab A changes a persisted setting and saves it.
+    A.useControls.getState().setMasterVolume(0.22);
+    expect(stored().masterVolume).toBe(0.22);
 
     // Tab B only switches instrument (a transient): it must not touch the saved blob.
     B.useControls.getState().setGraphElements(['x']);
-    expect((stored().conductorPrefs as { leadOffsets: Record<string, number> }).leadOffsets.wrist).toBe(0.05);
+    expect(stored().masterVolume).toBe(0.22);
   });
 });
 
