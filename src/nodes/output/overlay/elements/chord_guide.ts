@@ -10,7 +10,7 @@ import { CHORD_COLOR, type OverlayElement } from '../view';
 export const chordGuideElement: OverlayElement = {
   name: 'chordGuide',
   category: 'output',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { display, inputs, params }) {
     if (!params.chordGuide.show) return;
     const chord = inputs.chord;
     const scale = inputs.scale;
@@ -24,10 +24,10 @@ export const chordGuideElement: OverlayElement = {
     g.lineWidth = 2;
     for (const { midi, x } of scaleGuide(scale)) {
       if (!chordPcs.has(pitchClass(midi))) continue;
-      const sx = x * W;
+      const sx = display.shown(x, 0).x;
       g.beginPath();
-      g.moveTo(sx, H * 0.12);
-      g.lineTo(sx, H * 0.86);
+      g.moveTo(sx, display.shown(0, 0.12).y);
+      g.lineTo(sx, display.shown(0, 0.86).y);
       g.stroke();
     }
     g.restore();

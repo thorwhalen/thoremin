@@ -6,7 +6,7 @@
  */
 import { EFFECT_SHORT } from '../../../mapping/hand_map';
 import { FINGER_NAMES, kp, LM, type FingerName } from '@thoremin/sdk/nodes/domain';
-import { LEFT_COLOR, type OverlayElement, RIGHT_COLOR, isDisplayedRight, mirrorX } from '../view';
+import { LEFT_COLOR, type OverlayElement, RIGHT_COLOR, isDisplayedRight } from '../view';
 
 /**
  * Finger→thumb effect lines (in-scene): for each ROUTED finger, a line from the
@@ -18,7 +18,7 @@ export const fingerLinesElement: OverlayElement = {
   name: 'fingerLines',
   category: 'output',
   draw(g, view) {
-    const { W, H, inputs, params } = view;
+    const { display, inputs, params } = view;
     if (!params.fingerLines.show) return;
     const frame = inputs.hands;
     const feats = inputs.features;
@@ -40,15 +40,13 @@ export const fingerLinesElement: OverlayElement = {
       const color = right ? RIGHT_COLOR : LEFT_COLOR;
       const thumb = kp(hand, LM.thumb_tip);
       if (!thumb) continue;
-      const tx = mirrorX(thumb.x, frame.width, W);
-      const ty = (thumb.y / frame.height) * H;
+      const { x: tx, y: ty } = display.px(thumb.x, thumb.y, frame);
       for (const name of FINGER_NAMES) {
         const r = routes[name];
         if (!r || r.target === 'none') continue;
         const tip = kp(hand, TIP[name]);
         if (!tip) continue;
-        const fx = mirrorX(tip.x, frame.width, W);
-        const fy = (tip.y / frame.height) * H;
+        const { x: fx, y: fy } = display.px(tip.x, tip.y, frame);
         const value = f.fingers[name];
         g.globalAlpha = 0.35 + 0.55 * value;
         g.strokeStyle = color;

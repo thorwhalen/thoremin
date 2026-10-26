@@ -12,7 +12,7 @@ const arrEq = (a?: number[], b?: number[]) => !!a && !!b && a.length === b.lengt
 export const scaleGuideElement: OverlayElement = {
   name: 'scaleGuide',
   category: 'guide',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { display, inputs, params }) {
     if (!params.scaleGuide.show) return;
     const scaleR = inputs.scale;
     if (!Array.isArray(scaleR) || scaleR.length <= 1) return;
@@ -22,13 +22,13 @@ export const scaleGuideElement: OverlayElement = {
       g.font = '11px monospace';
       g.textAlign = 'center';
       for (const { midi, x } of scaleGuide(s)) {
-        const sx = x * W;
+        const sx = display.shown(x, 0).x;
         g.globalAlpha = alpha;
         g.strokeStyle = color;
         g.lineWidth = 1;
         g.beginPath();
-        g.moveTo(sx, H * 0.12);
-        g.lineTo(sx, H * 0.86);
+        g.moveTo(sx, display.shown(0, 0.12).y);
+        g.lineTo(sx, display.shown(0, 0.86).y);
         g.stroke();
         if (params.scaleGuide.showLabels) {
           g.globalAlpha = Math.min(1, alpha * 4);
@@ -38,10 +38,10 @@ export const scaleGuideElement: OverlayElement = {
       }
       g.restore();
     };
-    drawGuide(scaleR, '#ffffff', 0.1, H * 0.82);
+    drawGuide(scaleR, '#ffffff', 0.1, display.shown(0, 0.82).y);
     const scaleL = inputs.scaleLeft;
     if (Array.isArray(scaleL) && scaleL.length > 1 && !arrEq(scaleL, scaleR)) {
-      drawGuide(scaleL, LEFT_COLOR, 0.12, H * 0.18);
+      drawGuide(scaleL, LEFT_COLOR, 0.12, display.shown(0, 0.18).y);
     }
   },
 };

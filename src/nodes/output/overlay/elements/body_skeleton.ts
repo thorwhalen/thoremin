@@ -5,7 +5,7 @@
  * files by #600 S19a, the drawing unchanged).
  */
 import { BODY_BONES, BODY_LANDMARK_COUNT } from '@thoremin/sdk/nodes/domain';
-import { BODY_COLOR, type OverlayElement, mirrorX } from '../view';
+import { BODY_COLOR, type OverlayElement } from '../view';
 
 /**
  * The full-body skeleton (#186): bones + joints of the latest body frame, mirrored
@@ -16,7 +16,7 @@ import { BODY_COLOR, type OverlayElement, mirrorX } from '../view';
 export const bodySkeleton: OverlayElement = {
   name: 'bodySkeleton',
   category: 'input',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { display, inputs, params }) {
     if (!params.bodySkeleton.show) return;
     const status = inputs.bodyStatus;
     const body = inputs.bodyFrame;
@@ -34,8 +34,8 @@ export const bodySkeleton: OverlayElement = {
       return;
     }
     if (!body?.present || body.landmarks.length < BODY_LANDMARK_COUNT) return;
-    const sx = (i: number) => mirrorX(body.landmarks[i].x, body.width, W);
-    const sy = (i: number) => (body.landmarks[i].y / body.height) * H;
+    const sx = (i: number) => display.px(body.landmarks[i].x, body.landmarks[i].y, body).x;
+    const sy = (i: number) => display.px(body.landmarks[i].x, body.landmarks[i].y, body).y;
     const vis = (i: number) => (body.visibility[i] ?? 1) >= 0.5;
     g.save();
     g.strokeStyle = BODY_COLOR;

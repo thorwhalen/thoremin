@@ -5,20 +5,19 @@
  * files by #600 S19a, the drawing unchanged).
  */
 import { kp, LM } from '@thoremin/sdk/nodes/domain';
-import { LEFT_COLOR, type OverlayElement, RIGHT_COLOR, isDisplayedRight, mirrorX } from '../view';
+import { LEFT_COLOR, type OverlayElement, RIGHT_COLOR, isDisplayedRight } from '../view';
 
 export const indexFingerGuide: OverlayElement = {
   name: 'indexGuide',
   category: 'guide',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { H, display, inputs, params }) {
     if (!params.indexGuide.show) return;
     const frame = inputs.hands;
     if (!frame) return;
     for (const hand of frame.hands) {
       const tip = kp(hand, LM.index_tip);
       if (!tip) continue;
-      const sx = mirrorX(tip.x, frame.width, W);
-      const sy = (tip.y / frame.height) * H;
+      const { x: sx, y: sy } = display.px(tip.x, tip.y, frame);
       const right = isDisplayedRight(hand.handedness);
       g.save();
       g.globalAlpha = 0.4;

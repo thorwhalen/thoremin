@@ -5,7 +5,7 @@
  * files by #600 S19a, the drawing unchanged).
  */
 import { LM } from '@thoremin/sdk/nodes/domain';
-import { LEFT_COLOR, type OverlayElement, type OverlayView, RIGHT_COLOR, mirrorX } from '../view';
+import { LEFT_COLOR, type OverlayElement, type OverlayView, RIGHT_COLOR } from '../view';
 
 /** The landmark used as the "note source" ring, per the hand map. */
 const sourceLm = (view: OverlayView): number =>
@@ -15,7 +15,7 @@ export const landmarkDots: OverlayElement = {
   name: 'landmarks',
   category: 'input',
   draw(g, view) {
-    const { W, H, inputs, params } = view;
+    const { display, inputs, params } = view;
     if (!params.landmarks.show) return;
     const frame = inputs.hands;
     if (!frame) return;
@@ -24,8 +24,7 @@ export const landmarkDots: OverlayElement = {
       const color = hand.handedness === 'Left' ? RIGHT_COLOR : LEFT_COLOR; // mirrored
       g.fillStyle = color;
       for (const k of hand.keypoints) {
-        const sx = mirrorX(k.x, frame.width, W);
-        const sy = (k.y / frame.height) * H;
+        const { x: sx, y: sy } = display.px(k.x, k.y, frame);
         g.beginPath();
         g.arc(sx, sy, 3, 0, Math.PI * 2);
         g.fill();
@@ -33,8 +32,7 @@ export const landmarkDots: OverlayElement = {
       // Ring the ACTIVE note source (wrist or index), matching what plays the note.
       const src = hand.keypoints[srcLm];
       if (src) {
-        const sx = mirrorX(src.x, frame.width, W);
-        const sy = (src.y / frame.height) * H;
+        const { x: sx, y: sy } = display.px(src.x, src.y, frame);
         g.beginPath();
         g.arc(sx, sy, 10, 0, Math.PI * 2);
         g.strokeStyle = '#fff';

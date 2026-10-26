@@ -12,7 +12,7 @@ export const controlMarkers: OverlayElement = {
   name: 'markers',
   category: 'output',
   draw(g, view) {
-    const { W, H, inputs, params } = view;
+    const { display, inputs, params } = view;
     if (!params.markers.show) return;
     const feats = inputs.features;
     if (!feats) return;
@@ -26,8 +26,7 @@ export const controlMarkers: OverlayElement = {
     const drawMarker = (f: SingleHandFeatures, color: string, note: string | null) => {
       if (!f.present) return;
       // The marker sits at the ACTIVE note source (wrist or index fingertip).
-      const sx = (wrist ? f.wristX : f.x) * W;
-      const sy = (wrist ? f.wristY : f.y) * H;
+      const { x: sx, y: sy } = display.shown(wrist ? f.wristX : f.x, wrist ? f.wristY : f.y);
       const ring = 14 + f.openness * 26;
       g.beginPath();
       g.arc(sx, sy, ring, 0, Math.PI * 2);

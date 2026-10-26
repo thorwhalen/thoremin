@@ -11,7 +11,7 @@ import { CHORD_COLOR, LEFT_COLOR, type OverlayElement, RIGHT_COLOR } from '../vi
 export const timbreLevels: OverlayElement = {
   name: 'timbreLevels',
   category: 'output',
-  draw(g, { W, H, inputs, params }) {
+  draw(g, { display, inputs, params }) {
     if (!params.timbreLevels.show) return;
     const sp = inputs.params;
     const feats = inputs.features;
@@ -20,8 +20,7 @@ export const timbreLevels: OverlayElement = {
       if (!f.present) return;
       const v = sp.voices?.[voiceId];
       if (!v) return;
-      const sx = f.x * W;
-      const sy = f.y * H;
+      const { x: sx, y: sy } = display.shown(f.x, f.y);
       const side = f.x > 0.5 ? -1 : 1;
       const bar = (offset: number, value: number, c: string) => {
         const bx = sx + side * (32 + offset);
