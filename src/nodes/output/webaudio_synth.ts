@@ -191,9 +191,11 @@ function buildVoice(ac: AudioContext, bus: Bus, v: VoiceParams, p: Params, start
   const partials: PartialOsc[] = preset.partials.map((part) => {
     const osc = ac.createOscillator();
     osc.type = part.type;
-    // A voice rebuilt for an id the reaper freed starts where that voice was left, so the
-    // glide below runs from the same pitch it would have run from had the voice been kept.
-    if (startFreq !== undefined) osc.frequency.setValueAtTime(startFreq * (part.ratio ?? 1), now);
+    // Without this an oscillator starts at Web Audio's 440 Hz default and the glide below
+    // sweeps from there on every new voice (#734). A voice rebuilt for an id the reaper freed
+    // starts where that voice was left, so the glide runs from the same pitch it would have
+    // run from had the voice been kept; a brand-new voice starts at its own pitch.
+    osc.frequency.setValueAtTime((startFreq ?? v.freq) * (part.ratio ?? 1), now);
     if (part.detuneCents) osc.detune.setValueAtTime(part.detuneCents, now);
     const g = ac.createGain();
     g.gain.setValueAtTime(part.gain ?? 1, now);

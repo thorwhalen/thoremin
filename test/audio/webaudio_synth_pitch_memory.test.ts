@@ -44,12 +44,14 @@ describe('the webaudio-synth node with a long score', () => {
       advance(ABSENT_VOICE_REAP_S * 20);
       play([]);
     };
-    /** Whether `id` comes back anchored at a remembered pitch (its first partial `set` before the glide). */
+    /** Whether `id` comes back anchored at its REMEMBERED pitch `freq` (it is played an octave up, so a
+     *  voice anchored at its own new pitch, #734, reads as not remembered). */
     const comesBackAnchored = (id: number, freq: number): boolean => {
       const before = fa.of('Oscillator').length;
-      play([voice(id, freq)]);
+      play([voice(id, freq * 2)]);
       const partial = fa.of('Oscillator').slice(before).find((o) => param(o, 'frequency').calls.some((c) => c[0] === 'target'));
-      return param(partial!, 'frequency').calls[0]?.[0] === 'set';
+      const first = param(partial!, 'frequency').calls[0];
+      return first?.[0] === 'set' && first[1] === freq;
     };
     return { note, comesBackAnchored };
   }

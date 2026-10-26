@@ -105,4 +105,16 @@ describe('webaudio-synth voices whose id has left the stream', () => {
     const partial = rebuilt[0]!;
     expect(partial.frequency.calls[0]).toEqual(['set', 220, t.ac.currentTime]);
   });
+
+  it('a brand-new voice starts at its own pitch, not at the 440 Hz default (#734)', () => {
+    const t = harness();
+    t.process({ voices: [t.voice(3, true, 110)] });
+    const partials = t.oscillators.filter((o) => o.frequency.calls.some((c) => c[0] === 'target'));
+    expect(partials.length).toBeGreaterThan(0);
+    for (const o of partials) {
+      expect(o.frequency.calls[0]![0]).toBe('set');
+      const target = o.frequency.calls.find((c) => c[0] === 'target')!;
+      expect(o.frequency.calls[0]![1]).toBe(target[1]); // the glide starts where it ends
+    }
+  });
 });
