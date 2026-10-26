@@ -8,6 +8,7 @@
  * `useEngine` actually installs it.
  */
 import { describe, it, expect, afterEach } from 'vitest';
+import { createFrameHold } from '@thoremin/sdk/view/frame_hold';
 import { makeDebugHandle, installDebugHandle, DEBUG_HANDLE_KEY } from '@/app/engine/debugHandle';
 import { LiveVectorTap, resetLiveVector } from '@/app/enroll/liveVector';
 
@@ -33,6 +34,13 @@ describe('makeDebugHandle', () => {
     const tap = new LiveVectorTap();
     tap.onValue?.('handVec.vector', {}, { tick: 3, time: 0.1, dt: 1 / 30, resources: {} });
     expect(h.liveVectorTime()).toBeGreaterThan(0);
+  });
+
+  it('reports the held-frame hit counts when the option is on, null when off (#850)', () => {
+    expect(makeDebugHandle(fakeEngine(), {}).holdStats()).toBeNull();
+    const hold = createFrameHold();
+    hold.at(1);
+    expect(makeDebugHandle(fakeEngine(), { frameHold: hold }).holdStats()).toEqual({ exact: 0, earlier: 0, none: 1 });
   });
 
   it('reports a null audio graph before tap-to-play', () => {
