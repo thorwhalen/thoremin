@@ -34,7 +34,7 @@ import { providerKey } from '@thoremin/sdk-ui/keys';
 import { LYRIA_KEY_PROVIDER } from '../nodes/lyria.schema';
 import type { LoadResult } from '@thoremin/lazy';
 import type { GenerativeConfig, GenerativeEngine, GenerativeEngineOpts, WeightedPrompt } from '../nodes/generative';
-import { rampGain } from '@thoremin/sdk/timing/gain_ramp';
+import { glideGain, rampGain } from '@thoremin/sdk/timing/gain_ramp';
 
 function decodeBase64(base64: string): Uint8Array {
   const bin = atob(base64);
@@ -76,6 +76,8 @@ export const DEFAULT_API_VERSION = 'v1alpha';
 const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
 const DEFAULT_BUFFER_SECONDS = 2;
 const GAIN_RAMP_SECONDS = 0.1;
+/** Time constant (s) of the glide to a new `steer.volume` while playing. */
+const VOLUME_GLIDE_TIME_CONSTANT = 0.05;
 
 export class LyriaEngine implements GenerativeEngine {
   private ai: GoogleGenAI;
@@ -251,7 +253,7 @@ export class LyriaEngine implements GenerativeEngine {
    *  playing, and remembered as the level `play()` ramps up to. */
   setVolume(gain: number): void {
     this.volume = Math.min(1, Math.max(0, gain));
-    if (this.playing) this.out.gain.setTargetAtTime(this.volume, this.ac.currentTime, 0.05);
+    if (this.playing) glideGain(this.out.gain, this.volume, VOLUME_GLIDE_TIME_CONSTANT, this.ac.currentTime);
   }
 }
 
