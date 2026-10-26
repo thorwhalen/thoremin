@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { webAudioSynthNode, ABSENT_VOICE_REAP_S } from '@/nodes/output/webaudio_synth';
+import { SOUNDS, type SoundId } from '@thoremin/sdk/music/sounds';
 
 type Call = [string, ...number[]];
 
@@ -48,13 +49,15 @@ function fakeContext() {
   return { ac, oscillators, live: () => started - stopped };
 }
 
+const BELL_RATIOS = SOUNDS.bell.partials.map((p) => ('ratio' in p ? p.ratio : 1));
+
 function harness() {
   const f = fakeContext();
   const h = webAudioSynthNode.make(webAudioSynthNode.params.parse({}));
   let tick = 0;
   const ctx = (): NodeContext => ({ tick: tick++, time: f.ac.currentTime, dt: 1 / 60, resources: { audioContext: f.ac, masterGain: {} as GainNode, timeScale: 1 } });
   const process = (params: SynthParams) => h.process({ params }, ctx());
-  const voice = (id: number, present: boolean, freq = 110) => ({ id, present, freq, gain: present ? 0.3 : 0, sound: 'sine' as const });
+  const voice = (id: number, present: boolean, freq = 110, sound: SoundId = 'sine') => ({ id, present, freq, gain: present ? 0.3 : 0, sound });
   return { ...f, h, process, voice };
 }
 
@@ -106,15 +109,20 @@ describe('webaudio-synth voices whose id has left the stream', () => {
     expect(partial.frequency.calls[0]).toEqual(['set', 220, t.ac.currentTime]);
   });
 
-  it('a brand-new voice starts at its own pitch, not at the 440 Hz default (#734)', () => {
+  it('a brand-new voice starts each partial at its own pitch, not at the 440 Hz default (#734)', () => {
     const t = harness();
-    t.process({ voices: [t.voice(3, true, 110)] });
+    t.process({ voices: [t.voice(3, true, 110, 'bell')] });
     const partials = t.oscillators.filter((o) => o.frequency.calls.some((c) => c[0] === 'target'));
-    expect(partials.length).toBeGreaterThan(0);
-    for (const o of partials) {
-      expect(o.frequency.calls[0]![0]).toBe('set');
-      const target = o.frequency.calls.find((c) => c[0] === 'target')!;
-      expect(o.frequency.calls[0]![1]).toBe(target[1]); // the glide starts where it ends
-    }
+    expect(partials.map((o) => o.frequency.calls[0]![1])).toEqual(BELL_RATIOS.map((r) => 110 * r));
+    for (const o of partials) expect(o.frequency.calls[0]).toEqual(['set', o.frequency.calls[0]![1], t.ac.currentTime]);
+  });
+
+  it('a voice rebuilt for a sound switch starts where the old sound was, per partial ratio', () => {
+    const t = harness();
+    t.process({ voices: [t.voice(3, true, 220, 'sine')] });
+    const before = t.oscillators.length;
+    t.process({ voices: [t.voice(3, true, 220, 'bell')] });
+    const partials = t.oscillators.slice(before).filter((o) => o.frequency.calls.some((c) => c[0] === 'target'));
+    expect(partials.map((o) => o.frequency.calls[0]![1])).toEqual(BELL_RATIOS.map((r) => 220 * r));
   });
 });
