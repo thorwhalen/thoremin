@@ -528,7 +528,7 @@ ASL letters A..G → the diatonic chord of the key whose root has that letter na
 - **roles:** music
 - **in:** reading:asl-reading, spec:scale-spec, chordConfig:chord-config, octaveShift:number, config:asl-config
 - **out:** params:synth-params, triad:number[], captions:string[]
-- **params:** gain (number=0.3), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
+- **params:** gain (number=0.3), letterDwellS (number=0.2), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
 ### Drawn pieces
 _Shapes drawn in the air with a pinch become drums and strings on the video, played by the fingertips (thorwhalen/thoremin-ar)._
