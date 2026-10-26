@@ -50,7 +50,7 @@ describe('a contributed overlay element', () => {
       },
     };
     const rc = tick(makeCanvasOverlayNode([contributed(impl)]), { 'ext.bar.level': 0.5, chord: [60, 64, 67] });
-    expect(seen).toEqual([{ frame: { W: 1280, H: 720, t: 0, origin: undefined, overlayOnly: false }, inputs: { level: 0.5 } }]);
+    expect(seen).toEqual([{ frame: { W: 1280, H: 720, display: expect.any(Object), t: 0, origin: undefined, overlayOnly: false }, inputs: { level: 0.5 } }]);
     expect(rc.calls.filter((c) => c.m === 'fillRect').map((c) => c.args)).toContainEqual([0, 0, 5, 1]);
   });
 
