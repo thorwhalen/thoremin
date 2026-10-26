@@ -54,9 +54,11 @@ export const keyboardSourceNode = defineNode<Params>({
       releasedBuf.push(e.key);
     };
 
+    // The window `init` listened on, so `dispose` removes from the same one (#748).
+    let target: Window | undefined;
     return {
       init(ctx: NodeContext) {
-        const target = (ctx.resources.window as Window | undefined) ?? globalThis.window;
+        target = (ctx.resources.window as Window | undefined) ?? globalThis.window;
         target?.addEventListener('keydown', onDown);
         target?.addEventListener('keyup', onUp);
       },
@@ -71,9 +73,9 @@ export const keyboardSourceNode = defineNode<Params>({
         return out;
       },
       dispose() {
-        const target = globalThis.window;
         target?.removeEventListener('keydown', onDown);
         target?.removeEventListener('keyup', onUp);
+        target = undefined;
       },
     };
   },
