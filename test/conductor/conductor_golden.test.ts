@@ -26,7 +26,7 @@ import { bodyPulseNode } from '@/slices/body/nodes/body_pulse';
 import { conduct, type Gesture } from '../helpers/body_conduct';
 import { loadStream } from '../helpers/fixtures';
 import { CONDUCTOR } from '../helpers/extensions';
-import { readGolden, writeGolden } from '../helpers/platform_golden';
+import { overrideProblems, readGolden, writeGolden } from '../helpers/platform_golden';
 
 const GOLDEN = join(__dirname, '..', 'fixtures', 'conductor_golden.json');
 const FPS = 30;
@@ -214,6 +214,10 @@ describe.runIf(CONDUCTOR)('the conductor node: outputs byte-identical to the rec
       expect(got).toEqual(golden[name]);
     });
   }
+
+  it('this platform\'s override names only base scenarios that really differ', () => {
+    expect(overrideProblems(GOLDEN)).toEqual([]);
+  });
 
   it('covers every golden entry and no scenario is an empty run', () => {
     if (update) {

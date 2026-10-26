@@ -10,7 +10,7 @@
  * holding only the entries that differ: `name.darwin-arm64.json` beside `name.json`. The base file
  * stays the CI platform's; an entry missing from an override falls back to it.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 /** The platform whose goldens are the base files: where CI runs. */
 export const BASE_PLATFORM = 'linux-x64';
@@ -29,7 +29,9 @@ export function readGolden<T>(basePath: string, platform: string = PLATFORM): Re
 
 /**
  * Record `produced`: the base file on the base platform; elsewhere only the entries that differ
- * from the base, into this platform's override file (no file at all when nothing differs).
+ * from the base go into this platform's override file. Entries of the existing override for
+ * scenarios NOT in `produced` are kept (a partial run, `vitest -t`, must not delete the rest);
+ * one that now equals the base is dropped, and the file is removed when nothing differs.
  */
 export function writeGolden<T>(basePath: string, produced: Record<string, T>, platform: string = PLATFORM): string {
   if (platform === BASE_PLATFORM) {
@@ -37,8 +39,37 @@ export function writeGolden<T>(basePath: string, produced: Record<string, T>, pl
     return basePath;
   }
   const base = JSON.parse(readFileSync(basePath, 'utf8')) as Record<string, T>;
-  const differing = Object.fromEntries(Object.entries(produced).filter(([k, v]) => JSON.stringify(base[k]) !== JSON.stringify(v)));
   const path = overridePath(basePath, platform);
-  writeFileSync(path, JSON.stringify(differing, null, 1) + '\n');
+  const kept = existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, T>) : {};
+  for (const [k, v] of Object.entries(produced)) {
+    if (JSON.stringify(base[k]) !== JSON.stringify(v)) kept[k] = v;
+    else delete kept[k];
+  }
+  if (Object.keys(kept).length === 0) rmSync(path, { force: true });
+  else writeFileSync(path, JSON.stringify(kept, null, 1) + '\n');
   return path;
+}
+
+/** Every override entry must name a base entry and differ from it: a stale one would mask the base. */
+export function overrideProblems<T>(basePath: string, platform: string = PLATFORM): string[] {
+  const path = overridePath(basePath, platform);
+  if (!existsSync(path)) return [];
+  const base = JSON.parse(readFileSync(basePath, 'utf8')) as Record<string, T>;
+  const override = JSON.parse(readFileSync(path, 'utf8')) as Record<string, T>;
+  return Object.entries(override).flatMap(([k, v]) => (!(k in base) ? [`${k}: not in the base golden`] : JSON.stringify(base[k]) === JSON.stringify(v) ? [`${k}: equals the base, drop it`] : []));
+}
+
+/**
+ * Are two parsed JSON values equal, numbers to a relative tolerance and key ORDER exactly? For
+ * data whose last bits are platform noise (a trained weight) but whose layout is a contract.
+ */
+export function jsonCloseTo(a: unknown, b: unknown, rel: number = 1e-12): boolean {
+  if (typeof a === 'number' && typeof b === 'number') return a === b || Math.abs(a - b) <= rel * Math.max(Math.abs(a), Math.abs(b));
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => jsonCloseTo(v, b[i], rel));
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const ka = Object.keys(a);
+    const kb = Object.keys(b);
+    return ka.length === kb.length && ka.every((k, i) => k === kb[i] && jsonCloseTo((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], rel));
+  }
+  return a === b;
 }

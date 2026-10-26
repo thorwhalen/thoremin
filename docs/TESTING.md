@@ -200,6 +200,16 @@ Two behaviours worth knowing:
   recording stopped; taking that literally would discard every sample of the one cue an
   abandoned take still has.
 
+## Byte-identical goldens and the platform (#828)
+
+Some tests compare a digest of a long numeric stream with a committed golden (`conductor_golden`, `handedness_dwell`, the stability baselines). A digest is only as portable as the arithmetic under it: V8's `Math` functions can differ in the last bit between linux-x64 (CI) and arm64 (an Apple-silicon Mac), under Node 20 and 23 alike, and the digest moves with it while every count (ticks, holds, endBeat) stays equal. So:
+
+- The **base** goldens are linux-x64's, the platform CI runs. They can only be re-recorded on a linux-x64 machine (the `tw` server works; CI has no recording job).
+- A platform whose numbers differ keeps an **override** beside the base, holding only the entries that differ: `test/fixtures/conductor_golden.darwin-arm64.json` (`test/helpers/platform_golden.ts`). `CONDUCTOR_GOLDEN_UPDATE=1` on a Mac writes only that file, keeps entries of scenarios you did not re-run, and drops entries that now equal the base. `handedness_dwell` has the same per-platform digests inline.
+- After an INTENDED behaviour change, re-record the base on linux-x64 AND the override on each other platform; an override left behind fails loudly on its platform (its digest no longer matches the new output) rather than hiding the change.
+- Data that is shipped rather than hashed (the demo categorizers' trained weights) is compared numerically instead: relative 1e-12, key order exact (`jsonCloseTo`).
+- A failure that appears on your machine but not in CI is worth ruling out first: a stale `node_modules` (a git-pinned plugin such as `@thoremin/ext-asl` that `npm install` considers up to date) gives a different failure from platform noise. Remove the package's folder and `npm install` again.
+
 ## Recording fixtures
 
 ```bash
