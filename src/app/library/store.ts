@@ -19,7 +19,7 @@
  * ({@link ./useLibrary}) stays a thin adapter.
  */
 import { createInMemoryProvider, type DataProvider } from '@zodal/store';
-import { hasHostValues, hostCollection, hostValues, noopValues } from '@thoremin/sdk-ui/storage';
+import { hasHostValues, hostCollection, hostPersistValues, noopValues } from '@thoremin/sdk-ui/storage';
 import {
   TagSchema,
   InstrumentMetaSchema,
@@ -175,11 +175,7 @@ export async function writeInstrumentMeta(map: InstrumentMetaMap): Promise<void>
     memoryMeta = { ...validated };
     return;
   }
-  try {
-    metaValues.setItem(META_KEY, JSON.stringify(validated));
-  } catch {
-    /* storage full / disabled — metadata is best-effort */
-  }
+  metaValues.setItem(META_KEY, JSON.stringify(validated));
 }
 
 /** In-memory fallback for the meta blob (Node runtime / disabled storage). */
@@ -187,7 +183,8 @@ let memoryMeta: InstrumentMetaMap = {};
 
 /** The meta blob's target: the host's key-value store (the SDK's storage seam, #659; localStorage
  *  under its key today), used only while the host has one (else {@link memoryMeta}). */
-const metaValues = hostValues(noopValues);
+// Best-effort: a full or disabled storage drops the metadata write (warned once), it never throws.
+const metaValues = hostPersistValues(noopValues);
 
 // --- Pure map helpers (unit-tested directly) --------------------------------------
 
