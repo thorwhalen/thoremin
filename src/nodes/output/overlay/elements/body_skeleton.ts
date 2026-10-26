@@ -34,8 +34,9 @@ export const bodySkeleton: OverlayElement = {
       return;
     }
     if (!body?.present || body.landmarks.length < BODY_LANDMARK_COUNT) return;
-    const sx = (i: number) => display.px(body.landmarks[i].x, body.landmarks[i].y, body).x;
-    const sy = (i: number) => display.px(body.landmarks[i].x, body.landmarks[i].y, body).y;
+    const pt = (i: number) => display.px(body.landmarks[i].x, body.landmarks[i].y, body);
+    const sx = (i: number) => pt(i).x;
+    const sy = (i: number) => pt(i).y;
     const vis = (i: number) => (body.visibility[i] ?? 1) >= 0.5;
     g.save();
     g.strokeStyle = BODY_COLOR;

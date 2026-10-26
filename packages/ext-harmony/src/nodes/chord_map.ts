@@ -44,6 +44,7 @@
  * Off by default; pure and Node-safe.
  */
 import { z } from 'zod';
+import { displayedUnit } from '@thoremin/sdk/view/frame_view';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
@@ -327,7 +328,7 @@ export function displayPoint(hand: Hand, frame: HandsFrame, point: (typeof CHORD
   const pts = point === 'palm' ? PALM_POINTS.map((i) => hand.keypoints[i]) : [hand.keypoints[point === 'wrist' ? LM.wrist : LM.index_tip]];
   const x = pts.reduce((s, k) => s + k.x, 0) / pts.length;
   const y = pts.reduce((s, k) => s + k.y, 0) / pts.length;
-  return { x: 1 - x / frame.width, y: y / frame.height };
+  return displayedUnit(x, y, frame);
 }
 
 /** How far a hand is tilted in the picture, degrees: the angle of its knuckle line (index to

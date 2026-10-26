@@ -69,14 +69,59 @@ describe.each(FITS)('landmarks over the video, fit %s, 4:3 canvas over a 16:9 fr
   });
 });
 
-describe('no element does its own frame math (#817)', () => {
-  const dir = 'src/nodes/output/overlay/elements';
-  const files = [...readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => `${dir}/${f}`), 'packages/ext-air/src/nodes/overlay/drum_pads.ts'];
+describe('the video and the elements follow the fit, not the canvas (#817)', () => {
+  const draw = (fit: Fit, names: string[], inputs: Record<string, unknown>) => {
+    const rc = makeCanvas(640, 480);
+    const video = { readyState: 2, videoWidth: 1280, videoHeight: 720 } as unknown as HTMLVideoElement;
+    const node = makeCanvasOverlayNode();
+    const h = node.make(node.params.parse(only(names)));
+    h.process(inputs, { tick: 0, time: 1, dt: 0, resources: { canvas: rc.canvas, video, display: { fit } } } as NodeContext);
+    return rc.calls;
+  };
 
-  it.each(files)('%s', (file) => {
+  it('the backdrop is drawn at the size and offset the fit gives', () => {
+    const contain = draw('contain', ['video'], {});
+    expect(contain.find((c) => c.m === 'drawImage')!.args).toEqual([0, 0, 640, 360]);
+    expect(contain.find((c) => c.m === 'translate')!.args).toEqual([-640, 60]);
+    const cover = draw('cover', ['video'], {});
+    expect(cover.find((c) => c.m === 'drawImage')!.args.slice(2)).toEqual([expect.closeTo(853.33, 1), 480]);
+  });
+
+  it('a scale guide spans the displayed frame, not the canvas (contain: inside the bars)', () => {
+    const lines = draw('contain', ['scaleGuide'], { scale: [60, 62, 64, 65, 67, 69, 71, 72] }).filter((c) => c.m === 'moveTo');
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines) {
+      expect(l.args[1]).toBeCloseTo(60 + 0.12 * 360, 6); // rect.y + 0.12 * rect.h
+    }
+  });
+
+  it('the face mesh is placed by the view (unmirrored fractions, flipped once)', () => {
+    const face = { present: true, landmarks: [{ x: 0.25, y: 0.5, z: 0 }] };
+    const arc = draw('contain', ['faceLandmarks'], { faceFrame: face }).find((c) => c.m === 'arc')!;
+    expect(arc.args[0]).toBeCloseTo(640 - 0.25 * 640, 6);
+    expect(arc.args[1]).toBeCloseTo(60 + 0.5 * 360, 6);
+  });
+});
+
+describe('no in-scene element does its own frame math (#817)', () => {
+  const dir = 'src/nodes/output/overlay/elements';
+  const inScene = ['backdrop', 'landmarks', 'finger_lines', 'body_skeleton', 'face_mesh', 'control_markers', 'timbre_levels', 'scale_guide', 'chord_guide'].map((n) => `${dir}/${n}.ts`);
+  const files = [...inScene, 'packages/ext-air/src/nodes/overlay/drum_pads.ts'];
+
+  it.each(files)('%s never reads the canvas size', (file) => {
+    // Everything in-scene goes through view.display (px / unit / shown / rect); W and H are HUD-space.
+    expect(readFileSync(file, 'utf8')).not.toMatch(/\b[WH]\b/);
+  });
+
+  it('the harmony grids are drawn on the displayed frame, not the canvas', () => {
+    expect(readFileSync('packages/ext-harmony/src/index.ts', 'utf8')).not.toMatch(/frame\.[WH]\b/);
+    expect(readFileSync('packages/ext-harmony/src/nodes/chord_map.ts', 'utf8')).not.toMatch(/\b1\s*-\s*[\w.]+\s*\/\s*frame\.width\b/);
+  });
+
+  it.each([...readdirSync(dir).map((f) => `${dir}/${f}`), 'packages/ext-air/src/nodes/overlay/drum_pads.ts'])('%s has no hand-rolled mirror or pixel division', (file) => {
     const src = readFileSync(file, 'utf8');
     expect(src).not.toMatch(/\bmirrorX\b/);
-    expect(src).not.toMatch(/\/\s*\w+\.(width|height)\b/); // x / frame.width: that is the view's job
-    expect(src).not.toMatch(/\bW\s*-\s*\(/); // a hand-rolled mirror
+    expect(src).not.toMatch(/\/\s*\w+\.(width|height)\b/);
+    expect(src).not.toMatch(/\b1\s*-\s*[\w.]+\s*\/\s*[\w.]*(width|W)\b/);
   });
 });

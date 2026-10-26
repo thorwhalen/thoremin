@@ -26,7 +26,7 @@ import type { NodeDef } from '@thoremin/dag';
 import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extension';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
 import { HARMONY_STORES } from './stores';
-import { drawCellGrid, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
+import { drawCellGridOn, cellGridOf } from '@thoremin/sdk/nodes/cell_grid_draw';
 import { makePluckOutNode } from '@thoremin/sdk/nodes/pluck_out';
 import { chordMapNode } from './nodes/chord_map';
 import { chordWheelNode } from './nodes/chord_wheel';
@@ -84,7 +84,7 @@ export const HARMONY_EXTENSION = defineExtension({
         const config = inputs.config as { enabled?: boolean; gridOnVideo?: { show?: boolean } } | undefined;
         if (config?.enabled !== true || config.gridOnVideo?.show === false) return;
         const grid = cellGridOf(inputs.grid);
-        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
+        if (grid) drawCellGridOn(g, frame.display.rect, grid);
       },
     },
     { name: CHORD_TORUS_ELEMENT, draw: drawTorusElement },
@@ -93,7 +93,7 @@ export const HARMONY_EXTENSION = defineExtension({
       draw(g, frame, inputs) {
         if ((inputs.config as { enabled?: boolean } | undefined)?.enabled !== true) return;
         const grid = cellGridOf(inputs.grid);
-        if (grid) drawCellGrid(g, frame.W, frame.H, grid);
+        if (grid) drawCellGridOn(g, frame.display.rect, grid);
       },
     },
   ],
