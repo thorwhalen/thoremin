@@ -15,6 +15,7 @@
  * Installed by `useEngine` when the engine is ready and removed on teardown, so a
  * torn-down engine is never reachable through a stale handle.
  */
+import { FRAME_HOLD_RESOURCE_KEY, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { readLiveVector } from '../enroll/liveVector';
 
 /** The slice of the engine the handle needs — the same read the per-frame bridges use. */
@@ -34,6 +35,8 @@ export interface ThoreminDebugHandle {
    *  what a smoke asserts for "this instrument is not silent". The analyser it reads through is
    *  attached to the master gain on first use and only listens. */
   level(): number | null;
+  /** How often the held-frame backdrop (`?overlay.hold=hands`, #842) found the exact frame of the hand result on screen, an earlier one, or none; null when the option is off. */
+  holdStats(): { exact: number; earlier: number; none: number } | null;
 }
 
 export const DEBUG_HANDLE_KEY = 'thoremin';
@@ -65,6 +68,7 @@ export function makeDebugHandle(engine: OutputReader, resources: Record<string, 
       for (const x of buffer!) peak = Math.max(peak, Math.abs(x));
       return peak;
     },
+    holdStats: () => (resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold | undefined)?.stats() ?? null,
     audio: () => {
       const ac = resources.audioContext as AudioContext | undefined;
       const master = resources.masterGain as GainNode | undefined;

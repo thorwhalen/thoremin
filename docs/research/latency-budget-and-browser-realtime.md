@@ -163,7 +163,18 @@ The overlay draws the newest video frame, but its landmarks come from a frame in
 | live trail, 2 frames behind (83.3 ms) | 18.4 | 72.6 | 260 |
 | held frame (`?overlay.hold=hands`) | 0 if paired | | |
 
-Read this honestly. The live rows are derived, not measured: a recorded motion times an assumed frame gap, and the maximum is one detection jump, not a hand speed. They leave out the sensor's exposure-to-arrival constant, the display's latency and whether anyone perceives the trail. The held row is not a measurement: held mode draws the frame the landmarks were inferred on, so the offset is zero if the two are paired. The unit tests prove the key match and that only inferred frames are held; a camera run proves the rest (#146). What held mode costs: the video then shows the same gap late, one GPU bitmap per inferred frame (about 3.5 MB at 720p, 33 MB at 4K, two held plus the one in flight), and it registers hands only (face and body come from other pumps). Whether that trade is worth it is a player's call, so it stays off unless the URL asks. `resources.frameHold.stats()` counts exact, earlier and missing hits, so a hold that never hits is visible.
+Read this honestly. The live rows are derived, not measured: a recorded motion times an assumed frame gap, and the maximum is one detection jump, not a hand speed. They leave out the sensor's exposure-to-arrival constant, the display's latency and whether anyone perceives the trail. The held row is not a measurement: held mode draws the frame the landmarks were inferred on, so the offset is zero if the two are paired. The unit tests prove the key match and that only inferred frames are held; a camera run proves the rest (#146). What held mode costs: the video then shows the same gap late, one GPU bitmap per inferred frame (about 3.5 MB at 720p, 33 MB at 4K, two held plus the one in flight), and it registers hands only (face and body come from other pumps). Whether that trade is worth it is a player's call, so it stays off unless the URL asks.
+
+**Held frame in a real browser (#850).** `node smoke/latency/held_frame.mjs --seconds 8` plays a clip with a frame-index barcode burned in through Chromium's fake camera, reads the index off the very image the overlay draws (the held bitmap or the live video) and off the live video at that moment, and reads `frameHold.stats()` over the same window. On the 180-frame 720p clip, one run of 8 s per case, headless Chromium (software WebGL, so inference is slow: an upper-side figure, and a real GPU will be tighter):
+
+| Runner | Backdrop | Frames behind the live video, p50 / p95 / max | Overlay ticks that found the result's own frame (exact / earlier / none) |
+|---|---|---|---|
+| main thread | live video | 0 / 0 / 0 | |
+| main thread | held | 1 / 2 / 3 | 256 / 0 / 0 |
+| worker | live video | 0 / 0 / 1 | |
+| worker | held | 2 / 3 / 4 | 481 / 0 / 0 |
+
+So at every overlay tick of the run the held bitmap was there when asked for, in both runners (no fall-back to the live video, no earlier-frame stand-in; the counts are lookups per tick, the same result is looked up on each tick it is on screen), indices only move forward, and the held picture is the frames in the last column behind the live one: one to two at the median on the main thread, two on the worker. That is the price of registering the dots, consistent with the gap assumed in the table above, on this slow software renderer and one clip. It still does not show that the landmarks were inferred on that frame (the stamp key makes it so by construction, proven in `test/frame_hold.test.ts`), nor any real sensor delay. `resources.frameHold.stats()` counts exact, earlier and missing hits, so a hold that never hits is visible.
 
 ## 6. Caveats
 
