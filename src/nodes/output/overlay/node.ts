@@ -14,6 +14,7 @@ import type { HandMap } from '../../mapping/hand_map';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { pickCategories } from './elements/category';
 import { OVERLAY_ELEMENTS } from './elements/index';
+import { makeFrameView, type Size, type ViewOptions } from '@thoremin/sdk/view/frame_view';
 import { layoutCues } from './layout';
 import type { OverlayElement, OverlayView, Params } from './view';
 
@@ -88,10 +89,17 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
           const tagOverlayFn = ctx.resources.tagOverlay as (() => TagOverlaySnapshot | null) | undefined;
           const tagOverlay = computeTagOverlay(tagOverlayFn?.() ?? null, ctx.time);
 
+          // How the host shows the canvas (`ctx.resources.display`, #817): not a player setting, since
+          // only the code that sizes the canvas knows it. Absent = stretched and mirrored, as always.
+          const display = ctx.resources.display as ViewOptions | undefined;
+          const hands = inputs.hands as HandsFrame | undefined;
+          const frameSize: Size | undefined = video?.videoWidth ? { width: video.videoWidth, height: video.videoHeight } : hands ? { width: hands.width, height: hands.height } : undefined;
+
           const liveConfig = inputs.overlayConfig as OverlayParams | undefined;
           const view: OverlayView = {
             W,
             H,
+            frame: makeFrameView({ width: W, height: H }, frameSize, display),
             t: ctx.time,
             elementState,
             video,
@@ -153,9 +161,12 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
                 ...view,
                 W: alphaCanvas.width,
                 H: alphaCanvas.height,
+                frame: makeFrameView({ width: alphaCanvas.width, height: alphaCanvas.height }, frameSize, display),
                 params: { ...view.params, video: { ...view.params.video, show: false } },
               overlayOnly: true,
               };
+              // Its own cue layout: the alpha canvas may differ in size from the main one.
+              alphaView.layout = layoutCues(alphaView);
               for (const element of elements) element.draw(ga, alphaView);
             }
           }

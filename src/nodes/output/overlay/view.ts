@@ -7,6 +7,7 @@
 import type { CuePosition, OverlayCategory, OverlayParams } from '../canvas_overlay.schema';
 import type { ExpressionScores } from '@/music/expression';
 import type { TagOverlayFrame } from '@thoremin/taglog/presentation';
+import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { HandMap } from '../../mapping/hand_map';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 
@@ -27,6 +28,8 @@ export const CUE_MARGIN = 12;
 export interface OverlayView {
   W: number;
   H: number;
+  /** The frame-to-display transform of THIS pass's canvas (#817): the one place a landmark becomes a pixel. */
+  frame: FrameView;
   video?: HTMLVideoElement;
   inputs: {
     hands?: HandsFrame;
