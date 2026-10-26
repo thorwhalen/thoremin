@@ -31,6 +31,7 @@ import { createCellTracker as createNavTracker, type CellChoice, type CellTracke
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import type { CaptionSet } from '@thoremin/sdk/harmony/captions';
 import type { CellGrid, GridCaption, GridCell } from '@thoremin/sdk/nodes/cell_grid';
+import { LM, type Hand } from '@thoremin/sdk/nodes/domain';
 
 /** The number of chords a key has, and so the period of every layout. */
 export const DEGREES = 7;
@@ -548,4 +549,59 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
     if (points.length) grid.trails = [{ points, ...(from ? { from } : {}), color: TRAIL_COLOR, label: view.trail.label }];
   }
   return grid;
+}
+
+/** Camera frames the melody hand must be over the ladder before its note starts, and frames a
+ *  note is kept while the hand is lost (measured on real hands: a melody voice that followed the
+ *  raw frames sounded one- and two-frame blips whenever the hand model lost or mislabelled it). */
+export const MELODY_ON_FRAMES = 2;
+export const MELODY_HOLD_FRAMES = 3;
+
+export interface BandGate {
+  /** A tick's band (null: the hand is not over the ladder); the band to sound, or null. Steps only
+   *  on a `fresh` camera frame (a tick that repeats a frame returns what the last one did), and a
+   *  band held through a lost frame is clamped to the ladder it is read on (`size` notes). */
+  push(band: number | null, fresh?: boolean, size?: number): number | null;
+  reset(): void;
+}
+
+/**
+ * The melody's onset and release debounce: a note starts once the hand has been over the ladder
+ * for `onFrames` frames in a row, moves at once between bands while sounding, and is held through
+ * up to `holdFrames` frames of the hand lost. Steps once per camera frame.
+ */
+export function createBandGate(onFrames = MELODY_ON_FRAMES, holdFrames = MELODY_HOLD_FRAMES): BandGate {
+  let sounding: number | null = null;
+  let seen = 0;
+  let lost = 0;
+  const out = (size: number) => (sounding === null ? null : Math.min(sounding, size - 1));
+  return {
+    push(band, fresh = true, size = Infinity) {
+      if (!fresh) return out(size);
+      if (band !== null) {
+        lost = 0;
+        if (sounding !== null || ++seen >= onFrames) sounding = band;
+        return out(size);
+      }
+      seen = 0;
+      if (sounding !== null && ++lost > holdFrames) sounding = null;
+      return out(size);
+    },
+    reset() {
+      sounding = null;
+      seen = 0;
+      lost = 0;
+    },
+  };
+}
+
+/** How far a hand is tilted in the picture, degrees: the angle of its knuckle line (index to
+ *  little finger) from the horizontal, folded to [-90, 90] so either hand reads the same. */
+export function handTilt(hand: Hand): number {
+  const a = hand.keypoints[LM.index_mcp];
+  const b = hand.keypoints[LM.pinky_mcp];
+  let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  if (deg > 90) deg -= 180;
+  if (deg <= -90) deg += 180;
+  return deg;
 }

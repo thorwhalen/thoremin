@@ -5,6 +5,7 @@
     "air": 0,
     "harmonic-layers": 0,
     "asl": 0,
+    "drawn-pieces": 0,
     "midi-output": 0,
     "generative-layer": 0,
     "song-tool": 0,
@@ -25,6 +26,6 @@
     "packages/ext-air/src/nodes/air_drum.ts": 824,
     "packages/ext-faces/src/panels/FaceSessionPanel.tsx": 785,
     "packages/sdk/src/enroll/sorting.ts": 783,
-    "packages/ext-harmony/src/nodes/chord_map.ts": 757
+    "packages/ictus/src/visual_impact.ts": 754
   }
 }
