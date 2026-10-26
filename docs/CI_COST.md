@@ -54,6 +54,11 @@ difference that matters is **frequency**, not per-run price:
 | `deploy.yml` | 41 | 2.3 | ≈ $0.41 |
 | **Total** | | | **≈ $5.15/month** |
 
+`coverage.yml` (#772) is not in these tables: it is scheduled weekly (and on demand), never per PR.
+A full instrumented run took about 13 minutes on a shared server (#772), so roughly 14 billed
+minutes per run, about 4 runs a month, about $0.34/month private-equivalent at $0.006/minute
+(at most $0.24 per run under its 40-minute timeout).
+
 That's pocket change against any paid plan's included Actions-minutes allowance —
 *if* the allowance is actually available (see the caveat in "Method," above).
 

@@ -1,0 +1,75 @@
+# The weekly coverage reading (#772).
+#
+# `npm run test:coverage` runs the whole suite under v8 instrumentation, which is much slower than
+# the plain suite, so it is NOT a per-PR job (docs/CI_COST.md tracks CI time);
+# it runs weekly and on demand. It is a reading, not a ratchet: no threshold gates anything. If a
+# ratchet is wanted later, a committed per-package baseline that may only go up (the shape of
+# test/architecture_ratchet.test.ts) fits better than a global threshold.
+#
+# Known wrinkle: under instrumentation a few tests with wall-clock budgets fail (pattern_fit,
+# enroll_exemplars_fast, chord_chart speed, slow jsdom shells). The script passes
+# `--coverage.reportOnFailure` and a 60 s test timeout so the report is still written, and this
+# job keeps going past those failures: it reports coverage, the gate (ci.yml) judges the tests.
+name: Coverage
+
+on:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays, 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: weekly coverage reading
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install (lockfile-exact)
+        run: npm ci
+
+      - name: Run the suite with coverage
+        id: cov
+        # Tests that fail only under instrumentation must not hide the report, so the step may
+        # fail (pipefail makes vitest's status the step's) and the job goes on; the last step
+        # turns "no report was written" (a crash, an OOM) red again.
+        shell: bash
+        env:
+          NO_COLOR: "1" # plain text, so the summary greps below match
+        run: npm run test:coverage 2>&1 | tee coverage-run.log
+        continue-on-error: true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Coverage (v8, whole suite)"
+            echo
+            echo '```'
+            sed -n '/Coverage summary/,/=====$/p' coverage-run.log
+            echo '```'
+            echo
+            echo "Tests under instrumentation: $(grep -E '^ +Tests ' coverage-run.log | tail -1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            coverage-run.log
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Fail if no report was written
+        run: test -f coverage/coverage-summary.json
