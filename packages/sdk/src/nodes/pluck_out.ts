@@ -90,15 +90,17 @@ const STOP_MARGIN_S = 0.05;
 export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode, { timbre, mono }: PluckSinkOptions): PluckSink {
   const tone = PLUCK_TIMBRES[timbre];
   const nyquist = ac.sampleRate / 2;
-  const ringing = new Map<number, { damp: GainNode; stopAt: number }>();
+  const ringing = new Map<number, { damp: GainNode; startAt: number; stopAt: number }>();
   return {
     play(midi, velocity, when, voice) {
       const v = Math.max(0, Math.min(1, velocity));
       const key = mono ? MONO_VOICE : voice;
-      if (key !== undefined) {
-        const prev = ringing.get(key);
-        if (prev && prev.stopAt > when) prev.damp.gain.setTargetAtTime(0, when, DAMP_TAU_S);
-      }
+      const prev = key !== undefined ? ringing.get(key) : undefined;
+      // A note scheduled BEFORE one already committed (a late note clamped to now, behind a predicted
+      // pluck) is the earlier one: the later note damps IT, at its own start, and goes on ringing.
+      // Damping the later note from the earlier time would silence it before it starts (#736).
+      const prevIsLater = prev !== undefined && prev.startAt > when;
+      if (prev && !prevIsLater && prev.stopAt > when) prev.damp.gain.setTargetAtTime(0, when, DAMP_TAU_S);
       // A zero-velocity note is only a damp (a muted string): nothing new sounds.
       if (v <= 0) return;
       const f = midiToFreq(midi);
@@ -135,7 +137,9 @@ export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode
         damp.disconnect();
         if (key !== undefined && ringing.get(key)?.damp === damp) ringing.delete(key);
       };
-      if (key !== undefined) ringing.set(key, { damp, stopAt });
+      if (prev && prevIsLater) {
+        if (stopAt > prev.startAt) damp.gain.setTargetAtTime(0, prev.startAt, DAMP_TAU_S);
+      } else if (key !== undefined) ringing.set(key, { damp, startAt: when, stopAt });
     },
     close() {
       ringing.clear();
