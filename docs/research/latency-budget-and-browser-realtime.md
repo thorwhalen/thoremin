@@ -150,6 +150,21 @@ node smoke/latency/measure.mjs --headed --video ~/.local/share/thoremin/latency/
 
 It serves the built bundle, drives `?probe=latency` in Chromium (muted, unless `--audible`), times the hand model on both delegates (at each capture of `--captures` and each `--num-hands`), reads every `latencyHint` and counts its underruns while a tone plays, and measures the compressor and the glide offline. The camera clip is data and stays out of the repository; the script's header shows how to make one with `ffmpeg`. Without `--video` the source is `synthetic-hands` and only the tick and audio stages are measured. `--cpu-throttle 4` gives the slow-machine column; a 15 fps clip gives the dim-light one.
 
+### 5.4 The dot that trails the fingertip: overlay offset, live and held (#817, #842)
+
+The overlay draws the newest video frame, but its landmarks come from a frame inferred earlier. The video element and the model both see frames at the camera's capture times, so the gap is a whole number of camera frames: the frames that arrived while the model ran (one at 30 fps for a model of about 20 ms, two at 60 fps), plus one more when the draw tick misses the delivery. The camera-to-delivery delay is common to both and cancels. On a moving hand the drawn dot is where the fingertip was that many frames ago.
+
+`vite-node scripts/overlay_offset.ts [--frames-behind N]` turns a frame gap and a recorded sweep into pixels. On the committed `video_hand_sweep` fixture (121 frames of one hand at 24 fps, index tip), with the frame fitted to a 1280 px wide canvas:
+
+| | p50 | p95 | max |
+|---|---:|---:|---:|
+| tip speed (canvas px/s) | 221 | 1037 | 5849 |
+| live trail, 1 frame behind (41.7 ms) | 9.2 | 43.2 | 244 |
+| live trail, 2 frames behind (83.3 ms) | 18.4 | 72.6 | 260 |
+| held frame (`?overlay.hold=hands`) | 0 if paired | | |
+
+Read this honestly. The live rows are derived, not measured: a recorded motion times an assumed frame gap, and the maximum is one detection jump, not a hand speed. They leave out the sensor's exposure-to-arrival constant, the display's latency and whether anyone perceives the trail. The held row is not a measurement: held mode draws the frame the landmarks were inferred on, so the offset is zero if the two are paired. The unit tests prove the key match and that only inferred frames are held; a camera run proves the rest (#146). What held mode costs: the video then shows the same gap late, one GPU bitmap per inferred frame (about 3.5 MB at 720p, 33 MB at 4K, two held plus the one in flight), and it registers hands only (face and body come from other pumps). Whether that trade is worth it is a player's call, so it stays off unless the URL asks. `resources.frameHold.stats()` counts exact, earlier and missing hits, so a hold that never hits is visible.
+
 ## 6. Caveats
 
 - **One machine, one browser.** An M1 Max is fast; a mid-range Windows laptop will have slower inference and a different audio stack [8][39]. The script and the probe exist so the table can be re-taken anywhere.

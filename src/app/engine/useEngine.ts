@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/host/appRegistry';
+import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
 import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
@@ -140,6 +141,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     let uninstallLatency: () => void = () => {};
     let uninstallCategoryDemand: () => void = () => {};
     let timing: ReturnType<typeof createTimingResource> | null = null;
+    let frameHold: FrameHold<ImageBitmap> | null = null;
     // The acquired stream is held here (not read back off video.srcObject) so
     // cleanup can always stop the exact stream this run acquired. Under React
     // StrictMode the effect runs mount→cleanup→mount; an aborted run must stop
@@ -268,6 +270,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Where the hand model runs (#326): `?hands.runner=main|worker|auto` overrides the
         // node's `runner` param, so both paths can be measured and compared on one machine.
         resources[HAND_RUNNER_RESOURCE_KEY] = new URLSearchParams(window.location.search).get('hands.runner') ?? undefined;
+        // The held-frame backdrop (#842): `?overlay.hold=hands` keeps the frame each hand result was
+        // inferred on and the overlay draws that instead of the live video, so a dot sits on the
+        // fingertip it marks. Off by default; a measuring option like `?hands.runner=`, not a dial.
+        if (new URLSearchParams(window.location.search).get('overlay.hold') === 'hands') {
+          frameHold = createFrameHold<ImageBitmap>();
+          resources[FRAME_HOLD_RESOURCE_KEY] = frameHold;
+        }
 
         // `defaultGraph` validates the selection against the registry and falls
         // back (with a warning) on anything that would not satisfy the slot
@@ -432,6 +441,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       resetCategoryLive();
       timing?.dispose();
       timing = null;
+      frameHold?.dispose();
+      frameHold = null;
       releaseTake();
       cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());

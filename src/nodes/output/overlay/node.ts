@@ -15,6 +15,7 @@ import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, Ha
 import { pickCategories } from './elements/category';
 import { OVERLAY_ELEMENTS } from './elements/index';
 import { makeFrameView, type Size, type ViewOptions } from '@thoremin/sdk/view/frame_view';
+import { FRAME_HOLD_RESOURCE_KEY, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { layoutCues } from './layout';
 import type { OverlayElement, OverlayView, Params } from './view';
 
@@ -103,6 +104,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
             t: ctx.time,
             elementState,
             video,
+            held: hands?.t === undefined ? undefined : (ctx.resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined)?.at(hands.t),
             params: liveConfig ?? p,
             layout: {},
             inputs: {

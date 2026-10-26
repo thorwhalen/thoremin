@@ -10,12 +10,13 @@ import type { OverlayElement } from '../view';
 export const videoBackdrop: OverlayElement = {
   name: 'video',
   category: 'backdrop',
-  draw(g, { display, video, params }) {
+  draw(g, { display, video, held, params }) {
     if (!params.video.show) return;
-    if (!video || video.readyState < 2) return;
+    const image = held ?? (video && video.readyState >= 2 ? video : undefined);
+    if (!image) return;
     g.save();
     g.globalAlpha = params.video.alpha;
-    drawFrame(g, video, display);
+    drawFrame(g, image, display);
     g.restore();
   },
 };

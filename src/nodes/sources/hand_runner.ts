@@ -55,8 +55,10 @@ export interface HandRunner {
   /** Which thread this runner infers on. */
   readonly where: 'main' | 'worker';
   /** Offer the frame the element shows now, with its stamp. `false`: not consumed (not ready
-   *  yet), offer again. A result arrives through the runner's `onResult`, now or later. */
-  offer(video: HTMLVideoElement, stamp: FrameStamp): boolean;
+   *  yet), offer again. A result arrives through the runner's `onResult`, now or later.
+   *  `accepted` is called, within `offer`, only when the frame is actually going to be inferred
+   *  (not for one the busy worker drops): the held-frame option snapshots exactly those (#842). */
+  offer(video: HTMLVideoElement, stamp: FrameStamp, accepted?: (video: HTMLVideoElement, stamp: FrameStamp) => void): boolean;
   /** Look for `n` hands from the next frame on (#325). Rejects if the model could not change. */
   setNumHands(n: number): Promise<void>;
   close(): void;
@@ -87,7 +89,8 @@ export type LoadLandmarker = (options: LandmarkerOptions, opts?: { cpuFallback?:
 export function mainHandRunner(landmarker: HandLandmarkerLike, onResult: (r: HandResult) => void): HandRunner {
   return {
     where: 'main',
-    offer(video, stamp) {
+    offer(video, stamp, accepted) {
+      accepted?.(video, stamp);
       try {
         const result = landmarker.detectForVideo(video, stamp.tMs);
         onResult({ result, width: video.videoWidth, height: video.videoHeight, stamp });
@@ -225,7 +228,7 @@ export function workerHandRunner(
 
   const runner: HandRunner = {
     where: 'worker',
-    offer(video, stamp) {
+    offer(video, stamp, accepted) {
       if (!ready || stopped()) return false;
       if (busy) {
         dropped += 1 + stamp.skipped;
@@ -235,6 +238,7 @@ export function workerHandRunner(
       const frame: InFlight = { id: ++seq, width: video.videoWidth, height: video.videoHeight, stamp: dropped ? { ...stamp, skipped: stamp.skipped + dropped } : stamp };
       dropped = 0;
       busy = frame;
+      accepted?.(video, frame.stamp);
       watchdog = setTimer(() => {
         if (busy === frame) die(new Error(`the hand worker did not answer a frame in ${frameTimeoutMs} ms`));
       }, frameTimeoutMs);
@@ -380,7 +384,7 @@ export async function createHandRunner(
     get where() {
       return current?.where ?? 'main';
     },
-    offer: (video, stamp) => current?.offer(video, stamp) ?? false,
+    offer: (video, stamp, accepted) => current?.offer(video, stamp, accepted) ?? false,
     setNumHands: async (n) => {
       const r = current;
       // Between a dead worker and its replacement: the replacement is made with this count.

@@ -49,6 +49,7 @@ import {
   type WorkerLike,
   type WorkerRunnerDeps,
 } from './hand_runner';
+import { FRAME_HOLD_RESOURCE_KEY, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hands.schema';
 import { type HandLandmarkerResultLike } from './webcam_hands.schema';
 export type { HandLandmarkerResultLike } from './webcam_hands.schema';
@@ -108,6 +109,21 @@ export function wantedHands(resources: Record<string, unknown>, maxHands: number
 }
 
 export type { HandLandmarkerLike } from './hand_runner';
+
+/**
+ * Keep the frame `video` shows now under capture time `t` (seconds) in `hold`, when the host
+ * installed one (#842). The snapshot is async and best-effort: a frame that cannot be copied is
+ * simply not held, and the overlay falls back to the live video for it.
+ */
+export function holdFrame(
+  hold: FrameHold<ImageBitmap> | undefined,
+  video: HTMLVideoElement,
+  t: number,
+  snapshot: (v: HTMLVideoElement) => Promise<ImageBitmap> = (v) => createImageBitmap(v),
+): void {
+  if (!hold) return;
+  snapshot(video).then((bitmap) => hold.put(t, bitmap), () => {});
+}
 
 interface TasksVisionModule {
   FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };
@@ -223,7 +239,11 @@ export const webcamHandsNode = defineNode<Params>({
       () => video,
       (stamp, v) => {
         if (!runner || followHandCount(runner)) return false;
-        return runner.offer(v, stamp);
+        // The held-frame option (#842): keep each frame that is really inferred (not the ones a
+        // busy worker drops), by its stamp, for the overlay to draw. Snapshotted in this callback,
+        // like the model's own.
+        const hold = resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined;
+        return runner.offer(v, stamp, hold && ((video, s) => holdFrame(hold, video, s.tMs / 1000)));
       },
     );
 
