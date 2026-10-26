@@ -857,8 +857,8 @@
     "chord": {
       "durationS": 42.9,
       "heldS": 12.899999999999972,
-      "soundingS": 0,
-      "changes": 0,
+      "soundingS": 11.83333333333334,
+      "changes": 14,
       "changesWhileHeld": 0,
       "changesPerHeldS": 0,
       "flickers": 0,
@@ -867,20 +867,26 @@
       "entryFlickers": 0,
       "shortChords": 0,
       "blips": 0,
-      "latency": null
+      "latency": {
+        "n": 5,
+        "missed": 0,
+        "medianMs": 766.6666666666666,
+        "p90Ms": 833.3333333333286,
+        "maxMs": 833.3333333333286
+      }
     },
     "heard": {
       "durationS": 42.9,
       "heldS": 12.899999999999972,
       "soundingS": 30.63333333333334,
-      "changes": 112,
+      "changes": 122,
       "changesWhileHeld": 17,
       "changesPerHeldS": 1.3178294573643439,
-      "flickers": 75,
-      "flickersPerMin": 104.8951048951049,
+      "flickers": 82,
+      "flickersPerMin": 114.6853146853147,
       "spuriousNoHand": 0,
-      "entryFlickers": 26,
-      "shortChords": 5,
+      "entryFlickers": 30,
+      "shortChords": 6,
       "blips": 0,
       "latency": null
     }

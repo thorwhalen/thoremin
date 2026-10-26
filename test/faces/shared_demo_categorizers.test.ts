@@ -1,7 +1,11 @@
 /**
  * The shipped hand-shape and pose demo categorizers (#330 P5), and where they come from: each is
- * carved by the real session store from the scripted hand or body (`?carve.source=synthetic`, no
- * person), its categories named after the scripted shapes, exported as P1's file. This test is
+ * carved by the real session store from a scripted take, its categories named after the scripted
+ * shapes, exported as P1's file. The pose demo is carved from the scripted body (no person). The
+ * hand demo is carved from a REAL hand (#837): the same take timeline, played by the stillest
+ * second of the committed signer's B, A, G and O clips (`helpers/real_hand_script.ts`; SignAlphaSet,
+ * CC BY 4.0), because a categorizer carved from the scripted hand reads every frame of a real one
+ * as none of its shapes. This test is
  * their provenance: it carves them again and compares with the files in `public/categorizers/`;
  * `UPDATE_DEMO_CATEGORIZERS=1 npx vitest run test/faces/shared_demo_categorizers.test.ts` rewrites
  * them. It also reads each back as the shared source would (its modality checked) and checks that
@@ -20,13 +24,14 @@ import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { bodyModality } from '@thoremin/sdk/features/modalities/body';
 import { createFaceSessionStore } from '@thoremin/ext-faces/app/sessionStore';
 import { memoryThumbStore } from '@thoremin/ext-faces/app/thumbnails';
-import { BODY_SCRIPT, HAND_SCRIPT, type FaceSource, type SyntheticScript } from '@thoremin/ext-faces/app/sources';
+import { BODY_SCRIPT, type FaceSource, type SyntheticScript } from '@thoremin/ext-faces/app/sources';
 import { bodyModalityUi } from '@thoremin/ext-faces/app/bodyModality';
 import { createSharedSource } from '@thoremin/ext-faces/app/sharedModels';
 import { parseSharedIndex } from '@thoremin/ext-faces/lib/shared';
 import { SYNTHETIC_HAND_SHAPES, SYNTHETIC_HAND_TIMELINE } from '@thoremin/ext-faces/lib/synthetic_hand';
 import { SYNTHETIC_BODY_TIMELINE, SYNTHETIC_POSES } from '@thoremin/ext-faces/lib/synthetic_body';
 import { FACES } from '../helpers/extensions';
+import { realHandScript } from '../helpers/real_hand_script';
 
 const DIR = join(__dirname, '../../public/categorizers');
 const UPDATE = process.env.UPDATE_DEMO_CATEGORIZERS === '1';
@@ -54,7 +59,7 @@ const DEMOS: Demo[] = [
     file: 'demo-hand-shapes',
     name: 'Demo: open, fist, point, pinch',
     modality: handModality,
-    script: HAND_SCRIPT,
+    script: realHandScript(),
     takeMs: H.restMs + 16 * (H.holdMs + H.glideMs),
     holds: Object.fromEntries(SYNTHETIC_HAND_SHAPES.slice(1).map((s, i) => [s.name, holdAt(H.restMs, H.holdMs + H.glideMs, H.holdMs, 2 * i)])),
   },

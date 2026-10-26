@@ -34,6 +34,7 @@ import { loadAslModels, type AslModels } from '@thoremin/ext-asl/nodes/asl_signs
 import { createSharedSource } from '@thoremin/ext-faces/app/sharedModels';
 import { categorizerChordPlay, CHORD_MODALITY } from '@thoremin/ext-faces/lib/categorizerChord';
 import type { ChordModality } from '@thoremin/ext-faces/schema';
+import { ORDER_DEGREES } from '@thoremin/ext-faces/schema';
 import { chordKey, runSeed, seedSettings, type SeedRun } from './lib_run';
 import { handTrack, palmCentre, performance, resample, stillestRun, type Performance, type Point, type Segment } from './lib_streams';
 import { heldFromMotion, stabilityMetrics, type StabilityMetrics, type Timeline } from './lib_metrics';
@@ -104,6 +105,16 @@ export function letterChordKey(spec: ScaleSpec, letter: NoteLetter): string | nu
 /** The instruments that turn signed letters into chords: the sign streams claim a chord for them. */
 export const SIGN_INSTRUMENTS: readonly string[] = ['ASL Chords', 'Sign Map', 'Sign Wheel'];
 
+/** The signs standing for the Hand-shape Chords demo's shapes (the signer's B, A, G and O: an open palm, a fist, a pointing hand, a pinch). */
+export const HAND_SHAPE_SIGNS: Readonly<Record<string, string>> = { b: 'open', a: 'fist', g: 'point', o: 'pinch' };
+
+/** The chord the demo categorizer's category `label` plays in `spec`: its position in the file picks its degree (the dial's Auto). */
+function handShapeChord(spec: ScaleSpec, label: string): string | null {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'public', 'categorizers', 'demo-hand-shapes.json'), 'utf8')) as { categories: { label: string }[] };
+  const index = demo.categories.findIndex((c) => c.label === label);
+  return index < 0 ? null : chordKey(diatonicTriad(letterChordSpec(spec), ORDER_DEGREES[index % ORDER_DEGREES.length]));
+}
+
 function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta, instrument: string): StreamCase {
   const frames = load('real_hands_signs', `${which}.hands`).map((r) => r.value as HandsFrame);
   const segments = meta.performances[which].segments;
@@ -112,7 +123,10 @@ function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta, in
     frames,
     hand: frames.map((f) => f.hands.length > 0),
     held: heldAll(frames),
-    target: !SIGN_INSTRUMENTS.includes(instrument) ? undefined : (run) => {
+    target: instrument === 'Hand-shape Chords' && which === 'gaps' ? (run) => {
+      const spec = (run.values('ui.chordSpec') as (ScaleSpec | undefined)[]).find(Boolean);
+      return sign.map((s) => (spec && s && HAND_SHAPE_SIGNS[s] ? handShapeChord(spec, HAND_SHAPE_SIGNS[s]!) : undefined));
+    } : !SIGN_INSTRUMENTS.includes(instrument) ? undefined : (run) => {
       const spec = (run.values('ui.chordSpec') as (ScaleSpec | undefined)[]).find(Boolean);
       return sign.map((s) => {
         const letter = s?.toUpperCase();
