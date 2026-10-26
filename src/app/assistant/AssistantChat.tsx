@@ -8,8 +8,12 @@ import { useEffect, useMemo } from 'react';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { AssistantSession } from './AssistantSession';
 import { AssistantOverlayPanel } from './AssistantOverlayPanel';
+import { hostPersistValues, noopValues } from '@thoremin/sdk-ui/storage';
 import { isKnownModel, recommendedModel } from './providers';
 import { DEFAULT_ASSISTANT_SETTINGS, type AssistantSettings, type ChatMessage } from './types';
+
+// The chat transcript is best-effort: a full storage drops writes (#738) instead of throwing from the change listener.
+const history = hostPersistValues(noopValues);
 
 const HISTORY_KEY = 'thoremin:plugin:assistant:history';
 const MAX_PERSISTED = 50;
@@ -35,14 +39,14 @@ export default function AssistantChat({ onClose }: { onClose: () => void }) {
   // Seed from persisted history once; persist the settled transcript on every change.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(HISTORY_KEY);
+      const raw = history.getItem(HISTORY_KEY);
       if (raw) session.loadHistory(JSON.parse(raw) as ChatMessage[]);
     } catch {
       /* ignore malformed history */
     }
     const persist = () => {
       if (session.busy) return; // wait for the turn to settle before writing
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
+      history.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
     };
     session.addEventListener('change', persist);
     return () => {
@@ -51,11 +55,7 @@ export default function AssistantChat({ onClose }: { onClose: () => void }) {
       // Flush unconditionally on teardown: closing mid-turn aborts it, but a turn may have
       // already applied additive dial edits to the instrument, so persist the partial
       // record too (loadHistory clears the `pending` flag on the next open).
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
-      } catch {
-        /* ignore */
-      }
+      history.setItem(HISTORY_KEY, JSON.stringify(session.messages.slice(-MAX_PERSISTED)));
     };
   }, [session]);
 
