@@ -1,6 +1,6 @@
 # The chord instruments on real hands: stability
 
-The chord instruments (Chord Map and its variants, Chord Wheel, ASL Chords, Sign Map, Sign Wheel) had been tested only on synthetic palms placed exactly, hand-made sign readings and scripted vectors. A real hand jitters, turns, is lost for a frame, and is sometimes given the wrong side's label by the hand model. This harness replays REAL hand landmarks through each instrument's actual graph (the seed's settings, the branches the app derives, the graph the app composes) and measures what a player hears go wrong.
+The chord instruments (Chord Map and its variants, Chord Wheel, ASL Chords, Sign Map, Sign Wheel, Conduct the Chords, Hand-shape and Pose Chords, Head Chords) had been tested only on synthetic palms placed exactly, hand-made sign readings and scripted vectors. A real hand jitters, turns, is lost for a frame, and is sometimes given the wrong side's label by the hand model. This harness replays REAL hand landmarks through each instrument's actual graph (the seed's settings, the branches the app derives, the graph the app composes) and measures what a player hears go wrong.
 
 Run it with `npm run stability` (prints the table), or `npm run stability -- --update` to rewrite the table below and `docs/testing/data/stability-baseline.json`. `test/stability/stability.test.ts` holds every number to that baseline: a number may not get worse, and a number that got better has to be written down.
 
@@ -14,7 +14,9 @@ All are real MediaPipe hand landmarks, at the live pipeline's rate (30 fps).
 | `signs-flow` | The same signer, the clips joined with a 0.2 s dropout between them: one letter after the next. | As above. |
 | `map-script` | The Chord Map played by a REAL held hand (the stillest second of the signer's open-palm B clips, with its own jitter and lost frames), placed by script: holds on four cell centres, a hold on the edge between two cells and one where three meet, a slow sweep along a row, the hand gone and back. | Inside a cell (within 0.35 cell widths of its centre), that cell's chord, found by holding a still hand there. The edge and vertex holds claim nothing: either chord is right, changing between them is not. |
 | `choir` | A choir conductor's two hands, 20 s (Wikimedia Commons, CC BY 3.0). Fixture `real_hands_choir`. | Nothing: these hands are not playing the instrument. |
-| `conducting` | An orchestral conductor's hands (the committed `conducting_44`). | Nothing. |
+| `conducting` | An orchestral conductor's hands (the committed `conducting_44`). | Nothing; for Conduct the Chords it IS playing (a real conductor beating 4/4), and its chords change with the score, so its changes while held are the piece's. |
+| `body-conducting` | A choir conductor's body (`video_body_conducting_44`, Commons, CC BY 3.0), for Pose Chords. | Nothing. |
+| `head` | The maintainer's head-pose clip (`video_head_pose`), for Head Chords. | Nothing. |
 
 ## The metrics
 
@@ -55,6 +57,12 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Sign Wheel | signs-gaps | 38.1 | 0.08 | 0.00 | 0 | 0 | 1 | 1533 (3333) | 3/8 | 0 |
 | Sign Wheel | signs-flow | 28.1 | 0.30 | 0.00 | 0 | 0 | 0 | 1200 (3033) | 1/9 | 0 |
 | Sign Wheel | choir | 19.8 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Conduct the Chords | conducting | 11.6 | 1.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Conduct the Chords | choir | 14.2 | 0.54 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Hand-shape Chords | signs-gaps | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Hand-shape Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Pose Chords | body-conducting | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Head Chords | head | 1.4 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 <!-- /stability:table -->
 
 ## Before the fixes
@@ -91,7 +99,12 @@ The baseline as first measured on main (2026-10-26), kept as it was so each fix'
 - **The Chord Map holds a real held hand well**, edge and vertex included, at the palm size of a player about a metre from a laptop camera. What it does audibly: it passes through the cells between two chords on the way (a short chord), and its melody voice sounds for one or two frames at a time while no chord is held (eight blips in 13.5 s of the conductor), when the hand model gives both hands the same side's label.
 - **Two hands with the same label are common on real streams**: 38 and 40 of the two-hand frames of the 4/4 and 3/4 conductor clips (12 %), 167 of 878 (19 %) of the whole Allelulias take. Every instrument that picks a hand by its label loses it on those frames.
 
-The fixes are separate pull requests, each with its before and after on these streams.
+- **Hand-shape Chords and Pose Chords play nothing on real hands and bodies** (added to the suite after the first baseline, #837): the shipped demo categorizers were carved from the scripted synthetic hand and body, and the hand reader judges every frame of a real signer to be none of its shapes, though it scores the right one at 0.9999.
+- **Conduct the Chords** holds every chord it plays for at least 200 ms on a real conductor (no flicker), and Head Chords on the maintainer's head clip likewise.
+
+The fixes are separate pull requests, each with its before and after on these streams. Tried and not shipped: a speed gate on the Chord Map's cell choice (a new cell is taken only once the palm slows, at 1, 2 and 4 cell widths a second). It did not remove the passing chord on the scripted move between non-neighbours, and it added latency and a missed chord.
+
+A headless run supplies what the app hands a seed off the tick: a conducted seed's score (`scoreDoc`), a categorizer-chords seed's shipped demo model and the feature groups the app claims for it, the sign reader's weights already loaded, a recorded body or face stream in place of that camera, and a capture stamp on every hand frame.
 
 ## Adding an instrument or a stream
 

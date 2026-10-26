@@ -16,14 +16,24 @@
  *   fine, but it must not keep changing), a slow sweep, the hand gone and back.
  * - `choir`, `conducting`: hands that are NOT playing the instrument (a choir conductor, an
  *   orchestral conductor): every chord they start is a chord the player did not ask for, and the
- *   drift and flicker numbers say how the instrument copes with real hands moving.
+ *   drift and flicker numbers say how the instrument copes with real hands moving. For Conduct
+ *   the Chords, `conducting` IS playing: a real conductor beating 4/4.
+ * - `body-conducting`: a choir conductor's body (`video_body_conducting_44`, Commons, CC BY 3.0),
+ *   for the pose instruments; `head`: the maintainer's head-pose clip (`video_head_pose`), for the
+ *   head instruments. Neither claims a chord: the numbers are how steady the chords are.
  */
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { StreamRecord } from '@thoremin/dag';
 import { diatonicTriad, letterChordSpec, letterDegree, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { layoutCells } from '@thoremin/ext-harmony/lib/chord_map';
 import { chordMapRegions } from '@thoremin/ext-harmony/nodes/chord_map';
+import { readdirSync, readFileSync } from 'node:fs';
+import { loadScore } from '@/slices/conductor/score/load';
+import { join } from 'node:path';
 import { loadAslModels, type AslModels } from '@thoremin/ext-asl/nodes/asl_signs';
+import { createSharedSource } from '@thoremin/ext-faces/app/sharedModels';
+import { categorizerChordPlay, CHORD_MODALITY } from '@thoremin/ext-faces/lib/categorizerChord';
+import type { ChordModality } from '@thoremin/ext-faces/schema';
 import { chordKey, runSeed, seedSettings, type SeedRun } from './lib_run';
 import { handTrack, palmCentre, performance, resample, stillestRun, type Performance, type Point, type Segment } from './lib_streams';
 import { heldFromMotion, stabilityMetrics, type StabilityMetrics, type Timeline } from './lib_metrics';
@@ -31,7 +41,7 @@ import { heldFromMotion, stabilityMetrics, type StabilityMetrics, type Timeline 
 /** How the suite reads a committed fixture (the tests' loader, or the CLI's). */
 export type LoadRecords = (scenario: string, key: string) => StreamRecord[];
 
-export const STREAMS = ['signs-gaps', 'signs-flow', 'map-script', 'choir', 'conducting'] as const;
+export const STREAMS = ['signs-gaps', 'signs-flow', 'map-script', 'choir', 'conducting', 'body-conducting', 'head'] as const;
 export type StreamId = (typeof STREAMS)[number];
 
 export interface StreamCase {
@@ -42,6 +52,9 @@ export interface StreamCase {
   held: boolean[];
   /** The intended chord per frame, from the run (it needs the instrument's key or cells). */
   target?: (run: SeedRun) => (string | null | undefined)[];
+  /** A body or face stream played with it (the hands are then empty frames of the same length). */
+  body?: readonly unknown[];
+  face?: readonly unknown[];
 }
 
 /** The instruments the suite measures, and the streams each is played on. */
@@ -53,6 +66,10 @@ export const INSTRUMENTS: Readonly<Record<string, readonly StreamId[]>> = {
   'ASL Chords': ['signs-gaps', 'signs-flow', 'choir'],
   'Sign Map': ['signs-gaps', 'signs-flow', 'choir'],
   'Sign Wheel': ['signs-gaps', 'signs-flow', 'choir'],
+  'Conduct the Chords': ['conducting', 'choir'],
+  'Hand-shape Chords': ['signs-gaps', 'choir'],
+  'Pose Chords': ['body-conducting'],
+  'Head Chords': ['head'],
 };
 
 /** A palm moving slower than this (frame widths per second) is held. */
@@ -84,7 +101,10 @@ export function letterChordKey(spec: ScaleSpec, letter: NoteLetter): string | nu
   return chordKey(diatonicTriad(letterChordSpec(spec), letterDegree(spec, letter)));
 }
 
-function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta): StreamCase {
+/** The instruments that turn signed letters into chords: the sign streams claim a chord for them. */
+export const SIGN_INSTRUMENTS: readonly string[] = ['ASL Chords', 'Sign Map', 'Sign Wheel'];
+
+function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta, instrument: string): StreamCase {
   const frames = load('real_hands_signs', `${which}.hands`).map((r) => r.value as HandsFrame);
   const segments = meta.performances[which].segments;
   const sign = frames.map((_, i) => segments.find((s) => i >= s.from && i < s.to)?.sign ?? null);
@@ -92,7 +112,7 @@ function signCase(load: LoadRecords, which: 'gaps' | 'flow', meta: SuiteMeta): S
     frames,
     hand: frames.map((f) => f.hands.length > 0),
     held: heldAll(frames),
-    target: (run) => {
+    target: !SIGN_INSTRUMENTS.includes(instrument) ? undefined : (run) => {
       const spec = (run.values('ui.chordSpec') as (ScaleSpec | undefined)[]).find(Boolean);
       return sign.map((s) => {
         const letter = s?.toUpperCase();
@@ -113,6 +133,9 @@ export function chordHandLabel(instrument: string): 'Left' | 'Right' {
   const c = (seedSettings(instrument) as unknown as { chordMap: { chordHand: 'left' | 'right'; mirrorHandedness: boolean } }).chordMap;
   return (c.chordHand === 'left') === c.mirrorHandedness ? 'Right' : 'Left';
 }
+
+/** The app's public files (the shipped demo categorizers). */
+const PUBLIC = join(process.cwd(), 'public');
 
 export const MAP_W = 1280;
 export const MAP_H = 720;
@@ -214,15 +237,24 @@ async function calibrateMap(instrument: string, template: Hand, p: Point): Promi
 export async function buildCase(load: LoadRecords, meta: SuiteMeta, instrument: string, stream: StreamId): Promise<StreamCase> {
   switch (stream) {
     case 'signs-gaps':
-      return signCase(load, 'gaps', meta);
+      return signCase(load, 'gaps', meta, instrument);
     case 'signs-flow':
-      return signCase(load, 'flow', meta);
+      return signCase(load, 'flow', meta, instrument);
     case 'choir':
       return plainCase(load('real_hands_choir', 'src.hands').map((r) => r.value as HandsFrame));
     case 'conducting':
       return plainCase(resample(load('conducting_44', 'src.hands'), FPS));
     case 'map-script':
       return mapCase(openPalmTemplate(load, meta), instrument);
+    case 'body-conducting': {
+      const body = load('video_body_conducting_44', 'camBody.body').map((r) => r.value as { present?: boolean; landmarks?: unknown[] });
+      const seen = body.map((b) => !!b && (b.present ?? (b.landmarks?.length ?? 0) > 0));
+      return { frames: body.map(() => ({ width: 640, height: 360, hands: [] })), hand: seen, held: seen.map(() => false), body };
+    }
+    case 'head': {
+      const face = load('video_head_pose', 'face.pose').map((r) => r.value as { present?: boolean });
+      return { frames: face.map(() => ({ width: 1280, height: 720, hands: [] })), hand: face.map((f) => !!f?.present), held: face.map(() => false), face };
+    }
   }
 }
 
@@ -240,11 +272,44 @@ export interface CaseResult {
 let aslModels: Promise<AslModels> | null = null;
 const readyAslModels = () => (aslModels ??= loadAslModels());
 
+/** What the app hands a seed off the tick that a headless run must supply itself: a conducted
+ *  seed's score (`scoreDoc`), or the shipped demo categorizer a categorizer-chords seed names, as the app resolves it off the
+ *  tick (the `categorizerChordsModel` transient, read from the app's shared files), and the feature
+ *  groups the app claims for it (without the claim the vector node computes nothing). */
+async function appTransients(instrument: string): Promise<{ transients?: Record<string, unknown>; resources?: Record<string, unknown> }> {
+  const settings = seedSettings(instrument) as unknown as { categorizerChords?: { id?: string }; conductor?: { enabled?: boolean; piece?: string } };
+  // A conducted piece: the score the conductor slice's loader resolves into the `scoreDoc` transient.
+  if (settings.conductor?.enabled && settings.conductor.piece) {
+    const file = readdirSync(join(PUBLIC, 'scores')).find((f) => f.startsWith(`${settings.conductor!.piece}.`));
+    if (!file) throw new Error(`no score for ${settings.conductor.piece} under public/scores`);
+    return { transients: { scoreDoc: await loadScore(new Uint8Array(readFileSync(join(PUBLIC, 'scores', file))), file) } };
+  }
+  const id = settings.categorizerChords?.id;
+  if (!id) return {};
+  const [modality, ...rest] = id.split(':') as [ChordModality, ...string[]];
+  const shared = createSharedSource({ fetchJson: async (path) => JSON.parse(readFileSync(join(PUBLIC, path), 'utf8')) as unknown });
+  const record = await shared.load(rest.join(':'), modality);
+  if (!record) throw new Error(`no shared categorizer ${id} under public/`);
+  const groups = new Set(CHORD_MODALITY[modality].groups);
+  return {
+    transients: { categorizerChordsModel: categorizerChordPlay({ id, name: record.name, modality, categorizer: record.model.categorizer }) },
+    resources: { featureDemand: () => groups },
+  };
+}
+
 /** Run one instrument on one stream and measure it. */
 export async function measure(load: LoadRecords, meta: SuiteMeta, instrument: string, stream: StreamId, patch?: Record<string, unknown>): Promise<CaseResult & { run: SeedRun; timeline: Timeline }> {
   const c = await buildCase(load, meta, instrument, stream);
   const models = await readyAslModels();
-  const run = await runSeed(instrument, c.frames, { patch, record: ['ui.chordSpec'], resources: { loadAslModels: () => Promise.resolve(models) } });
+  const cat = await appTransients(instrument);
+  const run = await runSeed(instrument, c.frames, {
+    patch,
+    record: ['ui.chordSpec'],
+    resources: { loadAslModels: () => Promise.resolve(models), ...cat.resources },
+    transients: cat.transients,
+    body: c.body,
+    face: c.face,
+  });
   const target = c.target?.(run);
   const timeline: Timeline = { t: run.t, out: run.chord, hand: c.hand, held: c.held, target };
   return {
