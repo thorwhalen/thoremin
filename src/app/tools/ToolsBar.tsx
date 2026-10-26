@@ -34,6 +34,7 @@ import type { Tool } from './tools';
 import { SHELL_TOOLS } from './shellTools';
 import { UI_CONTRIBUTIONS } from '../host/contributions';
 import { TOOL_ICONS } from './toolIcons';
+import { useReplay } from '../replay/replayStore';
 import { isPinned } from './toolsCollection';
 import { useToolPins } from './toolPins';
 import { searchTools } from './toolsCatalog';
@@ -154,7 +155,9 @@ function useDetached(): Record<string, { running: boolean; stop: () => void; hin
   // An extension's detached tools (#600 S15): the list is fixed for the build, so the hooks run in
   // a stable order on every render.
   const contributed = Object.fromEntries(UI_CONTRIBUTIONS.toolDetached.map(({ id, detached }) => [id, { running: detached.useRunning(), stop: detached.stop, hint: detached.hint }]));
-  return contributed;
+  // Core's one detached tool: a replayed take plays until it is stopped.
+  const replaying = useReplay((s) => s.replay !== null);
+  return { ...contributed, replay: { running: replaying, stop: () => useReplay.getState().clear(), hint: 'stop the replay and use the camera' } };
 }
 
 export default function ToolsBar() {

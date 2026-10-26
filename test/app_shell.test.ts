@@ -24,6 +24,7 @@ const SURFACES: Record<string, string> = {
   lab: 'LabPanel',
   commands: 'CommandPaletteOverlay',
   gestures: 'GesturesPanel',
+  replay: 'ReplayPanel',
   trainer: 'TrainerPanel',
   assistant: 'AssistantOverlay',
 };

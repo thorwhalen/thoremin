@@ -62,6 +62,7 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
   - [Patcher](#tools-patcher)
   - [Your poses](#tools-poses)
   - [Record](#tools-record)
+  - [Replay](#tools-replay)
   - [Song](#tools-song)
   - [Trainer](#tools-trainer)
 - [Conduct and dance](#conduct-and-dance)
@@ -1210,6 +1211,7 @@ What you use ON an instrument: measuring, teaching it your own faces, recording,
 - [Patcher](#tools-patcher): Open Tools, then Patcher.
 - [Your poses](#tools-poses): Open Tools, then Your poses, then Record my poses.
 - [Record](#tools-record): Press **Tap to play**, then **Record** at the bottom right.
+- [Replay](#tools-replay): Record a take with **Record**, ticking *Feature stream (JSONL)*.
 - [Song](#tools-song): Open Tools, then Song, and load a song file.
 - [Trainer](#tools-trainer): Open Tools, then Trainer.
 
@@ -1480,6 +1482,31 @@ Capture what you play. Choose any of six streams: the audio you hear, the video 
 **Where it goes**
 
 A take is one folder with every stream and a manifest that says where each stream starts on a shared clock, so audio, video and features line up. By default a take downloads as a zip. In Chrome and Edge, pick a folder once (the sheet's Location, or the Trainer's *Save takes to a folder...*) and every later take is written straight into it.
+
+
+<a id="tools-replay"></a>
+
+[Tools](#tools)
+
+## Replay
+
+![Replay, open in the app](https://apps.thorwhalen.com/thoremin/guide/pics/tool-replay.jpg)
+
+### What to do
+
+1. Record a take with **Record**, ticking *Feature stream (JSONL)*.
+2. Open Tools, then Replay, and pick the take's `.features.jsonl`.
+3. The instrument plays your recorded hands instead of the camera. Press Stop to use the camera again.
+
+Hear again exactly what an instrument did with your hands: a chord that flickered, a sign it misread, a note that came late. Replay plays a recorded take's hands into whatever instrument is loaded, over and over, so you can switch instruments or settings and compare them on the same take.
+
+**What it reads**
+
+The Record tool's feature stream (`.features.jsonl`, the hands are kept from it), or a recorded hands stream (`.ndjson`, gzipped or not). Only the hands are replayed: your camera picture, the face and the body are still live, so a face or body instrument hears the camera, not the take. A file that is not a recording is refused with the reason, and lines that cannot be read are skipped and counted.
+
+**From a link**
+
+Add `?replay=` and the address of a recording to the app's address to open it straight away: handy for sending a take to someone together with what to listen for. If it cannot be read, the Replay tool opens and says why, and the camera stays on.
 
 
 <a id="tools-song"></a>
