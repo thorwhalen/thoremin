@@ -48,7 +48,7 @@ export type PluckTimbre = keyof typeof PLUCK_TIMBRES;
 
 /** The audio the node drives: one call per note, at a context time. */
 export interface PluckSink {
-  /** `voice`: a new note on a voice damps the one ringing there (see {@link NoteEvent}). */
+  /** `voice`: a note on a voice damps the one ringing there (see {@link NoteEvent}); when two overlap, the later-starting one damps the earlier, whatever order they were played in. */
   play(midi: number, velocity: number, whenContextSeconds: number, voice?: number): void;
   close(): void;
 }
@@ -138,7 +138,8 @@ export function createWebAudioPluckSink(ac: AudioContext, destination: AudioNode
         if (key !== undefined && ringing.get(key)?.damp === damp) ringing.delete(key);
       };
       if (prev && prevIsLater) {
-        if (stopAt > prev.startAt) damp.gain.setTargetAtTime(0, prev.startAt, DAMP_TAU_S);
+        // The earlier note: damped when the committed one starts, and not registered as ringing.
+        damp.gain.setTargetAtTime(0, prev.startAt, DAMP_TAU_S);
       } else if (key !== undefined) ringing.set(key, { damp, startAt: when, stopAt });
     },
     close() {
