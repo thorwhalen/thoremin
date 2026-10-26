@@ -155,7 +155,7 @@ export function hostValues(fallback: ValueStorage): ValueStorage {
  * (`QuotaExceededError`), and zustand's persist middleware calls it synchronously inside every
  * `set(...)` AFTER the in-memory state changed, so one failed write would break the caller of
  * each action (#738). The value stays in memory for the session; the failure is reported once
- * per page through `warn`, not once per write.
+ * per wrapper (so once per persist store) through `warn`, not once per write.
  */
 export function bestEffortWrites(storage: ValueStorage, warn: (err: unknown) => void = defaultWarn): ValueStorage {
   let warned = false;
