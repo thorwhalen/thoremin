@@ -262,6 +262,21 @@ describe.runIf(GENERATIVE)('the Lyria engine', () => {
     expect(gain.calls[1]).toEqual(['set', 0.3, 10]);
   });
 
+  it('setVolume during the play ramp drops the pending ramp and glides from the current level (#825)', async () => {
+    const { engine } = await opened();
+    await engine.play();
+    const [out] = fa.of('Gain');
+    const gain = param(out, 'gain');
+    gain.calls.length = 0;
+    gain.value = 0.4; // mid-ramp
+    engine.setVolume(0.9);
+    expect(gain.calls).toEqual([
+      ['cancel', 10],
+      ['set', 0.4, 10],
+      ['target', 0.9, 10, 0.05],
+    ]);
+  });
+
   it('the volume is clamped and applied at once only while playing', async () => {
     const { engine } = await opened();
     engine.setVolume(3);

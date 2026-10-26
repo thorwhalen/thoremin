@@ -76,6 +76,8 @@ export const DEFAULT_API_VERSION = 'v1alpha';
 const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
 const DEFAULT_BUFFER_SECONDS = 2;
 const GAIN_RAMP_SECONDS = 0.1;
+/** Time constant of the glide to a new `steer.volume` while playing. */
+const VOLUME_GLIDE_SECONDS = 0.05;
 
 export class LyriaEngine implements GenerativeEngine {
   private ai: GoogleGenAI;
@@ -251,7 +253,14 @@ export class LyriaEngine implements GenerativeEngine {
    *  playing, and remembered as the level `play()` ramps up to. */
   setVolume(gain: number): void {
     this.volume = Math.min(1, Math.max(0, gain));
-    if (this.playing) this.out.gain.setTargetAtTime(this.volume, this.ac.currentTime, 0.05);
+    if (!this.playing) return;
+    // Drop a pending play/pause ramp first: a target set before a later-ending linear ramp is
+    // overridden by it (#825). The level is held where it is, then approaches the new volume.
+    const param = this.out.gain;
+    const now = this.ac.currentTime;
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(param.value, now);
+    param.setTargetAtTime(this.volume, now, VOLUME_GLIDE_SECONDS);
   }
 }
 
