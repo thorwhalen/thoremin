@@ -22,6 +22,7 @@
 import type { z } from 'zod';
 import type { NodeDef } from '@thoremin/dag';
 import type { GraphBranch } from './branch';
+import type { FrameView } from '../view/frame_view';
 import type { CarveModality } from '../enroll/modality';
 
 /**
@@ -288,6 +289,8 @@ export interface OverlayElementDecl {
 export interface OverlayFrame {
   W: number;
   H: number;
+  /** The frame-to-display transform of this pass (#817): where a frame point lands on this canvas, mirror and fit applied once. */
+  display: FrameView;
   /** The engine time of this frame (seconds): for an element that animates (a hit's flash). */
   t: number;
   /** A cue's top-left corner, from the shared cue layout; absent for an in-scene element. */

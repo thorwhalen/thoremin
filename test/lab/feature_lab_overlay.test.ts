@@ -6,6 +6,7 @@
  * We assert it is opt-in, that it draws a titled panel with per-feature bars + labels once warmed,
  * and that the live config (its `lab` input, a derived port of the Lab's pref) drives show/groups.
  */
+import { makeFrameView } from '@thoremin/sdk/view/frame_view';
 import { describe, it, expect } from 'vitest';
 import { labMeters } from '@/slices/lab/nodes/meters';
 import { FeatureLabSchema } from '@/slices/lab/schema';
@@ -22,7 +23,7 @@ function runLab(params: { featureLab?: unknown }, ticks: number) {
   for (let i = 0; i < ticks; i++) {
     rc = makeRecordingCanvas();
     const g = rc.canvas.getContext('2d') as CanvasRenderingContext2D;
-    const frame = { W: rc.canvas.width, H: rc.canvas.height, t: i / 30 };
+    const frame = { W: rc.canvas.width, H: rc.canvas.height, display: makeFrameView({ width: rc.canvas.width, height: rc.canvas.height }, undefined), t: i / 30 };
     const face = { 'face.blendshape.jaw.open': (i % 10) / 10, 'face.blendshape.jaw.left': 0.2 };
     const inputs = { lab, face };
     labMeters.update!(frame, inputs, memo);
@@ -188,7 +189,7 @@ describe.runIf(LAB)('featureCorrelation overlay element (#150)', () => {
         'face.blendshape.jaw.right': 1 - v,
         'face.blendshape.jaw.forward': 0.3,
       };
-      const frame = { W: rc.canvas.width, H: rc.canvas.height, t: i / 30 };
+      const frame = { W: rc.canvas.width, H: rc.canvas.height, display: makeFrameView({ width: rc.canvas.width, height: rc.canvas.height }, undefined), t: i / 30 };
       labMeters.update!(frame, { lab, face }, memo);
       labMeters.draw(rc.canvas.getContext('2d') as CanvasRenderingContext2D, frame, { lab, face }, memo);
     }

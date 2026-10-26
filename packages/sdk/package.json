@@ -110,6 +110,7 @@
     "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",
     "./timing/tracker": "./src/timing/tracker.ts",
     "./util/ids": "./src/util/ids.ts",
+    "./view/frame_view": "./src/view/frame_view.ts",
     "./sources/frame_pump": "./src/sources/frame_pump.ts",
     "./sources/tasks_vision": "./src/sources/tasks_vision.ts",
     "./sources/delegate": "./src/sources/delegate.ts",

@@ -11,6 +11,7 @@
  * The types are structural (`ContributedView`, `DrawnElement`) so this module imports nothing of
  * the overlay's, and the overlay's own view and element types satisfy them.
  */
+import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { OverlayElementDecl, OverlayElementImpl, OverlayFrame } from '@thoremin/sdk/instruments/extension';
 
 /**
@@ -33,6 +34,8 @@ export interface ContributedElement {
 export interface ContributedView {
   W: number;
   H: number;
+  /** The frame-to-display transform of the pass being drawn (#817). */
+  display: FrameView;
   /** The engine time of this frame. */
   t: number;
   layout: Record<string, { x: number; y: number }>;
@@ -70,7 +73,7 @@ export function adaptContributed<V extends ContributedView>(c: ContributedElemen
     const all = (view.elementState ??= {});
     return (all[c.id] ??= { memo: {}, broken: false });
   };
-  const frameOf = (view: V): OverlayFrame => ({ W: view.W, H: view.H, t: view.t, origin: view.layout[c.id], overlayOnly: view.overlayOnly === true });
+  const frameOf = (view: V): OverlayFrame => ({ W: view.W, H: view.H, display: view.display, t: view.t, origin: view.layout[c.id], overlayOnly: view.overlayOnly === true });
   const inputsOf = (view: V): Readonly<Record<string, unknown>> => view.contributed?.[c.id] ?? {};
   /** Run `f` against the impl, unless it is absent or broke before in this overlay; a throw breaks it. */
   const guarded = <T>(view: V, fallback: T, f: (impl: OverlayElementImpl) => T): T => {
