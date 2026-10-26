@@ -306,6 +306,11 @@ export const chordWheelNode = defineNode<Params>({
     let categoryStepper: CategoryStepper | null = null;
     let categoryFrames = 0;
     let lastCategory = -Infinity;
+    // Readings in a row since the reader came back after being silent, and whether a category has
+    // committed since: until one of the two, the wheel stays quiet rather than sounding the chord
+    // it had before (measured on a real signer: a five-frame blip of the old chord at every entry).
+    let readRun = 0;
+    let madeSinceEntry = false;
     let stepperKey = '';
     let lastFrame: HandsFrame | undefined;
     let lastSeen = -Infinity;
@@ -341,6 +346,8 @@ export const chordWheelNode = defineNode<Params>({
       lastFace = -Infinity;
       categoryStepper = null;
       lastCategory = -Infinity;
+      readRun = 0;
+      madeSinceEntry = false;
       lastFrame = undefined;
       lastSeen = -Infinity;
       pointer = null;
@@ -468,12 +475,21 @@ export const chordWheelNode = defineNode<Params>({
             categoryFrames = c.faceFrames;
           }
           const read = (c.steer === 'signs' ? inputs.signs : inputs.poses) as CategoryScores | undefined;
-          if (read?.present) lastCategory = ctx.time;
+          if (read?.present) {
+            // Back after the release: a fresh entry, which must earn its sound again.
+            if (ctx.time - lastCategory > c.releaseS) {
+              readRun = 0;
+              madeSinceEntry = false;
+            }
+            lastCategory = ctx.time;
+            readRun += 1;
+          }
           category = read?.present ? read.label : null;
           const target = category !== null ? categoryTargetFor(c.steer, c.moves, c.categoryMoves[category], category, read!.labels.indexOf(category)) : null;
           // A category with nothing to do is a rest: the next one held commits.
           const made = categoryStepper.push(target ? category : null);
           if (made !== null && target) {
+            madeSinceEntry = true;
             const before = state.chord;
             state = applyIntents(state, [target.kind === 'letter' ? { kind: 'function', fn: { degree: letterDegree(rawSpec!, target.letter) }, at: ctx.time } : { kind: 'step', relation: target.relation, at: ctx.time }]);
             if (state.chord !== before) status = { ...status, moveCount: status.moveCount + 1, lastMove: target.kind === 'letter' ? target.letter : (RELATIONS.get(target.relation)?.label ?? target.relation) };
@@ -482,7 +498,10 @@ export const chordWheelNode = defineNode<Params>({
 
         // Sounding while the steering hand (or face, or category reader) is seen, and a moment after it is lost.
         const seen = byCategories ? lastCategory : c.steer === 'face' ? lastFace : c.steer === 'both' ? Math.max(lastSeen, lastFace) : lastSeen;
-        const sounding = ctx.time - seen <= c.releaseS ? state.chord : null;
+        // A category reader that has just come back sounds once a category has made its move, or once
+        // it has read for as long as a move takes (the same dwell), never the old chord at once.
+        const earned = !byCategories || madeSinceEntry || readRun >= c.faceFrames;
+        const sounding = ctx.time - seen <= c.releaseS && earned ? state.chord : null;
         const { voices } = render(sounding);
         const chord = state.chord;
         const k = state.key;

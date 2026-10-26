@@ -118,3 +118,28 @@ describe.runIf(HARMONY)('category readers in the graph', () => {
     expect(spec.edges).toContainEqual({ from: { node: 'poseCat', port: 'category' }, to: { node: 'chordWheel', port: 'poses' } });
   });
 });
+
+describe('a sign reader coming back does not sound the old chord first', () => {
+  it('after the hand was gone, the wheel is quiet until the new sign commits (no blip of the chord it had)', () => {
+    const h = chordWheelNode.make(chordWheelNode.params.parse({}));
+    const out: { chord: string | null; sounding: boolean }[] = [];
+    // A for a second, nothing read for a second (the hand gone), then F.
+    const script = [...Array(30).fill('A'), ...Array(30).fill(undefined), ...Array(30).fill('F')] as (string | undefined)[];
+    script.forEach((label, i) => {
+      const t = i / 30;
+      const signs = label === undefined ? { present: false, label: null, labels: SIGNS, scores: SIGNS.map(() => 0) } : reading(SIGNS, label);
+      const o = h.process(
+        { hands: { t, width: W, height: H, hands: [] }, config: { enabled: true, mirrorHandedness: false, steer: 'signs' }, spec: D, signs },
+        { time: t, dt: 1 / 30, tick: i, resources: {} } as never,
+      ) as unknown as { status: ChordWheelStatus; params: { voices: { present: boolean; gain: number }[] } };
+      out.push({ chord: o.status.chord, sounding: o.params.voices.some((v) => v.present && v.gain > 0) });
+    });
+    const back = out.slice(60);
+    const firstSound = back.findIndex((o) => o.sounding);
+    expect(firstSound).toBeGreaterThan(0);
+    // The first chord heard after the return is F#m (F in D major), never A's chord again.
+    expect(back[firstSound].chord).toBe('F#m');
+    // And at the very start, before any return, the wheel waits for the first sign too.
+    expect(out[0].sounding).toBe(false);
+  });
+});
