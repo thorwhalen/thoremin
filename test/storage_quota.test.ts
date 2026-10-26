@@ -5,7 +5,7 @@
  * `setItem` used to come out of each action (and stop the engine starting).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bestEffortWrites, memoryValues, skipUnchangedWrites } from '@thoremin/sdk-ui/storage';
+import { bestEffortWrites, hostPersistValues, localStorageCollectionProvider, memoryValues, noopValues, provideStorage, skipUnchangedWrites } from '@thoremin/sdk-ui/storage';
 import { useControls } from '@/app/store';
 import { useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
@@ -158,5 +158,19 @@ describe('skipUnchangedWrites', () => {
     scope = 'two';
     s.setItem('a', '1');
     expect(set).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('hostPersistValues follows a swapped host', () => {
+  it('a value written before the swap is written again to the new target', () => {
+    const first = memoryValues();
+    const second = memoryValues();
+    provideStorage({ collection: localStorageCollectionProvider, values: () => first });
+    const s = hostPersistValues(noopValues);
+    s.setItem('k', 'v');
+    provideStorage({ collection: localStorageCollectionProvider, values: () => second });
+    s.setItem('k', 'v');
+    expect(second.getItem('k')).toBe('v');
+    provideStorage(null);
   });
 });

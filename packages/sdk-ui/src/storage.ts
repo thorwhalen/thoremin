@@ -40,7 +40,10 @@ export interface ValueStorage {
  *  leaves `values` out keeps the default key-value target (localStorage), never nothing: a host
  *  that swaps only the collections must not silently drop the instruments and the controls.
  *  A host whose key-value target is not localStorage must be installed before the persist stores
- *  are created (they hydrate once, then): the shell's is the first import of `src/app/App.tsx`. */
+ *  are created (they hydrate once, then): the shell's is the first import of `src/app/App.tsx`.
+ *  `values()` must return the SAME object for as long as the target is unchanged: the persist stores
+ *  remember what they last wrote per target (`skipUnchangedWrites`), and a fresh object per call
+ *  would make them forget it on every write (safe, but the stale-tab guard of #739 is then off). */
 export interface StorageHost {
   collection<T extends StoredRecord>(key: string): DataProvider<T>;
   values?(): ValueStorage | null;
@@ -182,8 +185,8 @@ const defaultWarn = (err: unknown): void => console.warn('[thoremin] storage wri
  * `storage` that skips a write of the value this wrapper last read or wrote under that key (#739).
  * zustand's persist rewrites the whole blob on EVERY `set`, including ones that touch only
  * transient fields; a tab that held an older copy in memory would then write its stale blob over
- * a newer one another tab saved, losing a pref with no error, and pay a `JSON.stringify` for
- * nothing. Writing only what this tab changed leaves the other tab's save alone. `scope` names
+ * a newer one another tab saved, losing a pref with no error. Writing only what this tab changed leaves the other tab's save alone (a tab that changes a persisted
+ * field still writes its whole blob: merging across tabs is a separate decision, #739 (b)). `scope` names
  * the target in force: when it changes (a host swapped its storage) what was remembered no longer
  * describes the new target and is dropped.
  */
