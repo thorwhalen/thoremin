@@ -150,6 +150,20 @@ node smoke/latency/measure.mjs --headed --video ~/.local/share/thoremin/latency/
 
 It serves the built bundle, drives `?probe=latency` in Chromium (muted, unless `--audible`), times the hand model on both delegates (at each capture of `--captures` and each `--num-hands`), reads every `latencyHint` and counts its underruns while a tone plays, and measures the compressor and the glide offline. The camera clip is data and stays out of the repository; the script's header shows how to make one with `ffmpeg`. Without `--video` the source is `synthetic-hands` and only the tick and audio stages are measured. `--cpu-throttle 4` gives the slow-machine column; a 15 fps clip gives the dim-light one.
 
+### 5.4 The dot that trails the fingertip: overlay offset, live and held (#817, #842)
+
+The overlay draws the newest video frame, but its landmarks come from the frame inferred earlier, so on a moving hand the drawn dot is where the fingertip was. The offset is the distance the tip travels during the pipeline lag in front of the drawing: the camera-to-delivery 5.5 ms (step 2 of the timing plan) plus the hand model's 20.5 ms (row 4 of the table in section 1), about 26 ms.
+
+`vite-node scripts/overlay_offset.ts` turns that lag and a recorded sweep into pixels. On the committed `video_hand_sweep` fixture (121 frames of one hand, index tip), with the frame fitted to a 1280 px wide canvas:
+
+| | p50 | p95 | max |
+|---|---:|---:|---:|
+| tip speed (canvas px/s) | 221 | 1037 | 5849 |
+| live-mode trail at 26 ms (canvas px) | 5.7 | 27.0 | 152 |
+| held-frame trail (`?overlay.hold=hands`) | 0 | 0 | 0 |
+
+Read this honestly. It is derived, not measured: a recorded motion times a measured lag. It does not include the sensor's exposure-to-arrival constant, the display's latency or whether anyone perceives a 6 to 27 px trail (the maximum is one detection jump, not a hand speed). Held-frame mode shows the frame the landmarks were inferred on, so the dot sits on the tip by construction; what it costs is that the video itself then shows the same 26 ms late, plus one GPU bitmap per inferred frame (about 3.5 MB at 720p, four held; the worker runner drops offers while busy and the ring has to outlast them). Whether that trade is worth it is a player's call, so it stays off unless the URL asks. The real-camera numbers belong on the live-verification list (#146).
+
 ## 6. Caveats
 
 - **One machine, one browser.** An M1 Max is fast; a mid-range Windows laptop will have slower inference and a different audio stack [8][39]. The script and the probe exist so the table can be re-taken anywhere.
