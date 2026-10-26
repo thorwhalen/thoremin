@@ -9,6 +9,9 @@
  * starts and ends at rest with no jump; on top, a slow sideways drift keeps the resting hand
  * from being unnaturally still (a real hand wanders at low frequency, and so does MediaPipe).
  *
+ * A still left hand can come into view at `leftHandFromMs` (the other hand entering the shot:
+ * new features whose noise is not known yet).
+ *
  * `waves` returns the ground truth: when each wave began and ended.
  */
 import { SYNTHETIC_HAND_FRAME, SYNTHETIC_HAND_SHAPES, syntheticHandKeypoints } from '@thoremin/ext-faces/lib/synthetic_hand';
@@ -36,6 +39,8 @@ export interface WaveScript {
   /** The resting drift's half-width in hand lengths, and its period. */
   drift: number;
   driftPeriodMs: number;
+  /** When a still left hand comes into view (null: never). */
+  leftHandFromMs: number | null;
 }
 
 export const WAVE_SCRIPT: WaveScript = {
@@ -52,6 +57,7 @@ export const WAVE_SCRIPT: WaveScript = {
   // measures (p90 4, max ~5; `MOTION_DEFAULTS`): still, but not unnaturally so.
   drift: 0.02,
   driftPeriodMs: 3000,
+  leftHandFromMs: null,
 };
 
 export interface WaveTake {
@@ -61,6 +67,9 @@ export interface WaveTake {
 }
 
 const OPEN = SYNTHETIC_HAND_SHAPES.find((s) => s.name === 'open')!;
+const REST = SYNTHETIC_HAND_SHAPES.find((s) => s.name === 'rest')!;
+/** Where the left hand sits, beside the right (pixels). */
+const LEFT_HAND_DX = -260;
 
 /** The take for `script` (any field overridden; the rest from {@link WAVE_SCRIPT}). */
 export function waveTake(script: Partial<WaveScript> = {}): WaveTake {
@@ -89,7 +98,12 @@ export function waveTake(script: Partial<WaveScript> = {}): WaveTake {
     const t = i * frameMs;
     const dx = shift(t);
     const keypoints = syntheticHandKeypoints(OPEN, s.seed * 1e6 + i).map((k) => ({ ...k, x: k.x + dx }));
-    const frame = { width: SYNTHETIC_HAND_FRAME.width, height: SYNTHETIC_HAND_FRAME.height, hands: [{ handedness: 'Right', keypoints, score: 1 }] } as HandsFrame;
+    const hands = [{ handedness: 'Right', keypoints, score: 1 }];
+    if (s.leftHandFromMs !== null && t >= s.leftHandFromMs) {
+      const left = syntheticHandKeypoints(REST, s.seed * 1e6 + i + 5e5).map((k) => ({ ...k, x: k.x + LEFT_HAND_DX }));
+      hands.push({ handedness: 'Left', keypoints: left, score: 1 });
+    }
+    const frame = { width: SYNTHETIC_HAND_FRAME.width, height: SYNTHETIC_HAND_FRAME.height, hands } as HandsFrame;
     frames.push({ v: handsFrameVector(frame, { mirrorX: true, mirrorHandedness: false }), t });
   }
   return { frames, waves };

@@ -59,6 +59,9 @@ export interface TraceSample {
  * features a gesture is matched on is the matcher's choice, made later (`dynamic-gestures.md`).
  */
 export interface Trace {
+  /** Stable within a take (`<cueId>#<n>`, n from 1): what dropping or flagging one
+   *  repetition refers to, as a hold id does for a still-point. */
+  id: string;
   /** The gesture's name, from the cue that asked for it ("wave"). */
   gesture: string;
   /** The id of the cue that captured it. */

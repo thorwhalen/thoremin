@@ -21,7 +21,8 @@
  * Each still-point remembers its cue, so a category can report which cues fed it (a
  * free label suggestion: a category that is 90% "look left" points is probably that).
  * A `gesture` cue (#751) keeps the traces its segmenter cuts, per cue; they are never
- * clustered (the player named the gesture), and `build()` does not see them.
+ * clustered (the player named the gesture), `build()` does not see them, and only the
+ * frames between repetitions feed the noise estimate.
  *
  * ## Units (#163)
  *
@@ -276,9 +277,10 @@ export function createSession(options: SessionOptions = {}): Session {
       // A nuisance demonstration is deliberate motion (closer and further, a step aside, a
       // turn): it sets the nuisance profile and never the noise every distance is measured
       // in (#460). Its frames are a gap to the estimator, which re-anchors after it. A
-      // gesture is deliberate motion too (#751): five waves folded into the jitter estimate
-      // would inflate the very unit the segmenter judges them in.
-      if (active?.produces !== 'nuisance' && active?.produces !== 'gesture') noise.push(vector, tMs);
+      // gesture is deliberate motion too (#751), but only while a repetition is under way:
+      // a gesture cue's frame is fed below, after the segmenter has seen it, and only when
+      // no run is open.
+      if (active?.produces !== 'nuisance' && !segmenter) noise.push(vector, tMs);
       if (!active) {
         idle?.push(vector, tMs);
         lastIdle = { v: vector, t: tMs };
@@ -294,6 +296,11 @@ export function createSession(options: SessionOptions = {}): Session {
       } else if (segmenter) {
         const trace = segmenter.push(vector, tMs);
         if (trace) traces.get(active.id)!.push(trace);
+        // Between repetitions the hand is at rest, and those frames are noise like any other:
+        // five waves folded into the jitter would inflate the very unit they are judged in,
+        // but a feature first seen during the cue (the other hand coming into view) must
+        // still warm, or the segmenter could never judge another frame.
+        if (!segmenter.inRun()) noise.push(vector, tMs);
       } else {
         frames.get(active.id)!.push(vector);
       }

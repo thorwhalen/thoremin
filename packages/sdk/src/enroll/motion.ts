@@ -21,13 +21,16 @@
  * rule (mean absolute change per second, for vectors already in uniform units) is kept as
  * `metric: 'absolute'`.
  *
- * ## The three answers
+ * ## The four answers
  *
  * A reading is a number, or why there is none: `'cold'` while an attended feature present in
- * the frame has no warm noise estimate (its unit is not known yet, so nothing can be judged),
- * and `'pending'` while there is no reference one window back (the first frame, a repeated
- * stamp, or a reference far older than the window, which is a gap and not a displacement).
- * The difference matters to a consumer: a cold frame breaks a run, a pending one does not.
+ * the frame has no warm noise estimate (its unit is not known yet, so nothing can be judged);
+ * `'gap'` when the reference is far older than the window (frames went missing: the hand left
+ * the shot, or a seed is stale), which is a break in the stream and not a displacement; and
+ * `'pending'` while there is simply no reference yet (the first frame, a repeated stamp). The
+ * difference matters to a consumer of runs: a cold frame or a gap breaks a run, a pending
+ * frame does not. The sampler treats a gap as pending (it was written before the
+ * distinction, and a dwell restarts on its own after one).
  */
 import { createNoiseEstimator, type NoiseEstimator } from './noise';
 import type { FeatureVector } from './types';
@@ -117,7 +120,7 @@ export function noiseDistance(
 }
 
 /** A motion reading: the displacement, or why there is none (see the module header). */
-export type MotionReading = number | 'cold' | 'pending';
+export type MotionReading = number | 'cold' | 'gap' | 'pending';
 
 export interface WindowMotionOptions {
   /** `'noise-relative'` (default): noise-sigma RMS over `features`. `'absolute'`: the v1
@@ -184,11 +187,11 @@ export function createWindowMotion(options: WindowMotionOptions = {}): WindowMot
       const ref = history[0];
       const dt = tMs - ref.t;
       if (dt <= 0) return 'pending';
-      // A reference far older than the window (a stale seed, a long cold stretch) is not a
-      // window's displacement and must not be judged as one.
+      // A reference far older than the window (frames missing, a stale seed, a long cold
+      // stretch) is not a window's displacement and must not be judged as one.
       if (history.length === 2 && dt > 2 * windowMs) {
         history.shift();
-        return 'pending';
+        return 'gap';
       }
       last = metric === 'absolute' ? absoluteSpeed(ref.v, vector, dt) : noiseDistance(vector, ref.v, noise.sigma, attention(vector));
       return last;

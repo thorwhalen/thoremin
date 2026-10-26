@@ -164,10 +164,11 @@ export const CueProductSchema = z.enum([
   /**
    * A named dynamic gesture (#751): the motion segmenter cuts each repetition out of the
    * take as a trace. Nothing is clustered (the player named the gesture); the traces are
-   * what the window matcher of #752 is derived from. Its frames do NOT feed the session's
-   * noise estimate (a wave is deliberate motion, as a nuisance demonstration is), so a
-   * routine runs a rest cue before it: the segmenter judges motion in noise units, and
-   * those must already be known.
+   * what the window matcher of #752 is derived from. Only the frames BETWEEN its
+   * repetitions feed the session's noise estimate (a wave is deliberate motion, as a
+   * nuisance demonstration is), so a routine runs a rest cue before it: the segmenter
+   * judges motion in noise units, and those should already be known when the first
+   * repetition comes.
    */
   'gesture',
 ]);

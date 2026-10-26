@@ -55,10 +55,6 @@ import { createWindowMotion, meanAbsDistance, MOTION_DEFAULTS, noiseDistance } f
 import type { NoiseEstimator } from './noise';
 import type { FeatureVector, StillPoint } from './types';
 
-// The distances moved to `motion.ts` (#751), shared with the motion segmenter; this path
-// keeps exporting them.
-export { meanAbsDistance, noiseDistance };
-
 export interface SamplerOptions {
   /**
    * How "held" is judged. `'noise-relative'` (default): each feature's window
@@ -208,8 +204,9 @@ export function createStillPointSampler(options: SamplerOptions = {}): StillPoin
         resetAccumulator();
         return null;
       }
-      // Not enough history to judge yet — do not guess "held".
-      if (v === 'pending') return null;
+      // Not enough history to judge yet — do not guess "held". (A gap re-anchors the
+      // reference; the next frame is judged against it.)
+      if (v === 'pending' || v === 'gap') return null;
 
       if (v > threshold) {
         // Moving: abandon any dwell in progress, and re-arm — the player has left the

@@ -12,21 +12,31 @@
  *
  * ## The rule
  *
- * A trace OPENS when the reading rises above `startSigma` (deliberate motion), and only after
- * the vector has been quiet (at or below `stopSigma`) since the segmenter began or was last
- * interrupted: a take that starts in the middle of a wave yields no half wave. It CLOSES once
- * the reading has stayed at or below `stopSigma` for `quietMs`, the sampler's dwell inverted.
- * The two thresholds are a hysteresis band: a wave's reversals, where the hand slows to turn,
- * dip under `startSigma` without ending the trace, and a quiet hand's drift between the two
- * opens nothing.
+ * The vector is QUIET once the reading has stayed at or below `stopSigma` for `quietMs`, the
+ * sampler's dwell inverted. A trace OPENS when the reading rises above `startSigma` (deliberate
+ * motion) after a quiet, and CLOSES at the next quiet. One test both ways: a wave's reversal,
+ * where the hand slows to turn for a frame or two, neither ends a trace nor counts as the rest
+ * a new one starts from, so a take that starts in the middle of a wave, or resumes after a
+ * break in the stream, yields no half wave. The two thresholds are a hysteresis band: a quiet
+ * hand's drift between them opens nothing.
  *
  * A closed run is a trace when it moved for at least `minTraceMs` (shorter is a twitch or a
  * tracking glitch) and at most `maxTraceMs` (longer is sweeping about, not one repetition).
  * Its first frame is the reading's reference, one window before the motion was first seen, so
  * the start of the gesture is not lost to the window; its last is the last moving frame.
  *
- * A frame the meter cannot judge (an attended feature with no warm noise estimate: a hand that
- * just came into view) abandons an open trace and disarms, as it stops a sampler's dwell.
+ * A break in the stream INTERRUPTS: a frame the meter cannot judge (an attended feature with
+ * no warm noise estimate: a hand that just came into view) or a gap (frames missing: the hand
+ * left the shot) abandons an open run and disarms. A trace with a hole in it would be a
+ * corrupt template for the matcher, and half a wave is not a repetition. A repeated stamp is
+ * skipped: it is the same frame read twice, not a frame.
+ *
+ * ## The noise estimate is the caller's
+ *
+ * `noise` is required: the units must come from frames that are NOT the gesture, or the waves
+ * inflate the very unit they are judged in. The session feeds its estimator only while no run
+ * is open ({@link MotionSegmenter.inRun}), so a feature that first appears during a gesture
+ * cue still warms up between repetitions.
  *
  * ## What it does not do
  *
@@ -40,12 +50,13 @@ import type { FeatureVector, Trace, TraceSample } from '../types';
 export interface SegmenterOptions {
   /** The gesture's name, stamped on every trace. */
   gesture: string;
-  /** The cue id stamped on every trace. Default: the gesture's name. */
-  cue?: string;
+  /** The id of the cue capturing, stamped on every trace and prefixing its id. */
+  cue: string;
+  /** The estimator the noise units come from, fed by the caller with frames that are not
+   *  the gesture (see the module header). */
+  noise: NoiseEstimator;
   /** The features motion is judged on. Default: every key of the frame. */
   features?: readonly string[];
-  /** The estimator the noise units come from (pass the session's); omitted, a private one. */
-  noise?: NoiseEstimator;
   /** A frame from just before the first push, so the first window has a reference. */
   seed?: { v: FeatureVector; t: number };
   /** Noise-sigma above which a trace opens. */
@@ -87,8 +98,9 @@ export interface MotionSegmenter {
   reset(): void;
   /** The last motion reading, in noise-sigma, for a meter. */
   lastSpeed(): number;
-  /** True while a run is open and still moving (not yet in its closing quiet). */
-  isMoving(): boolean;
+  /** True while a run is open: moving, or in its closing quiet. Its frames are the
+   *  gesture's, and must not feed the noise estimate. */
+  inRun(): boolean;
   /** True once the reading has risen above `startSigma` since the last reset. */
   hasMoved(): boolean;
 }
@@ -97,8 +109,6 @@ interface Run {
   samples: TraceSample[];
   firstMove: number;
   lastMove: number;
-  /** When the current quiet began, or null while moving. */
-  quietSince: number | null;
   /** Past `maxTraceMs`: followed to its end, never kept. */
   tooLong: boolean;
 }
@@ -106,70 +116,73 @@ interface Run {
 /** Build a motion segmenter. No clock of its own: `tMs` comes from the caller. */
 export function createMotionSegmenter(options: SegmenterOptions): MotionSegmenter {
   const o = { ...SEGMENTER_DEFAULTS, ...options };
-  const cue = options.cue ?? options.gesture;
   const meter = createWindowMotion({ features: o.features, noise: o.noise, seed: o.seed });
   const cut: Trace[] = [];
   let run: Run | null = null;
-  /** Quiet has been seen since the start or the last interruption, so a rise is a beginning. */
+  /** When the reading last fell to `stopSigma` or below and stayed there; null while above. */
+  let quietSince: number | null = null;
+  /** A quiet has been seen since the start or the last interruption, so a rise is a beginning. */
   let armed = false;
   let moved = false;
+  let lastT = -Infinity;
 
   const close = (r: Run): Trace | null => {
     run = null;
+    armed = true;
     if (r.tooLong || r.lastMove - r.firstMove < o.minTraceMs) return null;
-    const trace: Trace = { gesture: o.gesture, cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
+    const trace: Trace = { id: `${o.cue}#${cut.length + 1}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
     cut.push(trace);
     return trace;
   };
 
   return {
     push(vector, tMs) {
+      if (tMs <= lastT) return null;
+      lastT = tMs;
       const reading = meter.push(vector, tMs);
-      if (reading === 'cold') {
+      if (reading === 'cold' || reading === 'gap') {
         run = null;
         armed = false;
+        quietSince = null;
         return null;
       }
       if (reading === 'pending') return null;
       if (reading > o.startSigma) moved = true;
+      if (reading <= o.stopSigma) quietSince ??= tMs;
+      else quietSince = null;
+      const quiet = quietSince !== null && tMs - quietSince >= o.quietMs;
 
       if (!run) {
-        if (reading <= o.stopSigma) armed = true;
+        if (quiet) armed = true;
         else if (reading > o.startSigma && armed) {
-          run = {
-            samples: meter.span().map(({ v, t }) => ({ vector: v, t })),
-            firstMove: tMs,
-            lastMove: tMs,
-            quietSince: null,
-            tooLong: false,
-          };
+          run = { samples: meter.span().map(({ v, t }) => ({ vector: v, t })), firstMove: tMs, lastMove: tMs, tooLong: false };
         }
         return null;
       }
 
       if (!run.tooLong) run.samples.push({ vector, t: tMs });
-      if (reading > o.stopSigma) {
+      if (quietSince === null) {
         run.lastMove = tMs;
-        run.quietSince = null;
         if (tMs - run.firstMove > o.maxTraceMs) {
           run.tooLong = true;
           run.samples = [];
         }
         return null;
       }
-      run.quietSince ??= tMs;
-      return tMs - run.quietSince >= o.quietMs ? close(run) : null;
+      return quiet ? close(run) : null;
     },
     traces: () => cut.slice(),
     reset() {
       cut.length = 0;
       run = null;
+      quietSince = null;
       armed = false;
       moved = false;
+      lastT = -Infinity;
       meter.reset();
     },
     lastSpeed: () => meter.last(),
-    isMoving: () => run !== null && run.quietSince === null,
+    inRun: () => run !== null,
     hasMoved: () => moved,
   };
 }
