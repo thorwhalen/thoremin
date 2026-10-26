@@ -10,9 +10,13 @@ import { useControls } from '@/app/store';
 import { useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
 import { useTrainerPrefs } from '@/slices/trainer/app/prefs';
 import { useCategoryBinding } from '@/app/enroll/categoryBinding';
+import { writeInstrumentMeta } from '@/app/library/store';
 import { trySetStoredKey, getStoredKey } from '@/keys/providerKeys';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 const quota = () => new DOMException('full', 'QuotaExceededError');
 
@@ -77,6 +81,15 @@ describe('an API key that could not be stored is reported, not swallowed (#823)'
   it('returns null when it was saved', () => {
     expect(trySetStoredKey('openai', ' k ')).toBeNull();
     expect(getStoredKey('openai')).toBe('k');
-    localStorage.clear();
+  });
+});
+
+describe('the instrument metadata blob (#823)', () => {
+  it('a full storage drops the write; it never rejects', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw quota();
+    });
+    await expect(writeInstrumentMeta({})).resolves.toBeUndefined();
   });
 });
