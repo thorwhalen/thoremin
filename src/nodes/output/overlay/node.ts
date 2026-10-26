@@ -99,7 +99,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
           const view: OverlayView = {
             W,
             H,
-            frame: makeFrameView({ width: W, height: H }, frameSize, display),
+            display: makeFrameView({ width: W, height: H }, frameSize, display),
             t: ctx.time,
             elementState,
             video,
@@ -161,7 +161,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
                 ...view,
                 W: alphaCanvas.width,
                 H: alphaCanvas.height,
-                frame: makeFrameView({ width: alphaCanvas.width, height: alphaCanvas.height }, frameSize, display),
+                display: makeFrameView({ width: alphaCanvas.width, height: alphaCanvas.height }, frameSize, display),
                 params: { ...view.params, video: { ...view.params.video, show: false } },
               overlayOnly: true,
               };

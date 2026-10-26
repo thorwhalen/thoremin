@@ -23,6 +23,7 @@ import { useAirDrumStatus } from '../app/airDrumStatus';
 import { DEFAULT_PADS_SET, DRUM_SOUNDS, MIN_PAD_SIZE, OFF_PAD_MODES, PAD_IDS, PAD_SHAPES, STARTER_KIT, type OffPadMode, type Pad, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { createPadLayoutStore, padLayoutWrites, type PadLayoutStore } from '../app/padLayouts';
 import type { NamedSummary } from '@thoremin/sdk-ui/namedCollection';
+import { makeFrameView } from '@thoremin/sdk/view/frame_view';
 
 /** The stage's height in its own units; its width follows the camera's shape. */
 const STAGE_H = 90;
@@ -53,13 +54,8 @@ export function visibleCrop(aspect: number, viewport = typeof window !== 'undefi
   if (!viewport || viewport.w <= 0 || viewport.h <= 0) return null;
   const view = viewport.w / viewport.h;
   if (Math.abs(view - aspect) < 1e-3) return null;
-  // A wider window keeps the full width and crops top and bottom; a narrower one the reverse.
-  if (view > aspect) {
-    const h = aspect / view;
-    return { x: 0, y: (1 - h) / 2, w: 1, h };
-  }
-  const w = view / aspect;
-  return { x: (1 - w) / 2, y: 0, w, h: 1 };
+  // The page shows the canvas CSS-covered: the same crop the view computes for `cover`.
+  return makeFrameView({ width: viewport.w, height: viewport.h }, { width: aspect, height: 1 }, { fit: 'cover' }).visibleShown();
 }
 
 let layoutStore: PadLayoutStore | null = null;

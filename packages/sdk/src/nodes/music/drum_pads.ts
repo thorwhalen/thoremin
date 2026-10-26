@@ -22,6 +22,7 @@
  * persists {@link PadsSchema}.
  */
 import { z } from 'zod';
+import { displayedUnit } from '../../view/frame_view';
 
 /** The drums a pad (or a hand) can sound. */
 export const DRUM_SOUNDS = ['kick', 'snare', 'hihat', 'tom', 'crash', 'ride'] as const;
@@ -85,7 +86,7 @@ export const DEFAULT_PADS_SET: Pads = PadsSchema.parse({});
 
 /** A pixel point of a source frame, in the displayed (mirrored) frame's fractions. */
 export function toDisplay(xPx: number, yPx: number, width: number, height: number): { x: number; y: number } {
-  return { x: 1 - xPx / width, y: yPx / height };
+  return displayedUnit(xPx, yPx, { width, height });
 }
 
 /** How far a point is from a pad's centre, in the pad's own half-sizes: 0 at the centre,

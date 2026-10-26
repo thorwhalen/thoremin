@@ -30,7 +30,7 @@ describe('stretch is the old math, bit for bit', () => {
   it('mirrored px equals mirrorX and (y/h)*H for every recorded keypoint', () => {
     for (const k of keypoints) {
       const v = makeFrameView({ width: 640, height: 480 }, { width: k.w, height: k.h });
-      const p = v.px(k.x, k.y);
+      const p = v.px(k.x, k.y, { width: k.w, height: k.h });
       expect(p.x).toBe(legacyMirrorX(k.x, k.w, 640));
       expect(p.y).toBe((k.y / k.h) * 480);
     }
@@ -86,20 +86,36 @@ describe.each(FITS)('fit %s', (fit: Fit) => {
     }
   });
 
-  it('a keypoint lands where the mirrored video puts the same frame pixel', () => {
-    // The video is drawn mirrored into view.rect, so frame pixel (x, y) shows at rect.x + rect.w - x/fw*rect.w.
+  it('a keypoint lands where the drawn video puts the same frame pixel (matrix derived from the recorded canvas calls)', () => {
+    // Independent of view.px: replay scale/translate/drawImage as a canvas would and map each frame pixel through it.
+    const calls: [string, ...number[]][] = [];
+    drawFrame(
+      {
+        scale: (...a) => void calls.push(['scale', ...a]),
+        translate: (...a) => void calls.push(['translate', ...a]),
+        drawImage: (_i, ...a) => void calls.push(['drawImage', ...(a as number[])]),
+      },
+      {} as unknown as CanvasImageSource,
+      view,
+    );
+    const [sc, tr, di] = [calls[0]!, calls[1]!, calls[2]!];
+    const onCanvas = (x: number, y: number) => {
+      const imgX = (x / 1280) * di[3]!; // image space: drawImage(0, 0, dw, dh)
+      const imgY = (y / 720) * di[4]!;
+      return { x: sc[1]! * (imgX + tr[1]!), y: sc[2]! * (imgY + tr[2]!) };
+    };
     for (const k of keypoints.slice(0, 50)) {
-      const p = frameToDisplay(k.x, k.y, 1280, 720, 640, 480, { fit });
-      const r = view.rect;
-      expect(p.x).toBeCloseTo(r.x + r.w - (k.x / 1280) * r.w, 8);
-      expect(p.y).toBeCloseTo(r.y + (k.y / 720) * r.h, 8);
+      const want = onCanvas(k.x, k.y);
+      const got = view.px(k.x, k.y, FRAME_16_9);
+      expect(got.x).toBeCloseTo(want.x, 8);
+      expect(got.y).toBeCloseTo(want.y, 8);
     }
   });
 
   it('the mirror is applied exactly once: unmirrored px is the mirror image about the rect centre', () => {
     const plain = makeFrameView(CANVAS_4_3, FRAME_16_9, { fit, mirror: false });
-    const a = view.px(300, 200);
-    const b = plain.px(300, 200);
+    const a = view.px(300, 200, FRAME_16_9);
+    const b = plain.px(300, 200, FRAME_16_9);
     expect(a.x + b.x).toBeCloseTo(2 * view.rect.x + view.rect.w, 8);
     expect(a.y).toBe(b.y);
   });
@@ -132,7 +148,7 @@ describe('drawFrame', () => {
       translate: (...a: number[]) => void calls.push(['translate', ...a]),
       drawImage: (_i: unknown, ...a: number[]) => void calls.push(['drawImage', ...a]),
     };
-    drawFrame(g, {}, makeFrameView(CANVAS_4_3, FRAME_16_9, { fit, mirror }));
+    drawFrame(g, {} as unknown as CanvasImageSource, makeFrameView(CANVAS_4_3, FRAME_16_9, { fit, mirror }));
     return calls;
   };
 
@@ -151,5 +167,19 @@ describe('drawFrame', () => {
 
   it('unmirrored translates to the rect origin without a flip', () => {
     expect(record('stretch', false)).toEqual([['translate', 0, 0], ['drawImage', 0, 0, 640, 480]]);
+  });
+});
+
+describe('a zero-size canvas', () => {
+  it('keeps the inverse and the visible part finite', () => {
+    const v = makeFrameView({ width: 0, height: 0 }, FRAME_16_9);
+    expect(v.toShown(5, 5)).toEqual({ x: 0, y: 0 });
+    expect(v.visibleShown()).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+  });
+});
+
+describe('frameToDisplay', () => {
+  it('is the per-call form of px', () => {
+    expect(frameToDisplay(320, 180, 1280, 720, 640, 480, { fit: 'contain' })).toEqual(makeFrameView(CANVAS_4_3, FRAME_16_9, { fit: 'contain' }).px(320, 180, FRAME_16_9));
   });
 });

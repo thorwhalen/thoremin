@@ -53,15 +53,13 @@ const usable = (frame: Size | undefined, canvas: Size): Size =>
   frame && frame.width > 0 && frame.height > 0 && Number.isFinite(frame.width) && Number.isFinite(frame.height) ? frame : canvas;
 
 export interface FrameView {
-  readonly canvas: Size;
-  readonly frame: Size;
+  /** Where the unmirrored frame sits on the canvas, in canvas pixels (the backdrop's rectangle). */
   readonly rect: Rect;
   readonly mirror: boolean;
-  readonly fit: Fit;
   /** Fractions (0..1) of the UNMIRRORED frame, to canvas pixels (a face mesh point). */
   unit(u: number, v: number): { x: number; y: number };
-  /** Pixels of the frame this view was built for, to canvas pixels (a hand or body keypoint). */
-  px(x: number, y: number, size?: Size): { x: number; y: number };
+  /** Pixels of a frame of `size`, to canvas pixels (a hand or body keypoint). `size` is the SOURCE frame's own; it is required so a stale default cannot silently give plausible wrong pixels. */
+  px(x: number, y: number, size: Size): { x: number; y: number };
   /** Fractions of the DISPLAYED (already mirrored) frame, to canvas pixels (pads, guides, mapped features). */
   shown(d: number, e: number): { x: number; y: number };
   /** The inverse of {@link shown}: a canvas point (a pointer) as displayed-frame fractions. */
@@ -78,18 +76,18 @@ export function makeFrameView(canvas: Size, frame: Size | undefined, { mirror = 
     x: mirror ? rect.x + (rect.w - u * rect.w) : rect.x + u * rect.w,
     y: rect.y + v * rect.h,
   });
+  // A zero-size canvas has no area to divide by: the inverse and the visible part stay finite.
+  const empty = !(rect.w > 0 && rect.h > 0);
   const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
   return {
-    canvas,
-    frame: f,
     rect,
     mirror,
-    fit,
     unit,
-    px: (x, y, size = f) => unit(x / size.width, y / size.height),
+    px: (x, y, size) => unit(x / size.width, y / size.height),
     shown: (d, e) => ({ x: rect.x + d * rect.w, y: rect.y + e * rect.h }),
-    toShown: (cx, cy) => ({ x: (cx - rect.x) / rect.w, y: (cy - rect.y) / rect.h }),
+    toShown: (cx, cy) => (empty ? { x: 0, y: 0 } : { x: (cx - rect.x) / rect.w, y: (cy - rect.y) / rect.h }),
     visibleShown() {
+      if (empty) return { x: 0, y: 0, w: 1, h: 1 };
       const x0 = clamp01((0 - rect.x) / rect.w);
       const x1 = clamp01((canvas.width - rect.x) / rect.w);
       const y0 = clamp01((0 - rect.y) / rect.h);
@@ -101,7 +99,7 @@ export function makeFrameView(canvas: Size, frame: Size | undefined, { mirror = 
 
 /** Per-call form for a mapping node: a frame pixel to canvas pixels under `opts`. */
 export function frameToDisplay(x: number, y: number, vw: number, vh: number, W: number, H: number, opts?: ViewOptions): { x: number; y: number } {
-  return makeFrameView({ width: W, height: H }, { width: vw, height: vh }, opts).px(x, y);
+  return makeFrameView({ width: W, height: H }, { width: vw, height: vh }, opts).px(x, y, { width: vw, height: vh });
 }
 
 /** A frame pixel as fractions of the displayed frame (the pads' space), mirrored unless `mirror` is false. */
@@ -113,7 +111,7 @@ export function displayedUnit(xPx: number, yPx: number, size: Size, { mirror = t
 export interface FrameSurface {
   scale(x: number, y: number): void;
   translate(x: number, y: number): void;
-  drawImage(image: never, dx: number, dy: number, dw: number, dh: number): void;
+  drawImage(image: CanvasImageSource, dx: number, dy: number, dw: number, dh: number): void;
 }
 
 /**
@@ -121,7 +119,7 @@ export interface FrameSurface {
  * `stretch` the calls are exactly the old backdrop's (`scale(-1,1)`, `translate(-W,0)`, `drawImage(v,0,0,W,H)`).
  * The caller owns save/restore and alpha.
  */
-export function drawFrame(g: FrameSurface, image: unknown, view: FrameView): void {
+export function drawFrame(g: FrameSurface, image: CanvasImageSource, view: FrameView): void {
   const r = view.rect;
   if (view.mirror) {
     g.scale(-1, 1);
@@ -129,5 +127,5 @@ export function drawFrame(g: FrameSurface, image: unknown, view: FrameView): voi
   } else {
     g.translate(r.x, r.y);
   }
-  g.drawImage(image as never, 0, 0, r.w, r.h);
+  g.drawImage(image, 0, 0, r.w, r.h);
 }
