@@ -323,7 +323,7 @@ Its settings: [Face](#settings--face), [Sound](#settings--sound). Every knob: [t
 2. Each shape plays its own chord of the key; a relaxed hand plays none.
 3. Your hands' height still plays the melody on top.
 
-Four hand shapes, four chords. It plays a shipped example of a hand-shape categorizer, made from the app's own scripted hand, so it may not read your hand well: teach it your own shapes in **Your hand shapes** and choose them in [Categorizer chords](#settings--categorizer-chords).
+Four hand shapes, four chords. It plays a shipped example of a hand-shape categorizer, made from one signer's hands (a recording of fingerspelling by one person, SignAlphaSet, Garg et al., CC BY 4.0), so it reads some hands and not others (an open palm best; a fist or a pointing hand often not): teach it your own shapes in **Your hand shapes** and choose them in [Categorizer chords](#settings--categorizer-chords).
 
 **How it works**
 

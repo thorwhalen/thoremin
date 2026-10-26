@@ -11,7 +11,7 @@
   {
    "name": "demo-hand-shapes",
    "label": "Demo: open, fist, point, pinch (hand shapes)",
-   "description": "Carved from the app's scripted hand (no person): an open hand, a fist, a pointing hand and a pinch, the relaxed hand as none of these.",
+   "description": "Carved from one real signer's hands (SignAlphaSet, Garg et al., doi:10.17632/8fmvr9m98w.3, CC BY 4.0): an open hand, a fist, a sideways point and a ring, a loose cup as none of these. Reads some hands and not others; teach it your own.",
    "demo": true,
    "modality": "hand"
   },
