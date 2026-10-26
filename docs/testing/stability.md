@@ -52,9 +52,9 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Sign Map | signs-gaps | 41.0 | 0.16 | 0.00 | 0 | 0 | 1 | 1600 (3400) | 3/8 | 0 |
 | Sign Map | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 1267 (3100) | 1/9 | 0 |
 | Sign Map | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Sign Wheel | signs-gaps | 40.2 | 0.08 | 24 | 0 | 5 | 1 | 1533 (3333) | 3/8 | 0 |
-| Sign Wheel | signs-flow | 28.2 | 0.30 | 2.05 | 0 | 1 | 0 | 1200 (3033) | 1/9 | 0 |
-| Sign Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Sign Wheel | signs-gaps | 38.1 | 0.08 | 0.00 | 0 | 0 | 1 | 1533 (3333) | 3/8 | 0 |
+| Sign Wheel | signs-flow | 28.1 | 0.30 | 0.00 | 0 | 0 | 0 | 1200 (3033) | 1/9 | 0 |
+| Sign Wheel | choir | 19.8 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 <!-- /stability:table -->
 
 ## Before the fixes
