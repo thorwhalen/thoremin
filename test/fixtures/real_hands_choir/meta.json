@@ -1,0 +1,38 @@
+{
+  "scenario": "real_hands_choir",
+  "source": "video",
+  "title": "Conducting choir - Bortniansky Cherubic Hymn",
+  "author": "OrthodoxMusicOnline",
+  "licence": "CC BY 3.0",
+  "sourceUrl": "https://commons.wikimedia.org/wiki/File:Conducting_choir_-_Bortniansky_Cherubic_Hymn.webm",
+  "description": "OMIO with David Drillock. David conducts Bortniansky's Cherubic Hymn with small choir. 3 pattern.",
+  "changes": "MediaPipe hand landmarks extracted from the video (no pixels), an excerpt; x, y rounded to 0.1 px, z and world coordinates to 1e-4, keypoint names dropped",
+  "excerpt": {
+    "fromS": 40,
+    "toS": 60
+  },
+  "fps": 29.97,
+  "frames": 600,
+  "detectedFrames": 600,
+  "twoHandFrames": 585,
+  "hands": {
+    "files": [
+      "bortniansky.hands.ndjson.gz"
+    ],
+    "extractor": "scripts/video_to_landmarks.py",
+    "model": {
+      "name": "HandLandmarker",
+      "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      "numHands": 2,
+      "minConfidence": 0.4,
+      "crop": "whole frame first; then, for a pose wrist no whole-frame hand covers, a pose-guided crop (--crop-from-pose, scale 3.0, 256 px, one hand per crop); keypoints mapped back to the whole frame, a cropped hand's `crop` is [x0, y0, side] px and `poseSide` the pose wrist it was cut around; handedness is the model's raw label"
+    },
+    "mediapipe": "0.10.14",
+    "shape": "HandsFrame: 21 pixel keypoints per hand with the raw z, worldKeypoints, handedness as the model reported it",
+    "input": "Conducting_choir_-_Bortniansky_Cherubic_Hymn.webm",
+    "extractedAt": "2026-10-14",
+    "frames": 4907,
+    "detectedFrames": 4887,
+    "detectionRate": 100
+  }
+}
