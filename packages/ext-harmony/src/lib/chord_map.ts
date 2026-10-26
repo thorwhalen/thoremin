@@ -549,3 +549,43 @@ export function chordMapGrid(view: ChordMapView): CellGrid {
   }
   return grid;
 }
+
+/** Camera frames the melody hand must be over the ladder before its note starts, and frames a
+ *  note is kept while the hand is lost (measured on real hands: a melody voice that followed the
+ *  raw frames sounded one- and two-frame blips whenever the hand model lost or mislabelled it). */
+export const MELODY_ON_FRAMES = 2;
+export const MELODY_HOLD_FRAMES = 3;
+
+export interface BandGate {
+  /** One camera frame's band (null: the hand is not over the ladder); the band to sound, or null. */
+  push(band: number | null): number | null;
+  reset(): void;
+}
+
+/**
+ * The melody's onset and release debounce: a note starts once the hand has been over the ladder
+ * for `onFrames` frames in a row, moves at once between bands while sounding, and is held through
+ * up to `holdFrames` frames of the hand lost. Steps once per camera frame.
+ */
+export function createBandGate(onFrames = MELODY_ON_FRAMES, holdFrames = MELODY_HOLD_FRAMES): BandGate {
+  let sounding: number | null = null;
+  let seen = 0;
+  let lost = 0;
+  return {
+    push(band) {
+      if (band !== null) {
+        lost = 0;
+        if (sounding !== null || ++seen >= onFrames) sounding = band;
+        return sounding;
+      }
+      seen = 0;
+      if (sounding !== null && ++lost > holdFrames) sounding = null;
+      return sounding;
+    },
+    reset() {
+      sounding = null;
+      seen = 0;
+      lost = 0;
+    },
+  };
+}

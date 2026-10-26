@@ -69,6 +69,7 @@ import {
   chordMapGrid,
   nearestOfDegree,
   createCellTracker,
+  createBandGate,
   diatonicChords,
   ladderBand,
   layoutCells,
@@ -406,6 +407,9 @@ export const chordMapNode = defineNode<Params>({
     /** The cell last held (its chord is read in the current key, so a key change follows it). */
     let lastCell = -1;
     let melodySet: MelodySet = 'chord';
+    // The melody's band through its onset and release debounce, stepped once per camera frame.
+    const melodyGate = createBandGate();
+    let gatedBand: number | null = null;
     let otherTilt: number | null = null;
     const paths = createPathFollower();
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
@@ -448,6 +452,8 @@ export const chordMapNode = defineNode<Params>({
       lastFrame = undefined;
       chordPoint = null;
       otherPoint = null;
+      melodyGate.reset();
+      gatedBand = null;
       lastCell = -1;
       quantizer.reset(-1);
       follower = null;
@@ -691,9 +697,12 @@ export const chordMapNode = defineNode<Params>({
           // The tilt chooses the set only while the hand is seen; a lost hand keeps the last one.
           melodySet = c.melodyNotes !== 'tilt' ? c.melodyNotes : otherTilt === null ? melodySet : setForTilt(otherTilt, melodySet);
           const ladderNotes = melodyNotesFor(melodySet, over, spec, base, c.melodyOctaves);
-          const band = ladderBand(regions.other, ladderNotes.length, otherPoint);
+          const raw = ladderBand(regions.other, ladderNotes.length, otherPoint);
+          if (fresh) gatedBand = melodyGate.push(raw);
+          // A band held through a lost frame stays on the ladder it was read on (clamped).
+          const band = gatedBand === null ? null : Math.min(gatedBand, ladderNotes.length - 1);
           ladder = { region: regions.other, notes: ladderNotes, band, set: melodySet };
-          if (band !== null) {
+          if (band !== null && band >= 0) {
             const midi = ladderNotes[band] + 12 * shift;
             melodyNote = midiToName(midi);
             melodyVoice = { id: CHORD_MAP_MELODY_VOICE_ID, present: true, freq: midiToFreq(midi), gain: c.melodyVolume, sound: c.melodySound, brightness: 1, vibrato: 0, pan: 0 };
