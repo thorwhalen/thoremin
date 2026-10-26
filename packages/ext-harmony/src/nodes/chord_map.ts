@@ -70,6 +70,7 @@ import {
   nearestOfDegree,
   createCellTracker,
   createBandGate,
+  handTilt,
   diatonicChords,
   ladderBand,
   layoutCells,
@@ -98,6 +99,7 @@ import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];
+export { handTilt };
 export const CHORD_MAP_POINTS = ['palm', 'indexTip'] as const;
 /** The melody hand's note choice: a set (`MELODY_SETS`), or the hand's tilt choosing one. */
 export const MELODY_NOTES = [...MELODY_SETS, 'tilt'] as const;
@@ -331,17 +333,6 @@ export function displayPoint(hand: Hand, frame: HandsFrame, point: (typeof CHORD
   return { x: 1 - x / frame.width, y: y / frame.height };
 }
 
-/** How far a hand is tilted in the picture, degrees: the angle of its knuckle line (index to
- *  little finger) from the horizontal, folded to [-90, 90] so either hand reads the same. */
-export function handTilt(hand: Hand): number {
-  const a = hand.keypoints[LM.index_mcp];
-  const b = hand.keypoints[LM.pinky_mcp];
-  let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-  if (deg > 90) deg -= 180;
-  if (deg <= -90) deg += 180;
-  return deg;
-}
-
 /** The chords' region and the other hand's, by the chord hand's side of the (mirrored) screen. */
 export function chordMapRegions(chordHand: PlayerHand, split: number): { chords: Region; other: Region } {
   const v = { y0: REGION_TOP, y1: REGION_BOTTOM };
@@ -407,9 +398,7 @@ export const chordMapNode = defineNode<Params>({
     /** The cell last held (its chord is read in the current key, so a key change follows it). */
     let lastCell = -1;
     let melodySet: MelodySet = 'chord';
-    // The melody's band through its onset and release debounce, stepped once per camera frame.
     const melodyGate = createBandGate();
-    let gatedBand: number | null = null;
     let otherTilt: number | null = null;
     const paths = createPathFollower();
     let status: ChordMapStatus = { ...IDLE_CHORD_MAP_STATUS };
@@ -453,7 +442,6 @@ export const chordMapNode = defineNode<Params>({
       chordPoint = null;
       otherPoint = null;
       melodyGate.reset();
-      gatedBand = null;
       lastCell = -1;
       quantizer.reset(-1);
       follower = null;
@@ -697,12 +685,9 @@ export const chordMapNode = defineNode<Params>({
           // The tilt chooses the set only while the hand is seen; a lost hand keeps the last one.
           melodySet = c.melodyNotes !== 'tilt' ? c.melodyNotes : otherTilt === null ? melodySet : setForTilt(otherTilt, melodySet);
           const ladderNotes = melodyNotesFor(melodySet, over, spec, base, c.melodyOctaves);
-          const raw = ladderBand(regions.other, ladderNotes.length, otherPoint);
-          if (fresh) gatedBand = melodyGate.push(raw);
-          // A band held through a lost frame stays on the ladder it was read on (clamped).
-          const band = gatedBand === null ? null : Math.min(gatedBand, ladderNotes.length - 1);
+          const band = melodyGate.push(ladderBand(regions.other, ladderNotes.length, otherPoint), fresh, ladderNotes.length);
           ladder = { region: regions.other, notes: ladderNotes, band, set: melodySet };
-          if (band !== null && band >= 0) {
+          if (band !== null) {
             const midi = ladderNotes[band] + 12 * shift;
             melodyNote = midiToName(midi);
             melodyVoice = { id: CHORD_MAP_MELODY_VOICE_ID, present: true, freq: midiToFreq(midi), gain: c.melodyVolume, sound: c.melodySound, brightness: 1, vibrato: 0, pan: 0 };
