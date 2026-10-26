@@ -67,6 +67,29 @@ describe('the WebAudio pluck sink', () => {
     expect(dampOf(gains, 1).calls).toEqual([]);
   });
 
+  it('mono: a note scheduled before an already-committed later one is damped by it, and the later one is not (#736)', () => {
+    const { ac, gains } = fakeContext();
+    const sink = createWebAudioPluckSink(ac, {} as AudioNode, { timbre: 'bass', mono: true });
+    sink.play(40, 0.8, 1.05); // a predicted pluck, committed first
+    sink.play(43, 0.8, 1.0); // a late note clamped to before it
+    // The committed (later) note is never damped: it was inaudible-from-start before the fix.
+    expect(dampOf(gains, 0).calls).toEqual([]);
+    // The earlier note rings until the later one starts, then falls.
+    expect(dampOf(gains, 1).calls).toEqual([['target', 0, 1.05, expect.any(Number)]]);
+    // And a note after both damps the LATER one, as in time order.
+    sink.play(45, 0.8, 1.5);
+    expect(dampOf(gains, 0).calls).toEqual([['target', 0, 1.5, expect.any(Number)]]);
+    expect(dampOf(gains, 1).calls).toHaveLength(1);
+  });
+
+  it('mono: a mute scheduled before a committed later note does not silence it', () => {
+    const { ac, gains } = fakeContext();
+    const sink = createWebAudioPluckSink(ac, {} as AudioNode, { timbre: 'bass', mono: true });
+    sink.play(40, 0.8, 1.05);
+    sink.play(0, 0, 1.0);
+    expect(dampOf(gains, 0).calls).toEqual([]);
+  });
+
   it('polyphonic: a note damps only the previous note on its own voice', () => {
     const { ac, gains } = fakeContext();
     const sink = createWebAudioPluckSink(ac, {} as AudioNode, { timbre: 'guitar', mono: false });
