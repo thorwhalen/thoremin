@@ -1,6 +1,6 @@
 """Generate the synthetic impact clip sets the sub-frame estimators are scored on.
 
-The clips come from the `an` package's impact harness (`an.impacts`, thorwhalen/an):
+The clips come from the cut-out genre package's impact harness (`cutan.impacts`, which lived in `an` until an#321):
 a stick or a ball striking a surface, or turning in mid-air with no contact, on a
 known tempo grid with humanised timing, sampled by a camera model with a shutter and
 capture-time jitter. Each clip ships `truth.json` (intended grid time, executed impact
@@ -17,7 +17,7 @@ app-data-lifecycle rule). The scorer is `scripts/subframe/score.ts`.
     python scripts/subframe/gen_clip_sets.py --name bench-var --variability --kinds air --fps 15,20,24,30,60
                                                         # each stroke's own fall and brake (#351)
 
-Axes of the benchmark set (`bench-v1`), all over `an.impacts.BENCHMARK_SPEC` (a
+Axes of the benchmark set (`bench-v1`), all over `cutan.impacts.BENCHMARK_SPEC` (a
 96 -> 132 bpm accelerando over 24 beats, accents (1, .6, .8, .6), 12 ms AR(1) timing
 jitter): object x kind x fps (24, 30, 60) x shutter (0, 180 degrees) x capture timing
 (exact; irregular capture reported nominally; irregular capture reported truthfully,
@@ -33,7 +33,7 @@ from dataclasses import replace
 from itertools import product
 from pathlib import Path
 
-from an.impacts import BENCHMARK_SPEC, ImpactClipSpec, write_impact_clip
+from cutan.impacts import BENCHMARK_SPEC, ImpactClipSpec, write_impact_clip
 
 DEFAULT_ROOT = Path("~/.local/share/thoremin/synthetic").expanduser()
 
