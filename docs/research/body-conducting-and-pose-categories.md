@@ -490,6 +490,7 @@ npx vite-node scripts/body/excerpt.ts -- <pose> <cut> --from S --to S --beats <b
 npx vite-node scripts/build_body_fixture.ts <scenario> <cut> --clip "..." --meta extra.json
 npx vite-node scripts/body/measure_channels.ts -- --csv docs/research/data/body-channels.csv   # every video_body_* fixture with a grid, plus the synthetic control
 npx vite-node scripts/body/measure_channels.ts -- --pose <pose> --beats <beats.json|stroke> --bpb N   # vet a clip before it becomes a fixture
+npx vite-node scripts/body/measure_channels.ts -- --root <dir> --summary   # every fixture-shaped folder under dir (a corpus kept outside the repo, #861), with an across-clips table
 npx vite-node scripts/body/measure_pulse_noise.ts -- --long 12          # §5.4: red noise against the fixtures through the pulse follower (--long 0 = off)
 ```
 

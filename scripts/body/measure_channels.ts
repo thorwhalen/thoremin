@@ -7,6 +7,11 @@
  *        npx vite-node scripts/body/measure_channels.ts -- --pose <pose.ndjson.gz> --beats <beats.json> [--bpb 4]
  *        (the second form vets a clip before it becomes a fixture: `video_to_pose.py`'s
  *        output and `audio_beats.py`'s JSON, both in the app-data dir)
+ *        npx vite-node scripts/body/measure_channels.ts -- --root <dir> [--summary] [--csv out.csv]
+ *        (every fixture-shaped folder under `dir`: a corpus exported outside the repository,
+ *        such as terpsi's clips, #861; `--summary` prints only the across-clips tables)
+ *
+ * A scenario is a fixture name or a path to a fixture-shaped folder (`lib_clips.loadClip`).
  *
  * With no scenario, every `test/fixtures/video_body_*` whose `meta.json` carries a grid
  * (`grid.beats`, the music's beats in the excerpt's own seconds) or a stated tempo
@@ -17,7 +22,7 @@
 import { readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { measureClip, extractChannels, pulseSummary, bestCell, meterReading, medianBeatS, chanceFLag, type CellResult } from './lib_channels';
-import { FIXTURES, loadClip, adHocClip, syntheticClip, type BodyClip } from './lib_clips';
+import { FIXTURES, loadClip, adHocClip, syntheticClip, clipDirs, type BodyClip } from './lib_clips';
 
 const f2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : '-');
 
@@ -67,6 +72,44 @@ function meterLine(clip: BodyClip): string {
   return `| ${clip.name} | ${clip.beatsPerBar} | ${m.beatChannel} ${f2(m.beatS / beatS)} (r ${f2(m.beatR)}) | ${m.barChannel} ${f2(m.barS / beatS)} (r ${f2(m.barR)}) | ${f2(m.ratio)} |`;
 }
 
+/** A channel x level locks on a clip when its best cell's Rayleigh p is under this. */
+const LOCK_P = 0.01;
+
+/** One line per channel: on how many clips it locks at each level (Rayleigh p < 0.01) and
+ *  the median R of its best cell there; then the pulse follower's trust over the clips. */
+function acrossClipsTable(runs: ReadonlyArray<{ clip: BodyClip; cells: readonly CellResult[] }>): string {
+  const levels = ['beat', 'half-bar', 'bar'] as const;
+  const channels = [...new Set(runs.flatMap((r) => r.cells.map((c) => c.channel)))];
+  const lines = [
+    `### Across ${runs.length} clips: clips locked (Rayleigh p < ${LOCK_P}), median R`,
+    '',
+    '| channel | ' + levels.map((l) => `${l} locked | ${l} R`).join(' | ') + ' | follower trusted (median) | follower level (beats, modal) |',
+    '|---|' + levels.map(() => '---:|---:').join('|') + '|---:|---:|',
+  ];
+  const med = (xs: number[]) => {
+    const v = xs.filter(Number.isFinite).sort((a, b) => a - b);
+    return v.length ? v[v.length >> 1] : NaN;
+  };
+  const pulses = runs.map((r) => {
+    const t = r.clip.frames.map((_, i) => i / r.clip.fps);
+    const beatS = medianBeatS(r.clip.grid);
+    return new Map(extractChannels(r.clip.frames, r.clip.fps).map((ch) => [ch.id, pulseSummary(ch.y, t, beatS)]));
+  });
+  for (const ch of channels) {
+    const row = levels.map((l) => {
+      const best = runs.filter((r) => r.cells.some((c) => c.channel === ch && c.level === l)).map((r) => bestCell(r.cells, ch, l).score);
+      if (!best.length) return '- | -';
+      return `${best.filter((s) => s.p < LOCK_P).length}/${best.length} | ${f2(med(best.map((s) => s.r)))}`;
+    });
+    const ps = pulses.map((m) => m.get(ch)).filter((x): x is NonNullable<typeof x> => !!x);
+    const levelCounts = new Map<number, number>();
+    for (const p of ps) if (Number.isFinite(p.levelBeats)) levelCounts.set(p.levelBeats, (levelCounts.get(p.levelBeats) ?? 0) + 1);
+    const modal = [...levelCounts].sort((a, b) => b[1] - a[1])[0];
+    lines.push(`| ${ch} | ${row.join(' | ')} | ${ps.length ? f2(med(ps.map((p) => p.trusted))) : '-'} | ${modal ? `${modal[0]} (${modal[1]}/${ps.length})` : '-'} |`);
+  }
+  return lines.join('\n');
+}
+
 function main(): void {
   const args = process.argv.slice(2).filter((a) => a !== '--');
   const csvAt = args.indexOf('--csv');
@@ -85,16 +128,25 @@ function main(): void {
     console.log(`Pulse follower per channel:\n\n${pulseTable(clip)}\n`);
     return;
   }
-  const names = args.length
+  const root = opt('--root');
+  const summaryOnly = args.includes('--summary');
+  if (summaryOnly) args.splice(args.indexOf('--summary'), 1);
+  const names = root
+    ? clipDirs(root)
+    : args.length
     ? args
     : [...readdirSync(FIXTURES).filter((d) => d.startsWith('video_body_') && existsSync(join(FIXTURES, d, 'meta.json'))), 'synthetic'];
   const meter = ['| clip | stated beats per bar | beat level: channel, period in beats (ACF r) | bar level: channel, period in beats (ACF r) | ratio |', '|---|---:|---|---|---:|'];
   const csv = ['clip,channel,event,polarity,level,n,rate,f,fLag,lagS,r,p,logP,bas,cemgil'];
+  const runs: Array<{ clip: BodyClip; cells: CellResult[] }> = [];
   for (const name of names) {
     const clip = name === 'synthetic' ? syntheticClip() : loadClip(name);
     const cells = measureClip(clip.frames, clip.fps, clip.grid, clip.beatsPerBar);
-    console.log(table(clip, cells) + '\n');
-    console.log(`Pulse follower per channel (${clip.name}):\n\n${pulseTable(clip)}\n`);
+    runs.push({ clip, cells });
+    if (!summaryOnly) {
+      console.log(table(clip, cells) + '\n');
+      console.log(`Pulse follower per channel (${clip.name}):\n\n${pulseTable(clip)}\n`);
+    }
     meter.push(meterLine(clip));
     for (const c of cells) {
       const s = c.score;
@@ -102,6 +154,7 @@ function main(): void {
     }
   }
   console.log(`Two levels at once (the meter):\n\n${meter.join('\n')}\n`);
+  if (runs.length > 1) console.log(acrossClipsTable(runs) + '\n');
   if (csvPath) {
     writeFileSync(csvPath, csv.join('\n') + '\n');
     console.log(`wrote ${csv.length - 1} cells -> ${csvPath}`);
