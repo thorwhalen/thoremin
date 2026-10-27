@@ -9,8 +9,8 @@
  */
 import { syntheticBodyNode } from '../../src/slices/body/nodes/synthetic_body';
 import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join, dirname, basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { parseRecords } from '@thoremin/dag';
@@ -40,10 +40,23 @@ interface GridMeta {
   wrist?: 'left' | 'right';
 }
 
-export function loadClip(name: string): BodyClip {
-  const dir = join(FIXTURES, name);
-  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as { fps: number; grid?: GridMeta; music?: { bpm: number } | null };
-  const raw = readFileSync(join(dir, 'camBody.body.ndjson.gz'));
+/** The two files a body clip folder holds, in the committed fixtures and outside them. */
+const POSE_FILE = 'camBody.body.ndjson.gz';
+const META_FILE = 'meta.json';
+
+/**
+ * A body clip from a fixture-shaped folder: `camBody.body.ndjson.gz` plus a `meta.json`
+ * with `fps` and a `grid` or a `music.bpm`. A bare name is a committed fixture
+ * (`test/fixtures/<name>`); a path (absolute, or with a separator) is a folder anywhere,
+ * such as a corpus clip exported from terpsi into the app-data dir (#861), whose source
+ * licence keeps it out of the repository.
+ */
+export function loadClip(nameOrDir: string): BodyClip {
+  const isPath = isAbsolute(nameOrDir) || /[\\/]/.test(nameOrDir);
+  const dir = isPath ? resolve(nameOrDir) : join(FIXTURES, nameOrDir);
+  const name = isPath ? basename(dir) : nameOrDir;
+  const meta = JSON.parse(readFileSync(join(dir, META_FILE), 'utf8')) as { fps: number; grid?: GridMeta; music?: { bpm: number } | null };
+  const raw = readFileSync(join(dir, POSE_FILE));
   const frames = parseRecords(gunzipSync(raw).toString('utf8')).map((r) => r.value) as BodyFrame[];
   const dur = frames.length / meta.fps;
   if (meta.grid?.beats?.length) {
@@ -53,6 +66,15 @@ export function loadClip(name: string): BodyClip {
   const p = 60 / meta.music.bpm;
   const grid = Array.from({ length: Math.floor(dur / p) + 1 }, (_, i) => i * p);
   return { name, frames, fps: meta.fps, grid, beatsPerBar: meta.grid?.beatsPerBar ?? 4, phaseKnown: false };
+}
+
+/** Every body clip folder directly under `root` (both files present), sorted: a corpus
+ *  export to measure in one run (`measure_channels.ts --root`). */
+export function clipDirs(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(root, d.name, POSE_FILE)) && existsSync(join(root, d.name, META_FILE)))
+    .map((d) => join(root, d.name))
+    .sort();
 }
 
 /** A clip from a pose stream and a beats JSON (`audio_beats.py`), before it is a fixture. */
