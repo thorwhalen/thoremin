@@ -10,6 +10,8 @@ import { defineNode } from '@thoremin/dag';
 import { makeHandKeypoints, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SOURCE_SLOT_OUTPUT } from './source_contract';
 
+const SYNTHETIC_HANDS = ['right', 'left', 'both'] as const;
+
 const Params = z.object({
   width: z.number().default(640),
   height: z.number().default(480),
@@ -19,8 +21,9 @@ const Params = z.object({
   opennessPeriod: z.number().default(3),
   /** Seconds for one pinch oscillation. */
   pinchPeriod: z.number().default(2.5),
-  /** Which hand(s) to emit. */
-  hands: z.enum(['right', 'left', 'both']).default('right'),
+  /** Which hand(s) to emit. `?synthetic.hands=both` (or `left`) chooses in a browser run, for an
+   *  instrument that needs the player's other hand (the physical theremin's pitch rod). */
+  hands: z.enum(SYNTHETIC_HANDS).default(() => handsFromUrl()),
   /** Vertical position of the hand, normalized 0 (top) .. 1 (bottom). */
   yNorm: z.number().default(0.5),
   /** Hand size in pixels. */
@@ -52,6 +55,12 @@ type Params = z.infer<typeof Params>;
 /** `?<name>=1` (a browser only): the switch a smoke or the guide's pictures turn a mode on with. */
 function flagFromUrl(name: string): boolean {
   return typeof location !== 'undefined' && new URLSearchParams(location.search).get(name) === '1';
+}
+
+/** `?synthetic.hands=<right|left|both>` (a browser only); `right` otherwise, as always. */
+function handsFromUrl(): (typeof SYNTHETIC_HANDS)[number] {
+  const v = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('synthetic.hands') : null;
+  return (SYNTHETIC_HANDS as readonly string[]).includes(v ?? '') ? (v as (typeof SYNTHETIC_HANDS)[number]) : 'right';
 }
 
 /** `?synthetic.strike=1`: the smoke's switch for the strike mode. */

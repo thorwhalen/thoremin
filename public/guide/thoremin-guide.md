@@ -17,6 +17,7 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
     - [Head Chords](#instruments-head-chords)
     - [Open Air Pad](#instruments-open-air-pad)
     - [Pentatonic](#instruments-pentatonic)
+    - [Physical Theremin](#instruments-physical-theremin)
     - [Pitch Bender](#instruments-pitch-bender)
     - [Pose Chords](#instruments-pose-chords)
     - [Pulse Organ](#instruments-pulse-organ)
@@ -114,7 +115,7 @@ Every instrument that comes with thoremin, grouped by what you play it with. Ope
 
 Play the air in front of the camera like a theremin: your hands choose the pitch and the loudness, and each instrument changes what the fingers, the face and the open hand do.
 
-[Bell & Strings](#instruments-bell-and-strings) · [Everything](#instruments-everything) · [Finger Cues](#instruments-finger-cues) · [Finger FX](#instruments-finger-fx) · [Finger Gate](#instruments-finger-gate) · [Glass Bells](#instruments-glass-bells) · [Hand-shape Chords](#instruments-hand-shape-chords) · [Head Chords](#instruments-head-chords) · [Open Air Pad](#instruments-open-air-pad) · [Pentatonic](#instruments-pentatonic) · [Pitch Bender](#instruments-pitch-bender) · [Pose Chords](#instruments-pose-chords) · [Pulse Organ](#instruments-pulse-organ) · [Split Voices](#instruments-split-voices) · [Trigger Octaves](#instruments-trigger-octaves) · [Wrist Theremin](#instruments-wrist-theremin)
+[Bell & Strings](#instruments-bell-and-strings) · [Everything](#instruments-everything) · [Finger Cues](#instruments-finger-cues) · [Finger FX](#instruments-finger-fx) · [Finger Gate](#instruments-finger-gate) · [Glass Bells](#instruments-glass-bells) · [Hand-shape Chords](#instruments-hand-shape-chords) · [Head Chords](#instruments-head-chords) · [Open Air Pad](#instruments-open-air-pad) · [Pentatonic](#instruments-pentatonic) · [Physical Theremin](#instruments-physical-theremin) · [Pitch Bender](#instruments-pitch-bender) · [Pose Chords](#instruments-pose-chords) · [Pulse Organ](#instruments-pulse-organ) · [Split Voices](#instruments-split-voices) · [Trigger Octaves](#instruments-trigger-octaves) · [Wrist Theremin](#instruments-wrist-theremin)
 
 ### [Air instruments](#areas-air)
 
@@ -159,6 +160,7 @@ Play the air in front of the camera like a theremin: your hands choose the pitch
 - [Head Chords](#instruments-head-chords): Turn your head slowly from left to right to move through the key's chords.
 - [Open Air Pad](#instruments-open-air-pad): Move a hand to play notes on a soft pad.
 - [Pentatonic](#instruments-pentatonic): Allow the camera, then tap anywhere to start the sound.
+- [Physical Theremin](#instruments-physical-theremin): Bring your right hand toward the rod on the right of the video: the closer, the higher the pitch.
 - [Pitch Bender](#instruments-pitch-bender): Play a note by moving your hand.
 - [Pose Chords](#instruments-pose-chords): Stand back so the camera sees your whole body.
 - [Pulse Organ](#instruments-pulse-organ): Look at the camera and change your expression.
@@ -403,6 +405,51 @@ Your hand's position is read as a note of the scale (the pentatonic scale in C b
 In the editor, **Sound** sets the root note, the scale, the octave range and the sound of each voice; **Hand** sets the magnetism and what the open hand and the pinch do. Save the result as your own instrument.
 
 Its settings: [Sound](#settings--sound), [Hand](#settings--hand). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
+
+
+<a id="instruments-physical-theremin"></a>
+
+[Instruments](#instruments) › [Field instruments](#areas-field)
+
+## Physical Theremin
+
+![Physical Theremin, as it looks on screen](https://apps.thorwhalen.com/thoremin/guide/pics/physical-theremin.jpg)
+
+### What to do
+
+1. Bring your right hand toward the rod on the right of the video: the closer, the higher the pitch.
+2. Hold the hand still and open or close your fingers to play intervals: an open hand sounds higher than a fist.
+3. Raise your left hand over the loop at the bottom left for more volume; lower it onto the loop for silence.
+
+A theremin that works the way a real one does. Your hand and the rod are the two plates of an invisible capacitor, and the pitch comes from how much they couple, so both where your hand is and its shape play the note.
+
+**How it works**
+
+On a real theremin your hand and the pitch antenna form a tiny capacitor, a fraction of a picofarad with the arm stretched out and a few picofarads close by. That capacitor detunes a radio oscillator, and the difference between it and a second, fixed oscillator is the note you hear. This instrument computes the same thing from the camera: each part of your hand (the palm and every finger) adds its area divided by its distance to the rod.
+
+So the field is crowded near the rod: each octave up takes half the distance of the octave below. **Linearity** (in the settings) straightens it out, the way the coil inside a modern theremin does, so equal moves give more even intervals.
+
+Opening a finger adds its area to the plate, so it raises the pitch. That is **aerial fingering**, the technique Clara Rockmore made famous: keep the hand in one place and play the intervals with the fingers. Here a fist sounds about five semitones below an open hand at the same spot. A palm turned to face the rod couples more than one seen edge-on.
+
+The left hand works the volume loop the same way: the nearer it is, the more it detunes the volume circuit and the quieter the sound, down to silence on the loop. With the left hand out of view the sound plays at full volume, as a real theremin does with no hand near the loop. Lower your right hand out of view to stop.
+
+**Vibrato** is a quick, small rocking of the wrist, five or six times a second. **Staccato** is a quick dip of the left hand onto the loop and back.
+
+**Assistance**
+
+A real theremin has no frets: the note is wherever your hand is, and it slides between notes. **Assistance** adds help a little at a time, from 0 (a pure theremin with no help at all) up to 1:
+
+- **Pitch correction** pulls the pitch toward the nearest note. Low assistance pulls gently toward every semitone; from the middle up it pulls toward the notes of the instrument's scale (set in the Sound section). At full strength it locks onto the note, and a hand held near the border between two notes stays on one of them.
+- **Smoothing** quiets the small shake the camera sees in a still hand, while still following a real move.
+- **Vibrato aid** notices a real wrist vibrato and keeps it through the correction (a plain pitch correction would flatten it), a little deeper.
+
+The four helpers follow the assistance level until you move one of them yourself; then they are yours, and "Back to the level's defaults" hands them back. Assistance at 0 always turns all of them off.
+
+**Settings**
+
+**Physical theremin** in the editor: on or off, the assistance and its four helpers, the sound and the volume. Under **Antennas and circuits**: linearity, how sensitive the rod is, the zero beat (the low hum with no hand near; 0 is silence), the pitch circuit's capacitance (a larger one gives a narrower range), how close a hand can come, where the rod stands and how high the loop is, how sharply the loop silences, what happens with the left hand out of view, and whether the antennas and the note readout are drawn on the video.
+
+Its settings: [Physical theremin](#settings--physical-theremin). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
 
 
 <a id="instruments-pitch-bender"></a>
@@ -1726,6 +1773,12 @@ Switch the ASL reader on, include the movement signs (J, Z and the words), set h
 ### Drawn pieces
 
 Switch between shaping (a pinch draws or moves a piece) and playing (the fingertips strike, touch and pluck them), set the volume and the Shape new pieces start with, and give each piece its Shape, Feel, Tone, sound and note. Under Advanced: how hard a stroke must be to count as a hit, and whether only pieces near your hand's distance from the camera can be struck.
+
+<a id="settings--physical-theremin"></a>
+
+### Physical theremin
+
+Play the theremin through its physics: switch it on, set the assistance (0 is a pure theremin; up from there it adds pitch correction toward the semitones or the scale, smoothing and a vibrato aid, each of which you can tune yourself), choose the sound and volume. Under Antennas and circuits: the linearity of the pitch field, the rod's sensitivity, the zero beat, the pitch circuit's capacitance, the closest approach, where the rod and the loop are, how sharply the loop silences, what a missing left hand does, and what is drawn on the video.
 
 <a id="settings--midi"></a>
 

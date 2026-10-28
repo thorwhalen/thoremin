@@ -932,6 +932,14 @@
       {
         "name": "feature-lab.meters.body",
         "kind": "feature-vector"
+      },
+      {
+        "name": "physical-theremin.antennas.status",
+        "kind": "physical-theremin-status"
+      },
+      {
+        "name": "physical-theremin.antennas.config",
+        "kind": "physical-theremin-config"
       }
     ],
     "outputs": [],
@@ -3440,6 +3448,44 @@
     ]
   },
   {
+    "type": "physical-theremin",
+    "title": "Physical theremin",
+    "description": "A theremin played through its physics: the right hand's capacitance to a virtual pitch rod (palm and fingers, area over distance) detunes an LC oscillator and the heterodyne beat is the pitch, so finger openings play intervals (aerial fingering); the left hand over a virtual loop sets the volume; an assistance level adds pitch correction, smoothing and a vibrato aid. Off by default.",
+    "roles": [
+      "feature",
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "config",
+        "kind": "physical-theremin-config"
+      },
+      {
+        "name": "scale",
+        "kind": "number[]"
+      },
+      {
+        "name": "octaveShift",
+        "kind": "number"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "params",
+        "kind": "synth-params"
+      },
+      {
+        "name": "status",
+        "kind": "physical-theremin-status"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "pick",
     "title": "Pick",
     "description": "Extract a scalar from a structured input by dotted path (e.g. right.x).",
@@ -4193,6 +4239,10 @@
         "kind": "conductor-config"
       },
       {
+        "name": "physicalTheremin",
+        "kind": "physical-theremin-config"
+      },
+      {
         "name": "faceCategorizer",
         "kind": "face-categorizer-config"
       },
@@ -4381,6 +4431,10 @@
       },
       {
         "name": "voice10",
+        "kind": "synth-params"
+      },
+      {
+        "name": "voice11",
         "kind": "synth-params"
       },
       {

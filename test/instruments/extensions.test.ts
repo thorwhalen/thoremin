@@ -24,7 +24,7 @@ import { deriveBranchIds } from '@/instruments/derive';
 import type { Extension, ExtensionsSettingsShape, LooseExtensionDials } from '@thoremin/sdk/instruments/extension';
 import type { BreathStatus } from '@thoremin/ext-air/nodes/overlay/breath_cue';
 import { IDLE_AIR_FLUTE_STATUS } from '@thoremin/ext-air/nodes/air_flute';
-import { AIR, ASL, DRAWN, BODY, FACES, GENERATIVE, MIDI, SONG, CONDUCTOR, LAB, HARMONY, TRAINER, hasExtension } from '../helpers/extensions';
+import { AIR, ASL, DRAWN, BODY, FACES, GENERATIVE, MIDI, SONG, CONDUCTOR, LAB, HARMONY, TRAINER, THEREMIN, hasExtension } from '../helpers/extensions';
 
 // The breath cue (the air extension's overlay cue since #600 S10) reads the flute's status
 // through a structural slice; this pins, at typecheck time, that the status still has those fields.
@@ -33,9 +33,9 @@ void _breath;
 
 describe('the extension list', () => {
   it.runIf(AIR)('ships the air extension, whose instruments are its branches and dial slices', () => {
-    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(HARMONY ? ['harmonic-layers'] : []), ...(ASL ? ['asl'] : []), ...(DRAWN ? ['drawn-pieces'] : []), ...(MIDI ? ['midi-output'] : []), ...(GENERATIVE ? ['generative-layer'] : []), ...(SONG ? ['song-tool'] : []), ...(BODY ? ['body-tracking'] : []), ...(TRAINER ? ['trainer-tool'] : []), ...(CONDUCTOR ? ['conductor-tool'] : []), ...(LAB ? ['feature-lab'] : []), ...(FACES ? ['faces'] : []), ...(hasExtension('patcher') ? ['patcher'] : [])]);
-    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', ...(HARMONY ? ['chord-map', 'chord-map-face', 'chord-map-signs', 'chord-wheel', 'chord-wheel-face', 'chord-wheel-signs', 'chord-wheel-categorizer', 'chord-wheel-affect', 'chord-chart'] : []), ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(DRAWN ? ['drawn-pieces'] : []), ...(MIDI ? ['midi-out'] : []), ...(GENERATIVE ? ['generative'] : []), ...(SONG ? ['song-playback', 'song-pace'] : []), ...(BODY ? ['body-source', 'body-route'] : []), ...(TRAINER ? ['trainer-hud'] : []), ...(CONDUCTOR ? ['conductor'] : []), ...(LAB ? ['lab-meters'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
-    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', ...(HARMONY ? ['chordMap', 'chordWheel', 'chordChart'] : []), ...(ASL ? ['asl'] : []), ...(DRAWN ? ['drawnPieces'] : []), ...(MIDI ? ['midi'] : []), ...(GENERATIVE ? ['steer'] : []), ...(BODY ? ['body', 'bodyMap'] : []), ...(CONDUCTOR ? ['conductor'] : []), ...(FACES ? ['faceCategorizer', 'poseCategorizer', 'categorizerChords'] : [])]);
+    expect(EXTENSIONS.map((e) => e.id)).toEqual(['air', ...(HARMONY ? ['harmonic-layers'] : []), ...(ASL ? ['asl'] : []), ...(DRAWN ? ['drawn-pieces'] : []), ...(MIDI ? ['midi-output'] : []), ...(GENERATIVE ? ['generative-layer'] : []), ...(SONG ? ['song-tool'] : []), ...(BODY ? ['body-tracking'] : []), ...(TRAINER ? ['trainer-tool'] : []), ...(CONDUCTOR ? ['conductor-tool'] : []), ...(LAB ? ['feature-lab'] : []), ...(THEREMIN ? ['physical-theremin'] : []), ...(FACES ? ['faces'] : []), ...(hasExtension('patcher') ? ['patcher'] : [])]);
+    expect(EXTENSION_BRANCHES.map((b) => b.id)).toEqual(['air-drum', 'air-bass', 'air-guitar', 'air-flute', ...(HARMONY ? ['chord-map', 'chord-map-face', 'chord-map-signs', 'chord-wheel', 'chord-wheel-face', 'chord-wheel-signs', 'chord-wheel-categorizer', 'chord-wheel-affect', 'chord-chart'] : []), ...(ASL ? ['asl-signs', 'asl-chord'] : []), ...(DRAWN ? ['drawn-pieces'] : []), ...(MIDI ? ['midi-out'] : []), ...(GENERATIVE ? ['generative'] : []), ...(SONG ? ['song-playback', 'song-pace'] : []), ...(BODY ? ['body-source', 'body-route'] : []), ...(TRAINER ? ['trainer-hud'] : []), ...(CONDUCTOR ? ['conductor'] : []), ...(LAB ? ['lab-meters'] : []), ...(THEREMIN ? ['physical-theremin'] : []), ...(FACES ? ['face-categorizer', 'pose-categorizer', 'hand-chords', 'pose-chords'] : [])]);
+    expect(EXTENSION_DIAL_SLICES.map((s) => s.key)).toEqual(['airDrum', 'airBass', 'airGuitar', 'airFlute', ...(HARMONY ? ['chordMap', 'chordWheel', 'chordChart'] : []), ...(ASL ? ['asl'] : []), ...(DRAWN ? ['drawnPieces'] : []), ...(MIDI ? ['midi'] : []), ...(GENERATIVE ? ['steer'] : []), ...(BODY ? ['body', 'bodyMap'] : []), ...(CONDUCTOR ? ['conductor'] : []), ...(THEREMIN ? ['physicalTheremin'] : []), ...(FACES ? ['faceCategorizer', 'poseCategorizer', 'categorizerChords'] : [])]);
     expect(ALL_BRANCH_IDS).toEqual(expect.arrayContaining(['trunk', 'field-voices', 'air-drum', 'air-flute']));
   });
 });
@@ -75,7 +75,7 @@ describe('the registry folds over the extensions', () => {
     // declaration carries each manifest's type, so these hold with no import of air in core.
     expectTypeOf<Settings['airDrum']>().toEqualTypeOf<AirDrumSettings>();
     expectTypeOf<Settings['airFlute']>().toEqualTypeOf<AirFluteSettings>();
-    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'chordMap' | 'chordWheel' | 'chordChart' | 'asl' | 'drawnPieces' | 'midi' | 'steer' | 'body' | 'bodyMap' | 'conductor' | 'faceCategorizer' | 'poseCategorizer' | 'categorizerChords'>();
+    expectTypeOf<keyof ExtensionDials>().toEqualTypeOf<'airDrum' | 'airBass' | 'airGuitar' | 'airFlute' | 'chordMap' | 'chordWheel' | 'chordChart' | 'asl' | 'drawnPieces' | 'midi' | 'steer' | 'body' | 'bodyMap' | 'conductor' | 'faceCategorizer' | 'poseCategorizer' | 'categorizerChords' | 'physicalTheremin'>();
     // @ts-expect-error a key no listed extension declares is not a settings key
     expectTypeOf<Settings['airKazoo']>().toBeNever();
     // A manifest typed loosely (`const x: Extension = ...`) widens its keys to `string`; the fold

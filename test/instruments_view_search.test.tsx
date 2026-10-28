@@ -10,7 +10,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { assembleSpec } from '@/app/graph';
 import { branchLabel, listingOf, whyMatched } from '@/app/library/instrumentsListing';
-import { AIR, ASL, DRAWN } from './helpers/extensions';
+import { AIR, ASL, DRAWN, THEREMIN } from './helpers/extensions';
 
 beforeAll(() => localStorage.clear());
 afterEach(() => cleanup());
@@ -90,7 +90,7 @@ describe('filter chips', () => {
     const chip = within(screen.getByRole('group', { name: 'Filter by starred' })).getByRole('button');
     expect(chip.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(chip);
-    await waitFor(() => expect(rowNames().length).toBe(34 + (ASL ? 4 : 0) + (DRAWN ? 1 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(34 + (ASL ? 4 : 0) + (DRAWN ? 1 : 0) + (THEREMIN ? 1 : 0)));
   });
 
   it.runIf(AIR)('are behind a Filters toggle, with a chip per class and live counts', async () => {
@@ -102,7 +102,7 @@ describe('filter chips', () => {
     const air = within(byClass).getByRole('button', { name: /Air/ });
     const field = within(byClass).getByRole('button', { name: /Field/ });
     expect(air.textContent).toMatch(ASL ? /^Air\s*20$/ : /^Air\s*18$/); // the sign instruments need ASL
-    expect(field.textContent).toMatch(/^Field\s*16$/);
+    expect(field.textContent).toMatch(THEREMIN ? /^Field\s*17$/ : /^Field\s*16$/);
   });
 
   it.runIf(AIR)('narrow the list; the class chips keep their counts; the toggle stays open while one is on', async () => {
@@ -113,7 +113,7 @@ describe('filter chips', () => {
     fireEvent.click(within(byClass).getByRole('button', { name: /Air/ }));
     await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map Paths', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Conduct the Chords (Body)', ...(ASL ? ['Sign Wheel', 'Sign Map'] : []), 'Chord Map Strum']));
     // The N+1 rule: the unpicked class chip still says how many it would add.
-    expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(/16/);
+    expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(THEREMIN ? /17/ : /16/);
     // Closing the toggle does not hide an active filter.
     fireEvent.click(screen.getByRole('button', { name: /Filters 1/ }));
     expect(document.querySelector('[data-instrument-filters]')).toBeTruthy();
@@ -123,6 +123,6 @@ describe('filter chips', () => {
       .map((b) => b.textContent?.replace(/[^A-Za-z]/g, ''));
     expect(order).toEqual(['Field', 'Air', ...(ASL ? ['Sign'] : []), ...(DRAWN ? ['Drawn'] : [])]);
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    await waitFor(() => expect(rowNames().length).toBe(34 + (ASL ? 4 : 0) + (DRAWN ? 1 : 0)));
+    await waitFor(() => expect(rowNames().length).toBe(34 + (ASL ? 4 : 0) + (DRAWN ? 1 : 0) + (THEREMIN ? 1 : 0)));
   });
 });

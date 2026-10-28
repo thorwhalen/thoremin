@@ -175,7 +175,9 @@ const LATER_EXTENSION_NODES = new Set([
   'chordChart',
   ...(hasExtension('asl') ? ['aslSigns', 'signChord'] : []), ...(hasExtension('faces') ? ['faceCat', 'poseCat', 'catChord', 'catBlend'] : []),
   // The drawn pieces (thorwhalen/thoremin-ar), a later lazy extension; its own tests are `test/ext-draw/`.
-  ...(hasExtension('drawn-pieces') ? ['drawnHands', 'drawnVoice'] : [])]);
+  ...(hasExtension('drawn-pieces') ? ['drawnHands', 'drawnVoice'] : []),
+  // The physical theremin, a later slice; its own wiring is `test/theremin/theremin_graph.test.ts`.
+  ...(hasExtension('physical-theremin') ? ['physTheremin'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
  *  aside above, so they are restored here to compare with the core + air snapshot. */
@@ -189,7 +191,7 @@ const REPLACED_BY_LATER_EXTENSIONS: EdgeSpec[] = hasExtension('faces')
  *  (#610 item 4) the chord map's, whose config edges the host wires from `ui`, so no node filter
  *  catches them. */
 // The harmony slice's since #674; the drawn pieces' element (thorwhalen/thoremin-ar), whose config the host wires too.
-const LATER_OVERLAY_PORT = /^(harmonic-layers\.(chordWheel|chordMap|chordTorus)|drawn-pieces\.pieces)\./;
+const LATER_OVERLAY_PORT = /^(harmonic-layers\.(chordWheel|chordMap|chordTorus)|drawn-pieces\.pieces|physical-theremin\.antennas)\./;
 const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),

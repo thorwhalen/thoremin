@@ -16,6 +16,8 @@ export interface SeedPlay {
 export const SEED_PLAY: Record<string, SeedPlay> = {
   'Air Drum': { extra: 'synthetic.strike=1', check: 'hits' },
   'Conduct the Chords': { extra: 'synthetic.conduct=1' },
+  // The pitch rod is the player's right hand; the synthetic source's one hand is their left.
+  'Physical Theremin': { extra: 'synthetic.hands=both' },
 };
 
 /** The sound thresholds, against the listening tap's readings (`audioTap.ts`). */

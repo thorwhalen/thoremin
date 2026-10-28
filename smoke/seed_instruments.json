@@ -162,6 +162,10 @@
       "silent": "starts with no pieces; it sounds only once a shape is drawn and struck"
     },
     {
+      "name": "Physical Theremin",
+      "body": false
+    },
+    {
       "name": "Hand-shape Chords",
       "body": false
     },

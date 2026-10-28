@@ -15,7 +15,8 @@ import { Engine, StreamRecorder } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import type { SynthParams } from '@/nodes';
-import { AIR, ASL, DRAWN, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR, LAB } from './helpers/extensions';
+import { AIR, ASL, DRAWN, FACES, MIDI, GENERATIVE, SONG, BODY, CONDUCTOR, LAB, THEREMIN } from './helpers/extensions';
+import { PHYSICAL_THEREMIN_VOICE_ID } from '@/slices/theremin/nodes/physical_theremin';
 
 describe('production app graph', () => {
   it.runIf(BODY)('builds with a valid topology', () => {
@@ -92,7 +93,7 @@ describe('production app graph', () => {
     // slice's since #600 S13, counted with it (29 core nodes + 1).
     // The generative pair (indirect-map + lyria) is its slice's since #600 S14 (27 core nodes + 2).
     // The song player and the pace controller are the song slice's since #600 S15 (25 core nodes + 2).
-    expect(order).toHaveLength((AIR ? 36 : 25) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (SONG ? 2 : 0) + (ASL ? 2 : 0) + (DRAWN ? 2 : 0) + (FACES ? 4 : 0));
+    expect(order).toHaveLength((AIR ? 36 : 25) + (MIDI ? 1 : 0) + (GENERATIVE ? 2 : 0) + (SONG ? 2 : 0) + (ASL ? 2 : 0) + (DRAWN ? 2 : 0) + (FACES ? 4 : 0) + (THEREMIN ? 1 : 0));
     // The pace controller (#186 PR H) runs before the song player it feeds: the edges back
     // from the player are delayed, so the loop is not a cycle.
     // (Both are the song slice's since #600 S15: checked while it is listed.)
@@ -369,7 +370,8 @@ describe('production app graph', () => {
     const chordWheel = [0, 1, 2, 3, 4].map((i) => CHORD_WHEEL_VOICE_ID_BASE + i);
     // The chord chart (air, H9) its five chord voices.
     const chordChart = [0, 1, 2, 3, 4].map((i) => CHORD_CHART_VOICE_ID_BASE + i);
-    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap, ...chordWheel, ...chordChart] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord];
+    // The physical theremin always carries its one voice, absent while it is off.
+    const merged0 = [...core, ...(AIR ? [FLUTE_VOICE_ID, ...chordMap, ...chordWheel, ...chordChart] : []), ...(ASL ? [2_000_000, 2_000_001, 2_000_002, 2_000_003] : []), ...catChord, ...(THEREMIN ? [PHYSICAL_THEREMIN_VOICE_ID] : [])];
     expect([...ids].sort((a, b) => a - b)).toEqual(merged0.sort((a, b) => a - b));
     expect(ids.slice(0, 2)).toEqual([0, 1]); // the hand voices lead (the overlay reads them by position)
     expect(new Set(ids).size).toBe(ids.length); // no id collision across hands + both chords + flute
