@@ -746,6 +746,25 @@
     168
    ],
    "prs": []
+  },
+  {
+   "path": "docs/research/theremin-physics.md",
+   "title": "The theremin's physics, and a theremin played through it",
+   "area": "air",
+   "abstract": "How a real theremin works and why the hand's shape, not only its position, plays the note. The pitch antenna and the hand are the two plates of a capacitor of a few picofarads in the tank of a radio-frequency oscillator; its beat against a fixed oscillator is the note, nearly proportional to the capacitance, so the field crowds near the antenna (each octave up at half the distance) and real instruments straighten it with a series coil. Because the hand is a plate, opening a finger adds area and raises the pitch at a fixed position: Clara Rockmore's aerial fingering. The volume loop detunes a tuned circuit. The note gives the model the Physical Theremin seed uses (the hand as palm and finger plates from MediaPipe landmarks, the heterodyne beat, a linearity warp, the volume circuit) and its assistance stack (pitch correction with hysteresis, smoothing, a vibrato aid that keeps a periodic wobble through the correction), measured on a real signer's held hand.",
+   "status": "current",
+   "numbers": [
+    "An open hand facing the rod: about 0.17 pF at 50 cm, 1.9 pF at 4 cm; 3.5 octaves over half a metre on the raw curve",
+    "A real signer's open palm sounds 4.9 semitones above their fist held at the same place (aerial fingering)",
+    "Note changes per held second on a real hand: 3.63 pure, 1.13 at assistance 0.25, 0.13 at full"
+   ],
+   "issues": [
+    863,
+    865
+   ],
+   "prs": [
+    864
+   ]
   }
  ],
  "experiments": [

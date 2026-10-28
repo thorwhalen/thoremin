@@ -34,8 +34,10 @@ import {
 } from '../lib/physics';
 import { createAssistChain, effectiveAssist } from '../lib/assist';
 
-/** The voice id: past the hands (0-1), the chords (2-10), any score (11 + n) and the air flute. */
-export const PHYSICAL_THEREMIN_VOICE_ID = 2_000_000;
+/** The voice id: past the hands (0-1), the chords (2-10), any score (11 + n), the air flute (1e6),
+ *  the ASL chords (2e6), the categorizer chords (3e6), the chord map (4e6), wheel (5e6) and chart
+ *  (6e6); `test/app_graph.test.ts` keeps the blocks disjoint. */
+export const PHYSICAL_THEREMIN_VOICE_ID = 7_000_000;
 
 /** The sounding range, Hz: the beat is clamped to what a synth voice plays. */
 const MIN_HZ = 20;

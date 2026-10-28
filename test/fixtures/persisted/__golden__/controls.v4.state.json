@@ -710,6 +710,50 @@
       "show": true
     }
   },
+  "physicalTheremin": {
+    "antennasOnVideo": {
+      "show": true
+    },
+    "assist": {
+      "correction": 0.25,
+      "custom": false,
+      "level": 0.25,
+      "smoothing": 0.2,
+      "snap": "chromatic",
+      "vibratoAid": 0.25
+    },
+    "enabled": false,
+    "loop": {
+      "floor": 0.25,
+      "leftAbsent": "full",
+      "q": 150,
+      "tankPf": 100
+    },
+    "mirrorHandedness": true,
+    "pitch": {
+      "carrierKHz": 260,
+      "linearity": 0.6,
+      "nullHz": 30,
+      "sensitivity": 1,
+      "standoffCm": 3,
+      "tankPf": 120
+    },
+    "pitchAntenna": {
+      "bottom": 0.95,
+      "top": 0.08,
+      "x": 0.88
+    },
+    "readout": {
+      "show": true
+    },
+    "sound": "sine",
+    "volume": 0.6,
+    "volumeLoop": {
+      "left": 0.04,
+      "right": 0.42,
+      "y": 0.85
+    }
+  },
   "poseCategorizer": {
     "id": "",
     "transport": false
