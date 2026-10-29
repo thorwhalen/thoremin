@@ -33,8 +33,12 @@ export const ALLOWED: readonly string[] = [
   'packages/sdk-ui/src/audio/',
 ];
 
-/** The most a page may load up front, bytes as the build ships them. */
-export const BUDGET_BYTES = 60_000;
+/**
+ * The most a page may load up front, bytes as the build ships them. Raised from 60 kB when the field
+ * games' stage learned the road (the Pitch Maze's higher levels): a page now carries one or two
+ * stages and its game, 40 to 65 kB; what this guards against is the app (megabytes) leaking in.
+ */
+export const BUDGET_BYTES = 80_000;
 
 interface Chunk {
   file: string;

@@ -8,7 +8,7 @@
  * `fieldLayout` is pure: the box the plane fills on a canvas, and the aspect a session's hit test
  * needs so that a balloon round on screen is round to it.
  */
-import type { CursorState, FieldTarget, FieldView, Point, WallView } from './field';
+import type { CursorState, FieldTarget, FieldView, Point, SegmentView } from './field';
 import { BG, DIM, GRID, TEXT, TRAIL, drawResultsCard, text } from './stage';
 
 export interface FieldFrame {
@@ -90,19 +90,105 @@ function twins(x: number, overhang: number, wrapX: boolean): number[] {
   return out;
 }
 
-function drawWall(g: CanvasRenderingContext2D, w: WallView, L: Layout) {
-  const y0 = L.px({ x: 0, y: w.y1 }).y;
-  const y1 = L.px({ x: 0, y: w.y0 }).y;
-  const a = w.gapX - w.gapW / 2;
-  const b = w.gapX + w.gapW / 2;
-  // The solid parts: [0,1] minus the opening, which may straddle the wrap.
-  const solid: [number, number][] = a < 0 ? [[b, a + 1]] : b > 1 ? [[b - 1, a]] : [[0, a], [b, 1]];
-  g.fillStyle = w.state === 'passed' ? 'rgba(100,116,139,0.35)' : w.state === 'inside' ? '#94a3b8' : '#64748b';
-  for (const [s, e] of solid) if (e > s) g.fillRect(L.left + s * L.bw, y0, (e - s) * L.bw, y1 - y0);
-  if (w.state !== 'passed') {
-    const gx = L.left + w.gapX * L.bw;
-    text(g, w.label, gx, y0 - 12, 15, '#f5d142', 'center');
+/** Where the ball line sits on the plane (the camera follows the ball), as the track session puts it. */
+const BALL_Y = 0.25;
+/** The road's camera: this far behind the ball (screen heights), the horizon this high on the plane. */
+const ROAD = { camera: 0.8, horizon: 0.96 };
+
+/**
+ * A track point (x across, d ahead of the ball) on the canvas: from above, d is height on the
+ * plane; on the road, things shrink toward a horizon as camera / (camera + d), full width at the
+ * ball's line.
+ */
+function trackProjection(L: Layout, view: 'top' | 'road') {
+  if (view === 'top') return (x: number, d: number) => L.px({ x, y: BALL_Y + d });
+  const ball = L.px({ x: 0.5, y: BALL_Y });
+  const horizon = L.px({ x: 0.5, y: ROAD.horizon });
+  return (x: number, d: number) => {
+    const k = ROAD.camera / (ROAD.camera + Math.max(d, -0.6 * ROAD.camera));
+    return { x: ball.x + (x - 0.5) * L.bw * k, y: horizon.y + (ball.y - horizon.y) * k };
+  };
+}
+
+type Project = ReturnType<typeof trackProjection>;
+
+function quad(g: CanvasRenderingContext2D, P: Project, x0: number, x1: number, d0: number, d1: number) {
+  const a = P(x0, d0);
+  const b = P(x1, d0);
+  const c = P(x1, d1);
+  const d = P(x0, d1);
+  g.beginPath();
+  g.moveTo(a.x, a.y);
+  g.lineTo(b.x, b.y);
+  g.lineTo(c.x, c.y);
+  g.lineTo(d.x, d.y);
+  g.closePath();
+  g.fill();
+}
+
+/** The parts of [0, 1] inside (or, `outside`, outside) an interval that may straddle the wrap. */
+function spans(gapX: number, gapW: number, outside: boolean): [number, number][] {
+  const a = gapX - gapW / 2;
+  const b = gapX + gapW / 2;
+  if (!outside) return a < 0 ? [[0, b], [a + 1, 1]] : b > 1 ? [[a, 1], [0, b - 1]] : [[a, b]];
+  return a < 0 ? [[b, a + 1]] : b > 1 ? [[b - 1, a]] : [[0, a], [b, 1]];
+}
+
+/** The road itself: a lane per pitch class converging on the horizon, the black keys' darker. */
+function drawRoad(g: CanvasRenderingContext2D, v: FieldView, L: Layout, P: Project) {
+  const cols = v.backdrop.columns ?? [];
+  const far = 8;
+  cols.forEach((c, k) => {
+    g.fillStyle = c.dark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.03)';
+    quad(g, P, k / cols.length, (k + 1) / cols.length, -0.6, far);
+    const label = P((k + 0.5) / cols.length, 0);
+    text(g, c.label, label.x, L.bottom + 14, 13, c.dark ? DIM : TEXT, 'center');
+  });
+  g.strokeStyle = GRID;
+  g.lineWidth = 1;
+  for (let k = 0; k <= cols.length; k++) {
+    const a = P(k / cols.length, -0.6);
+    const b = P(k / cols.length, far);
+    g.beginPath();
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.stroke();
   }
+  // The ball's line: where the note under it counts.
+  const a = P(0, 0);
+  const b = P(1, 0);
+  g.fillStyle = 'rgba(255,255,255,0.25)';
+  g.fillRect(a.x, a.y - 1, b.x - a.x, 2);
+}
+
+function drawSegment(g: CanvasRenderingContext2D, s: SegmentView, P: Project, onBand: boolean | null | undefined) {
+  if (s.kind === 'wall') {
+    g.fillStyle = s.state === 'passed' ? 'rgba(100,116,139,0.35)' : s.state === 'inside' ? '#94a3b8' : '#64748b';
+    for (const [x0, x1] of spans(s.gapX, s.gapW, true)) if (x1 > x0) quad(g, P, x0, x1, s.d0, s.d1);
+    if (s.state !== 'passed') {
+      const q = P(s.gapX, s.d1);
+      text(g, s.label, q.x, q.y - 12, 15, '#f5d142', 'center');
+    }
+    return;
+  }
+  g.fillStyle =
+    s.state === 'passed' ? 'rgba(148,163,184,0.25)' : s.state === 'inside' ? (onBand ? '#34d399' : '#f87171') : 'rgba(245,209,66,0.85)';
+  for (const [x0, x1] of spans(s.gapX, s.gapW, false)) if (x1 > x0) quad(g, P, x0, x1, Math.max(s.d0, -0.6), s.d1);
+  if (s.state === 'ahead' && s.d0 < 4) {
+    const q = P(s.gapX, s.d0);
+    text(g, s.label, q.x, q.y + 12, Math.max(10, 15 * (ROAD.camera / (ROAD.camera + Math.max(0, s.d0)))), TEXT, 'center');
+  }
+}
+
+/** The points left on the band levels, as a bar under the score. */
+function drawPoints(g: CanvasRenderingContext2D, points: number, L: Layout, y: number) {
+  const w = Math.min(160, L.bw * 0.3);
+  const full = Math.min(1, points / 20);
+  g.fillStyle = GRID;
+  g.fillRect(L.right - w, y, w, 8);
+  g.fillStyle = points < 2 ? '#f87171' : '#34d399';
+  g.fillRect(L.right - w, y, w * full, 8);
+  text(g, `${Math.round(points)} points`, L.right - w - 8, y + 4, 12, DIM, 'right');
 }
 
 function drawTarget(g: CanvasRenderingContext2D, t: FieldTarget, v: FieldView, L: Layout) {
@@ -185,12 +271,19 @@ export function drawField(g: CanvasRenderingContext2D, frame: FieldFrame, v: Fie
   const L = fieldLayout(frame);
   g.fillStyle = BG;
   g.fillRect(0, 0, W, H);
-  drawBackdrop(g, v, L);
+  const road = v.maze?.view === 'road';
+  if (road) drawBackdrop(g, { ...v, backdrop: { ...v.backdrop, columns: undefined } }, L);
+  else drawBackdrop(g, v, L);
   g.save();
   g.beginPath();
   g.rect(L.left, L.top, L.bw, L.bh);
   g.clip();
-  for (const w of v.maze?.walls ?? []) drawWall(g, w, L);
+  if (v.maze) {
+    const P = trackProjection(L, v.maze.view);
+    if (road) drawRoad(g, v, L, P);
+    // Far first, so a near segment covers a far one.
+    for (const sgm of [...v.maze.segments].sort((a, b) => b.d0 - a.d0)) drawSegment(g, sgm, P, v.maze.onBand);
+  }
   for (const t of v.targets) drawTarget(g, t, v, L);
   if (v.cursor) drawCursor(g, v.cursor, v.trail, L, !!v.maze, !!v.maze?.stuck);
   g.restore();
@@ -199,8 +292,15 @@ export function drawField(g: CanvasRenderingContext2D, frame: FieldFrame, v: Fie
   text(g, v.title, L.left, headY, Math.min(20, H * 0.04), TEXT);
   if (v.hint) text(g, v.hint, L.left, headY + Math.min(20, H * 0.04), 12, DIM);
   if (v.score.total > 0) text(g, `${v.score.done} / ${v.score.total}   ${Math.floor(v.score.elapsed)} s`, L.right, headY, 15, DIM, 'right');
+  if (v.maze?.points !== undefined) drawPoints(g, v.maze.points, L, headY + 14);
   if (v.phase === 'results' && v.results) {
-    const headline = v.game === 'maze' ? `${Math.round(v.score.elapsed)} s` : `${v.score.done} / ${v.score.total}`;
+    const headline = v.maze?.lost
+      ? 'Out of points'
+      : v.maze?.points !== undefined
+        ? `${Math.round(v.results.accuracy * 100)} % on the note`
+        : v.game === 'maze'
+          ? `${Math.round(v.score.elapsed)} s`
+          : `${v.score.done} / ${v.score.total}`;
     drawResultsCard(g, W, H, v.results, headline);
   }
   if (v.notice) text(g, v.notice, W / 2, H * 0.5, 16, '#fbbf24', 'center');
