@@ -14,6 +14,7 @@
     { "id": "feature-lab", "module": "@/slices/lab", "ui": "@/slices/lab/ui" },
     { "id": "physical-theremin", "module": "@/slices/theremin", "ui": "@/slices/theremin/ui" },
     { "id": "sound-mapper", "module": "@/slices/sound-mapper", "ui": "@/slices/sound-mapper/ui" },
+    { "id": "audio-games", "module": "@/slices/games", "ui": "@/slices/games/ui" },
     { "id": "faces", "module": "@thoremin/ext-faces", "ui": "@thoremin/ext-faces/ui", "lazy": { "module": "@thoremin/ext-faces/lazy", "ui": "@thoremin/ext-faces/lazy_ui" } },
     { "id": "patcher", "module": "@thoremin/ext-patcher", "ui": "@thoremin/ext-patcher/ui", "lazy": { "module": "@thoremin/ext-patcher/lazy", "ui": "@thoremin/ext-patcher/lazy_ui" } }
   ]

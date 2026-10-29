@@ -56,6 +56,9 @@ export const LAB = hasExtension('feature-lab');
 /** True when the build ships the physical theremin slice (the theremin through its physics). */
 export const THEREMIN = hasExtension('physical-theremin');
 
+/** The listening games slice (#866): Sing Along, Play Along Lessons, Match the Note and the timing take. */
+export const GAMES = hasExtension('audio-games');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not

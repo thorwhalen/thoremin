@@ -555,6 +555,23 @@
     "showMarkers": true,
     "showValues": false
   },
+  "games": {
+    "difficulty": "normal",
+    "enabled": false,
+    "game": "sing",
+    "lesson": "sing-five",
+    "octaveFold": true,
+    "reference": true,
+    "transpose": 0
+  },
+  "gamesPlaying": false,
+  "gamesPrefs": {
+    "measuredAt": "",
+    "offset": 0,
+    "source": "none",
+    "spread": null
+  },
+  "gamesRun": 0,
   "gestures": {
     "bindings": {
       "fist": {

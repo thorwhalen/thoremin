@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (65)
+## Nodes (67)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -125,7 +125,7 @@ Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
 - **in:** —
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, expressionTargets:expression-targets, handednessDwell:number, faceControls:face-controls-config, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, chordWheel:chord-wheel-config, chordChart:chord-chart-config, asl:asl-config, drawnPieces:drawn-pieces-config, midi:midi-config, steer:steer-settings, body:body-config, bodyMap:body-map, conductor:conductor-config, physicalTheremin:physical-theremin-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerVolume:number, steerConfig:steer-config, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songAlignStart:boolean, songFollowRange:number, trainerHudConfig:trainer-hud-config, conductorLeadOffsets:lead-offsets, featureLabConfig:feature-lab-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, chordMapMidi:held-notes, chordMapAudio:audio-chroma, chordMapRatings:move-ratings, steerPlaying:boolean, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, trainerHudSnapshot:trainer-hud-snapshot, scoreDoc:score-doc, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, expressionTargets:expression-targets, handednessDwell:number, faceControls:face-controls-config, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, chordWheel:chord-wheel-config, chordChart:chord-chart-config, asl:asl-config, drawnPieces:drawn-pieces-config, midi:midi-config, steer:steer-settings, body:body-config, bodyMap:body-map, conductor:conductor-config, physicalTheremin:physical-theremin-config, games:games-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerVolume:number, steerConfig:steer-config, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songAlignStart:boolean, songFollowRange:number, trainerHudConfig:trainer-hud-config, conductorLeadOffsets:lead-offsets, featureLabConfig:feature-lab-config, gamesOffset:number, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, chordMapMidi:held-notes, chordMapAudio:audio-chroma, chordMapRatings:move-ratings, steerPlaying:boolean, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, trainerHudSnapshot:trainer-hud-snapshot, scoreDoc:score-doc, gamesRun:number, gamesPlaying:boolean, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -584,6 +584,25 @@ Makes the song follow the dancer: relates the dancer's pulse to the song's beat 
 - **out:** rate:number, pace:pace-state, playing:boolean, cue:song-cue, servo:servo-state
 - **params:** persistS (number=3), smoothS (number=1), nudge (number=0.03), phaseThreshold (number=0.08333333333333333), maxRatio (number=8), phaseOffset (number=0), songPeriodS (number=8), minRate (number=0.5), maxRate (number=2), horizonBeats (number=1), maxCorrection (number=0.25), seekBeyondBeats (number=2)
 
+### Listening games
+_Games and lessons that listen to the microphone and draw the whole picture: sing a melody, play along a note highway, match a note; with their own count-in and reference sounds (#866)._
+
+#### `listening-game` — Listening game
+A music game or lesson that listens to the microphone: Sing (a melody's notes as bars, the voice as a trail, judged by the share of each note on pitch), Play along (a note highway judged in time, and in pitch when the lesson is pitched), Match the note (find a played note and hold it), or the calibration take. Emits the stage's view model and its own count-in and reference sounds.
+
+- **roles:** mapping
+- **in:** config:games-config, run:number, playing:boolean, offset:number, audio:audio-events, micStatus:string
+- **out:** view:game-view, notes:note-events, status:games-status
+- **params:** —
+
+#### `games-out` — Listening games sounds
+The listening games' own sounds (count-in clicks, reference notes) as plucked notes on the audio clock, each at the time the game scheduled it.
+
+- **roles:** synth
+- **in:** notes:note-events, mute:boolean
+- **out:** —
+- **params:** timbre (enum(bass | guitar)="bass"), mono (boolean=true)
+
 ### Synthesis & generation
 _Make sound — direct synthesis, steered AI music, or an external MIDI instrument._
 
@@ -626,7 +645,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, harmonic-layers.chordTorus.status:chord-map-status, harmonic-layers.chordTorus.config:chord-map-config, drawn-pieces.pieces.scene:drawn-scene, drawn-pieces.pieces.contacts:drawn-contacts, drawn-pieces.pieces.config:drawn-pieces-config, trainer-tool.hud.hud:trainer-hud-config, trainer-tool.hud.snapshot:trainer-hud-snapshot, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector, physical-theremin.antennas.status:physical-theremin-status, physical-theremin.antennas.config:physical-theremin-config
+- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, harmonic-layers.chordTorus.status:chord-map-status, harmonic-layers.chordTorus.config:chord-map-config, drawn-pieces.pieces.scene:drawn-scene, drawn-pieces.pieces.contacts:drawn-contacts, drawn-pieces.pieces.config:drawn-pieces-config, trainer-tool.hud.hud:trainer-hud-config, trainer-tool.hud.snapshot:trainer-hud-snapshot, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector, physical-theremin.antennas.status:physical-theremin-status, physical-theremin.antennas.config:physical-theremin-config, audio-games.stage.view:game-view
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), cellGrid (object={}), timbreLevels (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={})
 

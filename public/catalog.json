@@ -994,6 +994,10 @@
       {
         "name": "physical-theremin.antennas.config",
         "kind": "physical-theremin-config"
+      },
+      {
+        "name": "audio-games.stage.view",
+        "kind": "game-view"
       }
     ],
     "outputs": [],
@@ -2693,6 +2697,38 @@
     ]
   },
   {
+    "type": "games-out",
+    "title": "Listening games sounds",
+    "description": "The listening games' own sounds (count-in clicks, reference notes) as plucked notes on the audio clock, each at the time the game scheduled it.",
+    "roles": [
+      "synth"
+    ],
+    "inputs": [
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "default": false
+      }
+    ],
+    "outputs": [],
+    "params": [
+      {
+        "name": "timbre",
+        "type": "enum(bass | guitar)",
+        "default": "bass"
+      },
+      {
+        "name": "mono",
+        "type": "boolean",
+        "default": true
+      }
+    ]
+  },
+  {
     "type": "gesture-classifier",
     "title": "Gesture Classifier",
     "description": "Hand features → discrete poses (fist/open/pinch) + enter/exit edge events.",
@@ -3031,6 +3067,59 @@
         ]
       }
     ]
+  },
+  {
+    "type": "listening-game",
+    "title": "Listening game",
+    "description": "A music game or lesson that listens to the microphone: Sing (a melody's notes as bars, the voice as a trail, judged by the share of each note on pitch), Play along (a note highway judged in time, and in pitch when the lesson is pitched), Match the note (find a played note and hold it), or the calibration take. Emits the stage's view model and its own count-in and reference sounds.",
+    "roles": [
+      "mapping"
+    ],
+    "inputs": [
+      {
+        "name": "config",
+        "kind": "games-config"
+      },
+      {
+        "name": "run",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "playing",
+        "kind": "boolean",
+        "default": false
+      },
+      {
+        "name": "offset",
+        "kind": "number",
+        "default": 0
+      },
+      {
+        "name": "audio",
+        "kind": "audio-events"
+      },
+      {
+        "name": "micStatus",
+        "kind": "string",
+        "default": ""
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view",
+        "kind": "game-view"
+      },
+      {
+        "name": "notes",
+        "kind": "note-events"
+      },
+      {
+        "name": "status",
+        "kind": "games-status"
+      }
+    ],
+    "params": []
   },
   {
     "type": "lyria",
@@ -4297,6 +4386,10 @@
         "kind": "physical-theremin-config"
       },
       {
+        "name": "games",
+        "kind": "games-config"
+      },
+      {
         "name": "faceCategorizer",
         "kind": "face-categorizer-config"
       },
@@ -4369,6 +4462,10 @@
         "kind": "feature-lab-config"
       },
       {
+        "name": "gamesOffset",
+        "kind": "number"
+      },
+      {
         "name": "airGuitarModel",
         "kind": "shape-model"
       },
@@ -4423,6 +4520,14 @@
       {
         "name": "scoreDoc",
         "kind": "score-doc"
+      },
+      {
+        "name": "gamesRun",
+        "kind": "number"
+      },
+      {
+        "name": "gamesPlaying",
+        "kind": "boolean"
       },
       {
         "name": "faceCategorizerModel",
