@@ -30,7 +30,7 @@ python3 scripts/demos/render_impact_demo.py --clip $OUT/clips/<air clip> --onset
 npx vite-node scripts/demos/chord_shape_timeline.ts --video 2pXS8k1zx8U   # -> $OUT/guitar/2pXS8k1zx8U.timeline.json
 python3 scripts/demos/render_chord_demo.py --timeline $OUT/guitar/2pXS8k1zx8U.timeline.json --video V.mp4 --landmarks L.ndjson --start 110 --out $OUT/guitar/guitar.mp4
 npm run build && npx vite preview --port 4391 --strictPort &   # then:
-node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/ --out $OUT/tour
+node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/instruments/ --out $OUT/tour
 node scripts/demos/tour_air.mjs            # same server; -> $OUT/round3/tour
 npx vite-node scripts/demos/instrument_take.ts --instrument drums   # or bass, guitar
 npx vite --port 4392 --strictPort &   # the offline-audio harness

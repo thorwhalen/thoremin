@@ -13,7 +13,7 @@
  *
  * Usage:
  *   npx vite preview --port 4391 --strictPort &
- *   node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/ --out DIR [--screens-only]
+ *   node scripts/demos/tour_live.mjs --url http://localhost:4391/thoremin/instruments/ --out DIR [--screens-only]
  */
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, readdirSync, renameSync } from 'node:fs';
@@ -30,7 +30,7 @@ const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
 };
-const url = arg('url', 'http://localhost:4391/thoremin/');
+const url = arg('url', 'http://localhost:4391/thoremin/instruments/');
 const out = arg('out', join(process.env.THOREMIN_DATA_DIR ?? join(homedir(), '.local', 'share', 'thoremin'), 'demos', 'tour'));
 const query = arg('query', '?slot.source=synthetic-hands');
 const screensOnly = process.argv.includes('--screens-only');

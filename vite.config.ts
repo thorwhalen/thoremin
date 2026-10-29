@@ -15,11 +15,13 @@ export default defineConfig(({mode}) => {
     build: {
       outDir: 'frontend',
       emptyOutDir: true,
-      // The app, plus the standalone game pages (`play/`): each its own entry, so a page pulls in
-      // only what it imports (`scripts/check_play_bundle.ts` holds it to that).
+      // The landing (`index.html`, no script), the camera app (`instruments/`) and the standalone
+      // game pages (`play/`): each its own entry, so a page pulls in only what it imports
+      // (`docs/design/apps.md`; `scripts/check_play_bundle.ts` holds the pages to that).
       rollupOptions: {
         input: {
           index: path.resolve(__dirname, 'index.html'),
+          instruments: path.resolve(__dirname, 'instruments', 'index.html'),
           play: path.resolve(__dirname, 'play', 'index.html'),
           ...Object.fromEntries(PLAY_PAGES.map((p) => [p, path.resolve(__dirname, 'play', `${p}.html`)])),
         },

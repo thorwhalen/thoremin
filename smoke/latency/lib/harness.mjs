@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(HERE, '..', '..', '..');
 /** Where the app is served (vite `base`). */
-export const BASE_PATH = '/thoremin/';
+export const BASE_PATH = '/thoremin/instruments/';
 /** The camera clip kept under the app-data dir (never in the repo); see `measure.mjs` for making one. */
 export const DEFAULT_CLIP = join(homedir(), '.local/share/thoremin/latency/hands_720p30.y4m');
 

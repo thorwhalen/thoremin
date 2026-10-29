@@ -86,11 +86,13 @@ Thoremin turns your camera into a musical instrument. Hold a hand up and it play
 
 ### Start in one minute
 
-1. Open [the app](https://apps.thorwhalen.com/thoremin/) in Chrome (other browsers work with a few gaps: see [troubleshooting](#troubleshooting)) and allow the camera.
+1. Open [the camera instruments](https://apps.thorwhalen.com/thoremin/instruments/) in Chrome (other browsers work with a few gaps: see [troubleshooting](#troubleshooting)) and allow the camera.
 2. Press **Tap to play**. Browsers need a tap before they will make any sound.
 3. Hold a hand up. Move it left and right for pitch, up and down for loudness. Raise a second hand for a second voice.
 
 No camera? Add `?slot.source=synthetic-hands` to the address and a pretend hand plays.
+
+Thoremin's [home page](https://apps.thorwhalen.com/thoremin/) opens nothing by itself: from there you pick the camera instruments or the [listening games](https://apps.thorwhalen.com/thoremin/play/), which use only the microphone.
 
 ### Pick something to try
 

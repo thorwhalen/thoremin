@@ -4,10 +4,53 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Thoremin</title>
+    <meta name="description" content="Music you play with your body or your voice, in your browser: camera instruments, listening games and a sound mapper." />
+    <script>
+      // The landing (docs/design/apps.md). Every old link to the bare URL carried a query or a hash
+      // (`?slot.source=...`, `?engine=legacy`, `?replay=...`): those meant the camera app, which now
+      // lives at `instruments/`, so they are forwarded there unchanged, before anything is drawn.
+      // A bare arrival stays here, and nothing on this page touches the camera or the microphone.
+      if (location.search || location.hash) location.replace('instruments/' + location.search + location.hash);
+    </script>
+    <style>
+      :root { color-scheme: light dark; --bg: #fbfaf7; --fg: #1d1d1f; --muted: #5d5d66; --accent: #0b6b5a; --card: #ffffff; --line: #dcdad2; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #101214; --fg: #ececee; --muted: #a0a0aa; --accent: #5fd6bd; --card: #181b1e; --line: #2c3036; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+      main { max-width: 1040px; margin: 0 auto; padding: 28px 16px 48px; }
+      h1 { font-size: 34px; letter-spacing: -0.02em; margin: 0 0 6px; }
+      .lede { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+      .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+      a.app { display: flex; flex-direction: column; text-decoration: none; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+      a.app:hover, a.app:focus-visible { border-color: var(--accent); outline: none; }
+      a.app img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; background: var(--line); }
+      a.app div { padding: 14px 16px 16px; }
+      a.app b { display: block; font-size: 19px; margin-bottom: 4px; }
+      a.app small { display: block; color: var(--muted); font-size: 14px; }
+      a.app .needs { margin-top: 8px; color: var(--accent); font-size: 13px; font-weight: 600; }
+      footer { margin-top: 36px; color: var(--muted); font-size: 14px; }
+      footer a { color: var(--accent); }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <main>
+      <h1>Thoremin</h1>
+      <p class="lede">Music you play with your body or your voice. Everything runs in your browser: nothing you play is uploaded. Pick one; only the one you open asks for the camera or the microphone.</p>
+
+      <nav class="apps" aria-label="Apps">
+        <a class="app" data-app="instruments" href="instruments/">
+          <img src="guide/pics/home.jpg" alt="The camera instruments, with the instrument list open" loading="lazy" />
+          <div><b>Camera instruments</b><small>Hold a hand up and it plays: a theremin in the air, chords from your face, an air drum, bass, guitar and flute, a conductor's orchestra.</small><span class="needs">Uses the camera</span></div>
+        </a>
+        <a class="app" data-app="listen" href="play/">
+          <img src="guide/pics/sing-along.jpg" alt="Sing Along: a melody scrolling past, the voice drawn as a trail" loading="lazy" />
+          <div><b>Listening games</b><small>Sing along, match a note, clap in time, pop notes with your voice, steer through a pitch maze, play with vowels.</small><span class="needs">Uses the microphone</span></div>
+        </a>
+      </nav>
+
+      <footer>New here? <a href="guide/index.html">The guide</a> says how to play each one. <a href="manual.html">The manual</a> lists every setting.</footer>
+    </main>
   </body>
 </html>
-
