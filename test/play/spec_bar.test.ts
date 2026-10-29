@@ -27,18 +27,6 @@ async function open(file: File): Promise<string> {
   return status.textContent ?? '';
 }
 
-// jsdom's Blob predates arrayBuffer(), which every browser funfon runs in has (formatcast reads files with it).
-if (!Blob.prototype.arrayBuffer) {
-  Blob.prototype.arrayBuffer = function (this: Blob) {
-    return new Promise<ArrayBuffer>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result as ArrayBuffer);
-      r.onerror = () => reject(r.error);
-      r.readAsArrayBuffer(this);
-    });
-  };
-}
-
 beforeEach(() => sessionStorage.clear());
 
 describe('the spec bar', () => {
