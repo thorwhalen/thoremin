@@ -1,0 +1,28 @@
+{
+  "name": "@thoremin/games",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's listening games, pure: lessons as data, the Sing, Play along and Match the note sessions and the calibration take (fed what was heard each tick, they return a view model and the sounds to play), and the stage that draws a view model on a 2D canvas (TypeScript source, consumed through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./calibrate": "./src/calibrate.ts",
+    "./cues": "./src/cues.ts",
+    "./difficulty": "./src/difficulty.ts",
+    "./lesson": "./src/lesson.ts",
+    "./lesson_schema": "./src/lesson_schema.ts",
+    "./lessons": "./src/lessons.ts",
+    "./listen": "./src/listen.ts",
+    "./match": "./src/match.ts",
+    "./play_along": "./src/play_along.ts",
+    "./sing": "./src/sing.ts",
+    "./stage": "./src/stage.ts",
+    "./view": "./src/view.ts"
+  },
+  "dependencies": {
+    "@thoremin/judge": "*",
+    "@thoremin/sdk": "*",
+    "@thoremin/stats": "*",
+    "zod": "*"
+  }
+}

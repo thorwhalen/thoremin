@@ -5,6 +5,7 @@ import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 import {thoreminExtensions} from './vite.extensions';
 import {lazyGuard} from './vite.lazy-guard';
+import {PLAY_PAGES} from './play/pages';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
@@ -14,6 +15,14 @@ export default defineConfig(({mode}) => {
     build: {
       outDir: 'frontend',
       emptyOutDir: true,
+      // The app, plus the standalone game pages (`play/`): each its own entry, so a page pulls in
+      // only what it imports (`scripts/check_play_bundle.ts` holds it to that).
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, 'index.html'),
+          ...Object.fromEntries(PLAY_PAGES.map((p) => [p, path.resolve(__dirname, 'play', `${p}.html`)])),
+        },
+      },
     },
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

@@ -36,10 +36,10 @@ Each is a seed (an instrument in the library) and its editor section. Each has a
 | Windows, onset judge, pitch judge, score, calibration estimate | `packages/judge/` (`@thoremin/judge`, landed) | yes |
 | YIN pitch over a buffer and a streaming tracker | `packages/sdk/src/audio/pitch.ts` (lane A's file in lane B's directory, by agreement on #866) | yes |
 | The pitch analyser wrapper the worklet hosts | `packages/sdk/src/audio/` beside B's onset analyser (one registration line) | yes |
-| Lessons: a Zod schema (targets in beats, a tempo, a count-in) and the shipped lessons | the games slice, `lib/lessons.ts` | yes |
-| The game state machine (idle, count-in, playing, results) over a lesson and the event stream | the games slice, `lib/` | yes |
+| Lessons: a Zod schema (targets in beats, a tempo, a count-in) and the shipped lessons | `@thoremin/games` (`packages/games/`: `lesson.ts`, `lessons.ts`; the Zod schema apart in `lesson_schema.ts`) | yes |
+| The game state machine (idle, count-in, playing, results) over a lesson and the event stream | `@thoremin/games` (`sing.ts`, `play_along.ts`, `match.ts`, `calibrate.ts`) | yes |
 | The game nodes (`sing-game`, `play-along-game`, `match-note-game`) | the games slice, `nodes/` | DAG nodes |
-| The stage overlay elements | the games slice, `nodes/overlay/` | draw only |
+| The stage overlay elements | the drawing in `@thoremin/games` (`stage.ts`); the overlay element that wraps it in the games slice, `nodes/overlay/` | draw only |
 | Editor sections, the start button, status | the games slice, `panels/`, `app/` | React |
 | The calibration take (tap along to clicks) | the games slice, a tool section; writes B's input-offset pref | React + pure maths in the judge |
 
@@ -60,6 +60,10 @@ Pitch frames are stamped at their window's centre (the pitch describes the windo
 A game node's `view` output is plain data: the phase, the engine time now, the visible span, the targets in it with their state (pending, hit with tier, missed), the recent pitch trail, the last few judgments, the running score and, in results, the summary. The overlay element draws only from it, so a test asserts what the player would see without a canvas, and the drawing is swapped without touching the game.
 
 The stage owns the canvas: the seed hides the video (`overlay.video.show: false`) and the element paints its own background first. The camera still opens today, because whether the camera opens is decided by the source slot, not by the instrument. **Gap filed for the shell** ([#869](https://github.com/thorwhalen/thoremin/issues/869)): an instrument that needs no camera should be able to say so (an audio-only instrument then never asks for camera permission). Until then the games run with the camera open and unseen.
+
+## Standalone pages
+
+The same games run without the instrument around them. Everything a game is (lessons, sessions, difficulty, the stage) is the pure package `@thoremin/games`; the slice runs a session inside its graph node, and a page in `play/` runs it in a plain animation loop (`play/src/runner.ts`) over its own AudioContext and the browser audio-input hub (`src/audio/browser.ts`), drawing the stage on its own canvas and playing the cues with a small synth. No camera opens, and no graph, React, store or extension is loaded: `npm run check:play` (CI) fails a page that reaches a module outside its allow list or grows past its budget, and the browser smoke checks it never requests the app. The first page is Match the Note (`play/match-the-note.html`, about 40 kB of source before minification); the calibration take and the timed games come next, and need the player offset kept on the page (the app keeps it as a device pref).
 
 ## Calibration
 

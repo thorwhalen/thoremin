@@ -28,7 +28,7 @@ Every event carries the time of the AUDIO it describes (`frame`: the context sam
 | Sample voices | `packages/sdk/src/audio/sampler.ts` | one-shots started at an exact sample; fade-in part-way through and fade-out from an offset (the correction) |
 | Synthetic taps | `packages/sdk/src/audio/synthetic_taps.ts` | seeded modal-synthesis taps with known onsets and surfaces |
 | Input stage | `packages/sdk/src/timing/input_stage.ts` | `InputStage { seconds, source }` and the trust order |
-| Worklet, hub, sources, graph node | `src/app/audio/`, `packages/sdk-ui/src/audio/hub.ts`, `src/nodes/sources/audio_events*.ts` | below |
+| Worklet, hub, sources, graph node | `src/audio/` (the worklet and the browser hub, `createBrowserAudioInput`, for any page), `src/app/audio/` (the app's hub over its engine context, the stored input stage), `packages/sdk-ui/src/audio/hub.ts`, `src/nodes/sources/audio_events*.ts` | below |
 
 ## Decisions
 

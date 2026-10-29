@@ -26,6 +26,7 @@
     "packages/lazy/src",
     "packages/stats/src",
     "packages/judge/src",
+    "packages/games/src",
     "src/keys",
     "src/nodes",
     "src/music",

@@ -1,5 +1,5 @@
 {
-  "//": "The React layer, typechecked on its own (#201, #312; scripts/react_type_ratchet.ts, `npm run typecheck:react`). It covers what tsconfig.dag.json leaves out: the app shell and its panels (src/app, src/components, src/plugins, src/hooks, src/App.tsx, src/main.tsx), the extensions' React halves (packages/sdk-ui, packages/ext-*), and the jsdom shell tests. With @types/react installed (#312) hooks return real types, so a packages/dag or SDK API change reached through a ref or state is reported, and the layer is fully strict and error-free: the ratchet's committed baseline (tsconfig.react.baseline.json) is empty, so ANY error fails it. The virtual extension modules are declared the way the build sees them (src/extensions/virtual.d.ts, src/app/extensions/virtual.d.ts), so a React file that imports the list typechecks against this build's manifest. The include globs (every .tsx under src and under any workspace package) plus the named directories mean a new src/<dir> or packages/ext-* is covered the day it appears.",
+  "//": "The React layer, typechecked on its own (#201, #312; scripts/react_type_ratchet.ts, `npm run typecheck:react`). It covers what tsconfig.dag.json leaves out: the app shell and its panels (src/app, src/components, src/plugins, src/hooks, src/App.tsx, src/main.tsx), the browser audio input (src/audio, which imports a ?worker&url asset) and the standalone game pages (play/), the extensions' React halves (packages/sdk-ui, packages/ext-*), and the jsdom shell tests. With @types/react installed (#312) hooks return real types, so a packages/dag or SDK API change reached through a ref or state is reported, and the layer is fully strict and error-free: the ratchet's committed baseline (tsconfig.react.baseline.json) is empty, so ANY error fails it. The virtual extension modules are declared the way the build sees them (src/extensions/virtual.d.ts, src/app/extensions/virtual.d.ts), so a React file that imports the list typechecks against this build's manifest. The include globs (every .tsx under src and under any workspace package) plus the named directories mean a new src/<dir> or packages/ext-* is covered the day it appears.",
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strict": true,
@@ -14,6 +14,8 @@
     "src/main.tsx",
     "src/App.tsx",
     "src/app",
+    "src/audio",
+    "play",
     "src/components",
     "src/hooks",
     "src/plugins",

@@ -60,3 +60,24 @@ export function shifted(heard: Heard, offset: number): Heard {
     onsets: heard.onsets.map((o) => ({ ...o, t: o.t - offset })),
   };
 }
+
+/** What to tell the player about the microphone, from the audio hub's state; null while it is live. */
+export function micNotice(state: string): string | null {
+  switch (state) {
+    case '':
+    case 'live':
+      return null;
+    case 'denied':
+      return 'The microphone was refused: allow it in the browser to play.';
+    case 'unsupported':
+      return 'This browser offers no microphone.';
+    case 'failed':
+      return 'The microphone could not be opened.';
+    case 'unavailable':
+      return 'No audio input here.';
+    case 'waiting-audio':
+      return 'Click or press a key to start the sound.';
+    default:
+      return 'Opening the microphone...';
+  }
+}
