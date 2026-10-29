@@ -201,7 +201,7 @@ export function createPitchAnalyser(sampleRate: number, options: PitchAnalyserOp
           for (let k = 0; k < window; k++) frameBuf[k] = ring[(write + k) % window];
           const est = yin(frameBuf, sampleRate, options, scratch);
           // The window ends at sample i; its centre is half a window earlier.
-          events.push({ kind: 'pitch', frame: frame + i + 1 - window / 2, f0: est.f0, clarity: est.clarity });
+          events.push({ kind: 'pitch', frame: frame + i + 1 - window / 2, f0: est.f0, clarity: est.clarity, rms: est.rms });
         }
       }
       return events;

@@ -14,9 +14,9 @@ import { heardFrom, micNotice, type Heard, type TimedAudioEvent } from '@thoremi
 import type { Cue } from '@thoremin/games/cues';
 import type { GameView } from '@thoremin/games/view';
 
-/** A game session, as `@thoremin/games` makes them. */
-export interface Session {
-  tick(now: number, heard: Heard): { view: GameView; cues: Cue[] };
+/** A game session, as `@thoremin/games` makes them: a timed game's `GameView`, or a field game's `FieldView`. */
+export interface Session<V> {
+  tick(now: number, heard: Heard): { view: V; cues: Cue[] };
 }
 
 export interface RunnerDeps {
@@ -33,7 +33,7 @@ export interface RunnerDeps {
 }
 
 /** One tick: the view to draw, or null before the context exists. */
-export function createRunner(session: Session, deps: RunnerDeps): { tick(): GameView | null } {
+export function createRunner<V extends { notice?: string } = GameView>(session: Session<V>, deps: RunnerDeps): { tick(): V | null } {
   return {
     tick() {
       const now = deps.now();

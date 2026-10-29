@@ -8,5 +8,6 @@ export { quantileSorted, quantile, median, median3, sortedCopy } from './quantil
 export type { QuantileIndex, QuantileOptions, MedianEven, MedianOptions } from './quantile';
 export { olsLine } from './line';
 export type { LineFit, LineOptions } from './line';
-export { ewUpdate } from './smooth';
+export { ewUpdate, createOneEuro, ONE_EURO_DEFAULTS } from './smooth';
+export type { OneEuro, OneEuroOptions } from './smooth';
 export { clamp01 } from './clamp';

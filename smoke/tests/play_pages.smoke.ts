@@ -1,6 +1,6 @@
 /**
  * The standalone game pages (`play/`) in a real browser against the built bundle: Match the Note
- * opens its own page, takes the synthetic sound (`?audio.source=synthetic`, no microphone), goes
+ * (and each field game: Pop the Notes, the Pitch Maze) opens its own page, takes the synthetic sound (`?audio.source=synthetic`, no microphone), goes
  * live, draws its stage and runs; and it never requests the app (its entry, the shell, the
  * camera models): the runtime half of `scripts/check_play_bundle.ts`.
  */
@@ -27,3 +27,24 @@ test('Match the Note runs on its own page, without the app', async ({ page }) =>
   expect(app).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+for (const [file, heading, hint] of [
+  ['pop-the-notes', 'Pop the Notes', 'Sing louder to go up, softer to go down.'],
+  ['pitch-maze', 'Pitch Maze', 'Hold the note of the opening until the ball is through.'],
+] as const) {
+  test(`${heading} runs on its own page, without the app`, async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectErrors(page);
+    const requested: string[] = [];
+    page.on('request', (r) => requested.push(r.url()));
+    await page.goto(`play/${file}.html?audio.source=synthetic`);
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.mic()), { timeout: 15_000 }).toBe('live');
+    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.view()?.phase), { timeout: 10_000 }).toBe('playing');
+    expect(await page.evaluate(() => (window as unknown as { thoreminPlay: { view(): { hint?: string } } }).thoreminPlay.view()?.hint)).toBe(hint);
+    const app = requested.filter((u) => /\/assets\/(index|App|vision_bundle|lazy_ui|main)-/.test(u) || /mediapipe|\.task$|\.wasm$/.test(u));
+    expect(app).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}

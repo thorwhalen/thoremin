@@ -82,6 +82,8 @@ export interface PitchEvent {
   f0: number | null;
   /** 0..1, how periodic the frame was. */
   clarity: number;
+  /** RMS of the window, 0..1: the loudness of the same audio the pitch describes (a game's volume axis). */
+  rms?: number;
 }
 
 export type AudioEvent = OnsetEvent | ClassEvent | LevelEvent | PitchEvent | SnippetEvent;

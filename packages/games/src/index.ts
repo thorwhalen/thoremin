@@ -1,6 +1,7 @@
 /**
  * `@thoremin/games` — the listening games without the instrument around them: lessons as data,
- * a session per game (Sing, Play along, Match the note, and the calibration take) that is fed the
+ * a session per game (Sing, Play along, Match the note, the calibration take, and the field games:
+ * Pop the Notes and the Pitch Maze, built from a voice cursor, a loudness scale and a dwell) that is fed the
  * engine time and what the microphone heard each tick and returns a view model plus the sounds to
  * play, and the stage that draws a view model on a 2D canvas.
  *
@@ -20,3 +21,10 @@ export * from './play_along';
 export * from './match';
 export * from './calibrate';
 export * from './stage';
+export * from './field';
+export * from './loudness';
+export * from './cursor';
+export * from './dwell';
+export * from './pop';
+export * from './maze';
+export * from './field_stage';
