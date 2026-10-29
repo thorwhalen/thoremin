@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createPitchTracker, windowFor, yin } from '@thoremin/sdk/audio/pitch';
+import { runAnalysers } from '@thoremin/sdk/audio/analysers';
 import { loadAudioFixture, inBlocks } from '../helpers/audio_fixtures';
 import { seeded } from '../helpers/random';
 
@@ -108,4 +109,23 @@ describe('real singing (vocadito)', () => {
       expect(falseVoiced / Math.max(1, refSilent)).toBeLessThan(0.1);
     });
   }
+});
+
+describe('the pitch analyser on the audio thread (runAnalysers, the worklet loop offline)', () => {
+  it('posts the same estimates as the tracker, one per hop, stamped at the window centre frame', () => {
+    const fx = loadAudioFixture('audio_games_vocadito_2');
+    const sr = fx.wav.sampleRate;
+    const events = runAnalysers(fx.wav.pcm, sr, [{ name: 'pitch' }]).map((e) => e.event);
+    const tr = createPitchTracker({ sampleRate: sr });
+    const frames = inBlocks(fx.wav.pcm, sr, 128, (b, t0) => tr.push(b, t0));
+    expect(events.every((e) => e.kind === 'pitch')).toBe(true);
+    expect(events.length).toBe(frames.length);
+    events.forEach((e, i) => {
+      if (e.kind !== 'pitch') return;
+      expect(e.frame / sr).toBeCloseTo(frames[i].t, 6);
+      expect(e.f0 === null).toBe(frames[i].f0 === null);
+      if (e.f0 !== null) expect(e.f0).toBeCloseTo(frames[i].f0!, 6);
+      expect(e.clarity).toBeCloseTo(frames[i].clarity, 9);
+    });
+  });
 });

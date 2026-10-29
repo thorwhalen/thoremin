@@ -10,6 +10,7 @@ import type { AnalyserMessage, AudioAnalyser, AudioEvent } from './types';
 import { createOnsetDetector, type OnsetOptions } from './onset';
 import { createSoundMapper, type SoundMapperOptions } from './mapper';
 import { runOffline } from './offline';
+import { createPitchAnalyser, type PitchAnalyserOptions } from './pitch';
 
 export interface AnalyserContext {
   sampleRate: number;
@@ -66,6 +67,8 @@ export function createOnsetAnalyser(sampleRate: number, options: OnsetAnalyserOp
 export const ANALYSERS: Record<string, AnalyserFactory> = {
   onset: ({ sampleRate, params }) => createOnsetAnalyser(sampleRate, params as OnsetAnalyserOptions),
   'sound-mapper': ({ sampleRate, params }) => createSoundMapper({ ...(params as Partial<SoundMapperOptions>), sampleRate }),
+  // YIN, one `pitch` event per hop at its window's centre: the singing and play-along games (lane A of #866).
+  pitch: ({ sampleRate, params }) => createPitchAnalyser(sampleRate, params as PitchAnalyserOptions),
 };
 
 export interface AnalyserSpec {

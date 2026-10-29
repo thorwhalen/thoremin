@@ -18,6 +18,7 @@
  * Pure: no DOM, no Web Audio; the same code runs in the AudioWorklet, in a test over a WAV, and
  * in a script.
  */
+import type { AudioAnalyser, AudioEvent } from './types';
 
 export interface PitchEstimate {
   /** Hz, or null when nothing periodic was heard. */
@@ -47,8 +48,8 @@ export function windowFor(sampleRate: number, minHz = YIN_DEFAULTS.minHz): numbe
   return n + (n % 2);
 }
 
-/** YIN over one window `x` (its whole length). */
-export function yin(x: ArrayLike<number>, sampleRate: number, opts: YinOptions = {}): PitchEstimate {
+/** YIN over one window `x` (its whole length). `scratch` (at least `sampleRate / minHz + 1` long) spares the audio thread an allocation. */
+export function yin(x: ArrayLike<number>, sampleRate: number, opts: YinOptions = {}, scratch?: Float64Array): PitchEstimate {
   const { threshold, minHz, maxHz, minRms } = { ...YIN_DEFAULTS, ...opts };
   const n = x.length;
   let energy = 0;
@@ -59,7 +60,7 @@ export function yin(x: ArrayLike<number>, sampleRate: number, opts: YinOptions =
   if (rms < minRms || tauMax <= tauMin + 2) return { f0: null, clarity: 0, rms };
   const w = n - tauMax;
   // d'(tau) for tau = 0..tauMax; d'(0) = 1 by definition.
-  const dp = new Float64Array(tauMax + 1);
+  const dp = scratch && scratch.length >= tauMax + 1 ? scratch : new Float64Array(tauMax + 1);
   dp[0] = 1;
   let running = 0;
   for (let tau = 1; tau <= tauMax; tau++) {
@@ -160,6 +161,50 @@ export function createPitchTracker(opts: PitchTrackerOptions): PitchTracker {
       filled = 0;
       write = 0;
       sinceHop = 0;
+    },
+  };
+}
+
+/** What the pitch analyser posts: the audio-input seam's `pitch` event (`./types`). */
+export interface PitchAnalyserOptions extends YinOptions {
+  /** Window, samples. Default `windowFor(sampleRate, minHz)`. */
+  window?: number;
+  /** Samples between estimates. Default 10 ms worth. */
+  hop?: number;
+}
+
+/**
+ * YIN as an analyser on the audio thread (the seam's `AudioAnalyser`): every hop, one `pitch`
+ * event stamped at its window's CENTRE frame. Allocation-free per quantum apart from the events.
+ */
+export function createPitchAnalyser(sampleRate: number, options: PitchAnalyserOptions = {}): AudioAnalyser {
+  const minHz = options.minHz ?? YIN_DEFAULTS.minHz;
+  const window = options.window ?? windowFor(sampleRate, minHz);
+  const hop = options.hop ?? Math.round(sampleRate / 100);
+  const ring = new Float32Array(window);
+  const frameBuf = new Float32Array(window);
+  const scratch = new Float64Array(Math.floor(sampleRate / minHz) + 2);
+  const events: AudioEvent[] = [];
+  let filled = 0;
+  let write = 0;
+  let sinceHop = 0;
+  return {
+    process(input, _output, frame) {
+      events.length = 0;
+      for (let i = 0; i < input.length; i++) {
+        ring[write] = input[i];
+        write = (write + 1) % window;
+        if (filled < window) filled++;
+        sinceHop++;
+        if (filled === window && sinceHop >= hop) {
+          sinceHop = 0;
+          for (let k = 0; k < window; k++) frameBuf[k] = ring[(write + k) % window];
+          const est = yin(frameBuf, sampleRate, options, scratch);
+          // The window ends at sample i; its centre is half a window earlier.
+          events.push({ kind: 'pitch', frame: frame + i + 1 - window / 2, f0: est.f0, clarity: est.clarity });
+        }
+      }
+      return events;
     },
   };
 }
