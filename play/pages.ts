@@ -4,4 +4,4 @@
  * `play/index.html` as its home) and each held by `scripts/check_play_bundle.ts` to the modules a
  * game needs.
  */
-export const PLAY_PAGES = ['match-the-note', 'pop-the-notes', 'pitch-maze', 'vowels', 'sing-along', 'play-along', 'audio-timing', 'sound-mapper'] as const;
+export const PLAY_PAGES = ['match-the-note', 'pop-the-notes', 'pitch-maze', 'vowels', 'sing-along', 'play-along', 'echo', 'audio-timing', 'sound-mapper'] as const;

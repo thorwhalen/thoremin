@@ -47,6 +47,9 @@ export const GAMES_ANALYSERS = [
   { name: 'pitch', id: 'pitch' },
 ];
 
+/** The onset analyser alone: what Echo reads (claps and taps, no pitch). */
+export const ONSET_ANALYSERS = [{ name: 'onset', id: 'onset' }];
+
 /** The formant analyser: what the vowel games read. */
 export const FORMANT_ANALYSERS = [{ name: 'formants', id: 'formants' }];
 

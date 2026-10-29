@@ -25,7 +25,9 @@
     "./sing": "./src/sing.ts",
     "./stage": "./src/stage.ts",
     "./view": "./src/view.ts",
-    "./vowels": "./src/vowels.ts"
+    "./vowels": "./src/vowels.ts",
+    "./echo": "./src/echo.ts",
+    "./echo_stage": "./src/echo_stage.ts"
   },
   "dependencies": {
     "@thoremin/judge": "*",
