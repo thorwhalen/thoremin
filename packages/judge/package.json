@@ -1,0 +1,18 @@
+{
+  "name": "@thoremin/judge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's judge: timing windows and tiers, onset matching (offline and live), pitch-note judging, score and combo folds, and latency calibration from taps or a loopback; pure and input-agnostic (TypeScript source, consumed through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./windows": "./src/windows.ts",
+    "./onsets": "./src/onsets.ts",
+    "./score": "./src/score.ts",
+    "./pitch": "./src/pitch.ts",
+    "./calibration": "./src/calibration.ts"
+  },
+  "dependencies": {
+    "@thoremin/stats": "*"
+  }
+}
