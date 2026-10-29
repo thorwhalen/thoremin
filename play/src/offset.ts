@@ -1,10 +1,9 @@
 /**
  * The player's timing offset on a standalone page (the app keeps it as a device pref, `gamesPrefs`):
  * what Audio timing measured (the round trip plus the player's anticipation, seconds), kept in this
- * browser's storage and subtracted by the timed games (Sing Along, Play Along Lessons). Storage may
- * be refused (a private window): then there is no offset and the games play with none.
+ * browser's storage (`./stored`) and subtracted by the timed games (Sing Along, Play Along Lessons).
  */
-const KEY = 'funfon.playerOffset';
+import { stored } from './stored';
 
 export interface StoredOffset {
   offset: number;
@@ -13,25 +12,10 @@ export interface StoredOffset {
   at: string;
 }
 
-export function readOffset(): StoredOffset | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw) as StoredOffset;
-    return Number.isFinite(v.offset) ? v : null;
-  } catch {
-    return null;
-  }
-}
+const OFFSET = stored<StoredOffset>('funfon.playerOffset', (v): v is StoredOffset => typeof v === 'object' && v !== null && Number.isFinite((v as StoredOffset).offset));
 
-export function writeOffset(v: StoredOffset): boolean {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(v));
-    return true;
-  } catch {
-    return false;
-  }
-}
+export const readOffset = (): StoredOffset | null => OFFSET.read();
+export const writeOffset = (v: StoredOffset): boolean => OFFSET.write(v);
 
 /** One line for a page: the offset in use, or that there is none yet. */
 export function offsetLine(v: StoredOffset | null): string {

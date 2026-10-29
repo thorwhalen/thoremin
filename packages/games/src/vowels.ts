@@ -250,6 +250,88 @@ export function vowelMarks(set: readonly Vowel[] = VOWELS): (Point & { label: st
   });
 }
 
+/**
+ * A player's own vowel space, fitted to the chart's: every voice's vowels sit inside the textbook
+ * cardinal corners (a sung [i] has a higher F1 and a lower F2 than Catford's), so the textbook map
+ * puts a real [i] on [e] and a real [u] on [o]. A few calibration vowels, each the player's
+ * formants at a known chart place, fit an affine map from the player's (Bark F1, Bark F2) to the
+ * reference voice's (speaker normalisation; exact with three vowels, least squares with more).
+ */
+export interface VoiceSample extends Formant2 {
+  /** The chart place the player was asked for. */
+  place: Point;
+}
+export interface Formant2 {
+  f1: number;
+  f2: number;
+}
+/** Reference Bark F1 and F2 as affine functions of the player's: `[c0, c1 (of b1), c2 (of b2)]`. */
+export interface VoiceMap {
+  b1: [number, number, number];
+  b2: [number, number, number];
+}
+
+/** The vowels a calibration asks for by default: the three corners, as chart places. */
+export const CALIBRATION_VOWELS: readonly { ipa: string; word: string; place: Point }[] = [
+  { ipa: 'i', word: 'ee', place: chartPoint(0, 0) },
+  { ipa: 'u', word: 'oo', place: chartPoint(1, 0) },
+  { ipa: 'ä', word: 'ah', place: chartPoint(0.5, 1) },
+];
+
+/** The least spread of the calibration vowels a fit accepts (see `fitVoice`), Bark^4. */
+const MIN_SPREAD = 0.05;
+
+export function fitVoice(samples: readonly VoiceSample[]): VoiceMap {
+  if (samples.length < 3) throw new Error(`fitVoice: needs at least three calibration vowels, got ${samples.length}`);
+  const ata = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  const at1 = [0, 0, 0];
+  const at2 = [0, 0, 0];
+  for (const s of samples) {
+    const ref = formantsAt(s.place);
+    const f = [1, bark(s.f1), bark(s.f2)];
+    const r1 = bark(ref.f1);
+    const r2 = bark(ref.f2);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) ata[i][j] += f[i] * f[j];
+      at1[i] += f[i] * r1;
+      at2[i] += f[i] * r2;
+    }
+  }
+  // The samples' spread in Bark must have area: three vowels sung alike (or on one line) leave the
+  // map undetermined. The determinant of their 2x2 scatter, Bark^4; real corners give tens.
+  const n = samples.length;
+  const m1 = ata[0][1] / n;
+  const m2 = ata[0][2] / n;
+  const spread = (ata[1][1] / n - m1 * m1) * (ata[2][2] / n - m2 * m2) - (ata[1][2] / n - m1 * m2) ** 2;
+  if (!(spread > MIN_SPREAD)) throw new Error('fitVoice: the calibration vowels are too alike to fit a map (sing each one clearly different)');
+  const b1 = solve3(ata, at1);
+  const b2 = solve3(ata, at2);
+  return { b1: b1 as VoiceMap['b1'], b2: b2 as VoiceMap['b2'] };
+}
+
+/**
+ * One calibration vowel from what was heard while the player held it: the median F1 and F2 of the
+ * windows loud enough to be a vowel (the loudest half), or null when too few were.
+ */
+export function voiceSampleOf(frames: readonly { f1: number | null; f2: number | null; rms: number }[], place: Point, { minFrames = 20 } = {}): VoiceSample | null {
+  const ok = frames.filter((f): f is { f1: number; f2: number; rms: number } => f.f1 !== null && f.f2 !== null);
+  if (ok.length < minFrames) return null;
+  const loudest = median(ok.map((f) => f.rms));
+  const held = ok.filter((f) => f.rms >= loudest);
+  return { place, f1: median(held.map((f) => f.f1)), f2: median(held.map((f) => f.f2)) };
+}
+
+/** A player's formants as the reference voice's (Hz), through their fitted map. */
+export function applyVoice(m: VoiceMap, f1: number, f2: number): Formant2 {
+  const p1 = bark(f1);
+  const p2 = bark(f2);
+  return { f1: hzOfBark(m.b1[0] + m.b1[1] * p1 + m.b1[2] * p2), f2: hzOfBark(m.b2[0] + m.b2[1] * p1 + m.b2[2] * p2) };
+}
+
 /** The voice's scale: how much higher its formants are than the reference (adult male) voice's. */
 export const VOICE_SCALES = { auto: NaN, lower: 1, higher: 1.15, child: 1.3 } as const;
 export type VoiceKind = keyof typeof VOICE_SCALES;
@@ -264,6 +346,8 @@ export interface VowelCursorOptions {
   /** ...and above this rms. */
   minRms?: number;
   loudness?: LoudnessScale;
+  /** The player's fitted vowel space (`fitVoice`); replaces `voice` when given. */
+  calibration?: VoiceMap;
   /** A gap shorter than this keeps the dot live, seconds. */
   holdS?: number;
   /** The point is the median of this many windows' (10 ms each). */
@@ -271,7 +355,8 @@ export interface VowelCursorOptions {
   smooth?: OneEuroOptions;
 }
 
-export const VOWEL_CURSOR_DEFAULTS = { voice: 'auto' as VoiceKind, gate: 0.3, minRms: 0.004, holdS: 0.2, medianOf: 7, smooth: { minCutoff: 1.2, beta: 0.8 } as OneEuroOptions };
+/** Smoothing measured on sung vowels (`scripts/audio_games/measure_vowels.ts`, VocalSet): a 150 ms median and a slow 1-euro filter keep the dot's 90th-percentile step per 10 ms near 1 % of the chart, at about 75 ms of lag. The gate is low because a sung [u] sits some 10 dB under an [a] (0.16 of the range an [i] and [a] set). */
+export const VOWEL_CURSOR_DEFAULTS = { voice: 'auto' as VoiceKind, gate: 0.15, minRms: 0.004, holdS: 0.2, medianOf: 15, smooth: { minCutoff: 0.5, beta: 0.2 } as OneEuroOptions };
 
 export interface VowelCursor extends PointSource {
   /** The voice scale in use (the auto one once it has heard enough). */
@@ -307,7 +392,8 @@ export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor
           recent.length = 0;
         }
         lastVoiced = f.t;
-        const p = vowelPoint(f.f1 / scale, f.f2 / scale);
+        const ref = o.calibration ? applyVoice(o.calibration, f.f1, f.f2) : { f1: f.f1 / scale, f2: f.f2 / scale };
+        const p = vowelPoint(ref.f1, ref.f2);
         // The median of the last few windows: a window whose F2 was lost (F3 read in its place)
         // throws the point across the chart, and a few such in a row are common in back vowels.
         recent.push(p);
