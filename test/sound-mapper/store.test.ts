@@ -9,10 +9,9 @@ import { createInMemoryProvider } from '@zodal/store';
 import { createAudioInputHub, type ContextLike, type HubDeps } from '@thoremin/sdk-ui/audio/hub';
 import { createProcessorCore, type ProcessorCore } from '@thoremin/sdk/audio/processor';
 import { SURFACES, synthTake } from '@thoremin/sdk/audio/synthetic_taps';
-import { createSoundMapperStore, type SoundMapperState } from '@/slices/sound-mapper/app/store';
-import type { SoundMapRecord } from '@/slices/sound-mapper/schema';
-import { decodePcm16, encodePcm16 } from '@/slices/sound-mapper/lib/pcm';
-import { SOUND_MAPPER } from '../helpers/extensions';
+import { createSoundMapperStore, type SoundMapperState } from '@thoremin/sound-mapper/store';
+import type { SoundMapRecord } from '@thoremin/sound-mapper/schema';
+import { decodePcm16, encodePcm16 } from '@thoremin/sound-mapper/pcm';
 
 const SR = 48000;
 const peak = (x: Float32Array) => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
@@ -56,7 +55,7 @@ function rig() {
 
 const taps = (surface: string, seed: number, n: number) => synthTake({ sampleRate: SR, seed, perSurface: n, surfaces: SURFACES.filter((s) => s.id === surface), gapMin: 0.35, gapMax: 0.5, lead: 0.3 });
 
-describe.runIf(SOUND_MAPPER)('sound mapper: teach, play, hear', () => {
+describe('sound mapper: teach, play, hear', () => {
   it('round-trips a taught tap through its stored text', () => {
     const pcm = Float32Array.from({ length: 300 }, (_, i) => Math.sin(i / 7) * 0.8);
     const back = decodePcm16(encodePcm16(pcm));

@@ -1,6 +1,6 @@
 # Audio as an input stream
 
-Status: implemented 2026-10-29 (lane B of [#866](https://github.com/thorwhalen/thoremin/issues/866)). The pure half is in `packages/sdk/src/audio/` (#870); the browser half (microphone, worklet, hub, graph node) is #872; the first consumer is the Sound mapper tool (`src/slices/sound-mapper/`). Follow-ups: #873 (a real-room take), #874-#879.
+Status: implemented 2026-10-29 (lane B of [#866](https://github.com/thorwhalen/thoremin/issues/866)). The pure half is in `packages/sdk/src/audio/` (#870); the browser half (microphone, worklet, hub, graph node) is #872; the first consumer is the Sound mapper (a page of the listening app since `docs/design/apps.md`: `play/sound-mapper.html` over `packages/sound-mapper/`). Follow-ups: #873 (a real-room take), #874-#879.
 
 thoremin was built camera-in, sound-out. This document is the seam for **sound in**: a microphone (or a file, or a synthetic take) whose stream feeds both things that must answer in the time of a drum stroke, and things that only need to know what was heard. The research behind it is [`docs/research/live-audio-to-audio.md`](../research/live-audio-to-audio.md); the numbers behind it are [`docs/research/audio-trigger-latency.md`](../research/audio-trigger-latency.md).
 

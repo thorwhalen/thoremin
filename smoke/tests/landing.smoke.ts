@@ -28,7 +28,7 @@ test('the bare URL is a landing that asks for no camera and loads no app', async
   await page.addInitScript(COUNT_MEDIA);
   await page.goto('../');
   await expect(page.getByRole('heading', { name: 'Thoremin' })).toBeVisible();
-  await expect(page.locator('[data-app]')).toHaveCount(2);
+  await expect(page.locator('[data-app]')).toHaveCount(3);
   await page.waitForLoadState('networkidle');
   expect(new URL(page.url()).pathname).toBe('/thoremin/');
   expect(await page.evaluate(() => (window as unknown as { mediaRequests: number }).mediaRequests)).toBe(0);

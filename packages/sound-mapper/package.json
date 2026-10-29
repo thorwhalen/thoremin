@@ -1,0 +1,22 @@
+{
+  "name": "@thoremin/sound-mapper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's sound mapper, framework-free: the sound map's schema (the player's sounds, the drum each plays, the taps that taught them), the models derived from the taps, and a vanilla zustand store holding one lease on the audio-input hub, persisted through a zodal named collection. The page that shows it is play/sound-mapper.html (TypeScript source, consumed through the workspace).",
+  "exports": {
+    "./describe": "./src/describe.ts",
+    "./model": "./src/model.ts",
+    "./pcm": "./src/pcm.ts",
+    "./schema": "./src/schema.ts",
+    "./store": "./src/store.ts",
+    "./stores": "./src/stores.ts"
+  },
+  "dependencies": {
+    "@thoremin/sdk": "*",
+    "@thoremin/sdk-ui": "*",
+    "@zodal/store": "*",
+    "zod": "*",
+    "zustand": "*"
+  }
+}

@@ -10,6 +10,5 @@
   "Sing Along": { "query": "games.autostart=1&audio.source=synthetic", "ms": 6000 },
   "Play Along Lessons": { "query": "games.autostart=1&audio.source=synthetic", "ms": 6000 },
   "Match the Note": { "query": "games.autostart=1&audio.source=synthetic", "ms": 4000 },
-  "tool:poses": { "body": true },
-  "tool:sound-mapper": { "query": "audio.source=synthetic" }
+  "tool:poses": { "body": true }
 }

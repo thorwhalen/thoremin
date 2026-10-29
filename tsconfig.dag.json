@@ -27,6 +27,7 @@
     "packages/stats/src",
     "packages/judge/src",
     "packages/games/src",
+    "packages/sound-mapper/src",
     "src/keys",
     "src/nodes",
     "src/music",

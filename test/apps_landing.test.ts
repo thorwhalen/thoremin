@@ -29,9 +29,9 @@ describe('the landing', () => {
 
   it('links each card to a build entry, with a picture the build ships', () => {
     const cards = [...landing.matchAll(/<a class="app" data-app="([^"]+)" href="([^"]+)">[\s\S]*?<img src="([^"]+)"/g)];
-    expect(cards.map((c) => c[1])).toEqual(['instruments', 'listen']);
+    expect(cards.map((c) => c[1])).toEqual(['instruments', 'listen', 'sound-mapper']);
     for (const [, , href, img] of cards) {
-      expect(existsSync(resolve(ROOT, href, 'index.html')), href).toBe(true);
+      expect(existsSync(resolve(ROOT, href.endsWith('/') ? `${href}index.html` : href)), href).toBe(true);
       expect(existsSync(resolve(ROOT, 'public', img)), img).toBe(true);
     }
     const vite = readFileSync(resolve(ROOT, 'vite.config.ts'), 'utf8');

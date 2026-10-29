@@ -27,6 +27,9 @@ The camera app's path is `instruments/` because the app's own vocabulary already
 
 ## Where the Sound mapper lives
 
+Done: `play/sound-mapper.html` over `packages/sound-mapper/`, its own budget in `scripts/check_play_bundle.ts` (`PAGE_EXTRAS`), linked from the landing and the funfon home. Its map keeps the localStorage key it had in the camera app, so a player's taught sounds carry over (same origin).
+
+
 A page of the listening app, `play/sound-mapper.html`, plain DOM like the other pages (the store is vanilla zustand; `getState` / `subscribe` need no React). Its schema, model and store move into a package (`packages/sound-mapper/`, Zod only in its schema, as `@thoremin/games` does). It carries a Zod collection the games do not, so it gets its own allow-list entries and budget line in `scripts/check_play_bundle.ts`. The React tool inside the camera app is removed rather than kept for a transition: one home per thing.
 
 ## What the camera app no longer ships
