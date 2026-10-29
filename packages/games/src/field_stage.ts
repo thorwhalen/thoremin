@@ -198,7 +198,7 @@ export function drawField(g: CanvasRenderingContext2D, frame: FieldFrame, v: Fie
   const headY = L.top * 0.4;
   text(g, v.title, L.left, headY, Math.min(20, H * 0.04), TEXT);
   if (v.hint) text(g, v.hint, L.left, headY + Math.min(20, H * 0.04), 12, DIM);
-  text(g, `${v.score.done} / ${v.score.total}   ${Math.floor(v.score.elapsed)} s`, L.right, headY, 15, DIM, 'right');
+  if (v.score.total > 0) text(g, `${v.score.done} / ${v.score.total}   ${Math.floor(v.score.elapsed)} s`, L.right, headY, 15, DIM, 'right');
   if (v.phase === 'results' && v.results) {
     const headline = v.game === 'maze' ? `${Math.round(v.score.elapsed)} s` : `${v.score.done} / ${v.score.total}`;
     drawResultsCard(g, W, H, v.results, headline);

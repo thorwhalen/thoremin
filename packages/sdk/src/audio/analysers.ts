@@ -11,6 +11,7 @@ import { createOnsetDetector, type OnsetOptions } from './onset';
 import { createSoundMapper, type SoundMapperOptions } from './mapper';
 import { runOffline } from './offline';
 import { createPitchAnalyser, type PitchAnalyserOptions } from './pitch';
+import { createFormantAnalyser, type FormantOptions } from './formants';
 
 export interface AnalyserContext {
   sampleRate: number;
@@ -69,6 +70,8 @@ export const ANALYSERS: Record<string, AnalyserFactory> = {
   'sound-mapper': ({ sampleRate, params }) => createSoundMapper({ ...(params as Partial<SoundMapperOptions>), sampleRate }),
   // YIN, one `pitch` event per hop at its window's centre: the singing and play-along games (lane A of #866).
   pitch: ({ sampleRate, params }) => createPitchAnalyser(sampleRate, params as PitchAnalyserOptions),
+  // LPC formants, one `formants` event per hop: the vowel games.
+  formants: ({ sampleRate, params }) => createFormantAnalyser(sampleRate, params as FormantOptions),
 };
 
 export interface AnalyserSpec {

@@ -80,7 +80,8 @@ export function createPopSession(opts: PopOptions) {
           if (shown < targets.length) shown++;
         }
       }
-      if (popped === targets.length || (o.timeLimitS !== undefined && now - o.start >= o.timeLimitS)) endedAt = now;
+      // No balloons is free play (a practice area): it never ends by itself.
+      if ((targets.length > 0 && popped === targets.length) || (o.timeLimitS !== undefined && now - o.start >= o.timeLimitS)) endedAt = now;
     }
     pushTrail(trail, cursor?.live ? cursor : null, now, 0.6);
 
@@ -102,7 +103,7 @@ export function createPopSession(opts: PopOptions) {
         ? {}
         : {
             results: {
-              accuracy: popped / targets.length,
+              accuracy: targets.length ? popped / targets.length : 0,
               counts: { popped, missed: targets.length - popped },
               summary: `${popped} of ${targets.length} popped in ${Math.round(elapsed)} s`,
             },

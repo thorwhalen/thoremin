@@ -27,4 +27,5 @@ export * from './cursor';
 export * from './dwell';
 export * from './pop';
 export * from './maze';
+export * from './vowels';
 export * from './field_stage';

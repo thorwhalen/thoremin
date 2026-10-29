@@ -86,7 +86,20 @@ export interface PitchEvent {
   rms?: number;
 }
 
-export type AudioEvent = OnsetEvent | ClassEvent | LevelEvent | PitchEvent | SnippetEvent;
+/** The vocal tract's resonances over one window (the formant analyser, `./formants`; the vowel games). */
+export interface FormantEvent {
+  kind: 'formants';
+  /** The window's centre. */
+  frame: number;
+  /** Hz, or null when the window was too quiet or showed fewer resonances. */
+  f1: number | null;
+  f2: number | null;
+  f3: number | null;
+  /** RMS of the window, 0..1. */
+  rms: number;
+}
+
+export type AudioEvent = OnsetEvent | ClassEvent | LevelEvent | PitchEvent | FormantEvent | SnippetEvent;
 export type AudioEventKind = AudioEvent['kind'];
 
 /**

@@ -23,9 +23,20 @@ export interface HeardOnset {
   strength: number;
 }
 
+/** The vocal tract's resonances over one window (the vowel games), Hz or null. */
+export interface HeardFormants {
+  t: number;
+  f1: number | null;
+  f2: number | null;
+  f3: number | null;
+  rms: number;
+}
+
 export interface Heard {
   pitch: readonly HeardPitch[];
   onsets: readonly HeardOnset[];
+  /** Only when a game asked for the formant analyser. */
+  formants?: readonly HeardFormants[];
 }
 
 export const NOTHING_HEARD: Heard = { pitch: [], onsets: [] };
@@ -35,6 +46,9 @@ export const GAMES_ANALYSERS = [
   { name: 'onset', id: 'onset' },
   { name: 'pitch', id: 'pitch' },
 ];
+
+/** The formant analyser: what the vowel games read. */
+export const FORMANT_ANALYSERS = [{ name: 'formants', id: 'formants' }];
 
 /** The pitch analyser alone: what the field games read (their loudness rides on the pitch frames). */
 export const PITCH_ANALYSERS = [{ name: 'pitch', id: 'pitch' }];
@@ -50,11 +64,13 @@ export function heardFrom(events: readonly TimedAudioEvent[] | undefined): Heard
   if (!events || events.length === 0) return NOTHING_HEARD;
   const pitch: HeardPitch[] = [];
   const onsets: HeardOnset[] = [];
+  const formants: HeardFormants[] = [];
   for (const e of events) {
+    if (e.kind === 'formants' && e.source === 'formants') formants.push({ t: e.t, f1: e.f1, f2: e.f2, f3: e.f3, rms: e.rms });
     if (e.kind === 'pitch' && e.source === 'pitch') pitch.push(e.rms === undefined ? { t: e.t, f0: e.f0, clarity: e.clarity } : { t: e.t, f0: e.f0, clarity: e.clarity, rms: e.rms });
     else if (e.kind === 'onset' && e.source === 'onset') onsets.push({ t: e.t, strength: e.strength });
   }
-  return { pitch, onsets };
+  return formants.length ? { pitch, onsets, formants } : { pitch, onsets };
 }
 
 /** The same input with every time moved by `-offset` (the player's calibrated offset). */
@@ -63,6 +79,7 @@ export function shifted(heard: Heard, offset: number): Heard {
   return {
     pitch: heard.pitch.map((p) => ({ ...p, t: p.t - offset })),
     onsets: heard.onsets.map((o) => ({ ...o, t: o.t - offset })),
+    ...(heard.formants ? { formants: heard.formants.map((f) => ({ ...f, t: f.t - offset })) } : {}),
   };
 }
 

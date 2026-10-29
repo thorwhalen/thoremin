@@ -1,6 +1,6 @@
 /**
  * The standalone game pages (`play/`) in a real browser against the built bundle: Match the Note
- * (and each field game: Pop the Notes, the Pitch Maze) opens its own page, takes the synthetic sound (`?audio.source=synthetic`, no microphone), goes
+ * (and each field game: Pop the Notes, the Pitch Maze, Vowels) opens its own page, takes the synthetic sound (`?audio.source=synthetic`, no microphone), goes
  * live, draws its stage and runs; and it never requests the app (its entry, the shell, the
  * camera models): the runtime half of `scripts/check_play_bundle.ts`.
  */
@@ -31,6 +31,7 @@ test('Match the Note runs on its own page, without the app', async ({ page }) =>
 for (const [file, heading, hint] of [
   ['pop-the-notes', 'Pop the Notes', 'Sing louder to go up, softer to go down.'],
   ['pitch-maze', 'Pitch Maze', 'Hold the note of the opening until the ball is through.'],
+  ['vowels', 'Vowels', 'Say a long vowel. Touch the chart to hear one.'],
 ] as const) {
   test(`${heading} runs on its own page, without the app`, async ({ page }) => {
     test.setTimeout(60_000);
