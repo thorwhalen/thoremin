@@ -21,7 +21,7 @@
     "typecheck:react:baseline": "tsx scripts/react_type_ratchet.ts --update",
     "ratchet:arch": "vite-node scripts/architecture_ratchet.ts",
     "stability": "vite-node scripts/stability/baseline.ts",
-    "test:lab": "THOREMIN_EXTENSIONS=extensions.lab.json vitest run test/games test/instruments/extensions.test.ts test/app_graph.test.ts test/library_category.test.ts",
+    "test:lab": "THOREMIN_EXTENSIONS=extensions.lab.json vitest run test/games test/instruments/extensions.test.ts test/app_graph.test.ts test/library_category.test.ts test/air_instruments_view.test.tsx test/instruments_view_search.test.tsx",
     "test:core": "npm run typecheck:core && THOREMIN_EXTENSIONS=extensions.core.json vitest run && vite-node scripts/check_core_bundle.ts",
     "record": "vite-node scripts/record_stream.ts",
     "pair": "vite-node scripts/cue/pair_take.ts",

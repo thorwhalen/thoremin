@@ -186,7 +186,7 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     // camera app links there instead of listing them. Relative to the site base (the page's
     // `<base href="../">`), like the manual.
     id: 'listen',
-    label: 'Listening games',
+    label: 'Listening app',
     description: 'Games and lessons that use only the microphone, and the Sound mapper: an app of their own, with no camera.',
     kind: 'link',
     group: 'help',
