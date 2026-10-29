@@ -11,6 +11,8 @@ import { DIFFICULTIES, MATCH_TOLERANCE, type Difficulty } from '@thoremin/games/
 import { GAMES_ANALYSERS } from '@thoremin/games/listen';
 import { drawStage } from '@thoremin/games/stage';
 import { mountGamePage } from './page';
+import { mountSpecBar } from './spec_bar';
+import { lessonFromSong, songFromLesson } from '@thoremin/games/spec';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const lessonSel = $<HTMLSelectElement>('lesson');
@@ -18,13 +20,16 @@ const difficultySel = $<HTMLSelectElement>('difficulty');
 
 for (const l of lessonsFor('match')) lessonSel.add(new Option(l.title, l.id));
 for (const d of DIFFICULTIES) difficultySel.add(new Option(`${d} (within ${MATCH_TOLERANCE[d]} cents)`, d, d === 'normal', d === 'normal'));
+const shipped = () => lessonsFor('match').find((l) => l.id === lessonSel.value) ?? lessonsFor('match')[0];
+const spec = mountSpecBar({ game: 'match-the-note', host: document.querySelector('header')!, controls: { difficulty: difficultySel, lesson: lessonSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
 
 mountGamePage({
   canvas: $<HTMLCanvasElement>('stage'),
   startButton: $<HTMLButtonElement>('start'),
   analysers: GAMES_ANALYSERS,
   session: (start) => {
-    const lesson = lessonsFor('match').find((l) => l.id === lessonSel.value) ?? lessonsFor('match')[0];
+    const song = spec.song();
+    const lesson = song ? lessonFromSong(song, 'match-the-note', spec.settings()) : shipped();
     return createMatchSession(lesson, { start, toleranceCents: MATCH_TOLERANCE[difficultySel.value as Difficulty] });
   },
   draw: (g, W, H, view) => {

@@ -27,7 +27,9 @@
     "./view": "./src/view.ts",
     "./vowels": "./src/vowels.ts",
     "./echo": "./src/echo.ts",
-    "./echo_stage": "./src/echo_stage.ts"
+    "./echo_stage": "./src/echo_stage.ts",
+    "./spec": "./src/spec.ts",
+    "./spec_schema": "./src/spec_schema.ts"
   },
   "dependencies": {
     "@thoremin/judge": "*",
