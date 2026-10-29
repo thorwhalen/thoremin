@@ -18,7 +18,7 @@ import {
 } from '@/app/library/category';
 import { summarizeInstrument, summaryLines } from '@/app/library/summarize';
 import { deriveSystemTags } from '@/app/library/systemTags';
-import { AIR, ASL, DRAWN } from './helpers/extensions';
+import { AIR, ASL, DRAWN, GAMES } from './helpers/extensions';
 
 const settingsOf = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -129,7 +129,7 @@ describe('instrument classes (the ADR\'s PR 2)', () => {
       expect(c.emoji.length).toBeGreaterThan(0);
       expect(c.colour).toMatch(/^hsl\(/);
     }
-    expect(ids).toEqual(['field', 'air', 'sign', ...(DRAWN ? ['drawn'] : [])]);
+    expect(ids).toEqual(['field', 'air', 'sign', ...(DRAWN ? ['drawn'] : []), ...(GAMES ? ['listen'] : [])]);
   });
 
   it.runIf(AIR)('normalises the former id `theremin` to `field` and rejects unknown ids', () => {

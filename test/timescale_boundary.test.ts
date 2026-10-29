@@ -151,6 +151,7 @@ describe('every node that makes real-time output honours the boundary', () => {
       // The SDK's plucked-string sink (#674), registered by the air extension and the harmony slice.
       'pluck-out': 'packages/sdk/src/nodes/pluck_out.ts',
       'chord-strum-out': 'packages/sdk/src/nodes/pluck_out.ts',
+      'games-out': 'packages/sdk/src/nodes/pluck_out.ts',
       // Moved with its slice (#600 S14).
       lyria: 'src/slices/generative/nodes/lyria.ts',
       // The conductor slice's (#600 S18b).

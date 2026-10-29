@@ -88,6 +88,10 @@ Switch between shaping (a pinch draws or moves a piece) and playing (the fingert
 
 Play the theremin through its physics: switch it on, set the assistance (0 is a pure theremin; up from there it adds pitch correction toward the semitones or the scale, smoothing and a vibrato aid, each of which you can tune yourself), choose the sound and volume. Under Antennas and circuits: the linearity of the pitch field, the rod's sensitivity, the zero beat, the pitch circuit's capacitance, the closest approach, where the rod and the loop are, how sharply the loop silences, what a missing left hand does, and what is drawn on the video.
 
+## Listening games {#listening-games}
+
+The games that listen to the microphone (Sing Along, Play Along Lessons, Match the Note): choose the game, the lesson, the difficulty (how wide the pitch and timing tolerances are), a transposition into your range and whether any octave counts; Start and Stop; the last result. **Audio timing** is the take that measures your device: tap the table or clap on 16 clicks, then keep the offset it found, and every game subtracts it before judging you.
+
 ## MIDI {#midi}
 
 Send the voices you hear to an external instrument or a music program. Off by default; it needs a browser with Web MIDI (Chrome and Edge, not Safari). A device plugged in later appears after you switch MIDI off and on.

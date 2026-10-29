@@ -177,7 +177,9 @@ const LATER_EXTENSION_NODES = new Set([
   // The drawn pieces (thorwhalen/thoremin-ar), a later lazy extension; its own tests are `test/ext-draw/`.
   ...(hasExtension('drawn-pieces') ? ['drawnHands', 'drawnVoice'] : []),
   // The physical theremin, a later slice; its own wiring is `test/theremin/theremin_graph.test.ts`.
-  ...(hasExtension('physical-theremin') ? ['physTheremin'] : [])]);
+  ...(hasExtension('physical-theremin') ? ['physTheremin'] : []),
+  // The listening games (#866), tested in `test/games/`.
+  ...(hasExtension('audio-games') ? ['gamesAudio', 'listeningGame', 'gamesOut'] : [])]);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
  *  aside above, so they are restored here to compare with the core + air snapshot. */

@@ -166,6 +166,21 @@
       "body": false
     },
     {
+      "name": "Sing Along",
+      "body": false,
+      "silent": "a listening game: silent until Start, then only its count-in and reference notes"
+    },
+    {
+      "name": "Play Along Lessons",
+      "body": false,
+      "silent": "a listening game: silent until Start, then only its count-in and reference notes"
+    },
+    {
+      "name": "Match the Note",
+      "body": false,
+      "silent": "a listening game: silent until Start, then only its count-in and reference notes"
+    },
+    {
       "name": "Hand-shape Chords",
       "body": false
     },

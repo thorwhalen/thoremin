@@ -45,6 +45,10 @@ Each is a seed (an instrument in the library) and its editor section. Each has a
 
 One slice (`src/slices/games/`, extension id `audio-games`) holds the three games: they share the lesson model, the state machine, the clock handling, the guide sink and the calibration, and the player meets them as one family in the library (a class of their own, "Listening games"). Splitting them later is a move inside the slice, not a seam change.
 
+## The microphone
+
+The games branch composes its own `audio-events` node (lane B's source, id `gamesAudio`) whose params name the two analysers the games read, `onset` and `pitch`; its lease on the audio-input hub opens the microphone while a game is composed and closes it with the last lease. `heardFrom` adapts the tick's events to the games' own input (`Heard`: pitch frames and onsets in engine seconds), reading only those two analysers by id, so another consumer's onsets (the sound mapper's) never reach a game. The node's state reaches the game as `micStatus`, and the stage and the editor say what is wrong ("allow the microphone") until it is live.
+
 ## Time
 
 Every time in a game is **engine seconds**. The `audio-events` source has already converted the worklet's context frames to engine time and removed the measured input stage (B's design). The game subtracts one more number, the **player offset** from the calibration take, when it judges an event against music the player hears (the count-in and the guide), because a tap-along measures the round trip plus the player's anticipation [research §6]. Targets are laid out from a start time the node chooses on the tick the game starts: `start = now + lead`, where `lead` covers the output stage so that the first count-in click can be scheduled ahead. The count-in and the guide are note events at exact engine times, sounded on the audio clock by the plucked-note sink (the SDK's `makePluckOutNode`, the discipline the air instruments use: scheduled ahead, never moved).
@@ -55,7 +59,7 @@ Pitch frames are stamped at their window's centre (the pitch describes the windo
 
 A game node's `view` output is plain data: the phase, the engine time now, the visible span, the targets in it with their state (pending, hit with tier, missed), the recent pitch trail, the last few judgments, the running score and, in results, the summary. The overlay element draws only from it, so a test asserts what the player would see without a canvas, and the drawing is swapped without touching the game.
 
-The stage owns the canvas: the seed hides the video (`overlay.video.show: false`) and the element paints its own background first. The camera still opens today, because whether the camera opens is decided by the source slot, not by the instrument. **Gap filed for the shell**: an instrument that needs no camera should be able to say so (an audio-only instrument then never asks for camera permission). Until then the games run with the camera open and unseen.
+The stage owns the canvas: the seed hides the video (`overlay.video.show: false`) and the element paints its own background first. The camera still opens today, because whether the camera opens is decided by the source slot, not by the instrument. **Gap filed for the shell** ([#869](https://github.com/thorwhalen/thoremin/issues/869)): an instrument that needs no camera should be able to say so (an audio-only instrument then never asks for camera permission). Until then the games run with the camera open and unseen.
 
 ## Calibration
 

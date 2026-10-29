@@ -51,6 +51,10 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
     - [Sign Wheel](#instruments-sign-wheel)
   - [Drawn instruments](#areas-drawn)
     - [Drawn Pieces](#instruments-drawn-pieces)
+  - [Listening games](#areas-listen)
+    - [Match the Note](#instruments-match-the-note)
+    - [Play Along Lessons](#instruments-play-along-lessons)
+    - [Sing Along](#instruments-sing-along)
 - [Tools](#tools)
   - [Annotations](#tools-annotations)
   - [Assistant](#tools-assistant)
@@ -141,6 +145,12 @@ Fingerspell American Sign Language to the camera and see the sign, or hear a cho
 Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings.
 
 [Drawn Pieces](#instruments-drawn-pieces)
+
+### [Listening games](#areas-listen)
+
+Games and lessons that listen to the microphone: sing a melody and watch your voice on the notes, clap or play along a note highway, find a note and hold it. They measure your timing first, so the judging is fair on your device.
+
+[Match the Note](#instruments-match-the-note) · [Play Along Lessons](#instruments-play-along-lessons) · [Sing Along](#instruments-sing-along)
 
 
 <a id="areas-field"></a>
@@ -1242,6 +1252,108 @@ Each piece has three dials in the Drawn pieces section. **Shape** goes from free
 Its settings: [Drawn pieces](#settings--drawn-pieces). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
 
 
+<a id="areas-listen"></a>
+
+[Instruments](#instruments)
+
+## Listening games
+
+Games and lessons that listen to the microphone: sing a melody and watch your voice on the notes, clap or play along a note highway, find a note and hold it. They measure your timing first, so the judging is fair on your device.
+
+- [Match the Note](#instruments-match-the-note): Allow the microphone and press Start.
+- [Play Along Lessons](#instruments-play-along-lessons): Allow the microphone, choose a lesson and press Start.
+- [Sing Along](#instruments-sing-along): Allow the microphone, choose a lesson in the Listening games section and press Start.
+
+
+<a id="instruments-match-the-note"></a>
+
+[Instruments](#instruments) › [Listening games](#areas-listen)
+
+## Match the Note
+
+![Match the Note, as it looks on screen](https://apps.thorwhalen.com/thoremin/guide/pics/match-the-note.jpg)
+
+### What to do
+
+1. Allow the microphone and press Start.
+2. Listen to the note, then sing or play it; the needle shows how far off you are.
+3. Hold it in the green until the ring fills, and the next note comes.
+
+A tuner made into a drill: the game plays a note, you find it with your voice or an instrument and hold it in tune.
+
+**How it works**
+
+The game listens only after its own note has died away, so it never hears itself as you. The needle shows how many cents (hundredths of a semitone) you are from the note, in any octave; the green band is the tolerance (a quarter of a semitone either side on normal). Hold the note inside it for a second and it counts. The score is how quickly you found each note and how steadily you held it.
+
+**Settings**
+
+**Listening games** in the editor: the lesson, the difficulty (the width of the green band) and transposing, Start and Stop.
+
+Its settings: [Listening games](#settings--listening-games). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
+
+
+<a id="instruments-play-along-lessons"></a>
+
+[Instruments](#instruments) › [Listening games](#areas-listen)
+
+## Play Along Lessons
+
+![Play Along Lessons, as it looks on screen](https://apps.thorwhalen.com/thoremin/guide/pics/play-along-lessons.jpg)
+
+### What to do
+
+1. Allow the microphone, choose a lesson and press Start.
+2. Clap, tap the table or play each note as it reaches the line.
+3. Each hit says perfect, great or good, and whether you were early or late.
+
+A note highway that listens. The rhythm lessons need no pitch: clap or tap them. The melody lessons ask for the right note too, sung, hummed or played on any instrument.
+
+**How it works**
+
+Notes travel toward the line on the left. The game hears every clap, tap or note start and compares its time with the note's: within 30 thousandths of a second is perfect, 60 great, 100 good (wider on easy, tighter on hard). A sound where no note is due counts as an extra. At the end it tells you whether you tend to rush or drag, and by how much.
+
+In a melody lesson the pitch you play just after each note starts must be the note (any octave), or it is a wrong note.
+
+Only the count-in clicks: a metronome during the lesson would be heard by the microphone as claps. Measure your timing once with **Audio timing** in the same section so the judging is fair on your device.
+
+**Settings**
+
+**Listening games** in the editor: the game, the lesson, the difficulty and transposing, Start and Stop, and the timing take.
+
+Its settings: [Listening games](#settings--listening-games). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
+
+
+<a id="instruments-sing-along"></a>
+
+[Instruments](#instruments) › [Listening games](#areas-listen)
+
+## Sing Along
+
+![Sing Along, as it looks on screen](https://apps.thorwhalen.com/thoremin/guide/pics/sing-along.jpg)
+
+### What to do
+
+1. Allow the microphone, choose a lesson in the Listening games section and press Start.
+2. After the count-in, sing each bar as it reaches the line; your voice draws the blue trail.
+3. A bar turns gold where your voice is on it. Any octave counts.
+
+A karaoke game: the notes of a melody come toward you as bars, and the game listens to your voice and shows how much of each note you sang in tune.
+
+**How it works**
+
+The game hears your pitch about a hundred times a second and draws it as a trail over the bars. A bar is as thick as the tolerance: inside it you are on the note. Each note is scored by how much of its length your voice stayed inside, the way karaoke games do, so a note started late but held in tune still scores, and sliding through every pitch does not.
+
+During the count-in the game plays the first note so you can find it. It plays nothing while you sing, because the microphone would hear it as you. With a loudspeaker near the microphone, headphones help.
+
+Difficulty sets the tolerance: easy is a semitone and a half either side, normal a semitone, hard half a semitone. **Transpose** moves the whole melody into your range.
+
+**Settings**
+
+**Listening games** in the editor: the game, the lesson, the difficulty, transposing, whether any octave counts, and whether the first note plays in the count-in. Start and Stop are there too, and the last result.
+
+Its settings: [Listening games](#settings--listening-games). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
+
+
 <a id="tools"></a>
 
 ## Tools
@@ -1806,6 +1918,12 @@ Switch between shaping (a pinch draws or moves a piece) and playing (the fingert
 ### Physical theremin
 
 Play the theremin through its physics: switch it on, set the assistance (0 is a pure theremin; up from there it adds pitch correction toward the semitones or the scale, smoothing and a vibrato aid, each of which you can tune yourself), choose the sound and volume. Under Antennas and circuits: the linearity of the pitch field, the rod's sensitivity, the zero beat, the pitch circuit's capacitance, the closest approach, where the rod and the loop are, how sharply the loop silences, what a missing left hand does, and what is drawn on the video.
+
+<a id="settings--listening-games"></a>
+
+### Listening games
+
+The games that listen to the microphone (Sing Along, Play Along Lessons, Match the Note): choose the game, the lesson, the difficulty (how wide the pitch and timing tolerances are), a transposition into your range and whether any octave counts; Start and Stop; the last result. **Audio timing** is the take that measures your device: tap the table or clap on 16 clicks, then keep the offset it found, and every game subtracts it before judging you.
 
 <a id="settings--midi"></a>
 
