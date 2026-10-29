@@ -73,7 +73,7 @@ function drawBackdrop(g: CanvasRenderingContext2D, v: FieldView, L: Layout) {
   }
   for (const m of b.marks ?? []) {
     const q = L.px(m);
-    text(g, m.label, q.x, q.y, Math.max(16, L.bh * 0.05), 'rgba(229,231,235,0.4)', 'center');
+    text(g, m.label, q.x, q.y, Math.max(12, Math.min(L.bw, L.bh) * 0.045), 'rgba(229,231,235,0.4)', 'center');
   }
   if (b.yLabel) {
     text(g, `↑ ${b.yLabel}`, L.left + 6, L.top + 12, 12, DIM);

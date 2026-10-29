@@ -191,7 +191,8 @@ try {
     }
     // 4. No deferred node's code is initial, whatever imported it.
     const deferred = (await import(/* @vite-ignore */ entry.lazy!.module)) as { default: { nodes: readonly { type: string; description?: string }[] } };
-    const initialJs = [...initial].map((f) => readFileSync(join(out, f), 'utf8')).join('\n');
+    // An HTML entry with no script (funfon's home, `play/index.html`) has an empty chunk that is never written.
+    const initialJs = [...initial].filter((f) => existsSync(join(out, f))).map((f) => readFileSync(join(out, f), 'utf8')).join('\n');
     for (const n of deferred.default.nodes) {
       const text = n.description ?? '';
       if (text.length < 24) {

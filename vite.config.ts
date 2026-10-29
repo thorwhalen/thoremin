@@ -20,6 +20,7 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         input: {
           index: path.resolve(__dirname, 'index.html'),
+          play: path.resolve(__dirname, 'play', 'index.html'),
           ...Object.fromEntries(PLAY_PAGES.map((p) => [p, path.resolve(__dirname, 'play', `${p}.html`)])),
         },
       },

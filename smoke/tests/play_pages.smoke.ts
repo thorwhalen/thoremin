@@ -49,3 +49,30 @@ for (const [file, heading, hint] of [
     expect(errors).toEqual([]);
   });
 }
+
+// The timed games and the timing take: each page goes live and starts its count-in.
+for (const [file, heading] of [
+  ['sing-along', 'Sing Along'],
+  ['play-along', 'Play Along Lessons'],
+  ['audio-timing', 'Audio timing'],
+] as const) {
+  test(`${heading} runs on its own page, without the app`, async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectErrors(page);
+    await page.goto(`play/${file}.html?audio.source=synthetic`);
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.mic()), { timeout: 15_000 }).toBe('live');
+    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.view()?.phase), { timeout: 10_000 }).toMatch(/count-in|playing/);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('the funfon home links every game', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('play/');
+  await expect(page).toHaveTitle('funfon');
+  await page.getByRole('link', { name: /Vowels/ }).click();
+  await expect(page.getByRole('heading', { name: 'Vowels' })).toBeVisible();
+  expect(errors).toEqual([]);
+});

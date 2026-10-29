@@ -8,6 +8,7 @@
     "build": "vite build",
     "check:lazy": "vite-node scripts/check_lazy_bundle.ts",
     "check:play": "vite-node scripts/check_play_bundle.ts",
+    "build:funfon": "vite build --config vite.funfon.config.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
