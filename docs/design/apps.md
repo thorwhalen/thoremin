@@ -34,6 +34,9 @@ A page of the listening app, `play/sound-mapper.html`, plain DOM like the other 
 
 ## What the camera app no longer ships
 
+Done: `extensions.json` lists neither; `extensions.lab.json` (the camera list plus `audio-games`) is what `npm run test:lab` builds with, a CI step. The camera app's Tools launcher has a *Listening games* link (`play/`), and the three seeds, the Listening games editor section and the listen area left the player guide. A returning player's persisted `games` dial and `gamesPrefs` are no longer part of the camera app's state (the goldens in `test/fixtures/persisted/__golden__/` were regenerated for that); the standalone pages keep their own timing offset (`funfon.playerOffset`).
+
+
 `audio-games` and `sound-mapper` leave `extensions.json`, so the camera build no longer lists the listening class, the three game seeds, the Audio timing take or the tool; the camera app's Tools launcher links to the listening app instead. The games slice stays in the tree as the seam for a game that uses the camera and the microphone together, listed by a second manifest the test run builds with, so its tests keep running; if no such game exists by the time the apps are split into repositories, it is deleted.
 
 ## Load only what is needed
