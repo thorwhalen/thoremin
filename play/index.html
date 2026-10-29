@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>funfon</title>
+    <meta name="description" content="Music and voice games that listen to your microphone: sing, clap, pop notes, steer through a maze with your voice, and play with vowels." />
+    <meta name="theme-color" content="#0b1020" />
+    <meta property="og:title" content="funfon" />
+    <meta property="og:description" content="Games that listen: sing, clap, pop notes and play with vowels." />
+    <meta property="og:image" content="./src/brand/og.png" />
+    <link rel="apple-touch-icon" href="./src/brand/icon.png" />
+    <link rel="icon" type="image/png" href="./src/brand/icon.png" />
+    <link rel="stylesheet" href="./src/play.css" />
+    <style>
+      body { display: block; overflow-y: auto; }
+      main { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+      .brand { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; margin: 8px 0 4px; }
+      .brand span { color: #f5d142; }
+      .lede { color: rgba(229, 231, 235, 0.7); margin: 0 0 24px; max-width: 60ch; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(229, 231, 235, 0.55); margin: 28px 0 10px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+      a.card { display: block; text-decoration: none; color: inherit; background: #111a33; border: 1px solid #22305a; border-radius: 12px; padding: 14px 16px; border-left: 4px solid var(--c); }
+      a.card:hover, a.card:focus-visible { background: #16224a; outline: none; }
+      a.card b { display: block; font-size: 17px; margin-bottom: 4px; }
+      a.card small { color: rgba(229, 231, 235, 0.7); font-size: 14px; line-height: 1.4; }
+      footer { margin-top: 36px; color: rgba(229, 231, 235, 0.5); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">fun<span>fon</span></p>
+      <p class="lede">Games that listen. Everything runs in your browser: the microphone is heard on this device and nothing is sent anywhere. Headphones help, so the microphone does not hear the game's own sounds.</p>
+
+      <h2>Sing</h2>
+      <div class="grid">
+        <a class="card" style="--c: #22d3ee" href="./sing-along.html"><b>Sing Along</b><small>A melody scrolls past: sing each note as it passes, scored by how long you stay in tune.</small></a>
+        <a class="card" style="--c: #34d399" href="./match-the-note.html"><b>Match the Note</b><small>A note plays: find it with your voice and hold it in tune until the ring fills.</small></a>
+        <a class="card" style="--c: #f5d142" href="./pop-the-notes.html"><b>Pop the Notes</b><small>Your pitch moves a dot across, your loudness moves it up: hold it on a balloon until it bursts.</small></a>
+        <a class="card" style="--c: #f97316" href="./pitch-maze.html"><b>Pitch Maze</b><small>Sing the ball through each wall's opening, then stay on the note's lane down a road to the horizon.</small></a>
+      </div>
+
+      <h2>Rhythm</h2>
+      <div class="grid">
+        <a class="card" style="--c: #a78bfa" href="./play-along.html"><b>Play Along Lessons</b><small>Clap, tap or play each note as it reaches the line: perfect, great or good, early or late.</small></a>
+      </div>
+
+      <h2>Speech</h2>
+      <div class="grid">
+        <a class="card" style="--c: #f472b6" href="./vowels.html"><b>Vowels</b><small>The vowel chart, playable: touch it to hear a vowel, say one to see where yours sits, then pop vowel balloons.</small></a>
+      </div>
+
+      <h2>Set up</h2>
+      <div class="grid">
+        <a class="card" style="--c: #94a3b8" href="./audio-timing.html"><b>Audio timing</b><small>Tap along to clicks for half a minute, so the timed games know your device's delay.</small></a>
+      </div>
+
+      <footer>funfon is made of the listening games of thoremin.</footer>
+    </main>
+  </body>
+</html>

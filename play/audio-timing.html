@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio timing</title>
+    <link rel="stylesheet" href="./src/play.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Audio timing</h1>
+      <button id="start">Start</button>
+      <p class="hint">Clicks play: tap the table or clap on every one, firmly. Your device's offset is kept in this browser and used by Sing Along and Play Along. Headphones make it cleaner. <a class="home" href="./">More games</a></p>
+      <p class="hint" id="timing"></p>
+    </header>
+    <canvas id="stage"></canvas>
+    <script type="module" src="./src/audio_timing.ts"></script>
+  </body>
+</html>

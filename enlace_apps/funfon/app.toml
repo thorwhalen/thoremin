@@ -1,0 +1,22 @@
+# funfon: music and voice games that listen to the microphone (Sing Along, Match the Note,
+# Pop the Notes, the Pitch Maze, Play Along Lessons, Vowels, Audio timing). Pure frontend: the
+# microphone is analysed in the visitor's browser and nothing is sent anywhere.
+#
+# A SECOND app from the thoremin repo (its standalone game pages, `play/`, built alone), the
+# reelee-studio pattern: this app dir is nested in the repo under `enlace_apps/` (the parent's
+# name becomes a module name in enlace's process, and `enlace_apps` collides with nothing), and
+# the build walks up to the repo root, where the whole checkout is.
+display_name = "funfon"
+description = "Games that listen: sing, clap, pop notes and play with vowels."
+access = "public"
+
+# `npm run build:funfon` (vite.funfon.config.ts) writes straight into this app dir's frontend/,
+# gitignored by the repo's bare `frontend/` rule. It never touches thoremin's own frontend/.
+frontend_dir = "frontend"
+
+# deploy.py injects VITE_PUBLIC_BASE=/funfon/ from the app dir's name.
+[build]
+cwd = "../.."
+env_vars = ["VITE_PUBLIC_BASE"]
+install = "npm ci --no-audit --no-fund --no-progress"
+build = "npm run build:funfon"
