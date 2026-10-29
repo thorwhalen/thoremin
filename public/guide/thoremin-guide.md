@@ -69,7 +69,6 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
   - [Record](#tools-record)
   - [Replay](#tools-replay)
   - [Song](#tools-song)
-  - [Sound mapper](#tools-sound-mapper)
   - [Trainer](#tools-trainer)
 - [Conduct and dance](#conduct-and-dance)
 - [Teach it yourself](#teach-it-yourself)
@@ -1379,7 +1378,6 @@ What you use ON an instrument: measuring, teaching it your own faces, recording,
 - [Record](#tools-record): Press **Tap to play**, then **Record** at the bottom right.
 - [Replay](#tools-replay): Record a take with **Record**, ticking *Feature stream (JSONL)*.
 - [Song](#tools-song): Open Tools, then Song, and load a song file.
-- [Sound mapper](#tools-sound-mapper): Open Tools, then Sound mapper, and press Add a sound.
 - [Trainer](#tools-trainer): Open Tools, then Trainer.
 
 
@@ -1699,31 +1697,6 @@ With *Follow the dancer* on, the song's tempo follows your pulse (your stride or
 **Conduct a recording**
 
 In the [Conductor](#tools-conductor) you can make the song itself follow your conducting: choose which beat of the song your first beat lands on (in the Conductor tool), and on a hold the song can fade instead of cutting (*Fade on a conductor's hold*, in the Song tool).
-
-
-<a id="tools-sound-mapper"></a>
-
-[Tools](#tools)
-
-## Sound mapper
-
-![Sound mapper, open in the app](https://apps.thorwhalen.com/thoremin/guide/pics/tool-sound-mapper.jpg)
-
-### What to do
-
-1. Open Tools, then Sound mapper, and press Add a sound.
-2. Press Teach and tap that spot (a table, a pot) 6 to 10 times, then Done. Do the same for another spot.
-3. Pick a drum for each, press Play, and tap away.
-
-Turn the things around you into a drum kit. Teach it a few sounds, give each one a drum, and every tap plays its drum straight away, a few milliseconds after you hit. It plays under whatever instrument is loaded.
-
-**Teaching it well**
-
-Tap the way you will play: soft and hard, the middle and the edge of the same spot. The tool listens to the first few milliseconds of each tap, so two spots that sound different there (a table's middle and its edge, a pot, a mug) are easy; two that sound alike are not. A sound it was never taught plays nothing. Use headphones if you can: from a speaker the drums come back into the microphone.
-
-**Speed and feel**
-
-*Listen before playing* is how much of a tap it hears before the drum starts (4 ms by default): longer is surer, but later. *Then check for* listens a little longer and, if it hears a different sound, swaps the drum without a gap (set it to 0 to never swap). *Harder tap, louder drum* sets how much the strength of a tap carries into the drum, and *Drum volume* sets the drum's level. The number beside each hit is the time from your tap to the drum inside the app; the microphone and the speaker add their own.
 
 
 <a id="tools-trainer"></a>

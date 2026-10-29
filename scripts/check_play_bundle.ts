@@ -34,6 +34,29 @@ export const ALLOWED: readonly string[] = [
 ];
 
 /**
+ * What one page may load beyond {@link ALLOWED}, and its own budget. The Sound mapper keeps the
+ * player's sounds (a Zod-checked record in a zodal collection, held by a vanilla zustand store), so
+ * it carries its package, the SDK's named-collection store and those three libraries; still nothing
+ * of the app (docs/design/apps.md).
+ */
+export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; budgetBytes: number }>> = {
+  'sound-mapper': {
+    allowed: [
+      'packages/sound-mapper/src/',
+      'packages/sdk-ui/src/namedCollection.ts',
+      'packages/sdk-ui/src/storage.ts',
+      'packages/sdk/src/util/ids.ts',
+      'node_modules/zod/',
+      'node_modules/zustand/',
+      'node_modules/@zodal/store/',
+      'node_modules/@zodal/store-localstorage/',
+    ],
+    // Zod is most of it (about 190 kB as rendered, before gzip); the app it guards against is megabytes.
+    budgetBytes: 300_000,
+  },
+};
+
+/**
  * The most a page may load up front, bytes as the build ships them. Raised from 60 kB when the field
  * games' stage learned the road (the Pitch Maze's higher levels): a page now carries one or two
  * stages and its game, 40 to 65 kB; what this guards against is the app (megabytes) leaking in.
@@ -64,7 +87,7 @@ const capture: Plugin = {
 };
 
 const rel = (id: string) => relative(ROOT, id.replace(/^\0/, '').split('?')[0]);
-const allowed = (id: string) => id.startsWith('\0vite/') || ALLOWED.some((p) => rel(id).startsWith(p));
+const allowed = (id: string, page: string) => id.startsWith('\0vite/') || [...ALLOWED, ...(PAGE_EXTRAS[page]?.allowed ?? [])].some((p) => rel(id).startsWith(p));
 
 /** The chain of importers from a page's entry to `id`, for the failure message. */
 function chainTo(id: string, inPage: Set<string>): string[] {
@@ -104,15 +127,16 @@ try {
     const modules = new Map<string, number>();
     for (const f of files) for (const [id, n] of Object.entries(byFile.get(f)!.modules)) modules.set(id, n);
     const inPage = new Set(modules.keys());
-    const strays = [...modules.keys()].filter((id) => !allowed(id));
+    const strays = [...modules.keys()].filter((id) => !allowed(id, page));
+    const budget = PAGE_EXTRAS[page]?.budgetBytes ?? BUDGET_BYTES;
     const bytes = [...modules.values()].reduce((a, b) => a + b, 0);
     console.log(`play/${page}.html: ${modules.size} modules, ${(bytes / 1000).toFixed(1)} kB in ${files.size} chunk(s)`);
     for (const id of strays) {
       console.error(`  NOT ALLOWED: ${rel(id)}\n    via ${chainTo(id, inPage).join(' -> ')}`);
       failed = true;
     }
-    if (bytes > BUDGET_BYTES) {
-      console.error(`  over budget: ${bytes} > ${BUDGET_BYTES} bytes`);
+    if (bytes > budget) {
+      console.error(`  over budget: ${bytes} > ${budget} bytes`);
       failed = true;
     }
     if (process.argv.includes('--list')) for (const [id, n] of [...modules].sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(7)}  ${rel(id)}`);

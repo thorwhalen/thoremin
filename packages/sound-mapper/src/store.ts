@@ -1,6 +1,7 @@
 /**
  * The sound mapper's live state and its one lease on the audio-input hub
- * (`@thoremin/sdk-ui/audio/hub`; `docs/design/audio-input.md`).
+ * (`@thoremin/sdk-ui/audio/hub`; `docs/design/audio-input.md`). Framework-free (vanilla zustand):
+ * the page that shows it (`play/sound-mapper.html`) passes its own hub.
  *
  * The player's map (classes, their kit sounds, their taught taps) is the zustand state the panel
  * renders, persisted through a zodal named collection (one record, "My sounds", saved a moment
@@ -14,16 +15,16 @@
  * What the panel shows comes back as events: each hit (its class or "not taught", its confidence,
  * how long after the onset the sample started, whether the refining window corrected it).
  */
-import { create } from 'zustand';
-import { audioInput, type AudioInputLease, type HubStatus, type LeaseEvent } from '@thoremin/sdk-ui/audio/hub';
+import { createStore } from 'zustand/vanilla';
+import type { AudioInputHub, AudioInputLease, HubStatus, LeaseEvent } from '@thoremin/sdk-ui/audio/hub';
 import { createNamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { synthKitSound, KIT_SOUNDS, type KitSound } from '@thoremin/sdk/audio/kit';
 import { SOUND_MAPPER_DEFAULTS } from '@thoremin/sdk/audio/mapper';
 import type { DataProvider } from '@zodal/store';
-import { EMPTY_SOUND_MAP, SOUND_MAPPER_LIMITS, SoundMapRecordSchema, SoundMapSchema, type SoundClass, type SoundMap, type SoundMapRecord } from '../schema';
-import { SOUND_MAPPER_STORES } from '../stores';
-import { encodePcm16 } from '../lib/pcm';
-import { kitSampleId, mapperConfig } from '../lib/model';
+import { EMPTY_SOUND_MAP, SOUND_MAPPER_LIMITS, SoundMapRecordSchema, SoundMapSchema, type SoundClass, type SoundMap, type SoundMapRecord } from './schema';
+import { SOUND_MAPPER_STORES } from './stores';
+import { encodePcm16 } from './pcm';
+import { kitSampleId, mapperConfig } from './model';
 
 /** One hit as the panel shows it. */
 export interface Hit {
@@ -77,7 +78,8 @@ export interface SoundMapperState {
 }
 
 export interface SoundMapperDeps {
-  hub?: () => ReturnType<typeof audioInput>;
+  /** The page's audio-input hub (null while it has none). */
+  hub: () => AudioInputHub | null;
   provider?: DataProvider<SoundMapRecord>;
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => unknown;
@@ -89,8 +91,8 @@ const LABELS = ['Table, middle', 'Table, edge', 'Pot', 'Mug', 'Knock', 'Tap', 'S
 /** A default sound for a new class: the first kit sound the map does not use yet. */
 const SOUNDS: KitSound[] = ['kick', 'snare', 'cowbell', 'hat', 'clap', 'tom', 'woodblock', 'rim'];
 
-export function createSoundMapperStore(deps: SoundMapperDeps = {}) {
-  const hub = deps.hub ?? audioInput;
+export function createSoundMapperStore(deps: SoundMapperDeps) {
+  const hub = deps.hub;
   const persist = createSoundMapStore(deps.provider);
   const now = deps.now ?? Date.now;
   const setTimer = deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
@@ -106,7 +108,7 @@ export function createSoundMapperStore(deps: SoundMapperDeps = {}) {
   let saveTimer: unknown = null;
   let nextId = 1;
 
-  const store = create<SoundMapperState>()((set, get) => {
+  const store = createStore<SoundMapperState>()((set, get) => {
     const save = () => {
       if (saveTimer !== null) clearTimer(saveTimer);
       saveTimer = setTimer(() => {
@@ -267,4 +269,5 @@ export function createSoundMapperStore(deps: SoundMapperDeps = {}) {
   return store;
 }
 
-export const useSoundMapper = createSoundMapperStore();
+/** A sound mapper store (vanilla zustand: `getState`, `setState`, `subscribe`). */
+export type SoundMapperStore = ReturnType<typeof createSoundMapperStore>;

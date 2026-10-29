@@ -6,7 +6,7 @@
 import { trainMapperModels, type MapperModels, type SoundSnippet } from '@thoremin/sdk/audio/examples';
 import { SOUND_MAPPER_DEFAULTS } from '@thoremin/sdk/audio/mapper';
 import type { KitSound } from '@thoremin/sdk/audio/kit';
-import type { SoundMap } from '../schema';
+import type { SoundMap } from './schema';
 import { decodePcm16 } from './pcm';
 
 /** The sample id a kit sound is registered under in the worklet. */
