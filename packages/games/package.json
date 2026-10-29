@@ -27,7 +27,9 @@
     "./view": "./src/view.ts",
     "./vowels": "./src/vowels.ts",
     "./echo": "./src/echo.ts",
-    "./echo_stage": "./src/echo_stage.ts"
+    "./echo_stage": "./src/echo_stage.ts",
+    "./formant_synth": "./src/formant_synth.ts",
+    "./vowel_calibration": "./src/vowel_calibration.ts"
   },
   "dependencies": {
     "@thoremin/judge": "*",
