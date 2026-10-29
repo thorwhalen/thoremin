@@ -71,7 +71,7 @@ export const ScoreDocSchema = z.object({
   v: z.literal(1).default(1),
   title: z.string(),
   /** Where it came from (for display and for the licence line). */
-  source: z.enum(['midi', 'musicxml', 'builtin']),
+  source: z.enum(['midi', 'musicxml', 'abc', 'builtin']),
   parts: z.array(ScorePartSchema),
   /** Tempo marks in order; empty = the source stated none. The conductor overrides the
    *  tempo anyway, but the marks let the scheduler ratio a rubato prior. */

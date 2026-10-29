@@ -107,6 +107,8 @@
     "./gesture/strum": "./src/gesture/strum.ts",
     "./score/prepare": "./src/score/prepare.ts",
     "./score/schema": "./src/score/schema.ts",
+    "./score/song": "./src/score/song.ts",
+    "./score/song_schema": "./src/score/song_schema.ts",
     "./audio/types": "./src/audio/types.ts",
     "./audio/fft": "./src/audio/fft.ts",
     "./audio/onset": "./src/audio/onset.ts",
