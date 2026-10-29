@@ -50,10 +50,11 @@ for (const [file, heading, hint] of [
   });
 }
 
-// The timed games and the timing take: each page goes live and starts its count-in.
+// The timed games and the timing take: each page goes live and starts its count-in (Echo: its first call).
 for (const [file, heading] of [
   ['sing-along', 'Sing Along'],
   ['play-along', 'Play Along Lessons'],
+  ['echo', 'Echo the Rhythm'],
   ['audio-timing', 'Audio timing'],
 ] as const) {
   test(`${heading} runs on its own page, without the app`, async ({ page }) => {
@@ -63,7 +64,7 @@ for (const [file, heading] of [
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     await page.getByRole('button', { name: 'Start' }).click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.mic()), { timeout: 15_000 }).toBe('live');
-    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.view()?.phase), { timeout: 10_000 }).toMatch(/count-in|playing/);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { thoreminPlay: PlayHook }).thoreminPlay.view()?.phase), { timeout: 10_000 }).toMatch(/count-in|playing|listen/);
     expect(errors).toEqual([]);
   });
 }
