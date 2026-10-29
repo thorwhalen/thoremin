@@ -67,7 +67,7 @@ The same games run without the instrument around them. Everything a game is (les
 
 ## Field games: the voice as a dot
 
-The second family (Pop the Notes, the Pitch Maze, and the vowel games after them) puts the voice on a plane instead of a timeline, and is built from four small pieces of `@thoremin/games` that each game combines rather than reimplements:
+The second family (Pop the Notes, the Pitch Maze, Vowels and Vowel Pop) puts the voice on a plane instead of a timeline, and is built from four small pieces of `@thoremin/games` that each game combines rather than reimplements:
 
 | Piece | What it is | Used by |
 |---|---|---|
@@ -78,6 +78,8 @@ The second family (Pop the Notes, the Pitch Maze, and the vowel games after them
 
 - **Pop the Notes**: `pop` (balloons popped by a `dwell` each, a few up at a time) over the pitch cursor with loudness. A course of balloons sits on the semitone columns at heights the scale reaches, sizes mixed (smaller is harder).
 - **Pitch Maze**: `maze` over the pitch cursor with no y. The ball climbs at a constant speed; at a wall it waits unless it is under the opening, and goes through only while the opening's note is held, the wall's thickness being the hold (`dwell` with no decay). The opening's width in semitones is the forgiveness. The walls are a Sing lesson's notes, and each wall's note is played as a hint early enough to die away before the ball arrives (the microphone hears the loudspeaker).
+
+- **Vowels** (`play/vowels.html`): the IPA vowel trapezoid as the plane. A `formants` analyser on the audio thread (`@thoremin/sdk/audio/formants`: decimate to 11 kHz, LPC by Levinson-Durbin of order 2 + kHz, the roots' narrow resonances; a second resonance above 3400 Hz means F2 was lost, as it often is when a back vowel's F1 and F2 merge) feeds a vowel cursor (`vowels`): F1 and F2 in Bark onto the chart by an affine fit on the eight primary cardinal vowels' reference formants, corrected by Gaussian radial basis functions so each passes exactly through its place; the median of the last seven windows; a loudness gate; a voice scale (the player's median F3 over the reference voice's, or chosen). The same map inverted (Newton from the affine inverse) gives the formants of any point, so the chart is playable: touching it sounds a parallel formant synthesiser (`play/src/vowel_synth.ts`). Practice is a pop session with no balloons (free play); **Vowel Pop** is the same session with the vowels as balloons. The vowel table and its places are glossa's; the reference formants Catford's. On the eight Commons recordings each lands nearest its own place, but one speaker's vowels sit 0.03 to 0.17 off the textbook places, so the balloons are wide; a per-player calibration (say three corner vowels) is the next step.
 
 Loudness rides on the pitch frames (`PitchEvent.rms`, the same window YIN read), so the dot's height and its column describe the same audio. Both games are standalone pages (`play/pop-the-notes.html`, `play/pitch-maze.html`, through `play/src/page.ts`, which every page shares).
 

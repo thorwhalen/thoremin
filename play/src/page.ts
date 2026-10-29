@@ -32,6 +32,8 @@ export interface GamePage<V> {
   mic(): string;
   /** The page's AudioContext, once Start made it. */
   audio(): AudioContext | undefined;
+  /** The page's AudioContext, made and resumed now (call it from a click or a touch). */
+  ensureAudio(): Promise<AudioContext>;
   stop(label?: string): void;
 }
 
@@ -49,13 +51,18 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
     o.startButton.textContent = label;
   }
 
-  async function start(): Promise<void> {
+  async function ensureAudio(): Promise<AudioContext> {
     ctx ??= new AudioContext({ latencyHint: 'interactive' });
     await ctx.resume();
+    return ctx;
+  }
+
+  async function start(): Promise<void> {
+    await ensureAudio();
     hub.poke();
     lease?.release();
     lease = hub.acquire({ analysers: [...o.analysers] });
-    const audio = ctx;
+    const audio = ctx!;
     const own = lease;
     runner = createRunner<V>(o.session(audio.currentTime + (o.leadS ?? 0.8), audio), {
       drain: () => own.drain(),
@@ -92,7 +99,7 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
   }
   requestAnimationFrame(frame);
 
-  const page: GamePage<V> = { view: () => last, mic: () => hub.status().state, audio: () => ctx, stop };
+  const page: GamePage<V> = { view: () => last, mic: () => hub.status().state, audio: () => ctx, ensureAudio, stop };
   /** What the browser smoke reads (`smoke/tests/play_pages.smoke.ts`). */
   (window as unknown as { thoreminPlay: unknown }).thoreminPlay = page;
   return page;
