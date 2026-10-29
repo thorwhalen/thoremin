@@ -18,6 +18,7 @@ Research behind thoremin's design decisions, one note per question. Each note st
 - [harmony-relations-and-realization.md](harmony-relations-and-realization.md): Harmony as layers: chord relations, distances, layouts, navigation, realization and emotion
 - [intent-and-subframe-timing.md](intent-and-subframe-timing.md): Intent, actuality, and sounding good: musical timing beyond the frame rate
 - [latency-budget-and-browser-realtime.md](latency-budget-and-browser-realtime.md): Where the lag comes from, and whether another language would cut it
+- [music-games-from-audio.md](music-games-from-audio.md): Music games and lessons that listen: melody and rhythm from live audio
 - [rhythm-from-gesture-research-map.md](rhythm-from-gesture-research-map.md): Inferring Rhythm & Tempo from Low-Frame-Rate Gesture: A Research Map
 - [subframe-impact-prediction.md](subframe-impact-prediction.md): Sub-frame impact prediction from body video: method, harness, numbers
 - [trainer-mode.md](trainer-mode.md): Research: trainer mode — learning a player's own control categories from a live stream

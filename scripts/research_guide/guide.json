@@ -571,6 +571,21 @@
    ]
   },
   {
+   "path": "docs/research/music-games-from-audio.md",
+   "title": "Music games and lessons that listen: melody and rhythm from live audio",
+   "area": "timing",
+   "abstract": "Surveys the singing games, instrument tutors, tuners, ear trainers and rhythm trainers that listen to a microphone, the pitch, onset and beat methods and the browser libraries under them, how the two open karaoke engines judge pitch, timing windows and latency calibration, and the visual conventions. By installs the three most common kinds are karaoke pitch matching, instrument play-along lessons and tuners, which become thoremin's Sing, Play along (with an unpitched rhythm level) and Match the note, on a pure judge package and lane B's audio-input seam.",
+   "status": "current",
+   "numbers": [
+    "StarMaker 500M+, Smule 100M+, GuitarTuna 100M+, Yousician and Simply Piano 50M+ Android installs; rhythm trainers 500K+",
+    "UltraStar pitch tolerance 2 / 1 / 0 semitones, octave-folded; Performous ramps 0.5 to 1.5 semitones on Normal",
+    "Microphone onset tiers proposed: perfect 30, great 60, good 100 ms"
+   ],
+   "issues": [
+    866
+   ]
+  },
+  {
    "path": "docs/research/rhythm-from-gesture-research-map.md",
    "title": "Inferring Rhythm and Tempo from Low-Frame-Rate Gesture: A Research Map",
    "area": "timing",
