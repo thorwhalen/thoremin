@@ -65,6 +65,22 @@ The stage owns the canvas: the seed hides the video (`overlay.video.show: false`
 
 The same games run without the instrument around them. Everything a game is (lessons, sessions, difficulty, the stage) is the pure package `@thoremin/games`; the slice runs a session inside its graph node, and a page in `play/` runs it in a plain animation loop (`play/src/runner.ts`) over its own AudioContext and the browser audio-input hub (`src/audio/browser.ts`), drawing the stage on its own canvas and playing the cues with a small synth. No camera opens, and no graph, React, store or extension is loaded: `npm run check:play` (CI) fails a page that reaches a module outside its allow list or grows past its budget, and the browser smoke checks it never requests the app. The first page is Match the Note (`play/match-the-note.html`, about 40 kB of source before minification); the calibration take and the timed games come next, and need the player offset kept on the page (the app keeps it as a device pref).
 
+## Field games: the voice as a dot
+
+The second family (Pop the Notes, the Pitch Maze, and the vowel games after them) puts the voice on a plane instead of a timeline, and is built from four small pieces of `@thoremin/games` that each game combines rather than reimplements:
+
+| Piece | What it is | Used by |
+|---|---|---|
+| `cursor` | a `PointSource`: heard frames to a point. The pitch cursor puts the pitch CLASS across (one octave that wraps; a column per semitone, the note in tune mid-column) and the loudness up, steadied by the 1-euro filter (`@thoremin/stats/smooth`, with a period for the wrap) | Pop the Notes, the Pitch Maze |
+| `loudness` | loudness as a position 0..1: by default the player's own range (the 5th and 95th percentiles of the last 30 s of voice, never narrower than 18 dB, a fixed range until 2 s of voice are heard), or a fixed range (soft, normal, loud). Both ends are reachable whatever the microphone, because the ends are where the player has been; the fixed ranges are the manual setting | Pop the Notes |
+| `dwell` | time inside toward "enough", with a decay while outside (0 = wait) | a balloon's hold (drains at half its rate off it); a wall's passage (no decay) |
+| `field` + `field_stage` | the plane (x and y in 0..1, an optional wrap, a hit test in screen proportions), its view model `FieldView`, and one stage that draws any of them: a backdrop given as data (columns, a polygon, marks), walls, balloons that shake harder as their hold fills and burst, the dot and its trail | all |
+
+- **Pop the Notes**: `pop` (balloons popped by a `dwell` each, a few up at a time) over the pitch cursor with loudness. A course of balloons sits on the semitone columns at heights the scale reaches, sizes mixed (smaller is harder).
+- **Pitch Maze**: `maze` over the pitch cursor with no y. The ball climbs at a constant speed; at a wall it waits unless it is under the opening, and goes through only while the opening's note is held, the wall's thickness being the hold (`dwell` with no decay). The opening's width in semitones is the forgiveness. The walls are a Sing lesson's notes, and each wall's note is played as a hint early enough to die away before the ball arrives (the microphone hears the loudspeaker).
+
+Loudness rides on the pitch frames (`PitchEvent.rms`, the same window YIN read), so the dot's height and its column describe the same audio. Both games are standalone pages (`play/pop-the-notes.html`, `play/pitch-maze.html`, through `play/src/page.ts`, which every page shares).
+
 ## Calibration
 
 `Audio timing` (a section of the games' tool): eight clicks of count-in, then sixteen clicks at 100 bpm; the player taps the table or claps on each; the microphone's onsets are paired with the clicks by `estimateOffset` (median, outliers dropped, refused when the spread is over 30 ms or fewer than six pairs survive). An accepted take writes the per-device **player offset** with its spread and date; a refused one says why and keeps the old value. A loopback take (the speaker heard by the microphone, no player) is offered where the speaker is audible: it measures the device's round trip alone.

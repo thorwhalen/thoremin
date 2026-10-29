@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pitch Maze</title>
+    <link rel="stylesheet" href="/play/src/play.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Pitch Maze</h1>
+      <select id="lesson" aria-label="Tune"></select>
+      <select id="difficulty" aria-label="Difficulty"></select>
+      <button id="start">Start</button>
+      <p class="hint">The ball climbs by itself. Sing the note of the opening in each wall and hold it until the ball is through; any octave counts. Each wall's note is played as it comes near. <a class="home" href="./">More games</a></p>
+    </header>
+    <canvas id="stage"></canvas>
+    <script type="module" src="/play/src/pitch_maze.ts"></script>
+  </body>
+</html>

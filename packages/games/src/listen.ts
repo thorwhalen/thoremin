@@ -13,6 +13,8 @@ export interface HeardPitch {
   /** Hz, or null when nothing periodic was heard. */
   f0: number | null;
   clarity: number;
+  /** RMS of the window, 0..1, when the analyser said (the loudness of the audio the pitch describes). */
+  rms?: number;
 }
 
 export interface HeardOnset {
@@ -34,6 +36,9 @@ export const GAMES_ANALYSERS = [
   { name: 'pitch', id: 'pitch' },
 ];
 
+/** The pitch analyser alone: what the field games read (their loudness rides on the pitch frames). */
+export const PITCH_ANALYSERS = [{ name: 'pitch', id: 'pitch' }];
+
 /** An event on the audio seam's `audio-events` port: an analyser's event, its id, its engine time. */
 export type TimedAudioEvent = AudioEvent & { source: string; t: number };
 
@@ -46,7 +51,7 @@ export function heardFrom(events: readonly TimedAudioEvent[] | undefined): Heard
   const pitch: HeardPitch[] = [];
   const onsets: HeardOnset[] = [];
   for (const e of events) {
-    if (e.kind === 'pitch' && e.source === 'pitch') pitch.push({ t: e.t, f0: e.f0, clarity: e.clarity });
+    if (e.kind === 'pitch' && e.source === 'pitch') pitch.push(e.rms === undefined ? { t: e.t, f0: e.f0, clarity: e.clarity } : { t: e.t, f0: e.f0, clarity: e.clarity, rms: e.rms });
     else if (e.kind === 'onset' && e.source === 'onset') onsets.push({ t: e.t, strength: e.strength });
   }
   return { pitch, onsets };

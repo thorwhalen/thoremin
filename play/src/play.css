@@ -1,0 +1,11 @@
+/* The standalone game pages' one stylesheet: a header of controls over a full-size stage canvas. */
+:root { color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: #0b1020; color: #e5e7eb; font: 15px system-ui, sans-serif; }
+body { display: flex; flex-direction: column; }
+header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 16px; }
+header h1 { font-size: 17px; margin: 0 8px 0 0; }
+select, button { font: inherit; background: #1e293b; color: inherit; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; }
+button { background: #2563eb; border-color: #2563eb; cursor: pointer; min-width: 5em; }
+.hint { flex-basis: 100%; color: rgba(229, 231, 235, 0.6); font-size: 13px; margin: 0; }
+.hint a, a.home { color: #93c5fd; }
+canvas { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; }

@@ -10,7 +10,7 @@
  * `layout` is pure (positions from the view and the canvas size), so a test checks where things go
  * without a canvas.
  */
-import type { GameView, ViewNote } from './view';
+import type { GameView, Results, ViewNote } from './view';
 import { nameOf } from './lesson';
 
 /** The canvas the stage draws on. `overlayOnly`: draw no background (a transparent overlay export). */
@@ -20,11 +20,12 @@ export interface StageFrame {
   overlayOnly?: boolean;
 }
 
-const BG = '#0b1020';
-const GRID = 'rgba(255,255,255,0.08)';
-const TEXT = '#e5e7eb';
-const DIM = 'rgba(229,231,235,0.55)';
-const TRAIL = '#22d3ee';
+/** The stage's palette, shared with the field games' stage (`field_stage`). */
+export const BG = '#0b1020';
+export const GRID = 'rgba(255,255,255,0.08)';
+export const TEXT = '#e5e7eb';
+export const DIM = 'rgba(229,231,235,0.55)';
+export const TRAIL = '#22d3ee';
 const NOW = 'rgba(255,255,255,0.7)';
 const STATE_COLOR: Record<ViewNote['state'], string> = { pending: '#64748b', active: '#e2e8f0', hit: '#f5d142', miss: '#ef4444' };
 const TIER_COLOR: Record<string, string> = { perfect: '#f5d142', great: '#34d399', good: '#60a5fa', miss: '#ef4444', 'wrong note': '#ef4444', extra: '#f97316' };
@@ -48,7 +49,7 @@ export function layout(v: GameView, W: number, H: number) {
   return { top, bottom, nowX, pxPerS, xOf, yOfMidi, semitone: (bottom - top) / rows };
 }
 
-function text(g: CanvasRenderingContext2D, s: string, x: number, y: number, size: number, color = TEXT, align: CanvasTextAlign = 'left') {
+export function text(g: CanvasRenderingContext2D, s: string, x: number, y: number, size: number, color = TEXT, align: CanvasTextAlign = 'left') {
   g.fillStyle = color;
   g.font = `600 ${Math.round(size)}px system-ui, sans-serif`;
   g.textAlign = align;
@@ -182,18 +183,21 @@ function drawMatch(g: CanvasRenderingContext2D, v: GameView, W: number, H: numbe
   });
 }
 
-function drawResults(g: CanvasRenderingContext2D, v: GameView, W: number, H: number) {
-  const r = v.results;
-  if (!r) return;
+/** The results card: a headline, the game's one line, its counts and, for a timed game, the timing. */
+export function drawResultsCard(g: CanvasRenderingContext2D, W: number, H: number, r: Results, headline: string): void {
   g.globalAlpha = 0.85;
   g.fillStyle = BG;
   g.fillRect(W * 0.15, H * 0.25, W * 0.7, H * 0.5);
   g.globalAlpha = 1;
-  text(g, v.game === 'calibrate' ? 'Timing measured' : `${Math.round(r.accuracy * 100)} %`, W / 2, H * 0.36, Math.min(48, H * 0.09), TEXT, 'center');
+  text(g, headline, W / 2, H * 0.36, Math.min(48, H * 0.09), TEXT, 'center');
   text(g, r.summary, W / 2, H * 0.47, 15, TEXT, 'center');
   const counts = Object.entries(r.counts).map(([k, n]) => `${k} ${n}`).join('   ');
   text(g, counts, W / 2, H * 0.55, 13, DIM, 'center');
   if (r.timing) text(g, `${r.timing.verdict}: ${r.timing.meanMs > 0 ? '+' : ''}${r.timing.meanMs} ms on average, spread ${r.timing.sdMs} ms`, W / 2, H * 0.62, 13, DIM, 'center');
+}
+
+function drawResults(g: CanvasRenderingContext2D, v: GameView, W: number, H: number) {
+  if (v.results) drawResultsCard(g, W, H, v.results, v.game === 'calibrate' ? 'Timing measured' : `${Math.round(v.results.accuracy * 100)} %`);
 }
 
 /** Draw the whole stage for one view. */
