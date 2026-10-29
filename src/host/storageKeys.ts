@@ -40,6 +40,7 @@ export const CORE_STORAGE_KEYS: readonly StorageKeyEntry[] = [
   // sets, the instrument meta, the profiles and the zustand persist stores (#659 lists them).
   ls('thoremin-presets', 'core', 'settings presets'),
   ls('thoremin.toolPins', 'core', 'which shell tools keep a bar button'),
+  ls('thoremin.audio.inputStage', 'core', 'this device\'s measured microphone input stage (the audio-input hub)'),
   ls('thoremin.instrumentsView', 'core', 'the Instruments view\'s remembered choices'),
   // The instrument library.
   ls('thoremin.instruments', 'core', 'the saved instruments (profiles)'),

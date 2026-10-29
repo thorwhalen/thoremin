@@ -19,7 +19,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Layer grouping for the manual (type → category, in display order).
 const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
-  { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'webcam-face', 'webcam-body', 'keyboard-source', 'store-controls', 'synthetic-hands', 'replay-source', 'replay-source-timed', 'replay-hands', 'synthetic-body', 'replay-body'] },
+  { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'webcam-face', 'webcam-body', 'keyboard-source', 'audio-events', 'store-controls', 'synthetic-hands', 'replay-source', 'replay-source-timed', 'replay-hands', 'synthetic-body', 'replay-body'] },
   { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'hands-dwell', 'face-features', 'face-controls', 'face-expression', 'face-categorizer', 'pose-categorizer', 'gesture-classifier', 'face-feature-vector', 'hand-feature-vector', 'body-feature-vector', 'body-pulse'] },
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'physical-theremin', 'body-route', 'indirect-map', 'keyboard-control', 'pick', 'one-euro', 'synth-merge', 'chord-select', 'delay', 'category-blend'] },
   { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression', 'expression-chord', 'pose-chord', 'categorizer-chord'] },

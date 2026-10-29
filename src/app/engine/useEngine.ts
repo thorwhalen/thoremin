@@ -52,6 +52,7 @@ import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBin
 import { cameraConstraints } from './camera';
 import { HAND_REPLAY_RESOURCE_KEY, useReplay } from '../replay/replayStore';
 import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
+import { AUDIO_INPUT_RESOURCE_KEY, audioInput, provideAudioOutput } from '../audio';
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -78,7 +79,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
-  const resourcesRef = useRef<Record<string, unknown>>({});
+  // The audio-input hub is there from the start (not only once a camera opened): an instrument
+  // that only listens must not wait for a camera (docs/design/audio-input.md).
+  const resourcesRef = useRef<Record<string, unknown>>({ [AUDIO_INPUT_RESOURCE_KEY]: audioInput });
   /** The live Applier, so cleanup can release it (and its taps) on unmount. */
   const applierRef = useRef<Applier | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -524,6 +527,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       resources.audioContext = ac;
       resources.masterGain = master;
       masterGainRef.current = master;
+      // The audio-input hub runs in this context and plays into the master gain.
+      provideAudioOutput({ audio: () => resources.audioContext as AudioContext | undefined, destination: () => resources.masterGain as AudioNode | undefined });
     }
     if (ac.state === 'suspended') await ac.resume();
     // The SessionRecorder (#88) creates its own master-bus tap when a take starts,
