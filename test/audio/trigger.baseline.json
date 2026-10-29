@@ -1,0 +1,6 @@
+{
+  "fastAccuracy": 0.875,
+  "finalAccuracy": 0.975,
+  "heardP95Ms": 4.417,
+  "heardMaxMs": 6.688
+}

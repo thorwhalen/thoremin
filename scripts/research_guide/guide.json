@@ -780,6 +780,36 @@
    "prs": [
     864
    ]
+  },
+  {
+   "path": "docs/research/live-audio-to-audio.md",
+   "title": "Live audio-to-audio in the browser, and sound-triggered sampling",
+   "area": "latency",
+   "abstract": "What a browser can do with a live microphone turned into live sound: effects (native nodes against AudioWorklet), analysis-driven effects (envelope followers, pitch-tracked synthesis, audio-to-MIDI), timbre transfer (DDSP, RAVE, codecs), and above all sound-triggered sampling: drum replacement, Sensory Percussion, vocal percussion research, few-shot classification. Methods (causal onsets, attack features, nearest-prototype classifiers), the latency physics of the render quantum and the device path, the libraries and their licences (Essentia.js is AGPL), and the recommendation thoremin built: detect, classify and play inside one AudioWorklet.",
+   "status": "implemented",
+   "numbers": [
+    "Render quantum 128 frames, 2.67 ms at 48 kHz",
+    "About 10 ms latency, under 1 ms jitter: the intimate-control criterion (secondary)",
+    "Embeddings read 0.5-1 s of audio: too slow to decide a trigger"
+   ],
+   "issues": [
+    866
+   ]
+  },
+  {
+   "path": "docs/research/audio-trigger-latency.md",
+   "title": "The sound mapper's latency and accuracy budget",
+   "area": "latency",
+   "abstract": "Where the time goes between a tap and its sample (input stage, the mapper, output stage), the budget the mapper is held to (its own share under 5 ms at the 95th percentile), the sound-early-decide-late trade-off, measurements on seeded synthetic taps and on a real corpus of struck sounds, the ratchet test, and the loopback procedure for a real device.",
+   "status": "implemented",
+   "numbers": [
+    "Default: sample 3.5 ms after the onset (4.4 ms p95), 0.875 right at once, 0.975 after an 8 ms correction (synthetic)",
+    "About 8 us of a 2667 us render quantum",
+    "Real corpus, same clips: 0.63 at 12 ms; other clips: 0.30 (a different object, not the player's task)"
+   ],
+   "issues": [
+    866
+   ]
   }
  ],
  "experiments": [
@@ -1751,6 +1781,52 @@
    ],
    "doc": "docs/design/generative-instruments.md",
    "date": "2026-09-09"
+  },
+  {
+   "id": "sound-mapper-windows",
+   "title": "How long must a tap be heard before it is named?",
+   "area": "latency",
+   "verdict": "positive",
+   "number": "Synthetic taps: 4 ms window 0.875, 8 ms 0.981, 20 ms 1.000; 4 ms then 12 ms 0.975 heard at 3.5 ms",
+   "summary": "The sound mapper over 160 seeded synthetic taps of four surfaces, quantum by quantum, for each fast and refining window. Sounding on 4 ms and correcting at 12 ms keeps the heard latency of the short window with the accuracy of the long one. Chose the defaults.",
+   "issues": [
+    866
+   ],
+   "doc": "docs/research/audio-trigger-latency.md",
+   "date": "2026-10-29",
+   "measure": {
+    "value": 0.975,
+    "label": "final accuracy, 4 ms then 12 ms",
+    "unit": "",
+    "baseline": {
+     "value": 0.875,
+     "label": "4 ms alone"
+    },
+    "better": "higher"
+   }
+  },
+  {
+   "id": "sound-mapper-tail-subtraction",
+   "title": "Does subtracting the last tap's ringing tail help name the next?",
+   "area": "latency",
+   "verdict": "negative",
+   "number": "Real hits of one object at 12 ms: 0.69 without, 0.56 with (synthetic, mixed surfaces: 0.89 to 0.93 at 6 ms)",
+   "summary": "Subtracting the spectrum of the window before an onset helps when the tail is another surface's and erases the surface's own modes when the same one is struck again, the common case on real hits. Off by default, kept as an option.",
+   "issues": [
+    866
+   ],
+   "doc": "docs/research/audio-trigger-latency.md",
+   "date": "2026-10-29",
+   "measure": {
+    "value": 0.69,
+    "label": "accuracy without subtraction (real, same object)",
+    "unit": "",
+    "baseline": {
+     "value": 0.56,
+     "label": "with subtraction"
+    },
+    "better": "higher"
+   }
   }
  ],
  "decisions": [
@@ -2513,6 +2589,17 @@
    "status": "open",
    "decided": "Proposal from #444's review: holds that arrive in Neutral by a whole-category merge are exempt from the fold into the rest prototype (up to maxPrototypes). It changes classification, so it is held as a decision for #168.",
    "issue": 536
+  },
+  {
+   "id": "adr:docs/design/audio-input.md",
+   "title": "Audio as an input stream: two paths, two clocks",
+   "kind": "design",
+   "status": "implemented",
+   "decided": "Whatever a player hears as a reaction to a sound runs inside one AudioWorklet (analysers by name, detect-decide-render in one process call); everything else gets events stamped in context frames, drained per tick by a graph source node and moved to engine time with the input stage taken off. The microphone opens once, processing off; three sources (microphone, replay, synthetic).",
+   "path": "docs/design/audio-input.md",
+   "issue": 866,
+   "prs": [],
+   "date": "2026-10-29"
   }
  ],
  "ideas": [],
