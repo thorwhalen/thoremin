@@ -35,6 +35,9 @@ export const MIDI = hasExtension('midi-output');
 /** True when the build ships the generative layer slice (#600 S14). */
 export const GENERATIVE = hasExtension('generative-layer');
 
+/** True when the build ships the sound mapper (#866). */
+export const SOUND_MAPPER = hasExtension('sound-mapper');
+
 /** True when the build ships the song slice (#600 S15). */
 export const SONG = hasExtension('song-tool');
 

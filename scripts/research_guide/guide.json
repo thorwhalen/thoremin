@@ -794,6 +794,9 @@
    ],
    "issues": [
     866
+   ],
+   "prs": [
+    870
    ]
   },
   {
@@ -809,6 +812,9 @@
    ],
    "issues": [
     866
+   ],
+   "prs": [
+    870
    ]
   }
  ],
@@ -2598,7 +2604,10 @@
    "decided": "Whatever a player hears as a reaction to a sound runs inside one AudioWorklet (analysers by name, detect-decide-render in one process call); everything else gets events stamped in context frames, drained per tick by a graph source node and moved to engine time with the input stage taken off. The microphone opens once, processing off; three sources (microphone, replay, synthetic).",
    "path": "docs/design/audio-input.md",
    "issue": 866,
-   "prs": [],
+   "prs": [
+    870,
+    872
+   ],
    "date": "2026-10-29"
   }
  ],

@@ -7,5 +7,6 @@
   "Conduct the Chords (Body)": { "body": true, "ms": 6000 },
   "Pose Chords": { "body": true, "ms": 6000 },
   "Physical Theremin": { "query": "synthetic.hands=both" },
-  "tool:poses": { "body": true }
+  "tool:poses": { "body": true },
+  "tool:sound-mapper": { "query": "audio.source=synthetic" }
 }
