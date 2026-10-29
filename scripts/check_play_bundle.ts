@@ -62,8 +62,11 @@ export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; 
  * The most a page may load up front, bytes as the build ships them. Raised from 60 kB when the field
  * games' stage learned the road (the Pitch Maze's higher levels): a page now carries one or two
  * stages and its game, 40 to 65 kB; what this guards against is the app (megabytes) leaking in.
+ * Raised again to 90 kB when every page gained the import and export bar (`play/src/spec_bar.ts`,
+ * its spec helpers and Vite's dynamic-import helper: about 11 kB rendered; formatcast, Zod and
+ * the parsers stay behind its dynamic import). Vowels, the largest, is 82 kB.
  */
-export const BUDGET_BYTES = 80_000;
+export const BUDGET_BYTES = 90_000;
 
 interface Chunk {
   file: string;

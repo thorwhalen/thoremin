@@ -9,11 +9,12 @@
  * Maze through a lesson (`lessonFromSong`), Echo through a level (`echoLevelFromSong`), Pop the
  * Notes through balloons at its pitches (`popCourseFromSong`). Vowels plays no notes.
  *
- * Pure, no Zod (the schema is `./spec_schema`).
+ * Pure, no Zod (the schema is `./spec_schema`), and imports no game at run time: every page loads
+ * it up front (`play/src/spec_bar.ts`), so it must not pull another game's code in.
  */
 import type { Song } from '@thoremin/sdk/score/song';
 import type { Difficulty } from './difficulty';
-import { STACKS, type EchoLevel, type Stack } from './echo';
+import type { EchoLevel, Stack } from './echo';
 import { seededRandom } from './field';
 import type { GameKind, Lesson } from './lesson';
 import type { PopTarget } from './pop';
@@ -112,7 +113,8 @@ export function lessonFromSong(song: Song, game: keyof typeof KIND, settings: Ga
 
 /** A song as an Echo level: its notes as the rhythm (pitches are played in the call), its bar. */
 export function echoLevelFromSong(song: Song, settings: GameSettings = {}): EchoLevel {
-  const stack = settings.stack && (STACKS as readonly string[]).includes(settings.stack) ? settings.stack : undefined;
+  // The stack's name was checked by the schema when the spec came in (`spec_schema`).
+  const stack = settings.stack;
   return {
     id: 'imported',
     title: song.title ?? 'Your rhythm',
