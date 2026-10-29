@@ -87,6 +87,15 @@ export function mountSpecBar(o: SpecBarOptions): SpecBar {
     status.style.color = error ? '#fbbf24' : '';
   };
 
+  /** Put an imported song aside: the shipped choice is back in play. */
+  function dropSong(): void {
+    imported = null;
+    if (!songSel) return;
+    [...songSel.options].filter((x) => x.value === YOURS).forEach((x) => x.remove());
+    if (songSel === own) songSel.hidden = true;
+    songSel.dispatchEvent(new Event('change'));
+  }
+
   function useSong(song: Song): void {
     imported = song;
     if (!songSel) return;
@@ -101,6 +110,7 @@ export function mountSpecBar(o: SpecBarOptions): SpecBar {
     const out: GameSettings = { ...extras };
     for (const [k, el] of Object.entries(o.controls ?? {}) as [keyof GameSettings, HTMLSelectElement | HTMLInputElement][]) {
       if (k === 'lesson' && el.value === YOURS) continue;
+      if (NUMERIC.includes(k) && el.value.trim() === '') continue;
       const v = el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : NUMERIC.includes(k) ? Number(el.value) : el.value;
       (out as Record<string, unknown>)[k] = v;
     }
@@ -108,6 +118,10 @@ export function mountSpecBar(o: SpecBarOptions): SpecBar {
   }
 
   function apply(spec: GameSpec): void {
+    const problem = spec.song ? songProblem(o.game, spec.song) : null;
+    if (problem) return say(`${spec.title ?? 'That game'}: ${problem}`, true);
+    // Its song, or none: an earlier imported song does not stay in play under a spec without one.
+    if (!spec.song) dropSong();
     extras = { ...spec.settings };
     for (const [k, el] of Object.entries(o.controls ?? {}) as [keyof GameSettings, HTMLSelectElement | HTMLInputElement][]) {
       const v = spec.settings[k];
@@ -186,7 +200,9 @@ export function mountSpecBar(o: SpecBarOptions): SpecBar {
     if (pending?.game === o.game) {
       sessionStorage.removeItem(PENDING);
       // Trusted only after the schema has seen it, which needs the lazy half.
-      void import('@thoremin/games/spec_schema').then(({ parseGameSpec }) => apply(parseGameSpec(pending)));
+      void import('@thoremin/games/spec_schema')
+        .then(({ parseGameSpec }) => apply(parseGameSpec(pending)))
+        .catch((e: Error) => say(`Could not open the game: ${e.message}`, true));
     }
   } catch {
     // No storage: nothing was handed over.

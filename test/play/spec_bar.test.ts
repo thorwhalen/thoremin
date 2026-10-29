@@ -90,4 +90,17 @@ describe('the spec bar', () => {
     expect(own.hidden).toBe(false);
     expect(bar.song()!.notes).toHaveLength(3);
   });
+
+  it('refuses a spec whose song this game cannot play, and a spec without a song puts the imported one aside', async () => {
+    const { lesson, header } = page();
+    const bar = mountSpecBar({ game: 'pitch-maze', host: header, controls: { lesson }, songSelect: lesson });
+    bar.apply(gameSpec('pitch-maze', {}, songFromText('x x x'), 'Beat'));
+    expect(bar.song()).toBeNull();
+    expect(document.querySelector('.specbar [role=status]')!.textContent).toMatch(/needs a melody/);
+    await open(new File(['C4 D4'], 'tune.notes'));
+    expect(bar.song()).not.toBeNull();
+    bar.apply(gameSpec('pitch-maze', { track: 'road' }));
+    expect(bar.song()).toBeNull();
+    expect([...lesson.options].map((x) => x.value)).toEqual(['a']);
+  });
 });

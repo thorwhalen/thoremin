@@ -34,6 +34,9 @@ export interface Song {
 /** True when every note has a pitch. */
 export const isPitchedSong = (song: Pick<Song, 'notes'>): boolean => song.notes.length > 0 && song.notes.every((n) => n.midi !== undefined);
 
+/** The id of the percussion part a song's unpitched hits are written to beside its melody. */
+export const CLAPS_PART = 'claps';
+
 export interface FromScoreOptions {
   /** The part to read, by id or index; default: the pitched part with the most notes. */
   part?: string | number;
@@ -63,6 +66,12 @@ export function songFromScore(doc: ScoreDoc, opts: FromScoreOptions = {}): Song 
     if (prev && Math.abs(prev.beat - n.start) < EPS) continue;
     if (prev && prev.beat + prev.beats > n.start) prev.beats = n.start - prev.beat;
     line.push({ beat: n.start, beats: n.duration, ...(part.percussion ? {} : { midi: n.midi }) });
+  }
+  // A song's unpitched hits written beside its melody (`scoreFromSong`'s `claps` part) come back as hits.
+  const claps = !part.percussion ? doc.parts.find((p) => p.percussion && p.id === CLAPS_PART) : undefined;
+  if (claps) {
+    for (const n of claps.notes) if (!line.some((m) => Math.abs(m.beat - n.start) < EPS)) line.push({ beat: n.start, beats: n.duration });
+    line.sort((a, b) => a.beat - b.beat);
   }
   const sig = doc.timeSignatures[0];
   const bpm = doc.tempoMap[0]?.bpm;
@@ -97,8 +106,9 @@ export function notesFrom(text: string): SongNote[] {
 export function songFromText(text: string, title?: string): Song {
   let bpm: number | undefined;
   let beatsPerBar: number | undefined;
+  // A comment is `#` starting a token (`F#3` is a pitch, `# up` a comment).
   const body = text
-    .replace(/#.*$/gm, '')
+    .replace(/(^|\s)#.*$/gm, '$1')
     .split(/\s+/)
     .filter((t) => {
       const m = /^(bpm|bar)=(\d+(?:\.\d+)?)$/.exec(t);
@@ -111,19 +121,33 @@ export function songFromText(text: string, title?: string): Song {
   return { ...(title ? { title } : {}), ...(bpm ? { bpm } : {}), ...(beatsPerBar ? { beatsPerBar } : {}), notes: notesFrom(body) };
 }
 
-/** A song as the compact text (rests written out, `bpm=` and `bar=` first when known): `songFromText`'s inverse. */
+/**
+ * A song as the compact text (rests written out, `bpm=` and `bar=` first when known):
+ * `songFromText`'s inverse for a single line of notes. The text is one line, so notes that overlap
+ * (a chord, from a JSON song) are written as one: of notes starting together the highest, and a
+ * note cut where the next starts, the same skyline as `songFromScore`. Lengths keep 6 decimals.
+ */
 export function songToText(song: Song): string {
   const tokens: string[] = [];
   if (song.bpm) tokens.push(`bpm=${song.bpm}`);
   if (song.beatsPerBar) tokens.push(`bar=${song.beatsPerBar}`);
-  const len = (b: number) => (Math.abs(b - 1) < 1e-9 ? '' : `:${+b.toFixed(4)}`);
+  const len = (b: number) => (Math.abs(b - 1) < 1e-9 ? '' : `:${+b.toFixed(6)}`);
+  const line = skyline(song.notes);
   let at = 0;
-  for (const n of [...song.notes].sort((a, b) => a.beat - b.beat)) {
+  for (const [i, n] of line.entries()) {
     if (n.beat > at + 1e-9) tokens.push(`-${len(n.beat - at)}`);
-    tokens.push(`${n.midi === undefined ? 'x' : nameOf(n.midi)}${len(n.beats)}`);
-    at = n.beat + n.beats;
+    const next = line[i + 1];
+    const beats = next ? Math.min(n.beats, next.beat - n.beat) : n.beats;
+    tokens.push(`${n.midi === undefined ? 'x' : nameOf(n.midi)}${len(beats)}`);
+    at = n.beat + beats;
   }
   return tokens.join(' ');
+}
+
+/** One line of notes: of notes starting together the highest (a hit counts lowest), in onset order. */
+function skyline(notes: readonly SongNote[]): SongNote[] {
+  const sorted = [...notes].sort((a, b) => a.beat - b.beat || (b.midi ?? -1) - (a.midi ?? -1));
+  return sorted.filter((n, i) => i === 0 || Math.abs(sorted[i - 1].beat - n.beat) > 1e-9);
 }
 
 const PITCH_CLASS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };

@@ -38,6 +38,8 @@ describe('reading a song from a file', () => {
     const text = await formats.decode<Song>('bpm=90 C4 D4:2 - E4', { filename: 'my tune.notes', to: 'song' });
     expect(text.title).toBe('my tune');
     expect(text.notes.map((n) => n.beat)).toEqual([0, 1, 4]);
+    // Note text saved as .txt, or with no name at all, is found by its content (not taken for TOML).
+    for (const opts of [{ filename: 'tune.txt' }, {}]) expect((await formats.decodeWithInfo('bpm=100 C4 D4 F#4', opts)).format).toBe('notes');
   });
 
   it('a song kept as JSON, YAML or TOML, validated on the way in', async () => {

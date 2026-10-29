@@ -98,8 +98,14 @@ export const musicPack = definePack({
       id: 'notes',
       label: 'Note text',
       kind: 'song',
-      extensions: ['notes'],
+      extensions: ['notes', 'txt'],
       mimeTypes: ['text/x-thoremin-notes'],
+      // Every token a note, a hit, a rest or a header (`bpm=90`): above TOML's sniff, which a lone
+      // `bpm=90` would otherwise satisfy. Plain text that is not notes scores nothing.
+      sniff: (_head, text) => {
+        const tokens = (text ?? '').replace(/(^|\s)#.*$/gm, '$1').trim().split(/\s+/).filter(Boolean);
+        return tokens.length > 0 && tokens.every((t) => /^(?:(?:[A-Ga-g][#b]?-?\d|\d+(?:\.\d+)?|x|-)(?::\d+(?:\.\d+)?)?|(?:bpm|bar)=\d+(?:\.\d+)?)$/.test(t)) ? 0.95 : 0;
+      },
       decode: (text: string, _p, ctx) => songFromText(text, titleOf(ctx)),
       encode: (song: Song) => songToText(song),
     },

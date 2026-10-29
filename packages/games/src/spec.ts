@@ -143,7 +143,8 @@ export function popCourseFromSong(song: Song, opts: { rMin: number; rMax: number
 }
 
 /** A lesson (a shipped one, say) as a song, for exporting what a page is playing. */
-export const songFromLesson = (lesson: Pick<Lesson, 'title' | 'bpm' | 'notes'>, beatsPerBar?: number): Song => ({
+export const songFromLesson = (lesson: Pick<Lesson, 'title' | 'bpm' | 'notes'> & { countIn?: number }, beatsPerBar = lesson.countIn || undefined): Song => ({
+  // A shipped lesson's count-in is one bar, so it is the song's bar (and comes back as its count-in).
   title: lesson.title,
   bpm: lesson.bpm,
   ...(beatsPerBar ? { beatsPerBar } : {}),

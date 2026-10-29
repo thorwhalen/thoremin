@@ -65,7 +65,8 @@ export function midiToScoreDoc(bytes: Uint8Array | ArrayBuffer, title?: string):
 export function scoreToMidi(doc: ScoreDoc): Uint8Array {
   const midi = new Midi();
   const ppq = midi.header.ppq;
-  midi.header.setTempo(doc.tempoMap[0]?.bpm ?? DEFAULT_BPM);
+  // Only a tempo the score has: one written here would come back as the song's own.
+  if (doc.tempoMap[0]) midi.header.setTempo(doc.tempoMap[0].bpm);
   const sig = doc.timeSignatures[0];
   if (sig) midi.header.timeSignatures.push({ ticks: 0, timeSignature: [sig.numerator, sig.denominator] });
   midi.header.name = doc.title;
@@ -78,8 +79,6 @@ export function scoreToMidi(doc: ScoreDoc): Uint8Array {
   }
   return midi.toArray();
 }
-
-const DEFAULT_BPM = 100;
 
 /** A song as a one-track MIDI file (a rhythm as hand claps on the percussion channel: `scoreFromSong`). */
 export const songToMidi = (song: Song): Uint8Array => scoreToMidi(scoreFromSong(song));

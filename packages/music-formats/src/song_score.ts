@@ -6,20 +6,29 @@
  * Pure: no parser.
  */
 import { notesLength, ScoreDocSchema, type ScoreDoc } from '@thoremin/sdk/score/schema';
-import type { Song } from '@thoremin/sdk/score/song';
+import { CLAPS_PART, type Song } from '@thoremin/sdk/score/song';
 
 /** A rhythm's pitch in a score: General MIDI percussion's hand clap. */
 export const CLAP = 39;
 
+/** A bar of `beats` quarters as a time signature: 3 is 3/4, 2.5 is 5/8, 3.75 is 15/16. */
+export function signatureOf(beats: number): { beat: number; numerator: number; denominator: number } {
+  for (const denominator of [4, 8, 16]) {
+    const numerator = (beats * denominator) / 4;
+    if (Math.abs(numerator - Math.round(numerator)) < 1e-9) return { beat: 0, numerator: Math.round(numerator), denominator };
+  }
+  return { beat: 0, numerator: Math.max(1, Math.round(beats)), denominator: 4 };
+}
+
 export function scoreFromSong(song: Song): ScoreDoc {
-  const rhythm = song.notes.every((n) => n.midi === undefined);
+  // Pitched notes are the melody; unpitched hits a percussion part of claps (which
+  // `songFromScore` folds back into the line), so a hit never becomes a pitched note.
+  const note = (n: Song['notes'][number]) => ({ midi: Math.round(n.midi ?? CLAP), start: n.beat, duration: n.beats, velocity: 0.8 });
+  const pitched = song.notes.filter((n) => n.midi !== undefined);
+  const hits = song.notes.filter((n) => n.midi === undefined);
   const parts = [
-    {
-      id: rhythm ? 'claps' : 'melody',
-      name: rhythm ? 'Claps' : 'Melody',
-      percussion: rhythm,
-      notes: song.notes.map((n) => ({ midi: Math.round(n.midi ?? CLAP), start: n.beat, duration: n.beats, velocity: 0.8 })),
-    },
+    ...(pitched.length ? [{ id: 'melody', name: 'Melody', percussion: false, notes: pitched.map(note) }] : []),
+    ...(hits.length ? [{ id: CLAPS_PART, name: 'Claps', percussion: true, notes: hits.map(note) }] : []),
   ];
   return ScoreDocSchema.parse({
     v: 1,
@@ -27,7 +36,7 @@ export function scoreFromSong(song: Song): ScoreDoc {
     source: 'builtin',
     parts,
     tempoMap: song.bpm ? [{ beat: 0, bpm: song.bpm }] : [],
-    timeSignatures: song.beatsPerBar ? [{ beat: 0, numerator: Math.round(song.beatsPerBar), denominator: 4 }] : [],
+    timeSignatures: song.beatsPerBar ? [signatureOf(song.beatsPerBar)] : [],
     dynamics: [],
     fermatas: [],
     lengthBeats: notesLength(parts),
