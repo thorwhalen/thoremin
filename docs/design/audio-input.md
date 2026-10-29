@@ -1,6 +1,6 @@
 # Audio as an input stream
 
-Status: accepted 2026-10-29 (lane B of [#866](https://github.com/thorwhalen/thoremin/issues/866)). The pure half is in `packages/sdk/src/audio/` (PR 1); the browser half (microphone, worklet, hub, graph node) is PR 2; the first instrument on it is the sound mapper (PR 3).
+Status: implemented 2026-10-29 (lane B of [#866](https://github.com/thorwhalen/thoremin/issues/866)). The pure half is in `packages/sdk/src/audio/` (#870); the browser half (microphone, worklet, hub, graph node) is #872; the first consumer is the Sound mapper tool (`src/slices/sound-mapper/`). Follow-ups: #873 (a real-room take), #874-#879.
 
 thoremin was built camera-in, sound-out. This document is the seam for **sound in**: a microphone (or a file, or a synthetic take) whose stream feeds both things that must answer in the time of a drum stroke, and things that only need to know what was heard. The research behind it is [`docs/research/live-audio-to-audio.md`](../research/live-audio-to-audio.md); the numbers behind it are [`docs/research/audio-trigger-latency.md`](../research/audio-trigger-latency.md).
 
@@ -28,7 +28,7 @@ Every event carries the time of the AUDIO it describes (`frame`: the context sam
 | Sample voices | `packages/sdk/src/audio/sampler.ts` | one-shots started at an exact sample; fade-in part-way through and fade-out from an offset (the correction) |
 | Synthetic taps | `packages/sdk/src/audio/synthetic_taps.ts` | seeded modal-synthesis taps with known onsets and surfaces |
 | Input stage | `packages/sdk/src/timing/input_stage.ts` | `InputStage { seconds, source }` and the trust order |
-| Worklet, hub, sources, graph node | PR 2: `src/app/audio/`, `src/nodes/sources/audio_events*.ts` | below |
+| Worklet, hub, sources, graph node | `src/app/audio/`, `packages/sdk-ui/src/audio/hub.ts`, `src/nodes/sources/audio_events*.ts` | below |
 
 ## Decisions
 
@@ -40,7 +40,7 @@ Every event carries the time of the AUDIO it describes (`frame`: the context sam
 
 **4. The microphone is opened once, with processing off.** `echoCancellation`, `noiseSuppression` and `autoGainControl` each add latency and smear transients; all three are off by default and a consumer may ask otherwise (the strictest-latency request wins; the hub reports the active set). The microphone opens in the app's one AudioContext (`useEngine`'s), so the output stage is the timing resource's, and only when a consumer asks: no permission prompt for a player who never used a sound instrument.
 
-**5. The input stage is a number with a source**, chosen by trust (`measured` > `loopback` > `tap` > `reported` > `prior`, never 0), stored per device (PR 2: `src/app/audio/inputStage.ts`, with a setter lane A's calibration takes write through).
+**5. The input stage is a number with a source**, chosen by trust (`measured` > `loopback` > `tap` > `reported` > `prior`, never 0), stored per device (`src/app/audio/inputStage.ts`, with a setter lane A's calibration takes write through).
 
 **6. Three sources, one slot.** `microphone`, `replay` (a decoded file through the same worklet: the Replay tool and the smoke) and `synthetic` (seeded taps from `synthetic_taps.ts`, with known onsets): `?audio.source=...`, as `?slot.source=synthetic-hands` is for the camera. A test never needs a microphone.
 

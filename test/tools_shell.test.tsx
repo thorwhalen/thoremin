@@ -38,6 +38,7 @@ import { useReplay } from '@/app/replay/replayStore';
 // The song is its slice's since #600 S15 (its tool runs detached through `ExtensionTool.detached`).
 import '@/slices/song/app/host';
 import { setSongHandle, setSongPlaying, songPlaying } from '@/slices/song/app/state';
+import { useSoundMapper } from '@/slices/sound-mapper/app/store';
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import { useTrainer } from '@/slices/trainer/app/store';
 import { setTrainerHud, trainerHud } from '@/slices/trainer/app/hud';
@@ -75,6 +76,7 @@ beforeEach(() => {
   if (LAB) setLab(defaultFeatureLab());
   setSongHandle(null);
   useReplay.getState().clear();
+  useSoundMapper.setState({ playing: false });
   useControls.setState({ gestures: defaultGesturePrefs() });
   useTrainer.getState().reset();
   // Recording defaults ON in production (its own test below covers that path); the
@@ -804,6 +806,12 @@ const DETACHED: Record<string, { start: () => void; running: () => boolean }> = 
       setSongPlaying(true);
     },
     running: () => songPlaying(),
+  },
+  // The sound mapper plays its drums on every tap until it is stopped (no hub in jsdom: the
+  // flag alone, which is what the bar reads).
+  'sound-mapper': {
+    start: () => useSoundMapper.setState({ playing: true }),
+    running: () => useSoundMapper.getState().playing,
   },
   // Core's: a loaded recording replays until it is stopped.
   replay: {
