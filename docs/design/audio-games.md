@@ -43,7 +43,7 @@ Each is a seed (an instrument in the library) and its editor section. Each has a
 | Editor sections, the start button, status | the games slice, `panels/`, `app/` | React |
 | The calibration take (tap along to clicks) | the games slice, a tool section; writes B's input-offset pref | React + pure maths in the judge |
 
-One slice (`src/slices/games/`, extension id `audio-games`) holds the three games: they share the lesson model, the state machine, the clock handling, the guide sink and the calibration, and the player meets them as one family in the library (a class of their own, "Listening games"). Splitting them later is a move inside the slice, not a seam change.
+Since `docs/design/apps.md` the games are played on their own pages (`play/`, the listening app), and the camera build no longer lists this slice: it is kept as the seam for a game that uses the camera and the microphone together, built and tested by `npm run test:lab` (`extensions.lab.json`). One slice (`src/slices/games/`, extension id `audio-games`) holds the three games: they share the lesson model, the state machine, the clock handling, the guide sink and the calibration, and the player meets them as one family in the library (a class of their own, "Listening games"). Splitting them later is a move inside the slice, not a seam change.
 
 ## The microphone
 

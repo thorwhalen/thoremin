@@ -40,9 +40,6 @@
     "ASL Chords",
     "Drawn Pieces",
     "Physical Theremin",
-    "Sing Along",
-    "Play Along Lessons",
-    "Match the Note",
     "Hand-shape Chords",
     "Pose Chords"
   ],
@@ -558,15 +555,6 @@
         "neutral": "",
         "sad": "",
         "surprised": ""
-      },
-      "games": {
-        "difficulty": "normal",
-        "enabled": false,
-        "game": "sing",
-        "lesson": "sing-five",
-        "octaveFold": true,
-        "reference": true,
-        "transpose": 0
       },
       "handMap": {
         "fingers": {
@@ -1301,15 +1289,6 @@
         "neutral": "",
         "sad": "",
         "surprised": ""
-      },
-      "games": {
-        "difficulty": "normal",
-        "enabled": false,
-        "game": "sing",
-        "lesson": "sing-five",
-        "octaveFold": true,
-        "reference": true,
-        "transpose": 0
       },
       "handMap": {
         "fingers": {

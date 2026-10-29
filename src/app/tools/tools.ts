@@ -181,6 +181,18 @@ export const TOOLS: readonly Tool[] = z.array(ToolSchema).parse([
     defaultPinned: false,
     href: GUIDE_HOME,
   },
+  {
+    // The listening games and the Sound mapper are an app of their own (docs/design/apps.md): the
+    // camera app links there instead of listing them. Relative to the site base (the page's
+    // `<base href="../">`), like the manual.
+    id: 'listen',
+    label: 'Listening app',
+    description: 'Games and lessons that use only the microphone, and the Sound mapper: an app of their own, with no camera.',
+    kind: 'link',
+    group: 'help',
+    defaultPinned: false,
+    href: 'play/',
+  },
 ]);
 
 export const TOOL_IDS: readonly string[] = TOOLS.map((t) => t.id);

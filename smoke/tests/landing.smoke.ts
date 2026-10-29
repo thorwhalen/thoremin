@@ -2,7 +2,7 @@
  * The landing (`index.html`, docs/design/apps.md) in a real browser: arriving at the site's bare
  * URL never asks for the camera or the microphone and loads nothing of the camera app; each card
  * opens its app; and an old link that carried a query (`?slot.source=...`) still lands in the
- * camera app, query intact.
+ * camera app, query intact, and the camera app loads none of the listening games.
  */
 import { test, expect } from '@playwright/test';
 import { collectErrors } from '../helpers/boot';
@@ -59,8 +59,13 @@ test('the listening card opens the listening games, which ask for no camera', as
   expect(await page.evaluate(() => (window as unknown as { mediaRequests: number }).mediaRequests)).toBe(0);
 });
 
-test('an old link with a query still opens the camera app, query intact', async ({ page }) => {
+test('an old link with a query still opens the camera app, query intact, and it loads no game', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (r) => requested.push(r.url()));
   await page.goto('../?slot.source=synthetic-hands');
   await expect(page).toHaveURL(/\/thoremin\/instruments\/\?slot\.source=synthetic-hands$/);
   await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
+  // The listening games are the listening app's (docs/design/apps.md): none of their chunks here.
+  const games = requested.filter((u) => /\/assets\/(sing|play_along|match|calibrate|lessons|difficulty|sound_mapper)-/.test(u));
+  expect(games).toEqual([]);
 });

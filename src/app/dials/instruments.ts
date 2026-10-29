@@ -298,8 +298,19 @@ export const instruments = createProfileStore(instrumentStorage());
 
 /** Bump when SEED_INSTRUMENTS changes, so a returning user gets the NEW shipped
  *  instruments added (by name) without re-seeding or clobbering their own. */
-const SEED_VERSION = 21;
+const SEED_VERSION = 22;
 const SEED_VERSION_KEY = 'thoremin.instruments.seedVersion';
+
+/**
+ * Shipped instruments this build no longer ships and that cannot play in it: the listening games'
+ * seeds, which became the listening app's pages (docs/design/apps.md; seeded at version 21, the
+ * same day). Loaded here they would hide the video and mute the hands with nothing to explain why,
+ * so the bump that retires them removes them, and only a copy that still turns the games on (a
+ * player's own instrument that merely shares a name is kept).
+ */
+const RETIRED_SEEDS: Readonly<Partial<Record<string, (layer: Layer) => boolean>>> = Object.fromEntries(
+  ['Sing Along', 'Play Along Lessons', 'Match the Note'].map((name) => [name, (layer: Layer) => (layer.games as { enabled?: unknown } | undefined)?.enabled === true]),
+);
 
 const readSeedVersion = (): number => {
   try {
@@ -331,6 +342,11 @@ export async function ensureSeeded(): Promise<void> {
   if (named.size > 0 && readSeedVersion() >= SEED_VERSION) return;
   for (const s of SEED_INSTRUMENTS) {
     if (!named.has(s.name)) await instruments.save(s.name, s.layer);
+  }
+  for (const name of named) {
+    const retired = RETIRED_SEEDS[name];
+    const layer = retired ? await instruments.load(name) : undefined;
+    if (retired && layer && retired(layer)) await instruments.remove(name);
   }
   writeSeedVersion();
 }
@@ -415,6 +431,26 @@ function isFreshBrowser(): boolean {
  *   absence is meaningful (the legacy `octaves` span path).
  */
 export function normalizeLayer(layer: Layer): Layer {
+  return healLayer(ownKeys(layer).own);
+}
+
+/**
+ * The keys a stored layer holds that this build's dials know (`own`), and the rest (`foreign`):
+ * the dial of an extension this build does not list, such as the listening games' `games`, which
+ * the camera build left out (docs/design/apps.md). The dials store sees only `own`, so a foreign
+ * key never reads as an unsaved edit; {@link commitToInstrument} writes `foreign` back, so saving
+ * over such an instrument loses nothing a build that lists the extension again would read.
+ */
+function ownKeys(layer: Layer): { own: Layer; foreign: Layer } {
+  const known = new Set<string>(thoreminDials.keys);
+  if (Object.keys(layer).every((k) => known.has(k))) return { own: layer, foreign: {} };
+  const own: Layer = {};
+  const foreign: Layer = {};
+  for (const [k, v] of Object.entries(layer)) (known.has(k) ? own : foreign)[k] = v;
+  return { own, foreign };
+}
+
+function healLayer(layer: Layer): Layer {
   // The extensions' dial chains first (#600 S10): an instrument saved before a dial took over a
   // value from another (the air drum's pads from `overlay.drumPads`) gets the same move the hot
   // store gets, so its visible state is the same; the heal below then fills what is still missing.
@@ -482,9 +518,12 @@ export async function selectInstrument(name: string): Promise<Layer | null> {
   return layer;
 }
 
-/** Overwrite a named instrument with the current working layer, then clear dirty. */
+/** Overwrite a named instrument with the current working layer (keeping the keys of an extension
+ *  this build does not list: {@link ownKeys}), then clear dirty. */
 export async function commitToInstrument(name: string): Promise<void> {
-  await instruments.save(name, dialsStore.getState().layer);
+  const stored = await instruments.load(name);
+  const { foreign } = stored ? ownKeys(stored) : { foreign: {} };
+  await instruments.save(name, { ...foreign, ...dialsStore.getState().layer });
   dialsStore.markSaved();
 }
 

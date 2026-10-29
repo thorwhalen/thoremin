@@ -61,6 +61,9 @@ jobs:
       - name: Test (vitest)
         run: npm test
 
+      - name: Test the listening-games slice the camera build leaves out (docs/design/apps.md)
+        run: npm run test:lab
+
       # The node catalog (docs/CATALOG.md, public/catalog.json, public/manual.html) is generated
       # from the node registry and committed; a change to a node, a port or a param that did not
       # regenerate it leaves the manual describing another app. Regenerate and compare.

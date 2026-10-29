@@ -1,0 +1,20 @@
+{
+  "//": "The camera build's extensions (extensions.json) plus the listening-games slice, which the camera app no longer ships (docs/design/apps.md) and which is kept, and tested here (`npm run test:lab`), as the seam for a game that uses the camera and the microphone together. The extensions this build ships, injected at build time (vite.extensions.ts). Point THOREMIN_EXTENSIONS at another file to build with a different set. `module` is the pure manifest (an Extension, default export); `ui` is its React half (an ExtensionUi, default export). An optional `lazy: { module, ui }` makes the extension LAZY: `module`/`ui` are then small eager stubs and `lazy.*` the deferred halves, loaded by dynamic import() only when a graph names its nodes or its section opens (docs/design/lazy-extensions.md).",
+  "extensions": [
+    { "id": "air", "module": "@thoremin/ext-air", "ui": "@thoremin/ext-air/ui" },
+    { "id": "harmonic-layers", "module": "@thoremin/ext-harmony", "ui": "@thoremin/ext-harmony/ui" },
+    { "id": "asl", "module": "@thoremin/ext-asl", "ui": "@thoremin/ext-asl/ui", "lazy": { "module": "@thoremin/ext-asl/lazy", "ui": "@thoremin/ext-asl/lazy_ui" } },
+    { "id": "drawn-pieces", "module": "@thoremin/ext-draw", "ui": "@thoremin/ext-draw/ui", "lazy": { "module": "@thoremin/ext-draw/lazy", "ui": "@thoremin/ext-draw/lazy_ui" } },
+    { "id": "midi-output", "module": "@/slices/midi", "ui": "@/slices/midi/ui" },
+    { "id": "generative-layer", "module": "@/slices/generative", "ui": "@/slices/generative/ui" },
+    { "id": "song-tool", "module": "@/slices/song", "ui": "@/slices/song/ui" },
+    { "id": "body-tracking", "module": "@/slices/body", "ui": "@/slices/body/ui" },
+    { "id": "trainer-tool", "module": "@/slices/trainer", "ui": "@/slices/trainer/ui" },
+    { "id": "conductor-tool", "module": "@/slices/conductor", "ui": "@/slices/conductor/ui" },
+    { "id": "feature-lab", "module": "@/slices/lab", "ui": "@/slices/lab/ui" },
+    { "id": "physical-theremin", "module": "@/slices/theremin", "ui": "@/slices/theremin/ui" },
+    { "id": "audio-games", "module": "@/slices/games", "ui": "@/slices/games/ui" },
+    { "id": "faces", "module": "@thoremin/ext-faces", "ui": "@thoremin/ext-faces/ui", "lazy": { "module": "@thoremin/ext-faces/lazy", "ui": "@thoremin/ext-faces/lazy_ui" } },
+    { "id": "patcher", "module": "@thoremin/ext-patcher", "ui": "@thoremin/ext-patcher/ui", "lazy": { "module": "@thoremin/ext-patcher/lazy", "ui": "@thoremin/ext-patcher/lazy_ui" } }
+  ]
+}

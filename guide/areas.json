@@ -23,10 +23,5 @@
     "id": "drawn",
     "title": "Drawn instruments",
     "blurb": "Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings."
-  },
-  {
-    "id": "listen",
-    "title": "Listening games",
-    "blurb": "Games and lessons that listen to the microphone: sing a melody and watch your voice on the notes, clap or play along a note highway, find a note and hold it. They measure your timing first, so the judging is fair on your device."
   }
 ]
