@@ -561,6 +561,60 @@
     ]
   },
   {
+    "type": "audio-events",
+    "title": "Audio events",
+    "description": "Microphone (or replayed / synthetic sound) analysed on the audio thread: onsets, recognised sounds, level, pitch, stamped in engine time.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "events",
+        "kind": "audio-events"
+      },
+      {
+        "name": "level",
+        "kind": "number"
+      },
+      {
+        "name": "status",
+        "kind": "string"
+      }
+    ],
+    "params": [
+      {
+        "name": "analysers",
+        "type": "array",
+        "default": [
+          {
+            "name": "onset"
+          }
+        ]
+      },
+      {
+        "name": "source",
+        "type": "enum(microphone | replay | synthetic)",
+        "default": "microphone"
+      },
+      {
+        "name": "echoCancellation",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "noiseSuppression",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "name": "autoGainControl",
+        "type": "boolean",
+        "default": false
+      }
+    ]
+  },
+  {
     "type": "body-feature-vector",
     "title": "Body Feature Vector",
     "description": "Body pose landmarks -> a flat vector of enabled body catalog features (angles, segment directions, kinematics, shape, effort, relations); landmarks below minVisibility are masked.",

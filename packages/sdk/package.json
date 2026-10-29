@@ -118,6 +118,8 @@
     "./audio/examples": "./src/audio/examples.ts",
     "./audio/evaluate": "./src/audio/evaluate.ts",
     "./audio/analysers": "./src/audio/analysers.ts",
+    "./audio/processor": "./src/audio/processor.ts",
+    "./audio/kit": "./src/audio/kit.ts",
     "./timing/audio": "./src/timing/audio.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
     "./timing/gain_ramp": "./src/timing/gain_ramp.ts",

@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (64)
+## Nodes (65)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -111,6 +111,14 @@ Global keyboard input → held / pressed / released key events.
 - **in:** —
 - **out:** held:string[], pressed:string[], released:string[]
 - **params:** preventDefaultKeys (array=["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "])
+
+#### `audio-events` — Audio events
+Microphone (or replayed / synthetic sound) analysed on the audio thread: onsets, recognised sounds, level, pitch, stamped in engine time.
+
+- **roles:** source
+- **in:** —
+- **out:** events:audio-events, level:number, status:string
+- **params:** analysers (array=[{"name":"onset"}]), source (enum(microphone | replay | synthetic)="microphone"), echoCancellation (boolean=false), noiseSuppression (boolean=false), autoGainControl (boolean=false)
 
 #### `store-controls` — UI Controls
 Reads the live UI control store → scale + sound + overlay port values.

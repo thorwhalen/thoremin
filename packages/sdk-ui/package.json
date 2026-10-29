@@ -25,6 +25,7 @@
     "./host": "./src/host.ts",
     "./namedCollection": "./src/namedCollection.ts",
     "./storage": "./src/storage.ts",
+    "./audio/hub": "./src/audio/hub.ts",
     "./idbCollection": "./src/idbCollection.ts",
     "./primitives": "./src/primitives.tsx",
     "./tools": "./src/tools.ts",

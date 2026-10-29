@@ -9,6 +9,7 @@
 import { createRegistry, type NodeRegistry } from '@thoremin/dag';
 
 import { syntheticHandsNode } from './sources/synthetic_hands';
+import { audioEventsNode } from './sources/audio_events';
 import { replaySourceNode } from './sources/replay';
 import { replaySourceTimedNode } from './sources/replay_timed';
 import { replayHandsNode } from './sources/replay_hands';
@@ -36,6 +37,7 @@ import { scoreNode } from './music/score';
 import { performanceNode } from './music/performance';
 
 export { syntheticHandsNode } from './sources/synthetic_hands';
+export { audioEventsNode } from './sources/audio_events';
 export { replaySourceNode } from './sources/replay';
 export { replaySourceTimedNode } from './sources/replay_timed';
 export {
@@ -85,6 +87,7 @@ export * from '@thoremin/sdk/nodes/domain';
 /** The pure node definitions, safe to instantiate anywhere (incl. Node tests). */
 export const CORE_NODES = [
   syntheticHandsNode,
+  audioEventsNode,
   replaySourceNode,
   replaySourceTimedNode,
   replayHandsNode,
