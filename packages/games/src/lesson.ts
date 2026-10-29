@@ -68,39 +68,5 @@ export function placeLesson(lesson: Lesson, start: number, transpose = 0): { cli
 /** True when every note of the lesson has a pitch. */
 export const isPitched = (lesson: Lesson): boolean => lesson.notes.every((n) => n.midi !== undefined);
 
-/**
- * Notes from a compact text: space-separated tokens, each `<pitch>[:<beats>]` or `-[:<beats>]`
- * for a rest, `x[:<beats>]` for an unpitched hit; beats default to 1. Pitches are MIDI numbers
- * or names (`C4`, `F#3`, `Bb4`). Consecutive, so `C4 D4 E4:2` is three notes on beats 0, 1, 2.
- */
-export function notesFrom(text: string): LessonNote[] {
-  const out: LessonNote[] = [];
-  let beat = 0;
-  for (const token of text.trim().split(/\s+/)) {
-    const [head, len] = token.split(':');
-    const beats = len === undefined ? 1 : Number(len);
-    if (!(beats > 0)) throw new Error(`lesson notes: bad length in "${token}"`);
-    if (head !== '-') out.push(head === 'x' ? { beat, beats } : { beat, beats, midi: midiFromName(head) });
-    beat += beats;
-  }
-  return out;
-}
-
-const PITCH_CLASS: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-
-/** `C4` = 60, `A4` = 69, `F#3`, `Bb4`; a bare number is a MIDI number. */
-export function midiFromName(name: string): number {
-  if (/^\d+(\.\d+)?$/.test(name)) return Number(name);
-  const m = /^([A-Ga-g])([#b]?)(-?\d)$/.exec(name);
-  if (!m) throw new Error(`lesson notes: "${name}" is not a pitch (C4, F#3, Bb4 or a MIDI number)`);
-  const pc = PITCH_CLASS[m[1].toUpperCase()] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
-  return 12 * (Number(m[3]) + 1) + pc;
-}
-
-const NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-/** The nearest note's name for a (fractional) MIDI pitch: 60 -> C4. */
-export function nameOf(midi: number): string {
-  const r = Math.round(midi);
-  return `${NAMES[((r % 12) + 12) % 12]}${Math.floor(r / 12) - 1}`;
-}
+/** The compact note text and pitch names are the song's (`@thoremin/sdk/score/song`); a lesson's notes are a song's notes. */
+export { midiFromName, nameOf, notesFrom } from '@thoremin/sdk/score/song';

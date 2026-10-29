@@ -1,0 +1,17 @@
+{
+  "name": "@thoremin/music-formats",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's music file formats: MIDI, MusicXML (and compressed .mxl) and ABC read into a ScoreDoc, a song written out as MIDI; each parser is its own module, meant to be reached by a dynamic import so it loads only when a file of its kind is opened (TypeScript source, consumed through the workspace).",
+  "exports": {
+    "./abc": "./src/abc.ts",
+    "./midi": "./src/midi.ts",
+    "./musicxml": "./src/musicxml.ts"
+  },
+  "dependencies": {
+    "@thoremin/sdk": "*",
+    "@tonejs/midi": "*",
+    "musicxml-io": "*"
+  }
+}
