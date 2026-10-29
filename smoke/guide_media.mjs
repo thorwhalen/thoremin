@@ -34,7 +34,7 @@ const opt = (n, d) => (args.includes(`--${n}`) ? args[args.indexOf(`--${n}`) + 1
 const PORT = Number(opt('port', '4392'));
 const ONLY = args.flatMap((a, i) => (args[i - 1] === '--only' ? [a] : []));
 const CLIPS = !flag('no-clips');
-const BASE = `http://localhost:${PORT}/thoremin/`;
+const BASE = `http://localhost:${PORT}/thoremin/instruments/`;
 const OUT = join(ROOT, 'public', 'guide', 'pics');
 const VIEW = { width: 960, height: 600 };
 const JPEG_QUALITY = 68;

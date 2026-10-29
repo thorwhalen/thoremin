@@ -10,8 +10,11 @@ no backend compute — the app is a static Vite bundle).
 
 - **DAG instrument view (default)** — `src/app/*`, `src/nodes`, `packages/dag/src`,
   `src/music`. The typed dataflow engine everything new is built on. Loads at
-  the bare URL (https://apps.thorwhalen.com/thoremin/). `?engine=dag` is still
-  honored (it equals the default), so older links keep working.
+  `instruments/` (https://apps.thorwhalen.com/thoremin/instruments/); the bare URL is
+  the landing, a static page that opens no camera and forwards any old link with a
+  query or hash to `instruments/` ([`docs/design/apps.md`](docs/design/apps.md): the
+  apps, their entries, and why the camera app's page has `<base href="../">`).
+  `?engine=dag` is still honored (it equals the default), so older links keep working.
 - **Legacy app** — opt-in via `?engine=legacy` (alias `?engine=classic`) →
   `src/App.tsx`, `src/components/Theremin.tsx`, `src/plugins/ai-dj/` (Lyria
   RealTime). The original hand-theremin; the code-split (lazy) view.

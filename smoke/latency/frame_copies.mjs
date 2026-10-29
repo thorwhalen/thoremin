@@ -62,7 +62,7 @@ try {
   });
   const page = await browser.newPage();
   await page.addInitScript(instrument);
-  await page.goto(`http://localhost:${port}/thoremin/${query ? '?' + query : ''}`);
+  await page.goto(`http://localhost:${port}/thoremin/instruments/${query ? '?' + query : ''}`);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 60_000 });
   await page.locator('[data-tools-bar] [data-tool="conductor"]').click();
   await page.getByRole('radio', { name: 'Conduct with body' }).click();

@@ -68,7 +68,7 @@ test.describe('every tool, core\'s and the extensions\', opens from the shell', 
       if (tool.kind === 'link') {
         const href = await button.getAttribute('href');
         expect(href, `${tool.id} has an href`).toBeTruthy();
-        const res = await page.request.get(new URL(href!, page.url()).toString());
+        const res = await page.request.get(new URL(href!, await page.evaluate(() => document.baseURI)).toString());
         expect(res.status(), `${href} resolves`).toBe(200);
         return;
       }
@@ -126,18 +126,18 @@ test.describe('the player guide is reachable (shipping rule 4)', () => {
     expect(await link.getAttribute('data-own')).toBe('true');
     const href = await link.getAttribute('href');
     expect(href).toBe('guide/instruments/air-drum.html');
-    const res = await page.request.get(new URL(href!, page.url()).toString());
+    const res = await page.request.get(new URL(href!, await page.evaluate(() => document.baseURI)).toString());
     expect(res.status(), `${href} is served`).toBe(200);
   });
 
   test('every guide page offers the whole guide as one file, and the app serves each export', async ({ page }) => {
-    await page.goto('guide/index.html');
+    await page.goto('../guide/index.html');
     await page.locator('details.export > summary').click();
     for (const kind of ['html', 'pdf', 'md']) {
       const link = page.locator(`a[data-export="${kind}"]`);
       await expect(link).toBeVisible();
       const href = await link.getAttribute('href');
-      const res = await page.request.get(new URL(href!, page.url()).toString());
+      const res = await page.request.get(new URL(href!, await page.evaluate(() => document.baseURI)).toString());
       expect(res.status(), `${href} is served`).toBe(200);
     }
   });

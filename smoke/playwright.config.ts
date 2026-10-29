@@ -18,7 +18,13 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.SMOKE_PORT ?? 4173);
 /** The deployed base path (vite.config.ts `base`). */
-export const BASE_PATH = '/thoremin/';
+export const SITE_PATH = '/thoremin/';
+/**
+ * Where the camera app is served (`instruments/`; the bare URL is the landing, docs/design/apps.md).
+ * Tests boot the app relative to it (`page.goto('?slot...')`), and reach the site's other pages
+ * one level up (`../play/`, `../guide/`).
+ */
+export const BASE_PATH = `${SITE_PATH}instruments/`;
 
 export default defineConfig({
   testDir: './tests',

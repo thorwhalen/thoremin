@@ -165,7 +165,7 @@ export function buildGuide(root: string): Built {
   const nav = (out: string, current: string): string => {
     const p = prefixOf(out);
     const item = (key: string, label: string, href: string) => `<a href="${p}${href}"${key === current ? ' aria-current="page"' : ''}>${label}</a>`;
-    return `<nav aria-label="Guide">${item('home', 'Guide', 'index.html')}${item('instruments', 'Instruments', 'instruments.html')}${item('tools', 'Tools', 'tools.html')}${item('settings', 'Settings', 'settings.html')}${item('troubleshooting', 'Troubleshooting', 'troubleshooting.html')}<a href="${p}../manual.html">Manual</a>${exportMenu(p)}<a class="app" href="${p}../">Back to the app</a></nav>`;
+    return `<nav aria-label="Guide">${item('home', 'Guide', 'index.html')}${item('instruments', 'Instruments', 'instruments.html')}${item('tools', 'Tools', 'tools.html')}${item('settings', 'Settings', 'settings.html')}${item('troubleshooting', 'Troubleshooting', 'troubleshooting.html')}<a href="${p}../manual.html">Manual</a>${exportMenu(p)}<a class="app" href="${p}../instruments/">Back to the app</a></nav>`;
   };
 
   const shell = (out: string, current: string, title: string, inner: string): string => `<!doctype html>
@@ -182,7 +182,7 @@ export function buildGuide(root: string): Built {
 <main>
 ${inner}
 </main>
-<footer><p>Thoremin turns your camera into a musical instrument. Everything runs in your browser: nothing you play is uploaded. <a href="${prefixOf(out)}../">Open the app</a>.</p></footer>
+<footer><p>Thoremin turns your camera into a musical instrument. Everything runs in your browser: nothing you play is uploaded. <a href="${prefixOf(out)}../instruments/">Open the app</a>, or <a href="${prefixOf(out)}../">the home page</a> for the listening games.</p></footer>
 </body>
 </html>
 `;
