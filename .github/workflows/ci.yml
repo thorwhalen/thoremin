@@ -81,6 +81,11 @@ jobs:
       - name: Lazy extensions stay out of the initial chunks
         run: npm run check:lazy
 
+      # A standalone game page (play/) loads only the games, the judge, the SDK's audio and the
+      # audio-input hub: no graph engine, React, store, camera model or extension.
+      - name: Standalone game pages carry only what a game needs
+        run: npm run check:play
+
   # Core alone: thoremin must typecheck, test and build with NO extension listed
   # (extensions.core.json), so an extension stays something a deploy chooses and core
   # never quietly depends on one. Tests that exercise an extension skip themselves here

@@ -7,13 +7,14 @@
 import { describe, it, expect } from 'vitest';
 import { createPitchTracker } from '@thoremin/sdk/audio/pitch';
 import { midiOf, hzOf } from '@thoremin/judge';
-import { LessonSchema, notesFrom, placeLesson, midiFromName, nameOf, type Lesson } from '@/slices/games/lib/lesson';
-import { LESSONS } from '@/slices/games/lib/lessons';
-import { createSingSession } from '@/slices/games/lib/sing';
-import { createPlayAlongSession } from '@/slices/games/lib/play_along';
-import { createMatchSession } from '@/slices/games/lib/match';
-import type { Heard, HeardPitch } from '@/slices/games/lib/listen';
-import type { GameView } from '@/slices/games/lib/view';
+import { notesFrom, placeLesson, midiFromName, nameOf, type Lesson } from '@thoremin/games/lesson';
+import { LessonSchema } from '@thoremin/games/lesson_schema';
+import { LESSONS } from '@thoremin/games/lessons';
+import { createSingSession } from '@thoremin/games/sing';
+import { createPlayAlongSession } from '@thoremin/games/play_along';
+import { createMatchSession } from '@thoremin/games/match';
+import type { Heard, HeardPitch } from '@thoremin/games/listen';
+import type { GameView } from '@thoremin/games/view';
 import { loadAudioFixture, inBlocks, type AudioFixture } from '../helpers/audio_fixtures';
 
 const TICK = 1 / 60;

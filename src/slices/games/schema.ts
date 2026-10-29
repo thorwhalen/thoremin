@@ -4,28 +4,14 @@
  * player's calibrated offset, which belongs to the device and the player, never to an instrument).
  */
 import { z } from 'zod';
-import { AUDIO_ONSET_WINDOWS, AUDIO_ONSET_WINDOWS_EASY, tier, type Windows } from '@thoremin/judge';
-import { GAME_KINDS } from './lib/lesson';
+import { GAME_KINDS } from '@thoremin/games/lesson';
 
 /** A game, or the calibration take (tap along to clicks), which runs through the same node. */
 export const GAME_MODES = [...GAME_KINDS, 'calibrate'] as const;
 export type GameMode = (typeof GAME_MODES)[number];
 
-export const DIFFICULTIES = ['easy', 'normal', 'hard'] as const;
-export type Difficulty = (typeof DIFFICULTIES)[number];
-
-/** Pitch tolerance per difficulty, cents: UltraStar's 2, 1 and 0 semitones read as half-widths (the research doc, 5.1). */
-export const PITCH_TOLERANCE: Record<Difficulty, number> = { easy: 150, normal: 100, hard: 50 };
-
-/** Match the note asks more: its tolerance is a tuner's, halved. */
-export const MATCH_TOLERANCE: Record<Difficulty, number> = { easy: 75, normal: 50, hard: 25 };
-
-/** Timing windows per difficulty. */
-export const ONSET_WINDOWS: Record<Difficulty, Windows> = {
-  easy: AUDIO_ONSET_WINDOWS_EASY,
-  normal: AUDIO_ONSET_WINDOWS,
-  hard: [tier('perfect', 0.02), tier('great', 0.04), tier('good', 0.07)],
-};
+export { DIFFICULTIES, PITCH_TOLERANCE, MATCH_TOLERANCE, ONSET_WINDOWS, type Difficulty } from '@thoremin/games/difficulty';
+import { DIFFICULTIES } from '@thoremin/games/difficulty';
 
 export const GamesSettingsSchema = z.object({
   enabled: z.boolean().default(false),

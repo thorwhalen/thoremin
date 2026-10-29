@@ -7,36 +7,35 @@
  * onsets, and the pitch when the lesson is pitched (an unpitched lesson is a rhythm to clap or
  * tap); Match the note reads the pitches one at a time, self-paced (its beats are ignored).
  *
- * Pure: Zod and arithmetic.
+ * Pure arithmetic, and no Zod: the schema that validates a lesson from outside (a file, a
+ * player's own) is `./lesson_schema.ts`, so a page that only plays the shipped lessons does not
+ * carry a validator.
  */
-import { z } from 'zod';
 
 export const GAME_KINDS = ['sing', 'play-along', 'match'] as const;
 export type GameKind = (typeof GAME_KINDS)[number];
 
-export const LessonNoteSchema = z.object({
+export interface LessonNote {
   /** Where it starts, beats after the count-in. */
-  beat: z.number().nonnegative(),
+  beat: number;
   /** How long, beats. */
-  beats: z.number().positive(),
+  beats: number;
   /** MIDI pitch; absent in a rhythm lesson. */
-  midi: z.number().optional(),
-});
-export type LessonNote = z.infer<typeof LessonNoteSchema>;
+  midi?: number;
+}
 
-export const LessonSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  game: z.enum(GAME_KINDS),
+export interface Lesson {
+  id: string;
+  title: string;
+  game: GameKind;
   /** Beats per minute. */
-  bpm: z.number().positive(),
+  bpm: number;
   /** Count-in clicks before beat 0. */
-  countIn: z.number().int().nonnegative().default(4),
-  notes: z.array(LessonNoteSchema).min(1),
+  countIn: number;
+  notes: LessonNote[];
   /** A line the player reads before starting. */
-  hint: z.string().default(''),
-});
-export type Lesson = z.infer<typeof LessonSchema>;
+  hint: string;
+}
 
 /** A lesson note placed in engine seconds. */
 export interface TimedNote {

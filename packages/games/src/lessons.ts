@@ -1,11 +1,16 @@
 /**
  * The lessons the games ship with: short, public-domain melodies and rhythms, written in the
- * compact note text of `notesFrom`. A first try in each game should take under a minute.
+ * compact note text of `notesFrom`. A first try in each game should take under a minute. Built
+ * without Zod (a test validates every one against `LessonSchema`).
  */
-import { LessonSchema, notesFrom, type Lesson } from './lesson';
+import { notesFrom, type Lesson } from './lesson';
 
-const lesson = (l: Omit<Lesson, 'notes' | 'countIn' | 'hint'> & { notes: string; countIn?: number; hint?: string }): Lesson =>
-  LessonSchema.parse({ ...l, notes: notesFrom(l.notes) });
+const lesson = (l: Omit<Lesson, 'notes' | 'countIn' | 'hint'> & { notes: string; countIn?: number; hint?: string }): Lesson => ({
+  countIn: 4,
+  hint: '',
+  ...l,
+  notes: notesFrom(l.notes),
+});
 
 export const LESSONS: readonly Lesson[] = [
   // Sing: a five-note scale up and down, then two public-domain tunes.

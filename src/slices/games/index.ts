@@ -19,7 +19,7 @@ import { makePluckOutNode } from '@thoremin/sdk/nodes/pluck_out';
 import type { NodeDef } from '@thoremin/dag';
 import { listeningGameNode } from './nodes/listening_game';
 import { STAGE_ELEMENT, stageElement } from './nodes/overlay/stage';
-import { GAMES_ANALYSERS } from './lib/listen';
+import { GAMES_ANALYSERS } from '@thoremin/games/listen';
 import { DEFAULT_GAMES, DEFAULT_GAMES_PREFS, GAMES_PREFS, GamesPrefsSchema, GamesSettingsSchema, type GamesPrefs } from './schema';
 
 export const GAMES_EXTENSION_ID = 'audio-games';

@@ -1,7 +1,7 @@
 /**
  * The audio-input AudioWorklet processor (`docs/design/audio-input.md`): a thin shell over the
  * pure processor core (`@thoremin/sdk/audio/processor`), which holds the analysers, routes the
- * host's messages to them and batches their events. Loaded by the hub (`./hub.ts`) as a bundled
+ * host's messages to them and batches their events. Loaded by the browser hub (`./browser.ts`) as a bundled
  * worker chunk (`?worker&url`), so everything it imports is bundled into it.
  */
 import { createProcessorCore, type ProcessorInMessage } from '@thoremin/sdk/audio/processor';

@@ -17,16 +17,16 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import type { NoteEvent } from '@thoremin/sdk/nodes/note_events';
-import { createSingSession } from '../lib/sing';
-import { createPlayAlongSession } from '../lib/play_along';
-import { createMatchSession } from '../lib/match';
-import { createCalibrationSession } from '../lib/calibrate';
-import { lessonById, lessonsFor } from '../lib/lessons';
-import { heardFrom, type Heard, type TimedAudioEvent } from '../lib/listen';
-import type { Cue } from '../lib/cues';
-import type { GameView, Phase, Results } from '../lib/view';
+import { createSingSession } from '@thoremin/games/sing';
+import { createPlayAlongSession } from '@thoremin/games/play_along';
+import { createMatchSession } from '@thoremin/games/match';
+import { createCalibrationSession } from '@thoremin/games/calibrate';
+import { lessonById, lessonsFor } from '@thoremin/games/lessons';
+import { heardFrom, micNotice, type Heard, type TimedAudioEvent } from '@thoremin/games/listen';
+import type { Cue } from '@thoremin/games/cues';
+import type { GameView, Phase, Results } from '@thoremin/games/view';
 import { DEFAULT_GAMES, GamesSettingsSchema, MATCH_TOLERANCE, ONSET_WINDOWS, PITCH_TOLERANCE, type GameMode, type GamesSettings } from '../schema';
-import type { Lesson } from '../lib/lesson';
+import type { Lesson } from '@thoremin/games/lesson';
 
 /** Seconds between Start and the session's start: room to schedule the first click ahead. */
 export const LEAD = 0.5;
@@ -80,26 +80,6 @@ function startSession(s: GamesSettings, start: number, offset: number): { sessio
   }
 }
 
-/** What to tell the player about the microphone, from the audio hub's state; null while it is live. */
-export function micNotice(state: string): string | null {
-  switch (state) {
-    case '':
-    case 'live':
-      return null;
-    case 'denied':
-      return 'The microphone was refused: allow it in the browser to play.';
-    case 'unsupported':
-      return 'This browser offers no microphone.';
-    case 'failed':
-      return 'The microphone could not be opened.';
-    case 'unavailable':
-      return 'No audio input here.';
-    case 'waiting-audio':
-      return 'Click or press a key to start the sound.';
-    default:
-      return 'Opening the microphone...';
-  }
-}
 
 const toNoteEvent = (c: Cue, now: number): NoteEvent => ({ t: c.t, midi: c.midi, velocity: c.velocity, predicted: true, lead: c.t - now });
 

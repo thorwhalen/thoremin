@@ -1,6 +1,6 @@
 /**
  * The AudioWorklet processor's logic, without the worklet (`docs/design/audio-input.md`): the
- * thin shell in `src/app/audio/audio_in.worklet.ts` forwards `process` and port messages here,
+ * thin shell in `src/audio/audio_in.worklet.ts` forwards `process` and port messages here,
  * so everything it decides is tested in node.
  *
  * It holds a chain of analysers that the host adds and removes while running (each consumer of

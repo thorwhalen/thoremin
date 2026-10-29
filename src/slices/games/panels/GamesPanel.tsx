@@ -7,7 +7,7 @@ import { useSyncExternalStore, type ReactNode } from 'react';
 import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { controls } from '@thoremin/sdk-ui/host';
 import { Toggle, ValueRow, selectCls } from '@thoremin/sdk-ui/primitives';
-import { lessonsFor } from '../lib/lessons';
+import { lessonsFor } from '@thoremin/games/lessons';
 import { DEFAULT_GAMES, DEFAULT_GAMES_PREFS, DIFFICULTIES, GAMES_PREFS, GAME_MODES, type GameMode, type GamesPrefs, type GamesSettings } from '../schema';
 import { describeGame, useGamesStatus } from '../app/status';
 import { keepOffset, startGame, stopGame } from '../app/controls';
