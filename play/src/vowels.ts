@@ -5,7 +5,9 @@
  * microphone's formants (the `formants` analyser) put the voice on it as a dot (`createVowelCursor`):
  * in Practice, freely, with the nearest vowel named; in Vowel Pop, the eight primary cardinal
  * vowels are balloons to hold the dot on. Vowel Pop is `@thoremin/games`' pop over the vowel
- * cursor: the same session as Pop the Notes.
+ * cursor: the same session as Pop the Notes. Your vowels (`createVowelCalibration`) asks for "ee",
+ * "oo" and "ah", fits the chart to the player's own vowel space and keeps it in this browser
+ * (`./stored`); while one is kept, it is the voice the dot follows ("Voice: yours").
  */
 import { DIFFICULTIES, type Difficulty } from '@thoremin/games/difficulty';
 import { FORMANT_ANALYSERS } from '@thoremin/games/listen';
@@ -13,13 +15,23 @@ import { createPopSession } from '@thoremin/games/pop';
 import { fieldLayout } from '@thoremin/games/field_stage';
 import { text } from '@thoremin/games/stage';
 import type { FieldView } from '@thoremin/games/field';
-import { createVowelCursor, formantsAt, nearestVowel, TRAPEZOID, VOICE_SCALES, VOWEL_POP_LEVELS, vowelCourse, vowelMarks, type VoiceKind, type VowelCursor } from '@thoremin/games/vowels';
+import { createVowelCalibration } from '@thoremin/games/vowel_calibration';
+import { createVowelCursor, formantsAt, nearestVowel, TRAPEZOID, VOICE_SCALES, VOWEL_POP_LEVELS, vowelCourse, vowelMarks, type VoiceKind, type VoiceMap, type VowelCursor } from '@thoremin/games/vowels';
 import { drawFieldOrIdle, planeAspect } from './field_page';
 import { mountGamePage } from './page';
+import type { Session } from './runner';
+import { stored } from './stored';
 import { createVowelSynth, type VowelSynth } from './vowel_synth';
 
-const MODES = { practice: 'Practice', pop: 'Vowel Pop' } as const;
+const MODES = { practice: 'Practice', pop: 'Vowel Pop', calibrate: 'Your vowels (calibrate)' } as const;
 const VOICES: Record<VoiceKind, string> = { auto: 'Voice: auto', lower: 'Voice: lower', higher: 'Voice: higher', child: 'Voice: child' };
+const YOURS = 'yours';
+
+const isVoiceMap = (v: unknown): v is VoiceMap => {
+  const m = v as VoiceMap;
+  return !!m && Array.isArray(m.b1) && Array.isArray(m.b2) && [...m.b1, ...m.b2].length === 6 && [...m.b1, ...m.b2].every(Number.isFinite);
+};
+const calibration = stored<VoiceMap>('funfon.vowelCalibration', isVoiceMap);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>('stage');
@@ -28,8 +40,17 @@ const difficultySel = $<HTMLSelectElement>('difficulty');
 const voiceSel = $<HTMLSelectElement>('voice');
 for (const [k, label] of Object.entries(MODES)) modeSel.add(new Option(label, k));
 for (const d of DIFFICULTIES) difficultySel.add(new Option(d, d, d === 'normal', d === 'normal'));
-for (const [k, label] of Object.entries(VOICES)) voiceSel.add(new Option(label, k));
-const syncControls = () => (difficultySel.hidden = modeSel.value !== 'pop');
+function fillVoices(): void {
+  voiceSel.length = 0;
+  const yours = calibration.read() !== null;
+  if (yours) voiceSel.add(new Option('Voice: yours', YOURS, true, true));
+  for (const [k, label] of Object.entries(VOICES)) voiceSel.add(new Option(label, k, !yours && k === 'auto', !yours && k === 'auto'));
+}
+fillVoices();
+const syncControls = () => {
+  difficultySel.hidden = modeSel.value !== 'pop';
+  voiceSel.hidden = modeSel.value === 'calibrate';
+};
 modeSel.addEventListener('change', syncControls);
 syncControls();
 
@@ -45,8 +66,26 @@ const page = mountGamePage<FieldView>({
   canvas,
   startButton: $<HTMLButtonElement>('start'),
   analysers: FORMANT_ANALYSERS,
-  session: (start) => {
-    cursor = createVowelCursor({ voice: voiceSel.value as VoiceKind });
+  session: (start): Session<FieldView> => {
+    if (modeSel.value === 'calibrate') {
+      cursor = null;
+      const cal = createVowelCalibration({ start, backdrop });
+      let saved = false;
+      return {
+        tick(now, heard) {
+          const out = cal.tick(now, heard);
+          const map = cal.result();
+          if (map && !saved) {
+            saved = true;
+            calibration.write(map);
+            fillVoices();
+          }
+          return out;
+        },
+      };
+    }
+    const map = voiceSel.value === YOURS ? calibration.read() : null;
+    cursor = createVowelCursor(map ? { calibration: map } : { voice: voiceSel.value as VoiceKind });
     const pop = modeSel.value === 'pop';
     const level = VOWEL_POP_LEVELS[difficultySel.value as Difficulty];
     return createPopSession({
@@ -91,7 +130,7 @@ function planePoint(e: PointerEvent): { x: number; y: number } | null {
   return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
 }
 
-const voiceScale = () => (voiceSel.value === 'auto' ? (cursor?.scale() ?? 1) : VOICE_SCALES[voiceSel.value as Exclude<VoiceKind, 'auto'>]);
+const voiceScale = () => (voiceSel.value === 'auto' || voiceSel.value === YOURS ? (cursor?.scale() ?? 1) : VOICE_SCALES[voiceSel.value as Exclude<VoiceKind, 'auto'>]);
 
 canvas.addEventListener('pointerdown', async (e) => {
   const p = planePoint(e);
@@ -99,7 +138,7 @@ canvas.addEventListener('pointerdown', async (e) => {
   canvas.setPointerCapture(e.pointerId);
   touch = p;
   const ctx = await page.ensureAudio();
-  synth ??= createVowelSynth(ctx, ctx.destination, { pitchHz: 130 * voiceScale() });
+  synth ??= createVowelSynth(ctx, ctx.destination, { pitchHz: 130 * voiceScale(), voiceScale: voiceScale() });
   if (touch) synth.play(formantsAt(touch, voiceScale()));
 });
 canvas.addEventListener('pointermove', (e) => {

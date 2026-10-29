@@ -1,21 +1,17 @@
 /**
- * A vowel you can play: a voice-like source through three formant resonances (the parallel formant
- * synthesiser, Klatt 1980, reduced to what a browser's nodes do): a sawtooth at a speaking pitch
- * with a little vibrato, tilted down like a glottal pulse, into three band-pass filters at F1, F2
- * and F3 summed. Touch the chart and it sounds the vowel drawn there; slide and the formants glide.
+ * A vowel you can play: the cascade formant synthesiser of `@thoremin/games/formant_synth` in a
+ * browser's nodes. A sawtooth at a speaking pitch with a little vibrato runs through five low-pass
+ * biquads in series (each a two-pole resonator: F1 to F3 from the vowel, F4 and F5 fixed), and an
+ * output gain keeps every vowel equally loud. Touch the chart and it sounds the vowel drawn there;
+ * slide and the resonators glide.
  */
+import { cascadeOf, levelFor, qDb } from '@thoremin/games/formant_synth';
+
 export interface Formants {
   f1: number;
   f2: number;
   f3: number;
 }
-
-/** Each formant's bandwidth (Hz) and level: F1 strongest, as in speech. */
-const BANDS = [
-  { bw: 80, gain: 1 },
-  { bw: 110, gain: 0.55 },
-  { bw: 160, gain: 0.3 },
-] as const;
 
 const GLIDE_S = 0.03;
 
@@ -26,7 +22,7 @@ export interface VowelSynth {
   readonly sounding: boolean;
 }
 
-export function createVowelSynth(ctx: AudioContext, dest: AudioNode, { pitchHz = 130, level = 0.35 } = {}): VowelSynth {
+export function createVowelSynth(ctx: AudioContext, dest: AudioNode, { pitchHz = 130, level = 0.25, voiceScale = 1 } = {}): VowelSynth {
   const src = ctx.createOscillator();
   src.type = 'sawtooth';
   src.frequency.value = pitchHz;
@@ -35,33 +31,30 @@ export function createVowelSynth(ctx: AudioContext, dest: AudioNode, { pitchHz =
   const depth = ctx.createGain();
   depth.gain.value = pitchHz * 0.012;
   vibrato.connect(depth).connect(src.frequency);
-  // The glottal tilt: about -12 dB per octave above a few hundred hertz.
-  const tilt = ctx.createBiquadFilter();
-  tilt.type = 'lowpass';
-  tilt.frequency.value = 600;
-  tilt.Q.value = 0.5;
-  src.connect(tilt);
   const out = ctx.createGain();
   out.gain.value = 0;
   out.connect(dest);
-  const filters = BANDS.map((b) => {
+  const level0 = ctx.createGain();
+  // Five resonators in series: the source, then F1 .. F5, then the loudness gain, then out.
+  const filters = cascadeOf({ f1: 500, f2: 1500, f3: 2500 }, voiceScale).map((r) => {
     const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    const g = ctx.createGain();
-    // A band-pass's peak is 0 dB; a narrow one passes little energy, so each is lifted by its Q.
-    g.gain.value = b.gain * 6;
-    tilt.connect(f).connect(g).connect(out);
-    return { f, bw: b.bw };
+    f.type = 'lowpass';
+    f.frequency.value = r.hz;
+    f.Q.value = qDb(r);
+    return f;
   });
+  filters.reduce<AudioNode>((prev, f) => prev.connect(f), src).connect(level0).connect(out);
   src.start();
   vibrato.start();
   let sounding = false;
   const set = (f: Formants) => {
     const t = ctx.currentTime;
-    [f.f1, f.f2, f.f3].forEach((hz, k) => {
-      filters[k].f.frequency.setTargetAtTime(hz, t, GLIDE_S);
-      filters[k].f.Q.setTargetAtTime(hz / filters[k].bw, t, GLIDE_S);
+    const rs = cascadeOf(f, voiceScale);
+    rs.forEach((r, k) => {
+      filters[k].frequency.setTargetAtTime(r.hz, t, GLIDE_S);
+      filters[k].Q.setTargetAtTime(qDb(r), t, GLIDE_S);
     });
+    level0.gain.setTargetAtTime(levelFor(rs, pitchHz), t, GLIDE_S);
   };
   return {
     play(f) {
