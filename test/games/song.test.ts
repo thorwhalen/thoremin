@@ -44,6 +44,20 @@ describe('the compact text', () => {
   });
 });
 
+describe('the compact text, edge cases (from the review)', () => {
+  it('reads and writes sharps: # is a comment only at the start of a token', () => {
+    const s = songFromText('C#4 F#3 # a comment\nG#4:2');
+    expect(s.notes.map((n) => n.midi)).toEqual([61, 54, 68]); // G#4 is written back as its spelling, Ab4
+    expect(songFromText(songToText(s)).notes).toEqual(s.notes);
+  });
+
+  it('writes overlapping notes as one line (the skyline), and keeps short lengths', () => {
+    const chord: Song = { notes: [{ beat: 0, beats: 2, midi: 60 }, { beat: 0, beats: 2, midi: 64 }, { beat: 1, beats: 1, midi: 62 }, { beat: 2, beats: 0.00002, midi: 67 }] };
+    const back = songFromText(songToText(chord)).notes;
+    expect(back).toEqual([{ beat: 0, beats: 1, midi: 64 }, { beat: 1, beats: 1, midi: 62 }, { beat: 2, beats: 0.00002, midi: 67 }]);
+  });
+});
+
 describe('a score reduced to a song', () => {
   it('the demo MIDI: the busiest pitched part, one line, its tempo and bar', () => {
     const doc = midiToScoreDoc(new Uint8Array(readFileSync('public/scores/beethoven-symphony-5-1.mid')));
@@ -80,6 +94,14 @@ describe('a song written to MIDI', () => {
     expect(back.notes).toEqual(ODE.notes);
     expect(back.bpm).toBe(100);
     expect(back.beatsPerBar).toBe(4);
+  });
+
+  it('a melody with unpitched hits keeps them hits; no tempo is invented; an odd meter stays odd', async () => {
+    const mixed: Song = { beatsPerBar: 2.5, notes: [{ beat: 0, beats: 1, midi: 60 }, { beat: 1, beats: 0.5 }, { beat: 1.5, beats: 1, midi: 62 }] };
+    const back = songFromScore(midiToScoreDoc(songToMidi(mixed)));
+    expect(back.notes).toEqual(mixed.notes);
+    expect(back.bpm).toBeUndefined();
+    expect(back.beatsPerBar).toBe(2.5);
   });
 
   it('a rhythm goes out as claps on the percussion channel and comes back a rhythm', () => {

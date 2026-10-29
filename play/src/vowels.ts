@@ -21,6 +21,7 @@ import { drawFieldOrIdle, planeAspect } from './field_page';
 import { mountGamePage } from './page';
 import type { Session } from './runner';
 import { stored } from './stored';
+import { mountSpecBar } from './spec_bar';
 import { createVowelSynth, type VowelSynth } from './vowel_synth';
 
 const MODES = { practice: 'Practice', pop: 'Vowel Pop', calibrate: 'Your vowels (calibrate)' } as const;
@@ -53,6 +54,9 @@ const syncControls = () => {
 };
 modeSel.addEventListener('change', syncControls);
 syncControls();
+
+// A spec carries the mode, the difficulty and the vowels of a Vowel Pop round (Vowels plays no songs).
+const spec = mountSpecBar({ game: 'vowels', host: document.querySelector('header')!, controls: { mode: modeSel, difficulty: difficultySel } });
 
 const backdrop = { outline: TRAPEZOID, marks: vowelMarks(), xLabel: 'front ← → back' };
 const idle = { game: 'vowels' as const, title: 'Vowels', backdrop, wrapX: false, hint: 'Touch the chart to hear a vowel. Press Start to see yours.' };
@@ -92,7 +96,7 @@ const page = mountGamePage<FieldView>({
       game: 'vowels',
       title: pop ? 'Vowel Pop' : 'Vowels: practice',
       start,
-      targets: pop ? vowelCourse({ r: level.r, seed: Date.now() }) : [],
+      targets: pop ? vowelCourse({ r: level.r, seed: Date.now(), ...(spec.settings().vowels?.length ? { vowels: spec.settings().vowels } : {}) }) : [],
       cursor,
       backdrop,
       aspect: planeAspect(canvas),

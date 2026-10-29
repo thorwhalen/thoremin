@@ -28,6 +28,8 @@
     "./vowels": "./src/vowels.ts",
     "./echo": "./src/echo.ts",
     "./echo_stage": "./src/echo_stage.ts",
+    "./spec": "./src/spec.ts",
+    "./spec_schema": "./src/spec_schema.ts",
     "./formant_synth": "./src/formant_synth.ts",
     "./vowel_calibration": "./src/vowel_calibration.ts"
   },

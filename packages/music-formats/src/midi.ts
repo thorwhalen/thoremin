@@ -13,6 +13,7 @@
 import { Midi } from '@tonejs/midi';
 import { notesLength, partId, ScoreDocSchema, type ScoreDoc, type ScorePart } from '@thoremin/sdk/score/schema';
 import type { Song } from '@thoremin/sdk/score/song';
+import { scoreFromSong } from './song_score';
 
 /** GM channel 10 (0-based 9) is percussion by convention. */
 const PERCUSSION_CHANNEL = 9;
@@ -57,24 +58,27 @@ export function midiToScoreDoc(bytes: Uint8Array | ArrayBuffer, title?: string):
   });
 }
 
-/** A rhythm's pitch when written to MIDI: GM percussion's hand clap, on channel 10. */
-const CLAP = 39;
-const DEFAULT_BPM = 100;
-
 /**
- * A song as a one-track Standard MIDI File: its tempo and time signature, each note at its beat
- * (480 ticks per quarter). A rhythm (no pitches) is written as hand claps on the percussion channel.
+ * A score as a Standard MIDI File (480 ticks per quarter): its first tempo and time signature, a
+ * track per part, a percussion part on channel 10.
  */
-export function songToMidi(song: Song): Uint8Array {
+export function scoreToMidi(doc: ScoreDoc): Uint8Array {
   const midi = new Midi();
   const ppq = midi.header.ppq;
-  midi.header.setTempo(song.bpm ?? DEFAULT_BPM);
-  if (song.beatsPerBar) midi.header.timeSignatures.push({ ticks: 0, timeSignature: [Math.round(song.beatsPerBar), 4] });
-  if (song.title) midi.header.name = song.title;
+  // Only a tempo the score has: one written here would come back as the song's own.
+  if (doc.tempoMap[0]) midi.header.setTempo(doc.tempoMap[0].bpm);
+  const sig = doc.timeSignatures[0];
+  if (sig) midi.header.timeSignatures.push({ ticks: 0, timeSignature: [sig.numerator, sig.denominator] });
+  midi.header.name = doc.title;
   midi.header.update();
-  const rhythm = song.notes.every((n) => n.midi === undefined);
-  const track = midi.addTrack();
-  if (rhythm) track.channel = PERCUSSION_CHANNEL;
-  for (const n of song.notes) track.addNote({ midi: n.midi ?? CLAP, ticks: Math.round(n.beat * ppq), durationTicks: Math.max(1, Math.round(n.beats * ppq)), velocity: 0.8 });
+  for (const part of doc.parts) {
+    const track = midi.addTrack();
+    track.name = part.name;
+    if (part.percussion) track.channel = PERCUSSION_CHANNEL;
+    for (const n of part.notes) track.addNote({ midi: n.midi, ticks: Math.round(n.start * ppq), durationTicks: Math.max(1, Math.round(n.duration * ppq)), velocity: n.velocity });
+  }
   return midi.toArray();
 }
+
+/** A song as a one-track MIDI file (a rhythm as hand claps on the percussion channel: `scoreFromSong`). */
+export const songToMidi = (song: Song): Uint8Array => scoreToMidi(scoreFromSong(song));

@@ -65,6 +65,7 @@
     "ai": "^7.0.22",
     "cmdk": "^1.1.1",
     "fflate": "^0.8.3",
+    "formatcast": "github:thorwhalen/formatcast#5da1b35bc11d979983a05a31403ffa6644f1488a",
     "jsep": "^1.4.0",
     "libflacjs": "^5.4.0",
     "lucide-react": "^0.546.0",

@@ -12,6 +12,8 @@ import { PITCH_ANALYSERS } from '@thoremin/games/listen';
 import { createTrackSession, trackFor, TRACK_LEVELS } from '@thoremin/games/maze';
 import { drawFieldOrIdle } from './field_page';
 import { mountGamePage } from './page';
+import { mountSpecBar } from './spec_bar';
+import { lessonFromSong, songFromLesson } from '@thoremin/games/spec';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const lessonSel = $<HTMLSelectElement>('lesson');
@@ -19,6 +21,9 @@ const levelSel = $<HTMLSelectElement>('level');
 const tunes = lessonsFor('sing');
 for (const l of tunes) lessonSel.add(new Option(l.title, l.id));
 TRACK_LEVELS.forEach((l, i) => levelSel.add(new Option(`${i + 1}. ${l.name}`, l.id, i === 1, i === 1)));
+
+const shipped = () => tunes.find((l) => l.id === lessonSel.value) ?? tunes[0];
+const spec = mountSpecBar({ game: 'pitch-maze', host: document.querySelector('header')!, controls: { lesson: lessonSel, track: levelSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
 
 const backdrop = { columns: pitchColumns() };
 const idle = { game: 'maze' as const, title: 'Pitch Maze', backdrop, wrapX: true, hint: 'Press Start, then sing the notes.' };
@@ -28,7 +33,8 @@ mountGamePage({
   startButton: $<HTMLButtonElement>('start'),
   analysers: PITCH_ANALYSERS,
   session: (start) => {
-    const tune = tunes.find((l) => l.id === lessonSel.value) ?? tunes[0];
+    const song = spec.song();
+    const tune = song ? lessonFromSong(song, 'pitch-maze', spec.settings()) : shipped();
     const level = TRACK_LEVELS.find((l) => l.id === levelSel.value) ?? TRACK_LEVELS[1];
     const notes = tune.notes.flatMap((n) => (n.midi === undefined ? [] : [{ midi: n.midi, beats: n.beats }]));
     const track = trackFor(notes, tune.bpm, level);

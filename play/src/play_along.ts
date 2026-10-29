@@ -10,6 +10,8 @@ import { createPlayAlongSession } from '@thoremin/games/play_along';
 import { drawStage } from '@thoremin/games/stage';
 import { offsetLine, readOffset } from './offset';
 import { mountGamePage } from './page';
+import { mountSpecBar } from './spec_bar';
+import { lessonFromSong, songFromLesson } from '@thoremin/games/spec';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const lessonSel = $<HTMLSelectElement>('lesson');
@@ -18,13 +20,16 @@ const lessons = lessonsFor('play-along');
 for (const l of lessons) lessonSel.add(new Option(l.title, l.id));
 for (const d of DIFFICULTIES) difficultySel.add(new Option(d, d, d === 'normal', d === 'normal'));
 $<HTMLElement>('timing').textContent = offsetLine(readOffset());
+const shipped = () => lessons.find((l) => l.id === lessonSel.value) ?? lessons[0];
+const spec = mountSpecBar({ game: 'play-along', host: document.querySelector('header')!, controls: { difficulty: difficultySel, lesson: lessonSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
 
 mountGamePage({
   canvas: $<HTMLCanvasElement>('stage'),
   startButton: $<HTMLButtonElement>('start'),
   analysers: GAMES_ANALYSERS,
   session: (start) => {
-    const lesson = lessons.find((l) => l.id === lessonSel.value) ?? lessons[0];
+    const song = spec.song();
+    const lesson = song ? lessonFromSong(song, 'play-along', spec.settings()) : shipped();
     const d = difficultySel.value as Difficulty;
     return createPlayAlongSession(lesson, { start, windows: ONSET_WINDOWS[d], toleranceCents: PITCH_TOLERANCE[d], offset: readOffset()?.offset ?? 0 });
   },

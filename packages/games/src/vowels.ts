@@ -418,7 +418,9 @@ export const VOWEL_POP_LEVELS = {
 
 /** A Vowel Pop course: the given vowels as labelled balloons at their places, in a seeded order. */
 export function vowelCourse(opts: { vowels?: readonly string[]; r: number; seed?: number; rounds?: number }): { x: number; y: number; r: number; label: string }[] {
-  const set = (opts.vowels ?? PRIMARY_VOWELS).map((ipa) => vowelByIpa(ipa)).filter((w): w is Vowel => !!w);
+  const known = (opts.vowels ?? PRIMARY_VOWELS).map((ipa) => vowelByIpa(ipa)).filter((w): w is Vowel => !!w);
+  // None of the asked vowels known (a spec's typo): the primary eight rather than an empty round.
+  const set = known.length ? known : PRIMARY_VOWELS.map((ipa) => vowelByIpa(ipa)!);
   let s = (opts.seed ?? 1) >>> 0;
   const rand = () => ((s = (Math.imul(s ^ (s >>> 15), 1 | s) + 0x6d2b79f5) >>> 0) / 4294967296);
   const out: { x: number; y: number; r: number; label: string }[] = [];
