@@ -11,6 +11,7 @@
     "packages/ictus/src",
     "packages/lazy/src",
     "packages/stats/src",
+    "packages/judge/src",
     "src/keys",
     "src/nodes",
     "src/music",
