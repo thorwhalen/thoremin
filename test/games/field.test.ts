@@ -13,7 +13,8 @@ import { createLoudnessScale, dbOf, LOUDNESS_RANGES } from '@thoremin/games/loud
 import { createPitchCursor, pitchX, semitoneOfX } from '@thoremin/games/cursor';
 import { distanceOn } from '@thoremin/games/field';
 import { createPopSession, pitchLoudnessCourse } from '@thoremin/games/pop';
-import { createMazeSession, MAZE_LEVELS } from '@thoremin/games/maze';
+import { bandsOf, createMazeSession, createTrackSession, MAZE_LEVELS, ROAD_SPEED, trackFor, TRACK_LEVELS, type Segment } from '@thoremin/games/maze';
+import { midiOf } from '@thoremin/judge';
 import type { FieldView } from '@thoremin/games/field';
 import type { Heard, HeardPitch } from '@thoremin/games/listen';
 import { loadAudioFixture, inBlocks } from '../helpers/audio_fixtures';
@@ -221,7 +222,7 @@ describe('the Pitch Maze', () => {
     const v = voice([{ t: 0, dur: 4, midi: 69 }, { t: 4, dur: 2, midi: 62 }]);
     const stopped = run(s.tick, v, 0, 3.9).last;
     expect(stopped.maze!.stuck).toBe(true);
-    expect(stopped.maze!.walls[0].state).toBe('ahead');
+    expect(stopped.maze!.segments[0].state).toBe('ahead');
     const after = run(s.tick, v, 3.9 + TICK, 6).last;
     expect(after.score.done).toBe(1);
   });
@@ -230,8 +231,64 @@ describe('the Pitch Maze', () => {
     const s = createMazeSession({ ...opts, notes: [60], holdS: 1, cursor: createPitchCursor() });
     const v = voice([{ t: 0, dur: 2.4, midi: 60 }, { t: 2.4, dur: 1, midi: null }, { t: 3.4, dur: 2, midi: 60 }]);
     const mid = run(s.tick, v, 0, 3).last;
-    expect(mid.maze!.walls[0].state).toBe('inside');
+    expect(mid.maze!.segments[0].state).toBe('inside');
     expect(mid.score.done).toBe(0);
     expect(run(s.tick, v, 3 + TICK, 5).last.score.done).toBe(1);
+  });
+});
+
+describe('the Pitch Maze road (bands)', () => {
+  const road = (segments: Segment[], extra = {}) => createTrackSession({ title: 't', start: 0, segments, cursor: createPitchCursor(), backdrop: { columns: [] }, speed: ROAD_SPEED, view: 'road', ...extra });
+  // Three notes of a second each at 60 bpm, after a 3 s run-up: bands at 3-4, 4-5, 5-6 s.
+  const melody = [{ midi: 60, beats: 1 }, { midi: 64, beats: 1 }, { midi: 67, beats: 1 }];
+  const sing = (cents: number) => voice([{ t: 2.5, dur: 1.5, midi: 60 + cents / 100 }, { t: 4, dur: 1, midi: 64 + cents / 100 }, { t: 5, dur: 1.5, midi: 67 + cents / 100 }]);
+
+  it('lays the notes along the road as long as they last', () => {
+    const b = bandsOf(melody, { bpm: 60, speed: ROAD_SPEED, gapS: 0 });
+    expect(b.map((x) => x.at / ROAD_SPEED)).toEqual([3, 4, 5]);
+    expect(b.every((x) => Math.abs(x.length / ROAD_SPEED - 1) < 1e-9)).toBe(true);
+  });
+
+  it('in tune: on the note nearly all the time, points up, not lost', () => {
+    const r = run(road(bandsOf(melody, { bpm: 60, speed: ROAD_SPEED, widthSemitones: 0.5 })).tick, sing(0), 0, 7);
+    expect(r.last.phase).toBe('results');
+    expect(r.last.maze!.lost).toBeUndefined();
+    expect(r.last.results!.accuracy).toBeGreaterThan(0.9);
+    expect(r.last.maze!.points!).toBeGreaterThan(5);
+  });
+
+  it('the lane\u2019s width is the precision: 20 cents sharp is on a 25-cent lane, 40 cents is off and loses', () => {
+    const lane = bandsOf(melody, { bpm: 60, speed: ROAD_SPEED, widthSemitones: 0.5 });
+    expect(run(road(lane).tick, sing(20), 0, 7).last.results!.accuracy).toBeGreaterThan(0.9);
+    const off = run(road(lane).tick, sing(40), 0, 7).last;
+    expect(off.maze!.lost).toBe(true);
+    expect(off.results!.summary).toMatch(/Out of points/);
+  });
+
+  it('silence on a band costs points', () => {
+    const r = run(road(bandsOf(melody, { bpm: 60, speed: ROAD_SPEED })).tick, voice([]), 0, 7).last;
+    expect(r.maze!.lost).toBe(true);
+  });
+
+  it('on real singing, its own notes keep it going and a transposition loses', () => {
+    const fx = loadAudioFixture('audio_games_vocadito_2');
+    const { between, duration } = realSinging();
+    const notes = (shift: number): Segment[] =>
+      fx.notes.filter((n) => n.duration >= 0.1).map((n) => ({ kind: 'band', at: n.start * ROAD_SPEED, length: n.duration * ROAD_SPEED, midi: midiOf(n.hz) + shift, widthSemitones: 1 }));
+    const own = run(road(notes(0)).tick, between, 0, duration + 1).last;
+    expect(own.maze!.lost).toBeUndefined();
+    expect(own.results!.accuracy).toBeGreaterThan(0.6);
+    const moved = run(road(notes(3)).tick, between, 0, duration + 1).last;
+    expect(moved.maze!.lost).toBe(true);
+  });
+
+  it('the levels go from walls seen from above to roads with narrower lanes', () => {
+    const tune = [{ midi: 60, beats: 1 }, { midi: 62, beats: 2 }];
+    const kinds = TRACK_LEVELS.map((l) => trackFor(tune, 90, l));
+    expect(kinds.slice(0, 3).every((k) => k.view === 'top' && k.segments.every((x) => x.kind === 'wall'))).toBe(true);
+    expect(kinds.slice(3).every((k) => k.view === 'road' && k.segments.every((x) => x.kind === 'band'))).toBe(true);
+    const widths = TRACK_LEVELS.map((l) => l.widthSemitones);
+    expect([...widths.slice(0, 3)].sort((a, b) => b - a)).toEqual(widths.slice(0, 3));
+    expect([...widths.slice(3)].sort((a, b) => b - a)).toEqual(widths.slice(3));
   });
 });

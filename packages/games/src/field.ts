@@ -71,12 +71,17 @@ export interface FieldTarget extends Point {
   poppedAt?: number;
 }
 
-/** A wall of the maze, in screen units (0 bottom, 1 top): a bar across with one opening. */
-export interface WallView {
+/**
+ * A segment of the maze's track as the stage needs it: a wall (a bar across with one opening) or
+ * a band (a lit strip along one lane), its span as distances AHEAD of the ball (screen heights;
+ * negative is behind), so the stage can draw it from above or in perspective.
+ */
+export interface SegmentView {
   id: number;
-  y0: number;
-  y1: number;
-  /** The opening's centre and width, in x units (it may straddle the wrap). */
+  kind: 'wall' | 'band';
+  d0: number;
+  d1: number;
+  /** The opening's (a wall) or the lane's (a band) centre and width, in x units (it may straddle the wrap). */
   gapX: number;
   gapW: number;
   label: string;
@@ -110,7 +115,18 @@ export interface FieldView {
   /** The cursor's recent path, oldest first. */
   trail: Point[];
   targets: FieldTarget[];
-  maze?: { walls: WallView[]; ball: Point; stuck: boolean };
+  maze?: {
+    segments: SegmentView[];
+    ball: Point;
+    /** A wall is holding the ball. */
+    stuck: boolean;
+    /** From above, or a road to the horizon. */
+    view: 'top' | 'road';
+    /** The band levels: points left, and whether the voice is on the band under the ball now (null: no band under it). */
+    points?: number;
+    onBand?: boolean | null;
+    lost?: boolean;
+  };
   /** Done so far, of how many, and seconds since the start. */
   score: { done: number; total: number; elapsed: number };
   /** One line under the title: what to do now. */
