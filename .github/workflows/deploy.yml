@@ -4,7 +4,8 @@
 # is deployed by tw_platform's own `deploy.yml` (build → rsync → restart). That
 # workflow lives in the thorwhalen/tw_platform repo and is triggered manually.
 # This workflow closes the loop: when thoremin's main changes, it dispatches
-# tw_platform's deploy for the `thoremin` app only, so a merge here goes live.
+# tw_platform's deploy for the `thoremin` app and for `funfon` (the second app built
+# from this repo), so a merge here goes live.
 #
 # The tw_platform deploy tolerates the Mac-only confidential apps being absent
 # on the runner and skips the edge-config regen (see tw_platform#47), so a
@@ -48,7 +49,7 @@ jobs:
   trigger-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch tw_platform deploy (thoremin only)
+      - name: Dispatch tw_platform deploy (thoremin, then funfon)
         env:
           GH_TOKEN: ${{ secrets.TW_DEPLOY_TOKEN }}
         run: |
@@ -56,8 +57,13 @@ jobs:
             echo "::error::TW_DEPLOY_TOKEN secret is not set — see this workflow's header for one-time setup."
             exit 1
           fi
-          gh workflow run deploy.yml \
-            --repo thorwhalen/tw_platform --ref main \
-            -f platform=thorwhalen -f app=thoremin
-          echo "Dispatched tw_platform deploy for app=thoremin. Watch it at:"
+          # funfon (enlace_apps/funfon) is a second app built from this repo: its source sits
+          # outside its app dir, so it ships only when named. The two runs queue in tw_platform's
+          # deploy-production concurrency group (no cancel-in-progress).
+          for app in thoremin funfon; do
+            gh workflow run deploy.yml \
+              --repo thorwhalen/tw_platform --ref main \
+              -f platform=thorwhalen -f app="$app"
+          done
+          echo "Dispatched tw_platform deploys for app=thoremin and app=funfon. Watch them at:"
           echo "  https://github.com/thorwhalen/tw_platform/actions/workflows/deploy.yml"
