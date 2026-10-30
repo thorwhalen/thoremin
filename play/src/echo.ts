@@ -7,7 +7,7 @@ import { DIFFICULTIES, ONSET_WINDOWS, type Difficulty } from '@thoremin/games/di
 import { createEchoSession, ECHO_LEVELS, type EchoView } from '@thoremin/games/echo';
 import { drawEcho } from '@thoremin/games/echo_stage';
 import { ONSET_ANALYSERS } from '@thoremin/games/listen';
-import { BG, DIM, text } from '@thoremin/games/stage';
+import { BG, DIM, text } from '@thoremin/games/paint';
 import { offsetLine, readOffset } from './offset';
 import { mountGamePage } from './page';
 import { mountSpecBar } from './spec_bar';

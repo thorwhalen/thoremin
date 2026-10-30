@@ -17,6 +17,7 @@ import type { Difficulty } from './difficulty';
 import type { EchoLevel, Stack } from './echo';
 import { seededRandom } from './field';
 import type { GameKind, Lesson } from './lesson';
+import type { NoteViewKind } from './note_view';
 import type { PopTarget } from './pop';
 
 /** The games a spec can name: one per standalone page. */
@@ -36,6 +37,8 @@ export interface GameSettings {
   bpm?: number;
   /** Count-in beats (the timed games). */
   countIn?: number;
+  /** Sing Along and Play Along: how the notes are laid out (`note_view`). */
+  view?: NoteViewKind;
   /** Pitch Maze: the track level's id. */
   track?: string;
   /** Echo. */

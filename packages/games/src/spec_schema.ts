@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { SongSchema } from '@thoremin/sdk/score/song_schema';
 import { DIFFICULTIES } from './difficulty';
 import { STACKS } from './echo';
+import { NOTE_VIEWS } from './note_view';
 import { GAME_IDS, SPEC_KIND, type GameSettings, type GameSpec } from './spec';
 
 export const GameSettingsSchema = z
@@ -15,6 +16,7 @@ export const GameSettingsSchema = z
     lesson: z.string().optional(),
     bpm: z.number().positive().max(400).optional(),
     countIn: z.number().int().min(0).max(16).optional(),
+    view: z.enum(NOTE_VIEWS).optional(),
     track: z.string().optional(),
     beatsPerBar: z.number().positive().max(16).optional(),
     stack: z.enum(STACKS).optional(),

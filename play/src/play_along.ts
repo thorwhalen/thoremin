@@ -11,17 +11,21 @@ import { drawStage } from '@thoremin/games/stage';
 import { offsetLine, readOffset } from './offset';
 import { mountGamePage } from './page';
 import { mountSpecBar } from './spec_bar';
+import { rememberedSelect } from './remembered_select';
+import { NOTE_VIEW_LABELS } from '@thoremin/games/note_view';
 import { lessonFromSong, songFromLesson } from '@thoremin/games/spec';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const lessonSel = $<HTMLSelectElement>('lesson');
 const difficultySel = $<HTMLSelectElement>('difficulty');
+const viewSel = $<HTMLSelectElement>('view');
+const noteView = rememberedSelect(viewSel, NOTE_VIEW_LABELS, 'funfon.noteView');
 const lessons = lessonsFor('play-along');
 for (const l of lessons) lessonSel.add(new Option(l.title, l.id));
 for (const d of DIFFICULTIES) difficultySel.add(new Option(d, d, d === 'normal', d === 'normal'));
 $<HTMLElement>('timing').textContent = offsetLine(readOffset());
 const shipped = () => lessons.find((l) => l.id === lessonSel.value) ?? lessons[0];
-const spec = mountSpecBar({ game: 'play-along', host: document.querySelector('header')!, controls: { difficulty: difficultySel, lesson: lessonSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
+const spec = mountSpecBar({ game: 'play-along', host: document.querySelector('header')!, controls: { difficulty: difficultySel, lesson: lessonSel, view: viewSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
 
 mountGamePage({
   canvas: $<HTMLCanvasElement>('stage'),
@@ -34,7 +38,7 @@ mountGamePage({
     return createPlayAlongSession(lesson, { start, windows: ONSET_WINDOWS[d], toleranceCents: PITCH_TOLERANCE[d], offset: readOffset()?.offset ?? 0 });
   },
   draw: (g, W, H, view) => {
-    if (view) drawStage(g, { W, H }, view);
+    if (view) drawStage(g, { W, H, notes: noteView() }, view);
   },
   over: (view) => view.phase === 'results',
 });
