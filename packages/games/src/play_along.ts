@@ -21,7 +21,7 @@ import {
 } from '@thoremin/judge';
 import { median } from '@thoremin/stats';
 import { countInCues, createCueFeed, type Cue } from './cues';
-import { placeLesson, type Lesson } from './lesson';
+import { barStart, placeLesson, type Lesson } from './lesson';
 import { shifted, type Heard, type HeardPitch } from './listen';
 import { timingVerdict, type GameView, type ViewNote } from './view';
 
@@ -144,8 +144,9 @@ export function createPlayAlongSession(lesson: Lesson, opts: PlayAlongOptions) {
       to: now + ahead,
       low: Math.min(...pitches),
       high: Math.max(...pitches),
+      grid: { t0: placed.t0, beatS: 60 / lesson.bpm, beatsPerBar: lesson.beatsPerBar ?? 4 },
       toleranceCents: tol,
-      notes: view.filter((n) => n.start >= now - past && n.start <= now + ahead).map((n) => ({ ...n })),
+      notes: view.filter((n) => n.end >= barStart(lesson, placed.t0, now - past) && n.start <= now + ahead).map((n) => ({ ...n })),
       trail: [],
       flashes: [...flashes],
       countdown: Math.max(0, Math.ceil(((placed.t0 - now) * lesson.bpm) / 60)),

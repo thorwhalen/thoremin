@@ -14,6 +14,8 @@ import type { GameView, ViewNote } from './view';
 import { nameOf } from './lesson';
 import { noteProjection, noteQuad, RHYTHM_NOTE_S, type NoteBox, type NoteProjection, type NoteViewKind } from './note_view';
 import type { Pt } from './perspective';
+import { drawStaff, staffLayout, type StaffMode } from './staff';
+import type { KeyFifths } from './spelling';
 import { BG, DIM, GRID, TEXT, TRAIL, drawResultsCard, text } from './paint';
 
 /** The canvas the stage draws on. `overlayOnly`: draw no background (a transparent overlay export). */
@@ -23,6 +25,10 @@ export interface StageFrame {
   overlayOnly?: boolean;
   /** How Sing and Play along lay out their notes (`note_view`). Default `roll-h`. */
   notes?: NoteViewKind;
+  /** A staff with the notes (`over`: stacked above a roll across, a strip over a falling one), alone (`only`), or none. Default `off`. */
+  staff?: StaffMode;
+  /** The key the staff spells in (fifths). Default C major. */
+  key?: KeyFifths;
 }
 
 // The palette, the text and the results card are `paint`'s, shared with the field and echo stages.
@@ -106,8 +112,8 @@ function drawRows(g: CanvasRenderingContext2D, P: NoteProjection, edges: readonl
   }
 }
 
-function drawSing(g: CanvasRenderingContext2D, v: GameView, W: number, H: number, kind: NoteViewKind) {
-  const P = stageProjection(v, W, H, kind);
+function drawSing(g: CanvasRenderingContext2D, v: GameView, W: number, H: number, kind: NoteViewKind, box: NoteBox) {
+  const P = stageProjection(v, W, H, kind, undefined, box);
   const edges: number[] = [];
   const labels: { row: number; text: string }[] = [];
   for (let m = Math.ceil(v.low); m <= v.high; m++) {
@@ -157,9 +163,9 @@ export function laneRows(v: GameView): { pitched: boolean; low: number; high: nu
   return pitched ? { pitched, low: v.low, high: v.high } : { pitched, low: 0, high: 0 };
 }
 
-function drawLanes(g: CanvasRenderingContext2D, v: GameView, W: number, H: number, kind: NoteViewKind) {
+function drawLanes(g: CanvasRenderingContext2D, v: GameView, W: number, H: number, kind: NoteViewKind, box: NoteBox) {
   const { pitched, ...rows } = laneRows(v);
-  const P = stageProjection(v, W, H, kind, rows);
+  const P = stageProjection(v, W, H, kind, rows, box);
   const edges: number[] = [];
   for (let r = rows.low; r <= rows.high + 1; r++) edges.push(r - 0.5);
   const labels = pitched && P.rowSize(v.now) >= 16 ? Array.from({ length: rows.high - rows.low + 1 }, (_, k) => ({ row: rows.low + k, text: nameOf(rows.low + k) })) : [];
@@ -180,14 +186,46 @@ function drawLanes(g: CanvasRenderingContext2D, v: GameView, W: number, H: numbe
     }
   }
   const top = Math.min(P.nowLine[0].y, P.nowLine[1].y);
-  const mid = { x: (P.nowLine[0].x + P.nowLine[1].x) / 2, y: P.rowsAcross ? top - 30 : top - 14 };
+  drawFlashes(g, v, { x: (P.nowLine[0].x + P.nowLine[1].x) / 2, y: P.rowsAcross ? top - 30 : top - 14 });
+}
+
+/** The judgments of the last second, rising and fading over the now line. */
+function drawFlashes(g: CanvasRenderingContext2D, v: GameView, at: Pt) {
   v.flashes.forEach((f, i) => {
     const age = v.now - f.t;
     const ms = f.offset === undefined ? '' : ` ${f.offset < 0 ? 'early' : 'late'} ${Math.abs(Math.round(f.offset * 1000))} ms`;
     g.globalAlpha = Math.max(0, 1 - age);
-    text(g, `${f.label}${Math.abs(f.offset ?? 0) >= 0.01 ? ms : ''}`, mid.x, mid.y - i * 16 - age * 20, 14, TIER_COLOR[f.label] ?? TEXT, 'center');
+    text(g, `${f.label}${Math.abs(f.offset ?? 0) >= 0.01 ? ms : ''}`, at.x, at.y - i * 16 - age * 20, 14, TIER_COLOR[f.label] ?? TEXT, 'center');
     g.globalAlpha = 1;
   });
+}
+
+/** Where the notes and the staff go for a view and a staff mode: a roll's box and a staff's box, either may be absent. */
+export function stageBoxes(W: number, H: number, kind: NoteViewKind, staff: StaffMode): { roll: NoteBox | null; staff: NoteBox | null } {
+  const box = noteBox(W, H);
+  if (staff === 'off') return { roll: box, staff: null };
+  if (staff === 'only') return { roll: null, staff: box };
+  const cut = box.top + STAFF_SHARE[kind] * (box.bottom - box.top);
+  // Across, the staff is stacked above the roll and shares its time axis; falling, it is a strip over the far end.
+  if (kind === 'roll-h') return { roll: { ...box, top: cut + 8 }, staff: { ...box, bottom: cut } };
+  return { roll: box, staff: { ...box, bottom: cut } };
+}
+
+/** The share of the notes' box a staff takes with the notes, per view. */
+const STAFF_SHARE: Record<NoteViewKind, number> = { 'roll-h': 0.42, 'roll-v': 0.34, highway: 0.34 };
+
+/** The staff of a timed game's notes, in time with the roll (across: its very axis; otherwise its own, at the same clock). */
+function drawStaffFor(g: CanvasRenderingContext2D, v: GameView, W: number, H: number, kind: NoteViewKind, boxes: { roll: NoteBox | null; staff: NoteBox }, key: KeyFifths | undefined) {
+  if (!v.grid) return;
+  const lanes = laneRows(v);
+  const rows = v.game === 'sing' ? { low: v.low, high: v.high } : lanes;
+  const axis = kind === 'roll-h' && boxes.roll ? stageProjection(v, W, H, 'roll-h', rows, boxes.roll) : stageProjection(v, W, H, 'roll-h', rows, boxes.staff);
+  const xOf = (t: number) => axis.at(t, rows.low).x;
+  const notes = v.notes.map((n) => (v.game === 'sing' || lanes.pitched ? n : { ...n, midi: undefined }));
+  const range = v.game === 'sing' || lanes.pitched ? { low: v.low, high: v.high } : undefined;
+  const L = staffLayout(notes, boxes.staff, xOf, v.grid, { ...(key === undefined ? {} : { key }), ...(range ? { range } : {}) });
+  drawStaff(g, L, boxes.staff, { nowX: xOf(v.now), ...(key === undefined ? {} : { key }), panel: kind !== 'roll-h' && boxes.roll !== null });
+  if (!boxes.roll) drawFlashes(g, v, { x: xOf(v.now), y: L.top - 3 * L.space });
 }
 
 function drawMatch(g: CanvasRenderingContext2D, v: GameView, W: number, H: number) {
@@ -250,10 +288,13 @@ export function drawStage(g: CanvasRenderingContext2D, frame: StageFrame, v: Gam
   text(g, v.title, W / 2, headY, 20, TEXT, 'center');
   if (v.game !== 'match' && v.game !== 'calibrate') text(g, `${Math.round(v.accuracy * 100)} %${v.combo > 1 ? `   x${v.combo}` : ''}`, W / 2, headY + 22, 15, DIM, 'center');
   if (v.game === 'calibrate') text(g, `taps heard ${v.combo}`, W / 2, headY + 22, 15, DIM, 'center');
-  const kind = frame.notes ?? 'roll-h';
-  if (v.game === 'sing') drawSing(g, v, W, H, kind);
-  else if (v.game === 'match') drawMatch(g, v, W, H);
-  else drawLanes(g, v, W, H, v.game === 'calibrate' ? 'roll-h' : kind);
+  const kind = v.game === 'calibrate' ? 'roll-h' : (frame.notes ?? 'roll-h');
+  const boxes = stageBoxes(W, H, kind, v.game === 'calibrate' || !v.grid ? 'off' : (frame.staff ?? 'off'));
+  if (v.game === 'match') drawMatch(g, v, W, H);
+  else {
+    if (boxes.roll) (v.game === 'sing' ? drawSing : drawLanes)(g, v, W, H, kind, boxes.roll);
+    if (boxes.staff) drawStaffFor(g, v, W, H, kind, { roll: boxes.roll, staff: boxes.staff }, frame.key);
+  }
   if (v.phase === 'count-in' && v.countdown > 0) text(g, String(v.countdown), W / 2, H / 2, Math.min(120, H * 0.25), TEXT, 'center');
   if (v.phase === 'results') drawResults(g, v, W, H);
   if (v.notice) text(g, v.notice, W / 2, H * 0.5 + 60, 16, '#fbbf24', 'center');

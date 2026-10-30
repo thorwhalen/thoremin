@@ -26,6 +26,8 @@
     "./play_along": "./src/play_along.ts",
     "./pop": "./src/pop.ts",
     "./sing": "./src/sing.ts",
+    "./spelling": "./src/spelling.ts",
+    "./staff": "./src/staff.ts",
     "./stage": "./src/stage.ts",
     "./view": "./src/view.ts",
     "./vowels": "./src/vowels.ts",
