@@ -32,6 +32,8 @@ export interface Lesson {
   bpm: number;
   /** Count-in clicks before beat 0. */
   countIn: number;
+  /** Beats in a bar (a staff's barlines). Default 4. */
+  beatsPerBar?: number;
   notes: LessonNote[];
   /** A line the player reads before starting. */
   hint: string;
@@ -64,6 +66,16 @@ export function placeLesson(lesson: Lesson, start: number, transpose = 0): { cli
   }));
   return { clicks, notes, t0, end: Math.max(...notes.map((n) => n.end)) };
 }
+
+/**
+ * The start of the bar time `t` falls in, for a lesson placed with beat 0 at `t0`: a view keeps
+ * every note from there, so a staff spells a bar's accidentals from its first note even after that
+ * note has scrolled away.
+ */
+export const barStart = (lesson: Pick<Lesson, 'bpm' | 'beatsPerBar'>, t0: number, t: number): number => {
+  const barS = (60 / lesson.bpm) * (lesson.beatsPerBar ?? 4);
+  return t0 + Math.floor((t - t0) / barS) * barS;
+};
 
 /** True when every note of the lesson has a pitch. */
 export const isPitched = (lesson: Lesson): boolean => lesson.notes.every((n) => n.midi !== undefined);

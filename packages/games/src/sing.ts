@@ -12,7 +12,7 @@
  */
 import { judgePitchNote, midiOf, type PitchNote, type PitchSample } from '@thoremin/judge';
 import { countInCues, createCueFeed, type Cue } from './cues';
-import { placeLesson, type Lesson } from './lesson';
+import { barStart, placeLesson, type Lesson } from './lesson';
 import { shifted, type Heard } from './listen';
 import type { GameView, TrailPoint, ViewNote } from './view';
 
@@ -114,7 +114,8 @@ export function createSingSession(lesson: Lesson, opts: SingOptions) {
       low,
       high,
       toleranceCents: tol,
-      notes: view.filter((n) => n.end >= now - past && n.start <= now + ahead).map((n) => ({ ...n })),
+      grid: { t0: placed.t0, beatS: 60 / lesson.bpm, beatsPerBar: lesson.beatsPerBar ?? 4 },
+      notes: view.filter((n) => n.end >= barStart(lesson, placed.t0, now - past) && n.start <= now + ahead).map((n) => ({ ...n })),
       trail: trail.filter((p) => p.t >= now - past),
       flashes: [...flashes],
       countdown: Math.max(0, Math.ceil(((placed.t0 - now) * lesson.bpm) / 60)),

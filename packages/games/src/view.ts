@@ -70,6 +70,8 @@ export interface GameView {
   /** Running accuracy 0..1 and combo. */
   accuracy: number;
   combo: number;
+  /** The song's beat grid (Sing, Play along): what a staff writes its bars and note values from. */
+  grid?: { t0: number; beatS: number; beatsPerBar: number };
   /** Match the note: the target now, the live deviation in cents, how much of the hold is done. */
   target?: { midi: number; cents: number | null; hold: number };
   results?: Results;
