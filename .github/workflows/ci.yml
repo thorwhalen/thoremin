@@ -61,10 +61,6 @@ jobs:
             ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
             ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
 
-      - name: TEMP prove the keys reach the plugins over ssh
-        run: |
-          for r in thoremin-asl thoremin-ar; do git clone -q --depth=1 "ssh://git@github.com/thorwhalen/$r.git" "$RUNNER_TEMP/$r" && echo "cloned $r"; done
-          git ls-remote ssh://git@github.com/thorwhalen/thoremin-asl.git HEAD
       - name: Install (lockfile-exact)
         run: npm ci
 
