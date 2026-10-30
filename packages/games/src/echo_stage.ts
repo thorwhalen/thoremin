@@ -5,7 +5,7 @@
  * their windows close; a clap that matched nothing is a red tick. Draws only from an `EchoView`.
  */
 import type { EchoView } from './echo';
-import { BG, DIM, drawResultsCard, GRID, text, TEXT } from './stage';
+import { BG, DIM, drawResultsCard, GRID, text, TEXT } from './paint';
 
 const COLORS = { pending: 'rgba(148,163,184,0.55)', hit: '#34d399', miss: '#f87171', call: '#f5d142', clap: '#22d3ee', stray: '#f87171' } as const;
 

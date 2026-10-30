@@ -17,6 +17,8 @@ import type { Difficulty } from './difficulty';
 import type { EchoLevel, Stack } from './echo';
 import { seededRandom } from './field';
 import type { GameKind, Lesson } from './lesson';
+import type { NoteViewKind } from './note_view';
+import type { StaffMode } from './staff';
 import type { PopTarget } from './pop';
 
 /** The games a spec can name: one per standalone page. */
@@ -36,6 +38,10 @@ export interface GameSettings {
   bpm?: number;
   /** Count-in beats (the timed games). */
   countIn?: number;
+  /** Sing Along and Play Along: how the notes are laid out (`note_view`). */
+  view?: NoteViewKind;
+  /** ...and whether a staff goes with them (`staff`). */
+  staff?: StaffMode;
   /** Pitch Maze: the track level's id. */
   track?: string;
   /** Echo. */
@@ -113,6 +119,7 @@ export function lessonFromSong(song: Song, game: keyof typeof KIND, settings: Ga
     countIn: game === 'match-the-note' ? 0 : (settings.countIn ?? song.beatsPerBar ?? 4),
     notes: song.notes.map((n) => ({ ...n })),
     hint: '',
+    ...(song.beatsPerBar ? { beatsPerBar: song.beatsPerBar } : {}),
   };
 }
 

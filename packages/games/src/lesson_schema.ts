@@ -17,6 +17,7 @@ export const LessonSchema = z.object({
   title: z.string(),
   game: z.enum(GAME_KINDS),
   bpm: z.number().positive(),
+  beatsPerBar: z.number().positive().max(16).optional(),
   countIn: z.number().int().nonnegative().default(4),
   notes: z.array(LessonNoteSchema).min(1),
   hint: z.string().default(''),

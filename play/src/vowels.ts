@@ -13,7 +13,7 @@ import { DIFFICULTIES, type Difficulty } from '@thoremin/games/difficulty';
 import { FORMANT_ANALYSERS } from '@thoremin/games/listen';
 import { createPopSession } from '@thoremin/games/pop';
 import { fieldLayout } from '@thoremin/games/field_stage';
-import { text } from '@thoremin/games/stage';
+import { text } from '@thoremin/games/paint';
 import type { FieldView } from '@thoremin/games/field';
 import { createVowelCalibration } from '@thoremin/games/vowel_calibration';
 import { createVowelCursor, formantsAt, nearestVowel, TRAPEZOID, VOICE_SCALES, VOWEL_POP_LEVELS, vowelCourse, vowelMarks, type VoiceKind, type VoiceMap, type VowelCursor } from '@thoremin/games/vowels';
