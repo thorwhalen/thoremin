@@ -6,14 +6,14 @@
  * line, with the value their length in beats asks; the stage drawing it in every mode.
  */
 import { describe, it, expect } from 'vitest';
-import { barAccidentals, signature, spell } from '@thoremin/games/spelling';
+import { barAccidentals, estimateKey, signature, spell } from '@thoremin/games/spelling';
 import { clefFor, noteValue, staffLayout } from '@thoremin/games/staff';
-import { drawStage, stageBoxes } from '@thoremin/games/stage';
+import { drawStage, laneRows, stageBoxes } from '@thoremin/games/stage';
 import { NOTE_VIEWS } from '@thoremin/games/note_view';
 import { createSingSession } from '@thoremin/games/sing';
 import { createPlayAlongSession } from '@thoremin/games/play_along';
 import { LESSONS } from '@thoremin/games/lessons';
-import type { Lesson } from '@thoremin/games/lesson';
+import { notesFrom, placeLesson, type Lesson } from '@thoremin/games/lesson';
 import { makeRecordingCanvas } from '../helpers/canvas';
 
 describe('pitch spelling', () => {
@@ -125,5 +125,47 @@ describe('the stage with a staff', () => {
         expect(c.calls.filter((x) => x.m === 'ellipse').length).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe('after the review', () => {
+  const box = { left: 0, top: 0, right: 1000, bottom: 200 };
+  const grid = { t0: 0, beatS: 1, beatsPerBar: 4 };
+  const xOf = (t: number) => 100 + t * 100;
+
+  it('guesses the key from the notes: F major writes B flat, E flat major its three flats; in C, B flat and E flat', () => {
+    const scale = (tonic: number) => [0, 2, 4, 5, 7, 9, 11, 12].map((d) => tonic + d);
+    expect(estimateKey(scale(65))).toBe(-1);
+    expect(estimateKey(scale(63))).toBe(-3);
+    expect(estimateKey(scale(62))).toBe(2);
+    expect(estimateKey(scale(60))).toBe(0);
+    expect(estimateKey([])).toBe(0);
+    expect(spell(70)).toEqual({ letter: 'B', alter: -1, octave: 4 });
+    expect(spell(63)).toEqual({ letter: 'E', alter: -1, octave: 4 });
+    expect(spell(66)).toEqual({ letter: 'F', alter: 1, octave: 4 });
+  });
+
+  it('a session tells the staff its melody\'s own range and key: Sing\'s padded rows choose no clef', () => {
+    // Happy Birthday's range, G3 to C5: a treble staff.
+    const lesson: Lesson = { id: 'hb', title: 'hb', game: 'sing', bpm: 60, countIn: 0, notes: notesFrom('G3 G3 A3:2 G3:2 C4:2 B3:4 C5') } as Lesson;
+    const v = createSingSession(lesson, { start: 0 }).tick(0, { pitch: [], onsets: [] }).view;
+    expect(v.melody).toEqual({ low: 55, high: 72 });
+    expect(clefFor(v.melody!.low, v.melody!.high)).toBe('treble');
+    expect(clefFor(v.low, v.high)).toBe('grand');
+  });
+
+  it('a note held a little short is written as the value it was meant to be', () => {
+    expect(noteValue(0.95)).toMatchObject({ beats: 1 });
+    expect(noteValue(1.9)).toMatchObject({ beats: 2 });
+    expect(noteValue(0.7)).toMatchObject({ beats: 0.75 });
+    expect(noteValue(1.25)).toMatchObject({ beats: 1 });
+  });
+
+  it('with the song\'s range, the clef holds with nothing on screen; Play along keeps its lanes', () => {
+    expect(staffLayout([], box, xOf, grid, { range: { low: 60, high: 72 } }).clef).toBe('treble');
+    const melody = LESSONS.find((l) => l.game === 'play-along' && placeLesson(l, 0).notes.every((n) => n.midi !== undefined))!;
+    const v = createPlayAlongSession({ ...melody, countIn: 8, bpm: 40 }, { start: 0 }).tick(0, { pitch: [], onsets: [] }).view;
+    expect(v.notes).toHaveLength(0);
+    expect(laneRows(v).pitched).toBe(true);
   });
 });

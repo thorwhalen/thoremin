@@ -50,7 +50,8 @@ export function spell(midi: number, fifths: KeyFifths = 0): Spelled {
   // Outside it: a raised letter below, or (a flat key) a lowered letter above; a natural first.
   const natural = LETTERS.find((l) => NATURAL_PC[l] === pc);
   if (natural) return pick(natural, 0);
-  if (fifths < 0) return pick(LETTERS.find((l) => NATURAL_PC[l] === (pc + 1) % 12)!, -1);
+  // In C, E flat and B flat are the usual spellings of those two (the blues notes), the rest sharps.
+  if (fifths < 0 || (fifths === 0 && (pc === 3 || pc === 10))) return pick(LETTERS.find((l) => NATURAL_PC[l] === (pc + 1) % 12)!, -1);
   return pick(LETTERS.find((l) => NATURAL_PC[l] === (pc + 11) % 12)!, 1);
 }
 
@@ -79,4 +80,31 @@ export function barAccidentals(notes: readonly { spelled: Spelled; bar: number }
     if (current === s.alter) return null;
     return s.alter === 1 ? 'sharp' : s.alter === -1 ? 'flat' : 'natural';
   });
+}
+
+/** The major keys a song is guessed among, fifths: up to five sharps or flats. */
+const GUESSED_KEYS = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
+
+/**
+ * The key a run of pitches is most likely written in, when the song does not say (a MIDI file
+ * often does not, a note list never does): the major key whose scale holds the most of the notes,
+ * its tonic as the last note breaking a tie, then the fewest accidentals. A melody that leaves the
+ * key now and then keeps it; one with no notes is in C.
+ */
+export function estimateKey(midis: readonly number[]): KeyFifths {
+  if (midis.length === 0) return 0;
+  const pcs = midis.map((m) => ((Math.round(m) % 12) + 12) % 12);
+  const last = pcs[pcs.length - 1];
+  let best = 0;
+  let bestScore = -Infinity;
+  for (const k of GUESSED_KEYS) {
+    const tonic = (((7 * k) % 12) + 12) % 12;
+    const scale = new Set([0, 2, 4, 5, 7, 9, 11].map((d) => (tonic + d) % 12));
+    const score = pcs.filter((p) => scale.has(p)).length + (last === tonic ? 0.5 : 0) - Math.abs(k) * 0.01;
+    if (score > bestScore) {
+      bestScore = score;
+      best = k;
+    }
+  }
+  return best;
 }

@@ -86,7 +86,15 @@ const VALUES: readonly NoteValue[] = [
   { beats: 0.25, hollow: false, stem: true, flags: 2, dot: false },
 ];
 
-export const noteValue = (beats: number): NoteValue => VALUES.find((v) => beats >= v.beats - 1e-6) ?? VALUES[VALUES.length - 1];
+/** How far off a standard value a length may be and still be written as it (a MIDI file's notes are held a little short). */
+const VALUE_SNAP = 0.15;
+
+/** The written value of a length in beats: the nearest standard one within 15 %, else the longest it reaches. */
+export function noteValue(beats: number): NoteValue {
+  const near = VALUES.reduce((a, v) => (Math.abs(beats - v.beats) / v.beats < Math.abs(beats - a.beats) / a.beats ? v : a));
+  if (Math.abs(beats - near.beats) / near.beats <= VALUE_SNAP) return near;
+  return VALUES.find((v) => beats >= v.beats - 1e-6) ?? VALUES[VALUES.length - 1];
+}
 
 /** One written note: its head's centre, its value, its sign, its ledger lines, its stem's direction. */
 export interface Head {
@@ -121,7 +129,8 @@ export function staffLayout(notes: readonly StaffNote[], box: StaffBox, xOf: (t:
   const pitched = notes.length > 0 && notes.every((n) => n.midi !== undefined);
   const midis = notes.flatMap((n) => (n.midi === undefined ? [] : [n.midi]));
   const range = opts.range ?? { low: Math.min(...midis, 60), high: Math.max(...midis, 60) };
-  const clef: Clef = pitched || midis.length ? clefFor(range.low, range.high) : 'percussion';
+  // A given range is the song's: its clef holds through a count-in or a rest with nothing on screen.
+  const clef: Clef = opts.range || pitched || midis.length ? clefFor(range.low, range.high) : 'percussion';
   const h = box.bottom - box.top;
   // Spaces the staff needs with room for a few ledger lines either side.
   const spaces = clef === 'grand' ? 8 + GRAND_GAP + 6 : clef === 'percussion' ? 6 : 10;
@@ -249,9 +258,10 @@ export function drawStaff(g: CanvasRenderingContext2D, L: StaffLayout, box: Staf
     g.globalAlpha = 1;
   }
   for (const st of L.staves) for (const y of st.lines) stroke(g, box.left, y, box.right, y, LINE, 1);
-  // A barline just before its downbeat's head, so the two do not overlap.
+  // A barline just before its downbeat's head, so the two do not overlap; further left past a sign.
+  const signed = L.heads.filter((h) => h.accidental).map((h) => h.x);
   for (const bar of L.bars) {
-    const x = bar - 1.4 * s;
+    const x = bar - (signed.some((hx) => Math.abs(hx - bar) < 1) ? 2.8 : 1.4) * s;
     if (x > box.left && x < box.right) stroke(g, x, L.top, x, L.bottom, LINE, 1.2);
   }
   const headW = 1.3 * s;
