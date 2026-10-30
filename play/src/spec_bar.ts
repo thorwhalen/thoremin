@@ -40,7 +40,7 @@ const YOURS = '__song';
 const PENDING = 'funfon.pendingSpec';
 const ACCEPT = '.json,.yaml,.yml,.toml,.mid,.midi,.musicxml,.xml,.mxl,.abc,.notes,.txt';
 
-const NUMERIC: readonly (keyof GameSettings)[] = ['bpm', 'countIn', 'beatsPerBar', 'barsPerPiece', 'passAt', 'retries', 'count'];
+const NUMERIC: readonly (keyof GameSettings)[] = ['bpm', 'countIn', 'beatsPerBar', 'barsPerPiece', 'passAt', 'retries', 'count', 'size', 'holdS', 'smoothing', 'tolerance'];
 
 export function mountSpecBar(o: SpecBarOptions): SpecBar {
   const bar = document.createElement('div');

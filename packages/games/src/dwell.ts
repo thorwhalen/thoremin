@@ -19,6 +19,8 @@ export interface Dwell {
   readonly progress: number;
   readonly done: boolean;
   reset(): void;
+  /** A new need, the progress kept (a practice control moved mid-hold). */
+  retune(needS: number): void;
 }
 
 export function createDwell({ needS, decay = 0 }: DwellOptions): Dwell {
@@ -40,6 +42,10 @@ export function createDwell({ needS, decay = 0 }: DwellOptions): Dwell {
     },
     reset() {
       p = 0;
+    },
+    retune(s) {
+      if (!(s > 0)) throw new Error('dwell: needS must be positive');
+      needS = s;
     },
   };
 }

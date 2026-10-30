@@ -56,6 +56,8 @@ export interface TrackOptions {
   points?: { start: number; gain: number; loss: number };
   /** Off a band in its first this-many seconds costs nothing (the voice is still moving to the note; a rhythm game's good window). */
   graceS?: number;
+  /** Every opening's and lane's width times this (a practice control). Default 1. */
+  sizeScale?: number;
   hint?: string;
 }
 
@@ -88,8 +90,9 @@ export function createTrackSession(opts: TrackOptions) {
   let points = o.points.start;
   let lost = false;
   let endedAt: number | null = null;
+  let sizeScale = o.sizeScale ?? 1;
 
-  const inLane = (x: number, s: (typeof segs)[number]) => Math.abs(dxOn(x, s.gapX, true)) <= s.gapW / 2;
+  const inLane = (x: number, s: (typeof segs)[number]) => Math.abs(dxOn(x, s.gapX, true)) <= (s.gapW * sizeScale) / 2;
 
   /** Move the ball by dt; true when a wall holds it. */
   function move(dt: number, live: boolean): boolean {
@@ -155,7 +158,7 @@ export function createTrackSession(opts: TrackOptions) {
         d0: s.at - ballY,
         d1: s.at + s.length - ballY,
         gapX: s.gapX,
-        gapW: s.gapW,
+        gapW: s.gapW * sizeScale,
         label: nameOf(s.midi).replace(/-?\d+$/, ''),
         state: (s.dwell ? (s.dwell.done ? 'passed' : s.dwell.progress > 0 ? 'inside' : 'ahead') : ballY >= s.at + s.length ? 'passed' : ballY >= s.at ? 'inside' : 'ahead') as SegmentView['state'],
       }))
@@ -197,7 +200,12 @@ export function createTrackSession(opts: TrackOptions) {
     };
     return { view, cues };
   }
-  return { tick };
+  /** Widen or narrow the openings and lanes while it runs. */
+  function tune(t: { sizeScale?: number }): void {
+    if (t.sizeScale !== undefined && t.sizeScale > 0) sizeScale = t.sizeScale;
+  }
+
+  return { tick, tune };
 }
 
 /** A melody's notes as walls, one every `spacing`, `holdS` thick at the speed (the first levels). */

@@ -20,6 +20,7 @@ import { wrap01 } from './field';
 import type { Heard } from './listen';
 import type { LoudnessScale } from './loudness';
 import { nameOf } from './lesson';
+import { smoothedAt, type CursorTuning } from './tuning';
 
 /** Semitones in the octave the x axis spans. */
 export const OCTAVE = 12;
@@ -51,6 +52,8 @@ export interface PitchCursorOptions {
   /** Smoothing of x (in semitones, so its speed reads in semitones per second) and of y. */
   smoothX?: OneEuroOptions;
   smoothY?: OneEuroOptions;
+  /** The player's smoothing, 0..1 (`tuning`): scales both filters; 0.5 is the defaults. */
+  smoothing?: number;
 }
 
 export const PITCH_CURSOR_DEFAULTS = {
@@ -65,11 +68,17 @@ export const PITCH_CURSOR_DEFAULTS = {
 /** The voice's pitch class across and its loudness up. */
 export function createPitchCursor(options: PitchCursorOptions = {}): PointSource {
   const o = { ...PITCH_CURSOR_DEFAULTS, ...options };
-  const sx = createOneEuro({ ...o.smoothX, period: OCTAVE });
-  const sy = createOneEuro(o.smoothY);
+  let smoothing = o.smoothing;
+  const filters = () => [createOneEuro({ ...smoothedAt(o.smoothX, smoothing), period: OCTAVE }), createOneEuro(smoothedAt(o.smoothY, smoothing))];
+  let [sx, sy] = filters();
   let last: CursorState | null = null;
   let lastVoiced = -Infinity;
   return {
+    tune(t: CursorTuning) {
+      if (t.smoothing === undefined || t.smoothing === smoothing) return;
+      smoothing = t.smoothing;
+      [sx, sy] = filters();
+    },
     push(heard: Heard, now: number) {
       for (const p of heard.pitch) {
         if (p.f0 === null || !(p.f0 > 0) || p.clarity < o.minClarity) continue;

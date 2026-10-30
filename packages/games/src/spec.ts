@@ -50,6 +50,11 @@ export interface GameSettings {
   /** Vowels: the mode and the vowels (IPA) of a Vowel Pop round. */
   mode?: string;
   vowels?: string[];
+  /** Practice controls (`tuning`): targets' size (a scale), the hold, the cursor's smoothing (0..1), the in-tune band (cents). */
+  size?: number;
+  holdS?: number;
+  smoothing?: number;
+  tolerance?: number;
 }
 
 export interface GameSpec {

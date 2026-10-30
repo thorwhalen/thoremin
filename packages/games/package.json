@@ -31,7 +31,8 @@
     "./spec": "./src/spec.ts",
     "./spec_schema": "./src/spec_schema.ts",
     "./formant_synth": "./src/formant_synth.ts",
-    "./vowel_calibration": "./src/vowel_calibration.ts"
+    "./vowel_calibration": "./src/vowel_calibration.ts",
+    "./tuning": "./src/tuning.ts"
   },
   "dependencies": {
     "@thoremin/judge": "*",

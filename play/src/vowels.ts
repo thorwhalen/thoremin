@@ -17,7 +17,9 @@ import { text } from '@thoremin/games/stage';
 import type { FieldView } from '@thoremin/games/field';
 import { createVowelCalibration } from '@thoremin/games/vowel_calibration';
 import { createVowelCursor, formantsAt, nearestVowel, TRAPEZOID, VOICE_SCALES, VOWEL_POP_LEVELS, vowelCourse, vowelMarks, type VoiceKind, type VoiceMap, type VowelCursor } from '@thoremin/games/vowels';
-import { drawFieldOrIdle, planeAspect } from './field_page';
+import { drawFieldOrIdle, planeAspect, skipButton } from './field_page';
+import { mountAdjust } from './adjust';
+import { SMOOTHING_DEFAULT } from '@thoremin/games/tuning';
 import { mountGamePage } from './page';
 import type { Session } from './runner';
 import { stored } from './stored';
@@ -48,20 +50,41 @@ function fillVoices(): void {
   for (const [k, label] of Object.entries(VOICES)) voiceSel.add(new Option(label, k, !yours && k === 'auto', !yours && k === 'auto'));
 }
 fillVoices();
+let cursor: VowelCursor | null = null;
+let round: ReturnType<typeof createPopSession> | null = null;
+const header = document.querySelector('header')!;
+const level = () => VOWEL_POP_LEVELS[difficultySel.value as Difficulty];
+// The balloons' size is a scale of the difficulty's radius; the smoothing also steadies the free practice dot.
+const adjust = mountAdjust({
+  game: 'vowels',
+  host: header,
+  knobs: [
+    { key: 'smoothing', label: 'Smoothing', value: SMOOTHING_DEFAULT },
+    { key: 'size', label: 'Balloon size', value: 1 },
+    { key: 'holdS', label: 'Hold to pop', value: level().holdS },
+  ],
+  onChange: (v) => {
+    cursor?.tune?.({ smoothing: v.smoothing });
+    round?.tune({ sizeScale: v.size, holdS: v.holdS });
+  },
+});
+difficultySel.addEventListener('change', () => adjust.setDefault('holdS', level().holdS));
+const skip = skipButton($<HTMLButtonElement>('start'), () => round?.skip());
+
 const syncControls = () => {
   difficultySel.hidden = modeSel.value !== 'pop';
   voiceSel.hidden = modeSel.value === 'calibrate';
+  skip.hidden = modeSel.value !== 'pop';
 };
 modeSel.addEventListener('change', syncControls);
 syncControls();
 
-// A spec carries the mode, the difficulty and the vowels of a Vowel Pop round (Vowels plays no songs).
-const spec = mountSpecBar({ game: 'vowels', host: document.querySelector('header')!, controls: { mode: modeSel, difficulty: difficultySel } });
+// A spec carries the mode, the difficulty, the practice knobs and the vowels of a Vowel Pop round (Vowels plays no songs).
+const spec = mountSpecBar({ game: 'vowels', host: header, controls: { mode: modeSel, difficulty: difficultySel, ...adjust.inputs } });
 
 const backdrop = { outline: TRAPEZOID, marks: vowelMarks(), xLabel: 'front ← → back' };
 const idle = { game: 'vowels' as const, title: 'Vowels', backdrop, wrapX: false, hint: 'Touch the chart to hear a vowel. Press Start to see yours.' };
 
-let cursor: VowelCursor | null = null;
 let synth: VowelSynth | null = null;
 /** Where the finger is on the plane while it sounds a vowel. */
 let touch: { x: number; y: number } | null = null;
@@ -73,6 +96,7 @@ const page = mountGamePage<FieldView>({
   session: (start): Session<FieldView> => {
     if (modeSel.value === 'calibrate') {
       cursor = null;
+      round = null;
       const cal = createVowelCalibration({ start, backdrop });
       let saved = false;
       return {
@@ -89,21 +113,23 @@ const page = mountGamePage<FieldView>({
       };
     }
     const map = voiceSel.value === YOURS ? calibration.read() : null;
-    cursor = createVowelCursor(map ? { calibration: map } : { voice: voiceSel.value as VoiceKind });
+    const v = adjust.values();
+    cursor = createVowelCursor({ ...(map ? { calibration: map } : { voice: voiceSel.value as VoiceKind }), smoothing: v.smoothing });
     const pop = modeSel.value === 'pop';
-    const level = VOWEL_POP_LEVELS[difficultySel.value as Difficulty];
-    return createPopSession({
+    const lv = level();
+    return (round = createPopSession({
       game: 'vowels',
       title: pop ? 'Vowel Pop' : 'Vowels: practice',
       start,
-      targets: pop ? vowelCourse({ r: level.r, seed: Date.now(), ...(spec.settings().vowels?.length ? { vowels: spec.settings().vowels } : {}) }) : [],
+      targets: pop ? vowelCourse({ r: lv.r, seed: Date.now(), ...(spec.settings().vowels?.length ? { vowels: spec.settings().vowels } : {}) }) : [],
       cursor,
       backdrop,
       aspect: planeAspect(canvas),
       atOnce: 1,
-      holdS: pop ? level.holdS : 1,
-      hint: pop ? 'Say the vowel on the balloon, long and steady.' : 'Say a long vowel. Touch the chart to hear one.',
-    });
+      holdS: pop ? (v.holdS ?? lv.holdS) : 1,
+      sizeScale: v.size,
+      hint: pop ? 'Say the vowel on the balloon, long and steady. Too hard? Skip.' : 'Say a long vowel. Touch the chart to hear one.',
+    }));
   },
   draw: (g, W, H, view) => {
     drawFieldOrIdle(g, W, H, view, idle);
