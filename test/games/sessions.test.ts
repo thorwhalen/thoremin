@@ -118,6 +118,20 @@ describe('Sing on real singing', () => {
 describe('Play along', () => {
   const clap = LESSONS.find((l) => l.id === 'rhythm-quarters')!;
 
+  it('plays a melody\'s first note in the count-in (a rhythm\'s, nothing), and counts nothing heard then as an extra', () => {
+    const melody = LESSONS.find((l) => l.game === 'play-along' && placeLesson(l, 0).notes.every((n) => n.midi !== undefined))!;
+    const s = createPlayAlongSession(melody, { start: 0 });
+    const countIn = s.notes[0].start;
+    const cues = run(s.tick, { pitch: [], onsets: [] }, 0, countIn - 0.3).cues;
+    expect(cues).toBe(melody.countIn + 1);
+    expect(run(createPlayAlongSession(melody, { start: 0, reference: false }).tick, { pitch: [], onsets: [] }, 0, countIn - 0.3).cues).toBe(melody.countIn);
+    const rhythm = createPlayAlongSession(clap, { start: 0 });
+    expect(run(rhythm.tick, { pitch: [], onsets: [] }, 0, rhythm.notes[0].start - 0.3).cues).toBe(clap.countIn);
+    // The microphone hears the clicks and the reference: none of it is the player's.
+    const heard = run(createPlayAlongSession(clap, { start: 0 }).tick, { pitch: [], onsets: [0, 0.4, 0.8].map((t) => ({ t, strength: 1 })) }, 0, 20).last;
+    expect(heard.results!.counts.extra ?? 0).toBe(0);
+  });
+
   it('judges claps with known offsets into their tiers, counts extras, and reads the timing', () => {
     const s = createPlayAlongSession(clap, { start: 0 });
     const offsets = [0.005, -0.02, 0.045, -0.07, 0.09, 0.2, 0.01, -0.012];

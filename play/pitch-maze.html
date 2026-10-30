@@ -8,11 +8,12 @@
   </head>
   <body>
     <header>
+      <a class="home" href="./"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="currentColor"/></svg>Home</a>
       <h1>Pitch Maze</h1>
       <select id="lesson" aria-label="Tune"></select>
       <select id="level" aria-label="Level"></select>
       <button id="start">Start</button>
-      <p class="hint">The ball travels by itself; your note moves it across (any octave). First levels: sing the note of each wall's opening and hold it until the ball is through (each wall's note plays as it comes near). Road levels: the tune runs to the horizon; stay on the lit lane to gain points, off it you lose them, and at zero the game is over. <a class="home" href="./">More games</a></p>
+      <p class="hint">The ball travels by itself; your note moves it across (any octave). First levels: sing the note of each wall's opening and hold it until the ball is through (each wall's note plays as it comes near). Road levels: the tune runs to the horizon; stay on the lit lane to gain points, off it you lose them, and at zero the game is over.</p>
     </header>
     <canvas id="stage"></canvas>
     <script type="module" src="./src/pitch_maze.ts"></script>
