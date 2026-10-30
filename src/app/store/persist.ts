@@ -12,7 +12,7 @@ import type { PrefSlice } from '@thoremin/sdk/instruments/extension';
 import { migrateSlices, sliceVersionsToWrite, SLICE_VERSIONS_KEY } from '@/host/slices';
 import { SETTINGS_KEYS, type ControlState } from './state';
 import { EXTENSION_HEAL_RULES, HEAL_RULES, healAll, type HealRule } from './heal';
-import { SLICE_CHAINS } from './migrations';
+import { CONTROLS_VERSION, SLICE_CHAINS } from './migrations';
 
 /** The slices the last rehydrated blob had that no listed extension claims (an extension removed
  *  from the build), with their stored versions: carried through every write untouched. */
@@ -36,7 +36,8 @@ export function withExtensionPrefs<S extends object>(state: S, prefSlices: reado
  * the SESSION (everything else: transients, the transport, the loaded song; never persisted).
  */
 const CORE_DEVICE_PREF_KEYS = ['faceCalibration', 'gestures', 'audioPrefs'] as const satisfies readonly (keyof ControlState)[];
-const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
+const DEVICE_PREF_KEYS: readonly string[] = [...CORE_DEVICE_PREF_KEYS, ...CONTRIBUTIONS.prefSlices.map((p) => p.key)];
+const PERSISTED_KEYS: readonly string[] = [...SETTINGS_KEYS, ...DEVICE_PREF_KEYS];
 
 /** What the hot store persists: the preset dials and the device prefs, the foreign slices as they
  *  were stored, and every slice's version. Exported for direct testing. */
@@ -76,6 +77,31 @@ export function mergeControls(persisted: unknown, current: ControlState): Contro
   // The transport never resumes from storage (it is not persisted; `current` wins even
   // over a hand-edited blob), so a reload can never start a paid stream by itself.
   return { ...current, ...p, ...healed, faceMapping, ...keptTransients(current) };
+}
+
+/**
+ * What another tab's saved blob changes in THIS tab (#847): only the device prefs and learned values, never
+ * a dial, since the dials are what this tab is sounding. Each is healed as a rehydrated one is. Null for a
+ * blob of another format (a tab on an older or newer deployment, or corrupt): its fields are not ours to read.
+ * Exported for direct testing.
+ */
+export function devicePrefsFromOtherTab(raw: string, current: ControlState): Partial<ControlState> | null {
+  let saved: { state?: unknown; version?: unknown };
+  try {
+    saved = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (saved?.version !== CONTROLS_VERSION || !saved.state || typeof saved.state !== 'object') return null;
+  const { blob } = migrateSlices(saved.state, SLICE_CHAINS);
+  const cur = current as unknown as Record<string, unknown>;
+  const rules = { ...HEAL_RULES, ...EXTENSION_HEAL_RULES } as Readonly<Record<string, HealRule<unknown> | undefined>>;
+  const stored = Object.fromEntries(DEVICE_PREF_KEYS.filter((k) => k in blob).map((k) => [k, blob[k]]));
+  const deviceRules = Object.fromEntries(Object.keys(stored).flatMap((k) => (rules[k] ? [[k, rules[k]]] : [])));
+  // A field with no heal rule (`faceCalibration`, where null means cleared) comes as stored.
+  const incoming: Record<string, unknown> = { ...stored, ...healAll(stored, cur, deviceRules) };
+  const changed = Object.keys(incoming).filter((k) => JSON.stringify(incoming[k]) !== JSON.stringify(cur[k]));
+  return Object.fromEntries(changed.map((k) => [k, incoming[k]])) as Partial<ControlState>;
 }
 
 /** The extensions' transient fields as they are now: a rehydrated blob never carries them

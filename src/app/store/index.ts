@@ -19,6 +19,7 @@
  */
 import { create } from 'zustand';
 import { provideControls } from '@thoremin/sdk-ui/host';
+import { adoptWithoutWriting } from '@thoremin/sdk-ui/storage';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_SOUND_RIGHT, DEFAULT_SOUND_LEFT } from '@thoremin/sdk/music/sounds';
 import type { OverlayDialParams } from '@/nodes/output/canvas_overlay.schema';
@@ -28,12 +29,14 @@ import { DEFAULT_AUDIO_PREFS } from '../timing/audioPrefs';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { defaultFaceControls, defaultHandMap, defaultOverlay, defaultVoice, pickSettings, type ControlState } from './state';
 import { CONTROLS_VERSION, migrateControls } from './migrations';
-import { controlsStorage, mergeControls, persistedControls, withExtensionPrefs } from './persist';
+import { controlsStorage, devicePrefsFromOtherTab, mergeControls, persistedControls, withExtensionPrefs } from './persist';
 
 export { toSettings, type ControlState, type VoiceControl } from './state';
 export { HEAL_RULES } from './heal';
 export { migrateControls } from './migrations';
-export { mergeControls, persistedControls, withExtensionPrefs } from './persist';
+export { devicePrefsFromOtherTab, mergeControls, persistedControls, withExtensionPrefs } from './persist';
+
+const CONTROLS_STORAGE_KEY = 'thoremin-controls';
 
 export const useControls = create<ControlState>()(
   persist(
@@ -120,7 +123,7 @@ export const useControls = create<ControlState>()(
       applySettings: (st) => set(pickSettings(st as unknown as Record<string, unknown>)),
     }),
     {
-      name: 'thoremin-controls',
+      name: CONTROLS_STORAGE_KEY,
       // The version and its history live beside the migration steps (CONTROLS_VERSION).
       version: CONTROLS_VERSION,
       migrate: migrateControls,
@@ -133,6 +136,16 @@ export const useControls = create<ControlState>()(
     },
   ),
 );
+
+// Another tab saved (#847; the browser fires this only in the OTHER tabs): take in its device prefs
+// and learned values, so this tab's next save does not revert them, and leave the dials sounding here.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== CONTROLS_STORAGE_KEY || !e.newValue) return;
+    const prefs = devicePrefsFromOtherTab(e.newValue, useControls.getState());
+    if (prefs && Object.keys(prefs).length > 0) adoptWithoutWriting(CONTROLS_STORAGE_KEY, () => useControls.setState(prefs));
+  });
+}
 
 // The extension SDK's controls seam (`@thoremin/sdk-ui/host`): an extension's React side reads
 // and writes the hot store through this, never by importing it. Installed when this module
