@@ -34,6 +34,8 @@ export interface OneEuro {
   /** Fold in `x` at time `t` seconds (non-decreasing) and return the smoothed value. */
   push(t: number, x: number): number;
   reset(): void;
+  /** New cutoffs from the next sample on, the state kept (a smoothing control moved mid-take). */
+  retune(options: Pick<OneEuroOptions, 'minCutoff' | 'beta' | 'dCutoff'>): void;
 }
 
 /**
@@ -43,7 +45,7 @@ export interface OneEuro {
  * one for new code.
  */
 export function createOneEuro(options: OneEuroOptions = {}): OneEuro {
-  const { minCutoff, beta, dCutoff } = { ...ONE_EURO_DEFAULTS, ...options };
+  let { minCutoff, beta, dCutoff } = { ...ONE_EURO_DEFAULTS, ...options };
   const period = options.period;
   const alpha = (cutoff: number, dt: number) => {
     const tau = 1 / (2 * Math.PI * cutoff);
@@ -72,6 +74,11 @@ export function createOneEuro(options: OneEuroOptions = {}): OneEuro {
       x = NaN;
       dx = 0;
       last = NaN;
+    },
+    retune(o) {
+      minCutoff = o.minCutoff ?? minCutoff;
+      beta = o.beta ?? beta;
+      dCutoff = o.dCutoff ?? dCutoff;
     },
   };
 }

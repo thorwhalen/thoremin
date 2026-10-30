@@ -14,6 +14,7 @@
  *
  * Pure: data and arithmetic.
  */
+import { SMOOTHING_DEFAULT, smoothedAt, type CursorTuning } from './tuning';
 import { createOneEuro, type OneEuroOptions } from '@thoremin/stats/smooth';
 import { median } from '@thoremin/stats/quantile';
 import type { CursorState, Point, PointSource } from './field';
@@ -353,6 +354,8 @@ export interface VowelCursorOptions {
   /** The point is the median of this many windows' (10 ms each). */
   medianOf?: number;
   smooth?: OneEuroOptions;
+  /** The player's smoothing, 0..1 (`tuning`): scales the filter and the median; 0.5 is the defaults. */
+  smoothing?: number;
 }
 
 /** Smoothing measured on sung vowels (`scripts/audio_games/measure_vowels.ts`, VocalSet): a 150 ms median and a slow 1-euro filter keep the dot's 90th-percentile step per 10 ms near 1 % of the chart, at about 75 ms of lag. The gate is low because a sung [u] sits some 10 dB under an [a] (0.16 of the range an [i] and [a] set). */
@@ -367,8 +370,12 @@ export interface VowelCursor extends PointSource {
 export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor {
   const o = { ...VOWEL_CURSOR_DEFAULTS, ...options };
   const loudness = o.loudness ?? createLoudnessScale();
-  const sx = createOneEuro(o.smooth);
-  const sy = createOneEuro(o.smooth);
+  // The median's length doubles from smoothing 0.5 to 1 and halves from 0.5 to 0.
+  const medianAt = (s: number | undefined) => (s === undefined ? o.medianOf : Math.max(1, Math.round(o.medianOf * 2 ** ((s - SMOOTHING_DEFAULT) * 2))));
+  let smoothing = o.smoothing;
+  let medianOf = medianAt(smoothing);
+  const sx = createOneEuro(smoothedAt(o.smooth, smoothing));
+  const sy = createOneEuro(smoothedAt(o.smooth, smoothing));
   const f3s: number[] = [];
   let scale = Number.isNaN(VOICE_SCALES[o.voice]) ? 1 : VOICE_SCALES[o.voice];
   const recent: Point[] = [];
@@ -376,6 +383,14 @@ export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor
   let lastVoiced = -Infinity;
   return {
     scale: () => scale,
+    tune(t: CursorTuning) {
+      if (t.smoothing === undefined || t.smoothing === smoothing) return;
+      smoothing = t.smoothing;
+      medianOf = medianAt(smoothing);
+      // The dot stays where it is: only the filters' cutoffs and the median's length change.
+      sx.retune(smoothedAt(o.smooth, smoothing));
+      sy.retune(smoothedAt(o.smooth, smoothing));
+    },
     push(heard: Heard, now: number) {
       for (const f of heard.formants ?? []) {
         if (f.f1 === null || f.f2 === null || f.rms < o.minRms) continue;
@@ -397,7 +412,7 @@ export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor
         // The median of the last few windows: a window whose F2 was lost (F3 read in its place)
         // throws the point across the chart, and a few such in a row are common in back vowels.
         recent.push(p);
-        if (recent.length > o.medianOf) recent.shift();
+        while (recent.length > medianOf) recent.shift();
         const mx = median(recent.map((q) => q.x));
         const my = median(recent.map((q) => q.y));
         const clamp = (u: number) => (u < 0 ? 0 : u > 1 ? 1 : u);

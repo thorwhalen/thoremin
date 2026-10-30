@@ -40,7 +40,7 @@ const YOURS = '__song';
 const PENDING = 'funfon.pendingSpec';
 const ACCEPT = '.json,.yaml,.yml,.toml,.mid,.midi,.musicxml,.xml,.mxl,.abc,.notes,.txt';
 
-const NUMERIC: readonly (keyof GameSettings)[] = ['bpm', 'countIn', 'beatsPerBar', 'barsPerPiece', 'passAt', 'retries', 'count'];
+const NUMERIC: readonly (keyof GameSettings)[] = ['bpm', 'countIn', 'beatsPerBar', 'barsPerPiece', 'passAt', 'retries', 'count', 'size', 'holdS', 'smoothing', 'tolerance'];
 
 export function mountSpecBar(o: SpecBarOptions): SpecBar {
   const bar = document.createElement('div');
@@ -125,7 +125,14 @@ export function mountSpecBar(o: SpecBarOptions): SpecBar {
     extras = { ...spec.settings };
     for (const [k, el] of Object.entries(o.controls ?? {}) as [keyof GameSettings, HTMLSelectElement | HTMLInputElement][]) {
       const v = spec.settings[k];
-      if (v === undefined) continue;
+      if (v === undefined) {
+        // A practice knob the spec does not set goes back to the page's default, not this browser's.
+        if (el instanceof HTMLInputElement && el.type === 'range' && el.value !== el.defaultValue) {
+          el.value = el.defaultValue;
+          el.dispatchEvent(new Event('change'));
+        }
+        continue;
+      }
       delete (extras as Record<string, unknown>)[k];
       if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(v);
       else if (!(el instanceof HTMLSelectElement) || [...el.options].some((x) => x.value === String(v))) el.value = String(v);

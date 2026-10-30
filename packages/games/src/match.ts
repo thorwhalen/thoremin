@@ -48,9 +48,12 @@ interface Outcome {
   tier: string;
 }
 
+/** Seconds a found note is held in tune to count. */
+export const MATCH_HOLD_S = 1;
+
 export function createMatchSession(lesson: Lesson, opts: MatchOptions) {
   const tol = opts.toleranceCents ?? 50;
-  const holdS = opts.holdS ?? 1;
+  const holdS = opts.holdS ?? MATCH_HOLD_S;
   const timeoutS = opts.timeoutS ?? 8;
   const listenAfter = opts.listenAfter ?? 1.2;
   const dropout = opts.dropout ?? 0.12;

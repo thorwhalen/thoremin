@@ -37,6 +37,8 @@ export interface PopOptions {
   atOnce?: number;
   /** Seconds on a balloon to pop it. Default 1. */
   holdS?: number;
+  /** Every balloon's radius times this (a practice control). Default 1. */
+  sizeScale?: number;
   /** Hold lost per second off it, as a fraction. Default 0.5. */
   decay?: number;
   /** End the round after this long, seconds. Default none. */
@@ -45,7 +47,15 @@ export interface PopOptions {
   hint?: string;
 }
 
-export const POP_DEFAULTS = { atOnce: 3, holdS: 1, decay: 0.5, aspect: 16 / 9 };
+export const POP_DEFAULTS = { atOnce: 3, holdS: 1, decay: 0.5, aspect: 16 / 9, sizeScale: 1 };
+
+/** What a round can be retuned to while it runs. */
+export interface PopTuning {
+  holdS?: number;
+  sizeScale?: number;
+  /** The stage's width over its height now (the page's header grew or shrank). */
+  aspect?: number;
+}
 
 /** The pop's own sound: a short click far above any voice (the pitch tracker ignores it). */
 const POP_CUE = (t: number): Cue => ({ t, midi: CLICK_MIDI, velocity: 0.5, kind: 'click' });
@@ -57,6 +67,9 @@ export function createPopSession(opts: PopOptions) {
   const trail: (Point & { t: number })[] = [];
   let shown = Math.min(o.atOnce, targets.length);
   let popped = 0;
+  let skipped = 0;
+  let sizeScale = o.sizeScale;
+  const radius = (b: PopTarget) => b.r * sizeScale;
   let last = o.start;
   let endedAt: number | null = null;
 
@@ -69,8 +82,8 @@ export function createPopSession(opts: PopOptions) {
     if (playing) {
       for (let k = 0; k < shown; k++) {
         const b = targets[k];
-        if (b.state === 'popped') continue;
-        const inside = !!cursor?.live && distanceOn(cursor, b, metric) <= b.r;
+        if (b.state !== 'live') continue;
+        const inside = !!cursor?.live && distanceOn(cursor, b, metric) <= radius(b);
         b.progress = b.dwell.step(inside, dt);
         if (b.dwell.done) {
           b.state = 'popped';
@@ -81,7 +94,7 @@ export function createPopSession(opts: PopOptions) {
         }
       }
       // No balloons is free play (a practice area): it never ends by itself.
-      if ((targets.length > 0 && popped === targets.length) || (o.timeLimitS !== undefined && now - o.start >= o.timeLimitS)) endedAt = now;
+      if ((targets.length > 0 && popped + skipped === targets.length) || (o.timeLimitS !== undefined && now - o.start >= o.timeLimitS)) endedAt = now;
     }
     pushTrail(trail, cursor?.live ? cursor : null, now, 0.6);
 
@@ -96,22 +109,42 @@ export function createPopSession(opts: PopOptions) {
       cursor,
       trail: trail.map(({ x, y }) => ({ x, y })),
       // The live ones, and the popped ones while their burst is still in the air.
-      targets: targets.slice(0, shown).filter((b) => b.state === 'live' || now - (b.poppedAt ?? now) < 0.6).map(({ dwell: _d, ...b }) => ({ ...b })),
-      score: { done: popped, total: targets.length, elapsed },
+      targets: targets.slice(0, shown).filter((b) => b.state === 'live' || (b.state === 'popped' && now - (b.poppedAt ?? now) < 0.6)).map(({ dwell: _d, ...b }) => ({ ...b, r: radius(b) })),
+      // Skipped balloons leave the count: 3 of 3 after skipping one of four.
+      score: { done: popped, total: targets.length - skipped, elapsed },
       ...(o.hint ? { hint: o.hint } : {}),
       ...(endedAt === null
         ? {}
         : {
             results: {
               accuracy: targets.length ? popped / targets.length : 0,
-              counts: { popped, missed: targets.length - popped },
-              summary: `${popped} of ${targets.length} popped in ${Math.round(elapsed)} s`,
+              counts: { popped, ...(skipped ? { skipped } : {}), missed: targets.length - popped - skipped },
+              summary: `${popped} of ${targets.length} popped${skipped ? `, ${skipped} skipped` : ''} in ${Math.round(elapsed)} s`,
             },
           }),
     };
     return { view, cues };
   }
-  return { tick };
+
+  /** Skip a balloon that is up: the one named, else the oldest. The next of the course comes up. */
+  function skip(id?: number): boolean {
+    if (endedAt !== null) return false;
+    const b = targets.slice(0, shown).find((x) => x.state === 'live' && (id === undefined || x.id === id));
+    if (!b) return false;
+    b.state = 'skipped';
+    skipped++;
+    if (shown < targets.length) shown++;
+    if (popped + skipped === targets.length) endedAt = last;
+    return true;
+  }
+
+  function tune(t: PopTuning): void {
+    if (t.sizeScale !== undefined && t.sizeScale > 0) sizeScale = t.sizeScale;
+    if (t.holdS !== undefined && t.holdS > 0) for (const b of targets) b.dwell.retune(t.holdS);
+    if (t.aspect !== undefined && t.aspect > 0) metric.aspect = t.aspect;
+  }
+
+  return { tick, skip, tune };
 }
 
 /** How hard Pop the Notes is: balloon sizes (units of the height) and the hold. */

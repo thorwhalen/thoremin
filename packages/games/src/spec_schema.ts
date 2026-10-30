@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { SongSchema } from '@thoremin/sdk/score/song_schema';
 import { DIFFICULTIES } from './difficulty';
 import { STACKS } from './echo';
+import { TUNING_RANGES } from './tuning';
 import { NOTE_VIEWS } from './note_view';
 import { STAFF_MODES } from './staff';
 import { GAME_IDS, SPEC_KIND, type GameSettings, type GameSpec } from './spec';
@@ -29,6 +30,10 @@ export const GameSettingsSchema = z
     count: z.number().int().positive().max(200).optional(),
     mode: z.string().optional(),
     vowels: z.array(z.string()).optional(),
+    size: z.number().min(TUNING_RANGES.size.min).max(TUNING_RANGES.size.max).optional(),
+    holdS: z.number().min(TUNING_RANGES.holdS.min).max(TUNING_RANGES.holdS.max).optional(),
+    smoothing: z.number().min(TUNING_RANGES.smoothing.min).max(TUNING_RANGES.smoothing.max).optional(),
+    tolerance: z.number().min(TUNING_RANGES.tolerance.min).max(TUNING_RANGES.tolerance.max).optional(),
   })
   .strict() satisfies z.ZodType<GameSettings>;
 

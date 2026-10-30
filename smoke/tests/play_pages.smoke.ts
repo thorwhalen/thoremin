@@ -29,7 +29,7 @@ test('Match the Note runs on its own page, without the app', async ({ page }) =>
 });
 
 for (const [file, heading, hint] of [
-  ['pop-the-notes', 'Pop the Notes', 'Sing louder to go up, softer to go down.'],
+  ['pop-the-notes', 'Pop the Notes', 'Sing louder to go up, softer to go down. Too hard? Tap the balloon, or Skip.'],
   ['pitch-maze', 'Pitch Maze', 'Hold the note of the opening until the ball is through.'],
   ['vowels', 'Vowels', 'Say a long vowel. Touch the chart to hear one.'],
 ] as const) {

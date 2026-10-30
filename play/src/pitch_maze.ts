@@ -6,6 +6,8 @@
  * note and lost at zero points. The session is `@thoremin/games`' track over its pitch cursor; the
  * tunes are the Sing lessons.
  */
+import { mountAdjust } from './adjust';
+import { SMOOTHING_DEFAULT } from '@thoremin/games/tuning';
 import { createPitchCursor, pitchColumns } from '@thoremin/games/cursor';
 import { lessonsFor } from '@thoremin/games/lessons';
 import { PITCH_ANALYSERS } from '@thoremin/games/listen';
@@ -23,7 +25,21 @@ for (const l of tunes) lessonSel.add(new Option(l.title, l.id));
 TRACK_LEVELS.forEach((l, i) => levelSel.add(new Option(`${i + 1}. ${l.name}`, l.id, i === 1, i === 1)));
 
 const shipped = () => tunes.find((l) => l.id === lessonSel.value) ?? tunes[0];
-const spec = mountSpecBar({ game: 'pitch-maze', host: document.querySelector('header')!, controls: { lesson: lessonSel, track: levelSel }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
+let round: ReturnType<typeof createTrackSession> | null = null;
+let cursor: ReturnType<typeof createPitchCursor> | null = null;
+const adjust = mountAdjust({
+  game: 'pitch-maze',
+  host: document.querySelector('header')!,
+  knobs: [
+    { key: 'size', label: 'Opening and lane width', value: 1 },
+    { key: 'smoothing', label: 'Smoothing', value: SMOOTHING_DEFAULT },
+  ],
+  onChange: (v) => {
+    round?.tune({ sizeScale: v.size });
+    cursor?.tune?.({ smoothing: v.smoothing });
+  },
+});
+const spec = mountSpecBar({ game: 'pitch-maze', host: document.querySelector('header')!, controls: { lesson: lessonSel, track: levelSel, ...adjust.inputs }, songSelect: lessonSel, shippedSong: () => songFromLesson(shipped()) });
 
 const backdrop = { columns: pitchColumns() };
 const idle = { game: 'maze' as const, title: 'Pitch Maze', backdrop, wrapX: true, hint: 'Press Start, then sing the notes.' };
@@ -38,14 +54,17 @@ mountGamePage({
     const level = TRACK_LEVELS.find((l) => l.id === levelSel.value) ?? TRACK_LEVELS[1];
     const notes = tune.notes.flatMap((n) => (n.midi === undefined ? [] : [{ midi: n.midi, beats: n.beats }]));
     const track = trackFor(notes, tune.bpm, level);
-    return createTrackSession({
+    const v = adjust.values();
+    cursor = createPitchCursor({ smoothing: v.smoothing });
+    return (round = createTrackSession({
       title: tune.title,
       start,
       ...track,
-      cursor: createPitchCursor(),
+      sizeScale: v.size,
+      cursor,
       backdrop,
       hint: level.kind === 'wall' ? 'Hold the note of the opening until the ball is through.' : 'Stay on the lit lane: points while on it, lost while off.',
-    });
+    }));
   },
   draw: (g, W, H, view) => drawFieldOrIdle(g, W, H, view, idle),
   over: (view) => view.phase === 'results',

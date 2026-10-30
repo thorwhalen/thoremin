@@ -6,6 +6,7 @@
  *
  * Pure: geometry and data, no canvas.
  */
+import type { CursorTuning } from './tuning';
 import type { Heard } from './listen';
 import type { Results } from './view';
 
@@ -57,6 +58,8 @@ export interface CursorState extends Point {
 /** What turns a tick of heard audio into the voice's point (a pitch-and-loudness cursor, a vowel cursor). */
 export interface PointSource {
   push(heard: Heard, now: number): CursorState | null;
+  /** Retune while it runs (a practice control moved); a source without knobs ignores it. */
+  tune?(t: CursorTuning): void;
 }
 
 /** A target on the plane: a disc to hold the voice in (`r` in units of the height). */
@@ -65,7 +68,7 @@ export interface FieldTarget extends Point {
   r: number;
   /** How much of the hold is done, 0..1: the stage shakes it harder as it nears 1. */
   progress: number;
-  state: 'live' | 'popped';
+  state: 'live' | 'popped' | 'skipped';
   label?: string;
   /** Engine seconds it popped (the burst is drawn from it). */
   poppedAt?: number;
