@@ -60,6 +60,17 @@ describe('smoothing', () => {
     expect(semitoneOfX(x)).toBeCloseTo(after(0), 5);
   });
 
+  it('retuning mid-note does not move the dot', () => {
+    const c = createPitchCursor({ smoothing: 0.5 });
+    let x = 0;
+    for (let t = 0; t < 1; t += 0.01) {
+      if (Math.abs(t - 0.5) < 0.005) c.tune!({ smoothing: 1 });
+      const next = c.push({ pitch: [{ t, f0: hzOf(t < 0.3 ? 60 : 62), clarity: 0.9 }], onsets: [] }, t)!.x;
+      if (t > 0.3) expect(Math.abs(semitoneOfX(next) - semitoneOfX(x))).toBeLessThan(0.3);
+      x = next;
+    }
+  });
+
   it('the vowel cursor takes the knob too: a steadier one is still on its way from [i] to [a]', () => {
     const after = (smoothing: number, retuned?: number) => {
       const c = createVowelCursor({ smoothing, voice: 'lower', loudness: createLoudnessScale({ mode: 'normal' }) });
@@ -103,6 +114,8 @@ describe('a pop round with practice knobs', () => {
     expect(run(s, sung(64), 0.2, 2).phase).toBe('results');
     v = run(s, () => [], 2, 2.1);
     expect(v.results!.counts).toEqual({ popped: 1, skipped: 2, missed: 0 });
+    // The running count leaves the skipped ones out.
+    expect(v.score).toMatchObject({ done: 1, total: 1 });
     expect(v.results!.summary).toMatch(/^1 of 3 popped, 2 skipped/);
   });
 });

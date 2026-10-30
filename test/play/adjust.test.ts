@@ -62,4 +62,23 @@ describe('the Adjust panel', () => {
     expect(a.values()).toEqual({ size: 0.5, holdS: 1.5 });
     expect(seen.at(-1)).toEqual({ size: 0.5, holdS: 1.5 });
   });
+
+  it('a spec at the defaults pins nothing, and a spec without a knob puts it back to its default', () => {
+    const a = mount();
+    const bar = mountSpecBar({ game: 'pop-the-notes', host: document.querySelector('header')!, controls: a.inputs });
+    bar.apply(gameSpec('pop-the-notes', { size: 1, holdS: 1 }));
+    // The difficulty still sets the hold: nothing was moved off its default.
+    a.setDefault('holdS', 0.7);
+    expect(a.values().holdS).toBe(0.7);
+    drag(a.inputs.size!, 2);
+    bar.apply(gameSpec('pop-the-notes', {}));
+    expect(a.values()).toEqual({ size: 1, holdS: 0.7 });
+  });
+
+  it('a kept value for a knob this page no longer has is ignored', () => {
+    localStorage.setItem('funfon.adjust.pop-the-notes', JSON.stringify({ tolerance: 40, size: 1.2 }));
+    const a = mount();
+    expect(() => drag(a.inputs.size!, 1.4)).not.toThrow();
+    expect(JSON.parse(localStorage.getItem('funfon.adjust.pop-the-notes')!)).toEqual({ size: 1.4 });
+  });
 });

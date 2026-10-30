@@ -74,8 +74,9 @@ const skip = skipButton($<HTMLButtonElement>('start'), () => round?.skip());
 const syncControls = () => {
   difficultySel.hidden = modeSel.value !== 'pop';
   voiceSel.hidden = modeSel.value === 'calibrate';
-  skip.hidden = modeSel.value !== 'pop';
 };
+// Skip shows while a Vowel Pop round is in play, whatever the mode select says meanwhile.
+skip.hidden = true;
 modeSel.addEventListener('change', syncControls);
 syncControls();
 
@@ -132,6 +133,8 @@ const page = mountGamePage<FieldView>({
     }));
   },
   draw: (g, W, H, view) => {
+    round?.tune({ aspect: planeAspect(canvas) });
+    skip.hidden = !(round && view && view.targets.length > 0 && view.phase === 'playing');
     drawFieldOrIdle(g, W, H, view, idle);
     const L = fieldLayout({ W, H });
     if (view?.cursor?.live && view.targets.length === 0) {

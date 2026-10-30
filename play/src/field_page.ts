@@ -21,7 +21,31 @@ export function targetAt(canvas: HTMLCanvasElement, view: FieldView | null, e: {
   const L = fieldLayout({ W: r.width, H: r.height });
   const x = e.clientX - r.left;
   const y = e.clientY - r.top;
-  return view.targets.find((t) => t.state === 'live' && Math.hypot(L.px(t).x - x, L.px(t).y - y) <= L.len(t.r)) ?? null;
+  // On a plane that wraps, a balloon over an edge is drawn on both sides: either copy is it.
+  const dx = (t: FieldTarget) => {
+    const d = L.px(t).x - x;
+    return view.wrapX ? Math.min(Math.abs(d), Math.abs(d - L.bw), Math.abs(d + L.bw)) : d;
+  };
+  return view.targets.find((t) => t.state === 'live' && Math.hypot(dx(t), L.px(t).y - y) <= L.len(t.r)) ?? null;
+}
+
+/**
+ * Call `onTap` with the balloon under a deliberate tap: down and up on the same balloon, quick and
+ * still. A palm steadying the tablet or a brush of the screen skips nothing.
+ */
+export function onBalloonTap(canvas: HTMLCanvasElement, view: () => FieldView | null, onTap: (t: FieldTarget) => void, { maxMs = 400, maxMovePx = 12 } = {}): void {
+  let down: { id: number; x: number; y: number; at: number; target: FieldTarget } | null = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    const t = targetAt(canvas, view(), e);
+    down = t ? { id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, target: t } : null;
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    const d = down;
+    down = null;
+    if (!d || d.id !== e.pointerId || e.timeStamp - d.at > maxMs || Math.hypot(e.clientX - d.x, e.clientY - d.y) > maxMovePx) return;
+    if (targetAt(canvas, view(), e)?.id === d.target.id) onTap(d.target);
+  });
+  canvas.addEventListener('pointercancel', () => (down = null));
 }
 
 /** A "Skip" button beside Start: a balloon too hard today is put aside, and the next comes up. */

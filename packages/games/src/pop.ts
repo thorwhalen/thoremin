@@ -53,6 +53,8 @@ export const POP_DEFAULTS = { atOnce: 3, holdS: 1, decay: 0.5, aspect: 16 / 9, s
 export interface PopTuning {
   holdS?: number;
   sizeScale?: number;
+  /** The stage's width over its height now (the page's header grew or shrank). */
+  aspect?: number;
 }
 
 /** The pop's own sound: a short click far above any voice (the pitch tracker ignores it). */
@@ -108,7 +110,8 @@ export function createPopSession(opts: PopOptions) {
       trail: trail.map(({ x, y }) => ({ x, y })),
       // The live ones, and the popped ones while their burst is still in the air.
       targets: targets.slice(0, shown).filter((b) => b.state === 'live' || (b.state === 'popped' && now - (b.poppedAt ?? now) < 0.6)).map(({ dwell: _d, ...b }) => ({ ...b, r: radius(b) })),
-      score: { done: popped, total: targets.length, elapsed },
+      // Skipped balloons leave the count: 3 of 3 after skipping one of four.
+      score: { done: popped, total: targets.length - skipped, elapsed },
       ...(o.hint ? { hint: o.hint } : {}),
       ...(endedAt === null
         ? {}
@@ -138,6 +141,7 @@ export function createPopSession(opts: PopOptions) {
   function tune(t: PopTuning): void {
     if (t.sizeScale !== undefined && t.sizeScale > 0) sizeScale = t.sizeScale;
     if (t.holdS !== undefined && t.holdS > 0) for (const b of targets) b.dwell.retune(t.holdS);
+    if (t.aspect !== undefined && t.aspect > 0) metric.aspect = t.aspect;
   }
 
   return { tick, skip, tune };

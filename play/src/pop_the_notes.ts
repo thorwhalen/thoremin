@@ -10,7 +10,7 @@ import { PITCH_ANALYSERS } from '@thoremin/games/listen';
 import { createLoudnessScale, LOUDNESS_MODES, type LoudnessMode } from '@thoremin/games/loudness';
 import { createPopSession, pitchLoudnessCourse, POP_LEVELS } from '@thoremin/games/pop';
 import { SMOOTHING_DEFAULT } from '@thoremin/games/tuning';
-import { drawFieldOrIdle, planeAspect, skipButton, targetAt } from './field_page';
+import { drawFieldOrIdle, onBalloonTap, planeAspect, skipButton } from './field_page';
 import { mountAdjust } from './adjust';
 import { mountGamePage } from './page';
 import { mountSpecBar } from './spec_bar';
@@ -71,13 +71,14 @@ const page = mountGamePage({
       hint: 'Sing louder to go up, softer to go down. Too hard? Tap the balloon, or Skip.',
     }));
   },
-  draw: (g, W, H, view) => drawFieldOrIdle(g, W, H, view, idle),
+  draw: (g, W, H, view) => {
+    // The Adjust panel opening or closing changes the stage's shape: the hit test follows it.
+    round?.tune({ aspect: planeAspect(canvas) });
+    drawFieldOrIdle(g, W, H, view, idle);
+  },
   over: (view) => view.phase === 'results',
 });
 
 skipButton($<HTMLButtonElement>('start'), () => round?.skip());
-// A tap on a balloon skips that one.
-canvas.addEventListener('pointerdown', (e) => {
-  const t = targetAt(canvas, page.view(), e);
-  if (t) round?.skip(t.id);
-});
+// A deliberate tap on a balloon skips that one.
+onBalloonTap(canvas, () => page.view(), (t) => round?.skip(t.id));

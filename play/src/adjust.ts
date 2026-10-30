@@ -3,7 +3,9 @@
  * hold takes, how smooth the dot is, how wide "in tune" is), as sliders under a page's controls.
  * A page names the knobs it has and what a move does; a move takes effect at once (a game in play
  * is retuned, not restarted), is kept in this browser per game, and is part of the game a player
- * saves (the spec bar reads the sliders by setting name, and opening a spec sets them).
+ * saves (the spec bar reads the sliders by setting name, and opening a spec sets them; a spec
+ * without a knob puts it back to its default, the slider's `defaultValue`). A knob counts as moved
+ * only while it is off its default, so a difficulty still sets the knobs nobody moved.
  */
 import type { GameId, GameSettings } from '@thoremin/games/spec';
 import { TUNING_RANGES } from '@thoremin/games/tuning';
@@ -40,7 +42,8 @@ const isValues = (v: unknown): v is Partial<Record<KnobKey, number>> => !!v && t
 
 export function mountAdjust(o: { game: GameId; host: HTMLElement; knobs: readonly Knob[]; onChange(values: Partial<Record<KnobKey, number>>): void }): AdjustPanel {
   const kept = stored(`funfon.adjust.${o.game}`, isValues);
-  const moved = new Set(Object.keys(kept.read() ?? {}) as KnobKey[]);
+  // Only this page's knobs: a key kept by an older page with other knobs is dropped.
+  const moved = new Set(o.knobs.map((k) => k.key).filter((k) => kept.read()?.[k] !== undefined));
   const panel = document.createElement('details');
   panel.className = 'adjust';
   const summary = document.createElement('summary');
@@ -65,6 +68,7 @@ export function mountAdjust(o: { game: GameId; host: HTMLElement; knobs: readonl
     input.max = String(range.max);
     input.step = String(range.step);
     defaults[knob.key] = knob.value;
+    input.defaultValue = String(knob.value);
     input.value = String(kept.read()?.[knob.key] ?? knob.value);
     const out = document.createElement('output');
     row.append(name, input, out);
@@ -74,7 +78,8 @@ export function mountAdjust(o: { game: GameId; host: HTMLElement; knobs: readonl
     show(knob.key);
     // `input` while dragging, `change` when a spec sets it.
     const moveTo = () => {
-      moved.add(knob.key);
+      if (Number(input.value) === Number(input.defaultValue)) moved.delete(knob.key);
+      else moved.add(knob.key);
       show(knob.key);
       keep();
       o.onChange(values());
@@ -103,6 +108,7 @@ export function mountAdjust(o: { game: GameId; host: HTMLElement; knobs: readonl
     values,
     setDefault(key, value) {
       defaults[key] = value;
+      if (inputs[key]) inputs[key]!.defaultValue = String(value);
       if (moved.has(key) || !inputs[key]) return;
       inputs[key]!.value = String(value);
       show(key);

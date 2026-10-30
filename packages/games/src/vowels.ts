@@ -374,9 +374,8 @@ export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor
   const medianAt = (s: number | undefined) => (s === undefined ? o.medianOf : Math.max(1, Math.round(o.medianOf * 2 ** ((s - SMOOTHING_DEFAULT) * 2))));
   let smoothing = o.smoothing;
   let medianOf = medianAt(smoothing);
-  const filter = () => createOneEuro(smoothedAt(o.smooth, smoothing));
-  let sx = filter();
-  let sy = filter();
+  const sx = createOneEuro(smoothedAt(o.smooth, smoothing));
+  const sy = createOneEuro(smoothedAt(o.smooth, smoothing));
   const f3s: number[] = [];
   let scale = Number.isNaN(VOICE_SCALES[o.voice]) ? 1 : VOICE_SCALES[o.voice];
   const recent: Point[] = [];
@@ -388,8 +387,9 @@ export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor
       if (t.smoothing === undefined || t.smoothing === smoothing) return;
       smoothing = t.smoothing;
       medianOf = medianAt(smoothing);
-      sx = filter();
-      sy = filter();
+      // The dot stays where it is: only the filters' cutoffs and the median's length change.
+      sx.retune(smoothedAt(o.smooth, smoothing));
+      sy.retune(smoothedAt(o.smooth, smoothing));
     },
     push(heard: Heard, now: number) {
       for (const f of heard.formants ?? []) {

@@ -69,15 +69,17 @@ export const PITCH_CURSOR_DEFAULTS = {
 export function createPitchCursor(options: PitchCursorOptions = {}): PointSource {
   const o = { ...PITCH_CURSOR_DEFAULTS, ...options };
   let smoothing = o.smoothing;
-  const filters = () => [createOneEuro({ ...smoothedAt(o.smoothX, smoothing), period: OCTAVE }), createOneEuro(smoothedAt(o.smoothY, smoothing))];
-  let [sx, sy] = filters();
+  const sx = createOneEuro({ ...smoothedAt(o.smoothX, smoothing), period: OCTAVE });
+  const sy = createOneEuro(smoothedAt(o.smoothY, smoothing));
   let last: CursorState | null = null;
   let lastVoiced = -Infinity;
   return {
     tune(t: CursorTuning) {
       if (t.smoothing === undefined || t.smoothing === smoothing) return;
       smoothing = t.smoothing;
-      [sx, sy] = filters();
+      // The dot stays where it is: only the filters' cutoffs change.
+      sx.retune(smoothedAt(o.smoothX, smoothing));
+      sy.retune(smoothedAt(o.smoothY, smoothing));
     },
     push(heard: Heard, now: number) {
       for (const p of heard.pitch) {
