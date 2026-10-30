@@ -9,7 +9,8 @@
  * needs so that a balloon round on screen is round to it.
  */
 import type { CursorState, FieldTarget, FieldView, Point, SegmentView } from './field';
-import { BG, DIM, GRID, TEXT, TRAIL, drawResultsCard, text } from './stage';
+import { BG, DIM, GRID, TEXT, TRAIL, drawResultsCard, text } from './paint';
+import { ROAD_CAMERA, roadProjection } from './perspective';
 
 export interface FieldFrame {
   W: number;
@@ -93,7 +94,7 @@ function twins(x: number, overhang: number, wrapX: boolean): number[] {
 /** Where the ball line sits on the plane (the camera follows the ball), as the track session puts it. */
 const BALL_Y = 0.25;
 /** The road's camera: this far behind the ball (screen heights), the horizon this high on the plane. */
-const ROAD = { camera: 0.8, horizon: 0.96 };
+const ROAD = { camera: ROAD_CAMERA, horizon: 0.96 };
 
 /**
  * A track point (x across, d ahead of the ball) on the canvas: from above, d is height on the
@@ -102,12 +103,8 @@ const ROAD = { camera: 0.8, horizon: 0.96 };
  */
 function trackProjection(L: Layout, view: 'top' | 'road') {
   if (view === 'top') return (x: number, d: number) => L.px({ x, y: BALL_Y + d });
-  const ball = L.px({ x: 0.5, y: BALL_Y });
-  const horizon = L.px({ x: 0.5, y: ROAD.horizon });
-  return (x: number, d: number) => {
-    const k = ROAD.camera / (ROAD.camera + Math.max(d, -0.6 * ROAD.camera));
-    return { x: ball.x + (x - 0.5) * L.bw * k, y: horizon.y + (ball.y - horizon.y) * k };
-  };
+  const road = roadProjection(L.px({ x: 0.5, y: BALL_Y }), L.px({ x: 0.5, y: ROAD.horizon }).y, L.bw, ROAD.camera);
+  return (x: number, d: number) => road(x - 0.5, d);
 }
 
 type Project = ReturnType<typeof trackProjection>;
