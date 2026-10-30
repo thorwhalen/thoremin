@@ -10,6 +10,7 @@
  * Pure: a session is fed the engine time and what was heard each tick, and returns the view and
  * the sounds due.
  */
+import { estimateKey } from './spelling';
 import { judgePitchNote, midiOf, type PitchNote, type PitchSample } from '@thoremin/judge';
 import { countInCues, createCueFeed, type Cue } from './cues';
 import { barStart, placeLesson, type Lesson } from './lesson';
@@ -43,8 +44,10 @@ export function createSingSession(lesson: Lesson, opts: SingOptions) {
   const placed = placeLesson(lesson, opts.start, opts.transpose ?? 0);
   const notes: PitchNote[] = placed.notes.map((n) => ({ id: n.id, start: n.start, end: n.end, midi: n.midi ?? 60 }));
   const pitches = notes.map((n) => n.midi);
-  const low = Math.min(...pitches) - 4;
-  const high = Math.max(...pitches) + 4;
+  const melody = { low: Math.min(...pitches), high: Math.max(...pitches) };
+  const key = estimateKey(pitches);
+  const low = melody.low - 4;
+  const high = melody.high + 4;
   const view: ViewNote[] = notes.map((n) => ({ ...n, state: 'pending', fill: 0 }));
   const samples: PitchSample[] = [];
   const trail: TrailPoint[] = [];
@@ -113,6 +116,8 @@ export function createSingSession(lesson: Lesson, opts: SingOptions) {
       to: now + ahead,
       low,
       high,
+      melody,
+      key,
       toleranceCents: tol,
       grid: { t0: placed.t0, beatS: 60 / lesson.bpm, beatsPerBar: lesson.beatsPerBar ?? 4 },
       notes: view.filter((n) => n.end >= barStart(lesson, placed.t0, now - past) && n.start <= now + ahead).map((n) => ({ ...n })),

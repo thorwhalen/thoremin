@@ -70,6 +70,10 @@ export interface GameView {
   /** Running accuracy 0..1 and combo. */
   accuracy: number;
   combo: number;
+  /** A melody's own range, its notes' lowest and highest (absent for a rhythm): what a staff's clef and Play along's lanes are chosen from, whatever is on screen. */
+  melody?: { low: number; high: number };
+  /** The key the song is written in, as fifths (`spelling.estimateKey` when the song does not say). */
+  key?: number;
   /** The song's beat grid (Sing, Play along): what a staff writes its bars and note values from. */
   grid?: { t0: number; beatS: number; beatsPerBar: number };
   /** Match the note: the target now, the live deviation in cents, how much of the hold is done. */

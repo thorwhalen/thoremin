@@ -96,14 +96,15 @@ function clipped(P: NoteProjection, start: number, end: number): [number, number
 }
 
 /** The rows' lines along the time axis, and their labels: under the hit line when rows run across, at the left edge when they run up. */
-function drawRows(g: CanvasRenderingContext2D, P: NoteProjection, edges: readonly number[], labels: readonly { row: number; text: string }[]) {
+function drawRows(g: CanvasRenderingContext2D, P: NoteProjection, edges: readonly number[], labels: readonly { row: number; text: string }[], now: number) {
   const [t0, t1] = P.shown;
   // The highway's surface, so the notes ride on a road rather than in the dark.
   if (P.kind === 'highway') fillQuad(g, [P.at(t0, P.rows.low), P.at(t0, P.rows.high), P.at(t1, P.rows.high), P.at(t1, P.rows.low)], ROAD_SURFACE);
   for (const r of edges) line(g, P.at(t0, r), P.at(t1, r), GRID);
   for (const l of labels) {
     if (P.rowsAcross) {
-      const p = P.at(P.shown[0], l.row);
+      // Under the hit line on the highway (the road behind it runs off the box), at the near edge otherwise.
+      const p = P.at(P.kind === 'highway' ? now : P.shown[0], l.row);
       text(g, l.text, p.x, p.y + 12, 11, DIM, 'center');
     } else {
       const p = P.at(t0, l.row);
@@ -120,7 +121,7 @@ function drawSing(g: CanvasRenderingContext2D, v: GameView, W: number, H: number
     edges.push(m);
     if (m % 12 === 0 || m === Math.ceil(v.low)) labels.push({ row: m, text: nameOf(m) });
   }
-  drawRows(g, P, edges, labels);
+  drawRows(g, P, edges, labels, v.now);
   // A bar most of a semitone row thick, inside a faint band as wide as the tolerance: where the
   // voice counts as on the note.
   const half = 0.35;
@@ -144,7 +145,8 @@ function drawSing(g: CanvasRenderingContext2D, v: GameView, W: number, H: number
   g.beginPath();
   let pen = false;
   for (const p of v.trail) {
-    if (p.midi === null || p.midi < v.low - 1 || p.midi > v.high + 1 || p.t < P.shown[0]) {
+    // The trail keeps its own past (the highway shows little of the road behind; the clip trims it).
+    if (p.midi === null || p.midi < v.low - 1 || p.midi > v.high + 1 || p.t < v.from) {
       pen = false;
       continue;
     }
@@ -159,7 +161,8 @@ function drawSing(g: CanvasRenderingContext2D, v: GameView, W: number, H: number
 
 /** Play along's rows: a lane per semitone of a melody's range, or the one lane of a rhythm. */
 export function laneRows(v: GameView): { pitched: boolean; low: number; high: number } {
-  const pitched = v.game === 'play-along' && v.notes.length > 0 && v.notes.every((n) => n.midi !== undefined);
+  // From the song (its melody), not from the notes on screen: a count-in or a rest shows none.
+  const pitched = v.game === 'play-along' && (v.melody !== undefined || (v.notes.length > 0 && v.notes.every((n) => n.midi !== undefined)));
   return pitched ? { pitched, low: v.low, high: v.high } : { pitched, low: 0, high: 0 };
 }
 
@@ -169,7 +172,7 @@ function drawLanes(g: CanvasRenderingContext2D, v: GameView, W: number, H: numbe
   const edges: number[] = [];
   for (let r = rows.low; r <= rows.high + 1; r++) edges.push(r - 0.5);
   const labels = pitched && P.rowSize(v.now) >= 16 ? Array.from({ length: rows.high - rows.low + 1 }, (_, k) => ({ row: rows.low + k, text: nameOf(rows.low + k) })) : [];
-  drawRows(g, P, edges, labels);
+  drawRows(g, P, edges, labels, v.now);
   line(g, P.nowLine[0], P.nowLine[1], NOW, 4);
   // A note is a box as long as it lasts (a rhythm's, a short block at its onset), hit at its start.
   const half = pitched ? 0.4 : 0.3;
@@ -222,7 +225,9 @@ function drawStaffFor(g: CanvasRenderingContext2D, v: GameView, W: number, H: nu
   const axis = kind === 'roll-h' && boxes.roll ? stageProjection(v, W, H, 'roll-h', rows, boxes.roll) : stageProjection(v, W, H, 'roll-h', rows, boxes.staff);
   const xOf = (t: number) => axis.at(t, rows.low).x;
   const notes = v.notes.map((n) => (v.game === 'sing' || lanes.pitched ? n : { ...n, midi: undefined }));
-  const range = v.game === 'sing' || lanes.pitched ? { low: v.low, high: v.high } : undefined;
+  // The clef is chosen from the melody's own notes, not from Sing's padded rows.
+  const range = v.game === 'sing' || lanes.pitched ? (v.melody ?? { low: v.low, high: v.high }) : undefined;
+  key ??= v.key;
   const L = staffLayout(notes, boxes.staff, xOf, v.grid, { ...(key === undefined ? {} : { key }), ...(range ? { range } : {}) });
   drawStaff(g, L, boxes.staff, { nowX: xOf(v.now), ...(key === undefined ? {} : { key }), panel: kind !== 'roll-h' && boxes.roll !== null });
   if (!boxes.roll) drawFlashes(g, v, { x: xOf(v.now), y: L.top - 3 * L.space });
@@ -292,7 +297,18 @@ export function drawStage(g: CanvasRenderingContext2D, frame: StageFrame, v: Gam
   const boxes = stageBoxes(W, H, kind, v.game === 'calibrate' || !v.grid ? 'off' : (frame.staff ?? 'off'));
   if (v.game === 'match') drawMatch(g, v, W, H);
   else {
-    if (boxes.roll) (v.game === 'sing' ? drawSing : drawLanes)(g, v, W, H, kind, boxes.roll);
+    if (boxes.roll) {
+      const r = boxes.roll;
+      // The highway's road behind the hit line widens past the box: it is clipped there.
+      g.save();
+      if (kind === 'highway') {
+        g.beginPath();
+        g.rect(0, r.top - 40, W, r.bottom - r.top + 40);
+        g.clip();
+      }
+      (v.game === 'sing' ? drawSing : drawLanes)(g, v, W, H, kind, r);
+      g.restore();
+    }
     if (boxes.staff) drawStaffFor(g, v, W, H, kind, { roll: boxes.roll, staff: boxes.staff }, frame.key);
   }
   if (v.phase === 'count-in' && v.countdown > 0) text(g, String(v.countdown), W / 2, H / 2, Math.min(120, H * 0.25), TEXT, 'center');

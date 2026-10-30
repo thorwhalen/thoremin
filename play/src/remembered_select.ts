@@ -10,6 +10,9 @@ export function rememberedSelect<K extends string>(sel: HTMLSelectElement, label
   const memory = stored<K>(key, (v): v is K => typeof v === 'string' && (keys as string[]).includes(v));
   for (const k of keys) sel.add(new Option(labels[k], k));
   sel.value = memory.read() ?? keys[0];
-  sel.addEventListener('change', () => memory.write(sel.value as K));
+  // Only the player's own choice is remembered: a game opened from a file sets it for that game alone.
+  sel.addEventListener('change', (e) => {
+    if (e.isTrusted) memory.write(sel.value as K);
+  });
   return () => sel.value as K;
 }

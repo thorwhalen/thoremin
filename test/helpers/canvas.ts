@@ -42,6 +42,7 @@ const RECORDED_METHODS = [
   'fillRect',
   'ellipse',
   'rect',
+  'clip',
 ] as const;
 
 export interface RecordingCanvas {

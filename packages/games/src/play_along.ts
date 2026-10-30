@@ -9,6 +9,7 @@
  *
  * Pure: fed the engine time and what was heard each tick.
  */
+import { estimateKey } from './spelling';
 import {
   AUDIO_ONSET_WINDOWS,
   centsOff,
@@ -65,6 +66,7 @@ export function createPlayAlongSession(lesson: Lesson, opts: PlayAlongOptions) {
     feed.add([{ t: placed.clicks[Math.floor(placed.clicks.length / 2)], midi: placed.notes[0].midi!, velocity: REFERENCE_VELOCITY, kind: 'reference' }]);
   }
   const pitches = placed.notes.map((n) => n.midi ?? 60);
+  const key = estimateKey(pitches);
   // The count-in's clicks and the reference note reach the microphone too: nothing heard before
   // the first note's widest window opens is the player's, so none of it counts as an extra.
   const listenFrom = (placed.notes[0]?.start ?? opts.start) - Math.max(...windows.map((w) => w.early));
@@ -144,6 +146,7 @@ export function createPlayAlongSession(lesson: Lesson, opts: PlayAlongOptions) {
       to: now + ahead,
       low: Math.min(...pitches),
       high: Math.max(...pitches),
+      ...(pitched ? { melody: { low: Math.min(...pitches), high: Math.max(...pitches) }, key } : {}),
       grid: { t0: placed.t0, beatS: 60 / lesson.bpm, beatsPerBar: lesson.beatsPerBar ?? 4 },
       toleranceCents: tol,
       notes: view.filter((n) => n.end >= barStart(lesson, placed.t0, now - past) && n.start <= now + ahead).map((n) => ({ ...n })),
