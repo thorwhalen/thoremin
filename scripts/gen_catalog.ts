@@ -33,8 +33,8 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Output', blurb: 'Audio + the captured video with overlaid guides.', types: ['canvas-overlay'] },
 ];
 
-/** Where the human-facing guide's pointer lives in the repo (this page is the *node* catalog; the guide itself is `public/guide/`). */
-const USER_GUIDE_URL = 'https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md';
+/** The human-facing guide, live (this page is the *node* catalog; the guide itself is `public/guide/`). The repository is private, so never a GitHub link. */
+const USER_GUIDE_URL = 'https://apps.thorwhalen.com/thoremin/guide/';
 
 const OVERVIEW = `Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
 

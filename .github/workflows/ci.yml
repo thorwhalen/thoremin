@@ -52,6 +52,15 @@ jobs:
           node-version: "22"
           cache: npm
 
+      # The plugins are private git dependencies (package.json, lockfile `git+ssh://`): one read-only
+      # deploy key per repository (docs/CI_COST.md, "Private repositories"). GITHUB_TOKEN reaches only this repo.
+      - name: Keys for the private plugin repositories
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+
       - name: Install (lockfile-exact)
         run: npm ci
 
@@ -105,6 +114,15 @@ jobs:
           node-version: "22"
           cache: npm
 
+      # The plugins are private git dependencies (package.json, lockfile `git+ssh://`): one read-only
+      # deploy key per repository (docs/CI_COST.md, "Private repositories"). GITHUB_TOKEN reaches only this repo.
+      - name: Keys for the private plugin repositories
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+
       - name: Install (lockfile-exact)
         run: npm ci
 
@@ -133,6 +151,15 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+
+      # The plugins are private git dependencies (package.json, lockfile `git+ssh://`): one read-only
+      # deploy key per repository (docs/CI_COST.md, "Private repositories"). GITHUB_TOKEN reaches only this repo.
+      - name: Keys for the private plugin repositories
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
 
       - name: Install (lockfile-exact)
         run: npm ci

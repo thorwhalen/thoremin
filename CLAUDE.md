@@ -107,6 +107,10 @@ via the provider. Never `await` a provider in the tick/audio loop.
 - **`thoremin-dev-guide`** — keeping the player guide (and, in its second section, the private research guide) true: when a seed, tool or editor section is added or changed, how to add its guide entry, regenerate its picture and the voice to write in. Read it before shipping a player-visible change.
 - **`thoremin-dev-video-data`** — every video downloaded to train, test, measure or build a fixture keeps ALL its landmark streams (pose, hands, face; gzipped NDJSON) with a `meta.json` (source URL, licence, description, on-screen labels, subtitles, where each label came from, extractor and model); the video itself is deletable. Read it before fetching any footage.
 
+## Code only in this repository (the owner's rule, 2026-10-30)
+
+No research, design rationale or invention write-ups go into thoremin, thoremin-asl or thoremin-ar any more: code, plus user-facing docs (the player guide, READMEs). Private strategy lives in `thorwhalen/somaphone-strategy`. What is already in `docs/research` and `docs/design` stays until the owner decides otherwise. The live apps stay public while the repositories are private, so **nothing the app ships may link into a repository**: a GitHub link 404s for every player.
+
 ## Verification gates (every change)
 
 - `npm run typecheck` — strict DAG typecheck (`tsconfig.dag.json`; covers

@@ -1,14 +1,12 @@
 /**
  * VersionBadge — a tiny, unobtrusive footer badge showing what's actually
- * deployed: the thoremin commit (short SHA) + deploy date, linking to the
- * GitHub commit. It reads the platform's per-app deploy manifest at
+ * deployed: the thoremin commit (short SHA) + deploy date. Plain text, no link: the
+ * repository is private, so a commit URL would 404 for every player. It reads the platform's per-app deploy manifest at
  * `${BASE_URL}_meta` (served by enlace from the manifest deploy.py writes), so
  * it reflects the *live deploy*, not the build. In dev (or any host without a
  * manifest) the fetch fails and the badge silently renders nothing.
  */
 import { useEffect, useState } from 'react';
-
-const REPO_COMMIT_URL = 'https://github.com/thorwhalen/thoremin/commit/';
 
 interface DeployMeta {
   deployed_at?: string | null;
@@ -46,15 +44,12 @@ export default function VersionBadge() {
   const date = toDate(meta?.deployed_at);
 
   return (
-    <a
-      href={`${REPO_COMMIT_URL}${sha}`}
-      target="_blank"
-      rel="noreferrer"
+    <span
       title={`Deployed ${sha}${meta?.deployed_at ? ` at ${meta.deployed_at}` : ''}`}
-      className="pointer-events-auto pl-1 font-mono text-[9px] uppercase tracking-widest text-white/30 transition hover:text-white/70"
+      className="pointer-events-auto pl-1 font-mono text-[9px] uppercase tracking-widest text-white/30"
     >
       {short}
       {date ? ` · ${date}` : ''}
-    </a>
+    </span>
   );
 }
