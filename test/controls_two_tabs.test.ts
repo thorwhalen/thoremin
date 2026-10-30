@@ -6,12 +6,17 @@
  * listeners of both (a real browser skips the writer, and a tab's own blob changes nothing in it).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CONDUCTOR } from './helpers/extensions';
+import { CONDUCTOR, SONG } from './helpers/extensions';
 
 const KEY = 'thoremin-controls';
 const stored = () => JSON.parse(localStorage.getItem(KEY) ?? '{}').state as Record<string, any>;
 const announce = (newValue: string | null = localStorage.getItem(KEY), key = KEY) =>
   window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
+
+const withState = (fields: Record<string, unknown>) => {
+  const blob = JSON.parse(localStorage.getItem(KEY)!);
+  return { ...blob, state: { ...blob.state, ...fields } };
+};
 
 async function twoTabs() {
   vi.resetModules();
@@ -73,6 +78,53 @@ describe('a tab takes in what another tab saved (#847)', () => {
     A.getState().setPref('conductorPrefs', { leadOffsets: { wrist: 0.04 } });
     announce();
     expect((B.getState() as unknown as Record<string, any>).conductorPrefs.leadOffsets).toEqual({ wrist: 0.04 });
+  });
+
+  it("a tab that has not heard of this tab's edit does not revert it", async () => {
+    const { A, B } = await twoTabs();
+    B.getState().setAudioPrefs({ lowLatency: true });
+    // A saves a dial with its old pref: its blob says false, and that has not moved since B last saw it.
+    localStorage.setItem(KEY, JSON.stringify(withState({ audioPrefs: { lowLatency: false } })));
+    announce();
+    expect(B.getState().audioPrefs.lowLatency).toBe(true);
+    expect(A.getState().audioPrefs.lowLatency).toBe(false);
+  });
+
+  it('whether gestures fire stays this tab\'s; the bindings come over', async () => {
+    const { A, B } = await twoTabs();
+    A.getState().setGestures({ enabled: true, holdMs: 123 });
+    announce();
+    expect(B.getState().gestures.holdMs).toBe(123);
+    expect(B.getState().gestures.enabled).toBe(false);
+  });
+
+  it.runIf(SONG)('a pref live in this tab stays: the song level is not changed from another tab', async () => {
+    const { A, B } = await twoTabs();
+    const before = (B.getState() as unknown as Record<string, any>).songPrefs.volume;
+    A.getState().setPref('songPrefs', { ...(A.getState() as unknown as Record<string, any>).songPrefs, volume: before / 2 });
+    announce();
+    expect((B.getState() as unknown as Record<string, any>).songPrefs.volume).toBe(before);
+  });
+
+  it('a page back from the page cache reads the save it missed', async () => {
+    const { A, B } = await twoTabs();
+    A.getState().setAudioPrefs({ lowLatency: true });
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }));
+    expect(B.getState().audioPrefs.lowLatency).toBe(false);
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    expect(B.getState().audioPrefs.lowLatency).toBe(true);
+  });
+
+  it('a calibration that is not one, and a pref from a newer slice version, stay out', async () => {
+    const { A, B } = await twoTabs();
+    A.getState().setMasterVolume(0.2);
+    announce(JSON.stringify(withState({ faceCalibration: 'x' })));
+    expect(B.getState().faceCalibration).toBeNull();
+    if (CONDUCTOR) {
+      const blob = withState({ conductorPrefs: { leadOffsets: { wrist: 0.04 } }, sliceVersions: { conductorPrefs: 999 } });
+      announce(JSON.stringify(blob));
+      expect((B.getState() as unknown as Record<string, any>).conductorPrefs.leadOffsets).toEqual({});
+    }
   });
 
   it('nothing changes in this tab when no pref differs', async () => {

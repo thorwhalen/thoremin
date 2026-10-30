@@ -44,7 +44,7 @@ export const LAB_EXTENSION = defineExtension({
   nodes: [],
   branches: [LAB_METERS],
   dials: [] as const,
-  prefs: [{ key: LAB_PREF, schema: FeatureLabSchema, ports: [{ name: LAB_CONFIG_PORT, kind: 'feature-lab-config', read: (p: FeatureLabConfig) => p }] }],
+  prefs: [{ key: LAB_PREF, liveInTab: true, schema: FeatureLabSchema, ports: [{ name: LAB_CONFIG_PORT, kind: 'feature-lab-config', read: (p: FeatureLabConfig) => p }] }],
   overlay: [LAB_METERS_DECL],
   overlayElements: [labMeters],
   stores: Object.values(LAB_STORES),

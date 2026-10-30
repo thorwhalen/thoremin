@@ -151,6 +151,9 @@ export interface PrefSlice<K extends string = string, S extends z.ZodTypeAny = z
    *  a device pref field by field (the song's level and rate) keeps its inputs once the pref is an
    *  extension's. The names share the bridge's port namespace (a clash is refused). */
   ports?: readonly DialPort[];
+  /** What this tab is doing now rather than something it learned (a level, a shown panel): a change
+   *  would be heard or recompose the graph, so it is not taken from another tab's save (#847). */
+  liveInTab?: boolean;
 }
 
 /** A {@link DialSlice} with its key kept literal (`'airDrum'`, not `string`). */

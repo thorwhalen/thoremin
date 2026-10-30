@@ -44,7 +44,7 @@ export const TRAINER_EXTENSION = defineExtension({
   nodes: [],
   branches: [TRAINER_HUD],
   dials: [] as const,
-  prefs: [{ key: TRAINER_HUD_PREF, schema: TrainerHudParamsSchema, ports: [{ name: TRAINER_HUD_CONFIG_PORT, kind: 'trainer-hud-config', read: (p: TrainerHudParams) => p }] }],
+  prefs: [{ key: TRAINER_HUD_PREF, liveInTab: true, schema: TrainerHudParamsSchema, ports: [{ name: TRAINER_HUD_CONFIG_PORT, kind: 'trainer-hud-config', read: (p: TrainerHudParams) => p }] }],
   transient: [transientPort<TrainerHudSnapshot | null>()(TRAINER_HUD_SNAPSHOT_PORT, 'trainer-hud-snapshot', null)],
   overlay: [TRAINER_HUD_DECL],
   overlayElements: [trainerHudElement],
