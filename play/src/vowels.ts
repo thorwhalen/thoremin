@@ -24,7 +24,7 @@ import { mountGamePage } from './page';
 import type { Session } from './runner';
 import { stored } from './stored';
 import { mountSpecBar } from './spec_bar';
-import { createVowelSynth, type VowelSynth } from './vowel_synth';
+import type { VowelSynth } from './vowel_synth';
 
 const MODES = { practice: 'Practice', pop: 'Vowel Pop', calibrate: 'Your vowels (calibrate)' } as const;
 const VOICES: Record<VoiceKind, string> = { auto: 'Voice: auto', lower: 'Voice: lower', higher: 'Voice: higher', child: 'Voice: child' };
@@ -171,6 +171,8 @@ canvas.addEventListener('pointerdown', async (e) => {
   canvas.setPointerCapture(e.pointerId);
   touch = p;
   const ctx = await page.ensureAudio();
+  // The synthesiser loads on the first touch: a page that only listens never fetches it.
+  const { createVowelSynth } = await import('./vowel_synth');
   synth ??= createVowelSynth(ctx, ctx.destination, { pitchHz: 130 * voiceScale(), voiceScale: voiceScale() });
   if (touch) synth.play(formantsAt(touch, voiceScale()));
 });
