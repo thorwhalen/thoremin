@@ -72,8 +72,8 @@ export const PRIMARY_VOWELS = ['i', 'e', 'ɛ', 'a', 'ɑ', 'ɔ', 'o', 'u'] as con
 export const vowelByIpa = (ipa: string): Vowel | undefined => VOWELS.find((x) => x.ipa === ipa);
 
 
-/** The plane's margins around the trapezoid. */
-const PAD = { x0: 0.1, x1: 0.9, y0: 0.13, y1: 0.86 };
+/** The plane's margins around the trapezoid: thin, so the chart fills the stage (the labels still fit inside). */
+const PAD = { x0: 0.03, x1: 0.97, y0: 0.08, y1: 0.92 };
 
 /** A place on the IPA trapezoid (backness, height) as a point on the plane (y up: close at the top). */
 export function chartPoint(backness: number, height: number): Point {

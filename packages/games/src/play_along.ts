@@ -32,9 +32,13 @@ export interface PlayAlongOptions {
   toleranceCents?: number;
   /** Subtracted from every heard time (the player's calibrated offset), seconds. */
   offset?: number;
+  /** A melody's first note, played during the count-in so the player can find it. Default true. */
+  reference?: boolean;
   past?: number;
   ahead?: number;
 }
+
+const REFERENCE_VELOCITY = 0.7;
 
 /** Where the pitch of a hit is read: from just after the attack (the transient has no pitch) to a few periods later. */
 const PITCH_FROM = 0.03;
@@ -56,7 +60,14 @@ export function createPlayAlongSession(lesson: Lesson, opts: PlayAlongOptions) {
   const flashes: GameView['flashes'] = [];
   const feed = createCueFeed(0.5);
   feed.add(countInCues(placed.clicks));
+  if ((opts.reference ?? true) && pitched && placed.notes.length > 0 && placed.clicks.length > 0) {
+    // As in Sing: over the count-in's second half, ringing out before the first note is due.
+    feed.add([{ t: placed.clicks[Math.floor(placed.clicks.length / 2)], midi: placed.notes[0].midi!, velocity: REFERENCE_VELOCITY, kind: 'reference' }]);
+  }
   const pitches = placed.notes.map((n) => n.midi ?? 60);
+  // The count-in's clicks and the reference note reach the microphone too: nothing heard before
+  // the first note's widest window opens is the player's, so none of it counts as an extra.
+  const listenFrom = (placed.notes[0]?.start ?? opts.start) - Math.max(...windows.map((w) => w.early));
   let combo = 0;
   let strays = 0;
 
@@ -88,6 +99,7 @@ export function createPlayAlongSession(lesson: Lesson, opts: PlayAlongOptions) {
     const heard = shifted(heardRaw, offset);
     pitchFrames.push(...heard.pitch);
     for (const o of [...heard.onsets].sort((a, b) => a.t - b.t)) {
+      if (o.t < listenFrom) continue;
       for (const m of judge.advance(o.t)) settle(m, now);
       const j = judge.hit({ t: o.t });
       if (j.kind === 'stray') {
