@@ -97,15 +97,7 @@ export function ApiKeyDialog({ onSetupComplete, onCancel }: SetupDialogProps<AiD
             <p className="text-xs text-white/50">
               Your API key is stored only in this browser's <code className="text-white/70">localStorage</code>.
               It is sent only to Google's API servers — never to any other server.
-              Thoremin has no backend.{' '}
-              <a
-                href="https://github.com/thorwhalen/thoremin/blob/main/wips/thoremin/WHY_YOUR_API_KEY_IS_SAFE.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 underline inline-flex items-center gap-1"
-              >
-                Learn more <ExternalLink className="w-3 h-3" />
-              </a>
+              Thoremin has no backend.
             </p>
           </div>
         </div>

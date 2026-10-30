@@ -1,4 +1,27 @@
-# What CI would cost if this repo were private
+# What CI costs now that this repo is private
+
+**Reading of 2026-10-30 (supersedes the numbers below, which are from 2026-09-27).** Since then `ci.yml` grew to three jobs and `smoke.yml` to three shards plus a result job. Measured on the 12 latest successful runs of each, billed minutes rounded up per job, with the run counts of the last 30 days:
+
+| Workflow | Runs in 30 days | Billed min/run | Min/month |
+|---|---:|---:|---:|
+| `ci.yml` | 431 | 13.4 | 5,780 |
+| `smoke.yml` | 398 | 20.6 | 8,190 |
+| `deploy.yml` | 170 | 1 | 170 |
+| `coverage.yml` | about 4 | 14 | 56 |
+| thoremin-asl and thoremin-ar CI | 25 | about 12 | 300 |
+| **Total** | | | **about 14,500 (at most: cancelled runs bill less)** |
+
+That is about **$87/month** at $0.006/minute before any included allowance, and it would use a 3,000-minute allowance in about 6 days. The minutes are shared across the account, so running out would also refuse tw_platform's deploy workflow and every other private repository. A docs-only path filter would save almost nothing: 2 of the last 170 merges touched only docs. After the flip, `priv ci-blocked --repo thorwhalen/<repo>` is the check for a refused run; when blocked, land through `wads ci-local`.
+
+## Private repositories: how CI reads the plugins
+
+`package.json` pins `@thoremin/ext-asl` and `@thoremin/ext-draw` as git dependencies and the lockfile resolves them to `git+ssh://`. npm tries a public tarball first and clones over ssh after a 404, so a private dependency needs an ssh key on the machine that installs. `GITHUB_TOKEN` reaches only its own repository.
+
+Every job that runs `npm ci` loads read-only deploy keys through `webfactory/ssh-agent` (pinned by commit), which maps each key to its repository by the key's comment (`git@github.com:thorwhalen/<repo>.git`). Secrets, one key per repository: `THOREMIN_ASL_DEPLOY_KEY` and `THOREMIN_AR_DEPLOY_KEY` here; those two plus `THOREMIN_DEPLOY_KEY` on the two plugin repositories, whose CI runs inside a thoremin checkout. To rotate one: `ssh-keygen` with that comment, `gh repo deploy-key add` (no write access), `gh secret set` on each repository that uses it, delete the key file. Jobs without secrets (a fork, Dependabot) cannot install.
+
+---
+
+The rest is the first reconstruction, from when the repo was public.
 
 thoremin is public, so every workflow run in `.github/workflows/` is free — GitHub
 does not meter Actions minutes on public repos at all. That means the Actions API's

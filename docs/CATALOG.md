@@ -2,7 +2,7 @@
 
 _Auto-generated from the node registry (`scripts/gen_catalog.ts`). Do not edit by hand — run `npm run catalog`._
 
-**Looking for how to _use_ the app?** → [the Guide](https://github.com/thorwhalen/thoremin/blob/main/docs/USER_GUIDE.md).
+**Looking for how to _use_ the app?** → [the Guide](https://apps.thorwhalen.com/thoremin/guide/).
 
 Thoremin turns live sensor streams (webcam hand gestures, facial expressions and head pose, computer keyboard, MIDI out) into a live audiovisual stream — musical audio plus the captured video with overlaid guides. You build sounds by wiring small, typed **nodes** into a dataflow graph (DAG): inputs → features → mapping → music-logic → synthesis/generation → output. Every edge can be recorded and replayed.
 
