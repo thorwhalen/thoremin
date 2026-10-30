@@ -181,12 +181,29 @@ export function bestEffortWrites(storage: ValueStorage, warn: (err: unknown) => 
 
 const defaultWarn = (err: unknown): void => console.warn('[thoremin] storage write failed; keeping the value in memory for this session', err);
 
+let adoptingKey: string | null = null;
+
+/**
+ * Run `apply` (synchronous) with the writes under `key` remembered but not made (#847): a tab taking in
+ * values another tab saved must not answer with its own blob, which would put its stale fields over that
+ * save and wake the other tab in turn. Remembering keeps the next unchanged write skipped, as above.
+ */
+export function adoptWithoutWriting(key: string, apply: () => void): void {
+  const previous = adoptingKey;
+  adoptingKey = key;
+  try {
+    apply();
+  } finally {
+    adoptingKey = previous;
+  }
+}
+
 /**
  * `storage` that skips a write of the value this wrapper last read or wrote under that key (#739).
  * zustand's persist rewrites the whole blob on EVERY `set`, including ones that touch only
  * transient fields; a tab that held an older copy in memory would then write its stale blob over
  * a newer one another tab saved, losing a pref with no error. Writing only what this tab changed leaves the other tab's save alone (a tab that changes a persisted
- * field still writes its whole blob: merging across tabs is a separate decision, #739 (b)). `scope` names
+ * field still writes its whole blob, with the device prefs the other tab saved already taken in: #847). `scope` names
  * the target in force: when it changes (a host swapped its storage) what was remembered no longer
  * describes the new target and is dropped.
  */
@@ -210,6 +227,10 @@ export function skipUnchangedWrites(storage: ValueStorage, scope: () => unknown 
     },
     setItem(key, value) {
       sync();
+      if (key === adoptingKey) {
+        known.set(key, value);
+        return;
+      }
       if (known.get(key) === value) return;
       storage.setItem(key, value);
       known.set(key, value);

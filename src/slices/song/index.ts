@@ -29,6 +29,7 @@ export const SONG_EXTENSION = defineExtension({
   prefs: [
     {
       key: SONG_PREFS,
+      liveInTab: true,
       schema: SongSettingsSchema.default(DEFAULT_SONG),
       // The ports the player and the pace controller read, as core's bridge emitted them.
       ports: [
