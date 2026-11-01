@@ -169,7 +169,8 @@ export const CueProductSchema = z.enum([
    * nuisance demonstration is), so a routine runs a rest cue before it: the segmenter
    * judges motion in noise units, and those should already be known when the first
    * repetition comes. `withRestBeforeGestures` (`gestures/rest.ts`, #857) prepends that
-   * rest to a routine that lacks one; `restlessGestures` names the cues that lack it.
+   * rest to a routine that lacks one; `restlessGestures` names the cues that lack it. A
+   * rest helps only if the gesturing part is in view and still during it (see there).
    */
   'gesture',
 ]);

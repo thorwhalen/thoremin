@@ -42,7 +42,8 @@
  * whatever mostly happened first — a steady sweep would measure as "noise" and read as
  * held — so the sampler refuses to judge a feature until {@link NoiseEstimator.isWarm}.
  * A routine is data and need not start with a rest cue; this is what keeps that from
- * mattering.
+ * mattering for held poses. Not for a gesture: a hand first seen mid-wave warms on the
+ * wave itself, so a gesture routine rests first (`gestures/rest.ts`, #857).
  *
  * The clip and time constant are chosen together against one scenario: three seconds
  * of continuous motion (a player sweeping around looking for a face) must not leave

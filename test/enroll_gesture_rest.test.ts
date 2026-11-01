@@ -66,6 +66,13 @@ describe('withRestBeforeGestures', () => {
     const clash = cue(GESTURE_REST_CUE.id, 'vocabulary', ['face.mouth']);
     expect(() => withRestBeforeGestures([clash, WAVE])).toThrow(/already has a cue/);
   });
+
+  it('refuses a rest cue that would leave the routine restless (not a baseline, or too few groups)', () => {
+    const notBaseline = () => cue('my-rest', 'vocabulary', [HAND]);
+    expect(() => withRestBeforeGestures([WAVE], { rest: notBaseline })).toThrow(/must be a baseline cue/);
+    const tooNarrow = () => cue('my-rest', 'baseline', ['face.head']);
+    expect(() => withRestBeforeGestures([WAVE], { rest: tooNarrow })).toThrow(/must be a baseline cue/);
+  });
 });
 
 describe('end to end: a player who waves 200 ms after being asked', () => {
