@@ -13,7 +13,13 @@
  * So vite runs IN this process, through its JS API. The port belongs to the script's own process
  * and the OS frees it however the script dies, with no signal handler or exit hook here; a
  * failure to start is thrown with vite's own message. The one duty left to the caller: call
- * `stop()` when done, on success too, or the open server keeps the script alive.
+ * `stop()` when done, on success too, or the open server keeps the script alive. (vite itself
+ * listens for SIGTERM: it closes the server and exits, so a caller's `finally` does not run on
+ * SIGTERM, as it did not before.)
+ *
+ * Unlike the CLI, vite's API does not check that a build exists (every page is then a 404 and a
+ * caller fails a minute later on a missing button), so this does: no `index.html` in the build
+ * folder is refused at once.
  *
  * The config is the repo's own `vite.config.ts`, found from `root` as the CLI finds it, so `base`
  * and `build.outDir` are the ones the build used.
@@ -22,6 +28,7 @@
  * the script would photograph that one. `strictPort` alone misses a server bound to the other
  * address family of `localhost`.
  */
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // Resolved by walking up from smoke/lib/ to the repo root's node_modules (smoke/node_modules holds
@@ -51,5 +58,10 @@ export async function startPreview(port) {
     throw new Error(`something already listens on port ${port} (another worktree's preview?). Stop it or pass --port <free port>.`);
   }
   const server = await preview({ root: ROOT, logLevel: 'warn', preview: { port, strictPort: true } });
+  const built = resolve(server.config.root, server.config.build.outDir, 'index.html');
+  if (!existsSync(built)) {
+    await server.close();
+    throw new Error(`no built app at ${built}: run npm run build first`);
+  }
   return { url: `${origin}${server.config.base}${APP_PAGE}`, stop: () => server.close() };
 }
