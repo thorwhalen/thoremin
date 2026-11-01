@@ -165,7 +165,7 @@ export interface SegmentMatch {
   /** The accepted gesture, or null for a stranger. */
   gesture: string | null;
   /** The nearest gesture BY RATIO (`distance / radius`, not by distance), accepted or not;
-   *  null when the model is empty. */
+   *  null when the model is empty or the segment is too short to compare. */
   nearest: string | null;
   distance: number;
   /** `distance / radius` of the nearest gesture. */
@@ -248,7 +248,9 @@ export function matchSegment(
     }
   }
   if (!best) return { gesture: null, nearest: null, distance: Infinity, ratio: Infinity, confidence: 0, variation: { speed: NaN, scale: NaN } };
-  const accepted = best.ratio <= tolerance;
+  // A ratio that is not finite (no shared feature with any template) is never accepted, even
+  // under an infinite tolerance.
+  const accepted = Number.isFinite(best.ratio) && best.ratio <= tolerance;
   return {
     gesture: accepted ? best.g.gesture : null,
     nearest: best.g.gesture,
@@ -283,7 +285,7 @@ export function createDtwMatcher(options: DtwMatcherOptions): WindowMatcher {
   const { tolerance, refractoryMs } = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
   checkTolerance(tolerance);
   const segmenter = createMotionSegmenter({
-    ...definedOnly<SegmentationOptions>(options.segmentation ?? {}),
+    ...options.segmentation,
     // Placeholders: the trace is judged here and never kept, so it names no gesture or cue.
     gesture: '',
     cue: 'live',

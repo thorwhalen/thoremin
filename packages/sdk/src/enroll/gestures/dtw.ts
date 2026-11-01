@@ -6,6 +6,10 @@
  * a gesture's templates, and the trace quality of #753 uses it to compare a gesture's
  * repetitions with one another (agreement, separation). Nothing here knows about features.
  *
+ * Symmetric in its arguments only for series of EQUAL length: the band is measured in columns,
+ * so with unequal lengths swapping `a` and `b` changes which cells it admits. Resample both to
+ * one length first (`series.ts` does) when the order of the arguments must not matter.
+ *
  * ## The rule
  *
  * Rows are time steps, columns are dimensions. The local cost of pairing row `i` of `a` with

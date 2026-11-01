@@ -279,6 +279,39 @@ describe('the segmenter for a live stream', () => {
   });
 });
 
+describe('the radius rule, on hand-made series', () => {
+  const flat = (x: number, n = 6): TraceSample[] => Array.from({ length: n }, (_, i) => ({ t: i * 33, vector: { x } }));
+  const unscaled = { features: ['x'], weights: { x: 1 }, length: 4, position: false, scale: false };
+  const series = (x: number) => ({ rows: [[x], [x], [x], [x]], durationMs: 165, amplitude: 0 });
+
+  it('floors an unscaled radius at minRadius times the amplitude', () => {
+    const wobble = (k: number): TraceSample[] => Array.from({ length: 12 }, (_, i) => ({ t: i * 33, vector: { x: 3 * Math.sin(i / 2) } })).map((s, i) => (i === 0 ? { ...s, vector: { x: s.vector.x + k * 1e-9 } } : s));
+    const traces: Trace[] = [0, 1, 2].map((k) => ({ id: `w#${k}`, gesture: 'w', cue: 'w', samples: wobble(k) }));
+    const model = buildGestureModel(traces, { ...unscaled, length: 12, weights: { x: 1 } });
+    const g = model.gestures[0];
+    expect(g.amplitude).toBeGreaterThan(1);
+    expect(g.radius).toBeCloseTo(MATCHER_DEFAULTS.minRadius * g.amplitude, 9);
+  });
+
+  it('names the nearest gesture by ratio, not by distance', () => {
+    // A tight gesture at 0 (radius 0.1) and a loose one at 1 (radius 1): a segment at 0.4 is
+    // nearer the tight one by distance (0.4 against 0.6) but far nearer the loose one by ratio.
+    const model: GestureModel = {
+      gestures: [
+        { gesture: 'tight', templates: [series(0)], radius: 0.1, durationMs: 165, amplitude: 1 },
+        { gesture: 'loose', templates: [series(1)], radius: 1, durationMs: 165, amplitude: 1 },
+      ],
+      skipped: [],
+      series: unscaled,
+      band: MATCHER_DEFAULTS.band,
+    };
+    const m = matchSegment(model, flat(0.4));
+    expect(m.nearest).toBe('loose');
+    expect(m.gesture).toBe('loose');
+    expect(m.distance).toBeCloseTo(0.6, 9);
+  });
+});
+
 describe('matchSegment (offline goldens)', () => {
   const liveTraces = (g: keyof typeof GESTURE_PATHS) => cutTraces(g, takeOf(g, LIVE)).traces;
 
