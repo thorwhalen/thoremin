@@ -12,6 +12,8 @@ import type { PortSpec } from '@thoremin/dag';
 /** The overlay's core input ports (every overlay has them; an extension's elements add theirs). */
 export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'hands', kind: 'hands-frame' },
+  // The hand source's lifecycle (#737): "Hands: loading", or why the hands stopped.
+  { name: 'handsStatus', kind: 'hands-status' },
   { name: 'features', kind: 'hand-features' },
   { name: 'params', kind: 'synth-params' },
   { name: 'scale', kind: 'number[]' },

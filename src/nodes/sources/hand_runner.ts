@@ -62,7 +62,13 @@ export interface HandRunner {
   /** Look for `n` hands from the next frame on (#325). Rejects if the model could not change. */
   setNumHands(n: number): Promise<void>;
   close(): void;
+  /** Whether it is inferring (#737): `running`; `replacing` while a dead worker's main-thread
+   *  replacement loads or waits to try again; `failed` once every try is spent. A runner that is
+   *  never replaced (one thread, for good) has none and is always running. */
+  state?(): HandRunnerState;
 }
+
+export type HandRunnerState = 'running' | 'replacing' | 'failed';
 
 /** How a runner reaches MediaPipe: what the hand node's own loader would create. */
 export interface LandmarkerOptions {
@@ -379,8 +385,10 @@ export async function createHandRunner(
   // thread in place. `numHands` follows the facade, so the replacement looks for the same count.
   let current: HandRunner | null = null;
   let closed = false;
+  let failed = false;
   let numHands = options.numHands;
   const facade: HandRunner = {
+    state: () => (current ? 'running' : failed ? 'failed' : 'replacing'),
     get where() {
       return current?.where ?? 'main';
     },
@@ -431,6 +439,7 @@ export async function createHandRunner(
       .catch((err) => {
         if (closed) return;
         if (attempt >= MAIN_REPLACEMENT_RETRIES) {
+          failed = true;
           console.error('[thoremin] the hand model could not load on the main thread either; the hands stay off', err);
           return;
         }

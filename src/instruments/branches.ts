@@ -57,6 +57,7 @@ export const trunk = defineBranch({
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.feat, port: 'hands' }),
     to({ node: TRUNK.cam, port: 'hands' }, overlay('hands')),
+    to({ node: TRUNK.cam, port: 'status' }, overlay('handsStatus')),
     to({ node: TRUNK.feat, port: 'features' }, overlay('features')),
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'handVec', port: 'hands' }),
     to({ node: TRUNK.feat, port: 'features' }, { node: 'gesture', port: 'features' }),

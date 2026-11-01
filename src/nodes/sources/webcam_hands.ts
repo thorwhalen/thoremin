@@ -30,7 +30,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { SOURCE_SLOT_OUTPUT } from './source_contract';
+import { SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS, type HandsStatus } from './source_contract';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
 import { HAND_MODEL_URL, TASKS_VISION_WASM_BASE } from './tasks_vision';
@@ -171,6 +171,30 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
   };
 }
 
+/** The source's lifecycle as words (#737), one frozen object per state so a tick allocates none. */
+export const HANDS_STATUS = {
+  loading: Object.freeze({ phase: 'loading', message: 'Loading the hand model' }),
+  replacing: Object.freeze({ phase: 'loading', message: 'The hand model is moving to the main thread' }),
+  failed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model stopped and could not load again (offline?); reload the page' }),
+  initFailed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model could not load (offline?); reload the page' }),
+  ready: Object.freeze({ phase: 'ready', message: 'Hand model ready' }),
+  active: Object.freeze({ phase: 'active', message: 'Hands detected' }),
+} as const satisfies Record<string, HandsStatus>;
+
+/**
+ * What the hand source says (#737): loading until its runner exists (or failed if it could not be
+ * made); then what the runner says (a dead worker's replacement loading, or every try spent); else
+ * ready, or active while a hand is in the frame. Pure.
+ */
+export function handsStatus(s: { runner: HandRunner | null; initFailed: boolean; handsInView: boolean }): HandsStatus {
+  if (s.initFailed) return HANDS_STATUS.initFailed;
+  if (!s.runner) return HANDS_STATUS.loading;
+  const state = s.runner.state?.() ?? 'running';
+  if (state === 'replacing') return HANDS_STATUS.replacing;
+  if (state === 'failed') return HANDS_STATUS.failed;
+  return s.handsInView ? HANDS_STATUS.active : HANDS_STATUS.ready;
+}
+
 /** Where to run: the host's override when it gives a valid one, else the param. */
 export function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
   const parsed = HandRunnerChoiceSchema.safeParse(resources[HAND_RUNNER_RESOURCE_KEY]);
@@ -183,10 +207,11 @@ export const webcamHandsNode = defineNode<Params>({
   title: 'Webcam Hands',
   description: 'MediaPipe hand landmark detection from a webcam video element.',
   inputs: [],
-  outputs: [SOURCE_SLOT_OUTPUT],
+  outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: Params,
   make(p) {
     let runner: HandRunner | null = null;
+    let initFailed = false;
     let latest: HandsFrame = EMPTY;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
@@ -260,10 +285,17 @@ export const webcamHandsNode = defineNode<Params>({
         // Created looking for what the host wants now, so the first frames reconfigure nothing.
         numHands = wantedHands(resources, p.maxHands);
         const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
-        const loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
-          loadMain: loadOnMain,
-          worker: browserWorkerDeps(),
-        });
+        let loaded: HandRunner;
+        try {
+          loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
+            loadMain: loadOnMain,
+            worker: browserWorkerDeps(),
+          });
+        } catch (err) {
+          // Said on the status port (the overlay's "Hands: ..."), and still thrown, as before.
+          initFailed = true;
+          throw err;
+        }
         if (disposed) {
           // Unmounted while loading — don't resurrect.
           loaded.close();
@@ -273,7 +305,7 @@ export const webcamHandsNode = defineNode<Params>({
         pump.start();
       },
       process() {
-        return { hands: latest };
+        return { hands: latest, status: handsStatus({ runner, initFailed, handsInView: latest.hands.length > 0 }) };
       },
       dispose() {
         disposed = true;

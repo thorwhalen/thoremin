@@ -9,6 +9,7 @@ import type { ExpressionScores } from '@/music/expression';
 import type { TagOverlayFrame } from '@thoremin/taglog/presentation';
 import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { HandMap } from '../../mapping/hand_map';
+import type { HandsStatus } from '../../sources/source_contract';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 
 // The params schemas (the overlay's settings contract) live in `../canvas_overlay.schema`.
@@ -50,6 +51,8 @@ export interface OverlayView {
     bodyFrame?: BodyFrame;
     /** The body model's lifecycle, so the skeleton element can say 'loading'. */
     bodyStatus?: BodyStatus;
+    /** The hand source's lifecycle (#737), so the landmarks element can say why hands are missing. */
+    handsStatus?: HandsStatus;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;

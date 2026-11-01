@@ -85,7 +85,7 @@ MediaPipe hand landmark detection from a webcam video element.
 
 - **roles:** source
 - **in:** —
-- **out:** hands:hands-frame
+- **out:** hands:hands-frame, status:hands-status
 - **params:** modelType (enum(lite | full)="full"), maxHands (number=2), delegate (enum(auto | GPU | CPU)="auto"), runner (enum(auto | worker | main)="main")
 
 #### `webcam-face` — Webcam Face
@@ -133,7 +133,7 @@ Camera-free animated hand landmark source for tests & demos.
 
 - **roles:** source
 - **in:** —
-- **out:** hands:hands-frame
+- **out:** hands:hands-frame, status:hands-status
 - **params:** width (number=640), height (number=480), sweepPeriod (number=4), opennessPeriod (number=3), pinchPeriod (number=2.5), hands (enum(right | left | both)="right"), yNorm (number=0.5), scale (number=80), strike (boolean=false), strikePeriod (number=0.9), conduct (boolean=false), conductPeriod (number=0.75), conductDrop (number=0.12)
 
 #### `replay-source` — Replay Source
@@ -157,7 +157,7 @@ Replays a recorded hand-landmark stream, one frame per tick. Camera-free and det
 
 - **roles:** source
 - **in:** —
-- **out:** hands:hands-frame
+- **out:** hands:hands-frame, status:hands-status
 - **params:** frames (array=[]), loop (boolean=false)
 
 #### `synthetic-body` — Synthetic Body
@@ -610,7 +610,7 @@ _Audio + the captured video with overlaid guides._
 Mirrored video + composable overlay elements (guides, landmarks, markers, cues), and the elements extensions contribute.
 
 - **roles:** overlay
-- **in:** hands:hands-frame, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, harmonic-layers.chordTorus.status:chord-map-status, harmonic-layers.chordTorus.config:chord-map-config, drawn-pieces.pieces.scene:drawn-scene, drawn-pieces.pieces.contacts:drawn-contacts, drawn-pieces.pieces.config:drawn-pieces-config, trainer-tool.hud.hud:trainer-hud-config, trainer-tool.hud.snapshot:trainer-hud-snapshot, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector, physical-theremin.antennas.status:physical-theremin-status, physical-theremin.antennas.config:physical-theremin-config
+- **in:** hands:hands-frame, handsStatus:hands-status, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, harmonic-layers.chordTorus.status:chord-map-status, harmonic-layers.chordTorus.config:chord-map-config, drawn-pieces.pieces.scene:drawn-scene, drawn-pieces.pieces.contacts:drawn-contacts, drawn-pieces.pieces.config:drawn-pieces-config, trainer-tool.hud.hud:trainer-hud-config, trainer-tool.hud.snapshot:trainer-hud-snapshot, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector, physical-theremin.antennas.status:physical-theremin-status, physical-theremin.antennas.config:physical-theremin-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), cellGrid (object={}), timbreLevels (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={})
 

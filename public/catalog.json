@@ -815,6 +815,10 @@
         "kind": "hands-frame"
       },
       {
+        "name": "handsStatus",
+        "kind": "hands-status"
+      },
+      {
         "name": "features",
         "kind": "hand-features"
       },
@@ -3725,6 +3729,10 @@
       {
         "name": "hands",
         "kind": "hands-frame"
+      },
+      {
+        "name": "status",
+        "kind": "hands-status"
       }
     ],
     "params": [
@@ -4525,6 +4533,10 @@
       {
         "name": "hands",
         "kind": "hands-frame"
+      },
+      {
+        "name": "status",
+        "kind": "hands-status"
       }
     ],
     "params": [
@@ -4853,6 +4865,10 @@
       {
         "name": "hands",
         "kind": "hands-frame"
+      },
+      {
+        "name": "status",
+        "kind": "hands-status"
       }
     ],
     "params": [
