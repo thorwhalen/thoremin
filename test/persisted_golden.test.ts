@@ -53,9 +53,11 @@ const golden = (name: string): string => `./fixtures/persisted/__golden__/${name
 const pretty = (v: unknown): string => `${JSON.stringify(asData(v), null, 2)}\n`;
 
 let store: typeof import('@/app/store');
+let SLICE_CHAINS: typeof import('@/app/store/migrations').SLICE_CHAINS;
 
 beforeAll(async () => {
   store = await import('@/app/store');
+  SLICE_CHAINS = (await import('@/app/store/migrations')).SLICE_CHAINS;
 });
 
 describe.runIf(SHIPPED)('a returning player at every persist version', () => {
@@ -269,12 +271,15 @@ describe.runIf(SHIPPED)('a returning player\'s instrument library', () => {
 /**
  * The edges the per-version goldens do not reach (#741): what every load of this build's own
  * blob does, a blob from a NEWER build (a rollback), an envelope that is not JSON, and a storage
- * that refuses the write-back. Each starts from the newest blob, the one a player last wrote.
+ * that refuses the write-back. A slice whose chain re-runs on its own version is
+ * `host_slices.test.ts`'s to catch; these pin the core chain and the storage.
  */
 describe.runIf(SHIPPED)('the edges of rehydration (#741)', () => {
   beforeEach(() => localStorage.clear());
   const KEY = 'thoremin-controls';
-  const newest = () => JSON.parse(readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8')) as { state: Record<string, unknown>; version: number };
+  const blobOf = (v: number) => JSON.parse(readFileSync(join(DIR, `controls.v${v}.json`), 'utf8')) as { state: Record<string, Record<string, unknown>>; version: number };
+  const newest = () => blobOf(VERSIONS.length);
+  const stored = () => localStorage.getItem(KEY);
 
   /** Rehydrate a fresh store from `raw`, and return its state as data. */
   async function rehydrateFrom(raw: string) {
@@ -282,66 +287,80 @@ describe.runIf(SHIPPED)('the edges of rehydration (#741)', () => {
     useControls.setState(useControls.getInitialState(), true);
     localStorage.setItem(KEY, raw);
     await useControls.persist.rehydrate();
-    return asData(useControls.getState());
+    return asData(useControls.getState()) as Record<string, unknown>;
   }
-  /** What the store writes for its current state, as zustand's envelope. */
-  const writtenEnvelope = () => JSON.stringify({ state: store.persistedControls(store.useControls.getState()), version: store.useControls.persist.getOptions().version });
-  /** The blob in storage after a real change (a write is skipped when nothing changed). */
-  const afterAChange = () => {
-    const { useControls } = store;
-    useControls.setState({ masterVolume: (useControls.getState().masterVolume ?? 0.5) === 0.31 ? 0.32 : 0.31 } as never);
-    return JSON.parse(localStorage.getItem(KEY) ?? 'null') as { state: Record<string, unknown>; version: number } | null;
-  };
 
-  it('what this build writes rehydrates to itself: a fixed point, and written again unchanged', async () => {
+  it('what this build writes rehydrates to itself through no migration, and storage stays byte-equal', async () => {
     const first = await rehydrateFrom(JSON.stringify(newest()));
-    const written = writtenEnvelope();
-    const parsed = JSON.parse(written) as { state: Record<string, unknown>; version: number };
-    expect(parsed.version).toBe(VERSIONS.length);
-    const again = await rehydrateFrom(written);
-    expect(again).toEqual(first);
-    expect(writtenEnvelope()).toBe(written);
+    const written = JSON.stringify({ state: store.persistedControls(store.useControls.getState()), version: VERSIONS.length });
+    const options = store.useControls.persist.getOptions();
+    const migrate = vi.fn(options.migrate!);
+    store.useControls.persist.setOptions({ migrate });
+    try {
+      expect(await rehydrateFrom(written)).toEqual(first);
+      expect(migrate).not.toHaveBeenCalled();
+      // A change to a field that is not persisted writes nothing new: the stored blob is the fixed point.
+      store.useControls.setState({ muted: !store.useControls.getState().muted } as never);
+      expect(stored()).toBe(written);
+    } finally {
+      store.useControls.persist.setOptions({ migrate: options.migrate });
+    }
   });
 
-  it('a blob from a newer build (a rollback) rehydrates through no step, heals, and is written back at this build\'s version', async () => {
+  it('a blob from a newer build (a rollback) runs no step, heals, and is overwritten at this build\'s version on load', async () => {
     const reference = await rehydrateFrom(JSON.stringify(newest()));
     const future = { ...newest(), version: VERSIONS.length + 1 };
-    // A field this build does not know rides in the newer blob. The merge keeps unknown keys in
-    // memory (nothing reads them), and the write picks only this build's fields, so it is never
-    // written back: the newer build's value is lost on the first save, the documented trade-off.
-    future.state = { ...future.state, aFieldFromTheFuture: { on: true } };
-    const { aFieldFromTheFuture, ...s } = (await rehydrateFrom(JSON.stringify(future))) as Record<string, unknown>;
-    expect(aFieldFromTheFuture).toEqual({ on: true });
-    expect(s).toEqual(reference);
-    const back = afterAChange();
-    expect(back?.version).toBe(VERSIONS.length);
-    expect(back?.state).not.toHaveProperty('aFieldFromTheFuture');
+    // A value a step would change if one ran (step 17 sets the trainer hud's show flag), slice
+    // versions ahead of this build's chains, and a field this build does not know.
+    future.state = {
+      ...future.state,
+      trainerHud: { ...(future.state.trainerHud ?? {}), show: !(reference.trainerHud as Record<string, unknown>).show },
+      sliceVersions: Object.fromEntries(SLICE_CHAINS.map((c) => [c.key, c.version + 1])) as never,
+      aFieldFromTheFuture: { on: true },
+    };
+    const s = await rehydrateFrom(JSON.stringify(future));
+    expect((s.trainerHud as Record<string, unknown>).show).toBe(future.state.trainerHud.show);
+    expect({ ...s, trainerHud: undefined, aFieldFromTheFuture: undefined }).toEqual({ ...reference, trainerHud: undefined });
+    // The version differs, so the persist middleware writes at the end of the load, before any
+    // change: the newer build's blob is gone at once, written back in this build's shape (the
+    // documented trade-off in `src/host/slices.ts`). The unknown field may linger in memory, but
+    // nothing writes it.
+    const back = JSON.parse(stored()!) as { state: Record<string, unknown>; version: number };
+    expect(back.version).toBe(VERSIONS.length);
+    expect(back.state).not.toHaveProperty('aFieldFromTheFuture');
+    expect(back.state.sliceVersions).toEqual(Object.fromEntries(SLICE_CHAINS.map((c) => [c.key, c.version])));
   });
 
-  it('an envelope that is not JSON leaves the defaults in place and is replaced by the first write', async () => {
+  it('an envelope that is not JSON leaves the defaults, is kept until the first write, then replaced', async () => {
     const defaults = asData(store.useControls.getInitialState());
-    const s = await rehydrateFrom('{"state": {"masterVolume": 0.9, ');
-    expect(s).toEqual(defaults);
-    const back = afterAChange();
-    expect(back).not.toBeNull();
-    expect(back?.version).toBe(VERSIONS.length);
+    const raw = '{"state": {"masterVolume": 0.9, ';
+    expect(await rehydrateFrom(raw)).toEqual(defaults);
+    expect(stored()).toBe(raw);
+    store.useControls.setState({ masterVolume: 0.31 } as never);
+    const back = JSON.parse(stored()!) as { version: number };
+    expect(back.version).toBe(VERSIONS.length);
   });
 
-  it('a storage that refuses the write-back (quota) still rehydrates to the golden state', async () => {
+  it('a storage that refuses the write-back of a migrated blob (quota) still hydrates to the golden state', async () => {
+    const older = VERSIONS.length - 1;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     try {
-      const raw = readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8');
-      localStorage.setItem(KEY, raw);
+      localStorage.setItem(KEY, readFileSync(join(DIR, `controls.v${older}.json`), 'utf8'));
       setItem.mockImplementation(() => {
         throw new DOMException('full', 'QuotaExceededError');
       });
       const { useControls } = store;
       useControls.setState(useControls.getInitialState(), true);
+      // A migrated blob is written back inside the hydration; a throw there would leave the store
+      // marked unhydrated.
       await useControls.persist.rehydrate();
-      await expect(pretty(useControls.getState())).toMatchFileSnapshot(golden(`controls.v${VERSIONS.length}.state.json`));
-      expect(() => afterAChange()).not.toThrow();
+      expect(setItem).toHaveBeenCalled();
+      expect(useControls.persist.hasHydrated()).toBe(true);
+      await expect(pretty(useControls.getState())).toMatchFileSnapshot(golden(`controls.v${older}.state.json`));
     } finally {
       setItem.mockRestore();
+      warn.mockRestore();
     }
   });
 });
