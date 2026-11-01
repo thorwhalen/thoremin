@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { makeHandKeypoints, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { SOURCE_SLOT_OUTPUT } from './source_contract';
+import { SCRIPTED_HANDS_STATUS, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS } from './source_contract';
 
 const SYNTHETIC_HANDS = ['right', 'left', 'both'] as const;
 
@@ -105,10 +105,10 @@ export const syntheticHandsNode = defineNode<Params>({
   title: 'Synthetic Hands',
   description: 'Camera-free animated hand landmark source for tests & demos.',
   inputs: [],
-  outputs: [SOURCE_SLOT_OUTPUT],
+  outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: Params,
   process(_inputs, p, ctx) {
-    if (p.conduct) return { hands: conductFrame(p, ctx.time) };
+    if (p.conduct) return { hands: conductFrame(p, ctx.time), status: SCRIPTED_HANDS_STATUS };
     const margin = p.scale;
     const phase = (ctx.time / p.sweepPeriod) % 1;
     const cx = p.strike ? p.width / 2 : margin + phase * (p.width - 2 * margin);
@@ -137,6 +137,6 @@ export const syntheticHandsNode = defineNode<Params>({
       });
     }
     const frame: HandsFrame = { width: p.width, height: p.height, hands };
-    return { hands: frame };
+    return { hands: frame, status: SCRIPTED_HANDS_STATUS };
   },
 });

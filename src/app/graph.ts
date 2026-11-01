@@ -189,10 +189,12 @@ function slotFillReason(type: string, slot: SlotDef, registry: NodeRegistry): st
   if (registry.pending([type]).length > 0) return 'is a lazy extension\'s node, not loaded';
   const def = registry.get(type);
   if (!def.roles?.includes(slot.role)) return `does not carry role "${slot.role}"`;
-  const out = def.outputs.find((p) => p.name === slot.contract.output.name);
-  if (!out) return `has no output port "${slot.contract.output.name}"`;
-  if (out.kind !== slot.contract.output.kind) {
-    return `output "${out.name}" is kind "${out.kind}", not "${slot.contract.output.kind}"`;
+  // The main output first, then the others a branch wires out of the slot (#737): every one is
+  // an edge the composed graph draws whatever fills the slot.
+  for (const want of [slot.contract.output, ...(slot.contract.outputs ?? [])]) {
+    const out = def.outputs.find((p) => p.name === want.name);
+    if (!out) return `has no output port "${want.name}"`;
+    if (out.kind !== want.kind) return `output "${out.name}" is kind "${out.kind}", not "${want.kind}"`;
   }
   const inputNames = new Set(def.inputs.map((p) => p.name));
   const missing = slot.contract.requiredInputs.filter((n) => !inputNames.has(n));

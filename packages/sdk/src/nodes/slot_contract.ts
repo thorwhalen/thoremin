@@ -25,4 +25,11 @@ export interface SlotContract {
   requiredInputs: readonly string[];
   /** The output port a candidate must emit — name and `kind` are both checked. */
   output: PortSpec;
+  /**
+   * The other output ports a candidate must declare, name and `kind` checked like `output`:
+   * the ones a branch wires out of the slot's node whatever fills it (a source's `status`,
+   * #737). Without them a swap would compose an edge from a port the candidate lacks, which
+   * the engine refuses, so the graph would not build. Absent = none.
+   */
+  outputs?: readonly PortSpec[];
 }

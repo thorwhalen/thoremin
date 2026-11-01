@@ -11,6 +11,7 @@ import { adaptContributed, contributedInputs, withContributed, type ContributedE
 import type { ExpressionScores } from '@/music/expression';
 import { computeTagOverlay, type TagOverlaySnapshot } from '@thoremin/taglog/presentation';
 import type { HandMap } from '../../mapping/hand_map';
+import type { HandsStatus } from '../../sources/source_contract';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { pickCategories } from './elements/category';
 import { OVERLAY_ELEMENTS } from './elements/index';
@@ -119,6 +120,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
               faceFrame: inputs.faceFrame as FaceFrame | undefined,
               bodyFrame: inputs.bodyFrame as BodyFrame | undefined,
               bodyStatus: inputs.bodyStatus as BodyStatus | undefined,
+              handsStatus: inputs.handsStatus as HandsStatus | undefined,
               expression: inputs.expression as ExpressionScores | undefined,
               handMap: controls?.handMap,
               faceDegrees: controls?.faceExpr?.degrees,

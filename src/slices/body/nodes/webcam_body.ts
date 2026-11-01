@@ -44,7 +44,7 @@ import {
   type BodyModel,
   type Keypoint,
 } from '@thoremin/sdk/nodes/domain';
-import { BODY_SLOT_OUTPUT } from '@thoremin/sdk/sources/body_contract';
+import { BODY_SLOT_OUTPUT, BODY_SLOT_STATUS } from '@thoremin/sdk/sources/body_contract';
 import { MEDIAPIPE_MODELS_BASE } from '@thoremin/sdk/sources/tasks_vision';
 import { DelegateChoiceSchema, resolveDelegate } from '@thoremin/sdk/sources/delegate';
 
@@ -146,7 +146,7 @@ export const webcamBodyNode = defineNode<Params>({
     // Lifecycle + detection status in the shared LoadStatus vocabulary (#188), drawn
     // by the overlay's body skeleton element so a player sees "loading" / "needs the
     // camera" / "failed" before the first skeleton appears.
-    { name: 'status', kind: 'body-status' },
+    BODY_SLOT_STATUS,
   ],
   params: Params,
   make(p) {

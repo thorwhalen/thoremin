@@ -24,8 +24,13 @@ export const BODY_SLOT_OUTPUT: PortSpec = {
 
 export const BODY_SLOT_INPUTS: readonly PortSpec[] = [];
 
+/** The body model's lifecycle, which the body branch wires to the overlay's "Body: ..." line
+ *  whichever candidate fills the slot, so every candidate must declare it (#737). */
+export const BODY_SLOT_STATUS: PortSpec = { name: 'status', kind: 'body-status' };
+
 export const BODY_SLOT_CONTRACT: SlotContract = {
   role: 'source',
   requiredInputs: [],
   output: BODY_SLOT_OUTPUT,
+  outputs: [BODY_SLOT_STATUS],
 };

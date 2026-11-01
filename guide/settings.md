@@ -18,7 +18,7 @@ What the face does: nothing; *timbre* (a smile brightens, an open mouth adds vib
 
 ## Overlay {#overlay}
 
-What is drawn on the video: the video itself, the hand landmarks, the control markers, pitch and scale guides, chord names, the keyboard strip, the face mesh, the finger lines and bars. Switch things off for a clean picture.
+What is drawn on the video: the video itself, the hand landmarks, the control markers, pitch and scale guides, chord names, the keyboard strip, the face mesh, the finger lines and bars, and the model loading notes in the top-left corner. Switch things off for a clean picture; turning the loading notes off never hides a failure ("Hands: ... reload the page").
 
 ## Keyboard {#keyboard}
 

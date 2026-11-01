@@ -12,7 +12,7 @@ import { Engine, createRegistry, defineNode } from '@thoremin/dag';
 import { SLOTS, defaultGraph, parseSlotSelection, resolveSlot, sourceNeedsVideo } from '@/app/graph';
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
-import { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from '@/nodes/sources/body_contract';
+import { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT, BODY_SLOT_STATUS } from '@/nodes/sources/body_contract';
 import { BLM, BODY_LANDMARK_COUNT, BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { BODY } from '../helpers/extensions';
 import { BODY_EXTENSION } from '@/slices/body';
@@ -37,8 +37,11 @@ describe.runIf(BODY)('the body slot contract', () => {
       expect(out!.kind).toBe(BODY_SLOT_OUTPUT.kind);
       expect(out!.schema, `${type}'s body port must carry the contract schema`).toBe(BodyFrameSchema);
       expect(def.inputs).toEqual([]);
+      // The shared status port the body branch wires to the overlay (#737).
+      expect(def.outputs.find((p) => p.name === BODY_SLOT_STATUS.name), `${type} must emit "status"`).toBe(BODY_SLOT_STATUS);
     }
     expect(BODY_SLOT_CONTRACT.requiredInputs).toEqual([]);
+    expect(BODY_SLOT_CONTRACT.outputs).toEqual([BODY_SLOT_STATUS]);
     expect(SLOTS.body.default).toBe('webcam-body');
     expect(SLOTS.body.candidates.length).toBeGreaterThan(1);
   });
@@ -64,6 +67,22 @@ describe.runIf(BODY)('the body slot contract', () => {
     const warnings: string[] = [];
     expect(resolveSlot('body', { body: 'bogus-body' }, reg, (m) => warnings.push(m))).toBe('webcam-body');
     expect(warnings[0]).toContain('not "body-frame"');
+  });
+
+  it('rejects a candidate lacking the status port the body branch wires (#737)', () => {
+    const reg = appRegistry();
+    reg.register(
+      defineNode({
+        type: 'statusless-body',
+        roles: ['source'],
+        inputs: [],
+        outputs: [BODY_SLOT_OUTPUT],
+        process: () => ({ body: EMPTY_BODY_FRAME }),
+      }),
+    );
+    const warnings: string[] = [];
+    expect(resolveSlot('body', { body: 'statusless-body' }, reg, (m) => warnings.push(m))).toBe('webcam-body');
+    expect(warnings[0]).toContain('has no output port "status"');
   });
 
   it('is reachable from the URL, independently of the hands slot', () => {

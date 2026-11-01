@@ -700,6 +700,9 @@
       "show": true,
       "showLabels": true
     },
+    "sourceStatus": {
+      "show": true
+    },
     "tagHud": {
       "position": "right",
       "show": true

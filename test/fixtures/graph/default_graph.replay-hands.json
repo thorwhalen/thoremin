@@ -314,6 +314,16 @@
   },
   {
    "from": {
+    "node": "cam",
+    "port": "status"
+   },
+   "to": {
+    "node": "overlay",
+    "port": "handsStatus"
+   }
+  },
+  {
+   "from": {
     "node": "camFace",
     "port": "face"
    },

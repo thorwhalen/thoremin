@@ -32,6 +32,7 @@
 import type { PortSpec, Role } from '@thoremin/dag';
 import type { SlotContract } from '../slot_contract';
 import { HandsFrameSchema } from '@thoremin/sdk/nodes/domain';
+import type { LoadStatus } from '@thoremin/lazy';
 
 /**
  * The output port every source-slot node must emit. `schema` is what makes this
@@ -51,8 +52,18 @@ export const SOURCE_SLOT_OUTPUT: PortSpec = {
  */
 export const SOURCE_SLOT_INPUTS: readonly PortSpec[] = [];
 
+/** A hand source's lifecycle in the shared `LoadStatus` vocabulary (#737), as the body sources
+ *  have: the overlay says "Hands: ..." while a dead worker's model is replaced or has failed, so
+ *  a frozen instrument is never silent about why. Every candidate of the slot emits it: the trunk
+ *  wires it to the overlay whichever candidate fills the slot, so the contract lists it. */
+export type HandsStatus = LoadStatus;
+export const SOURCE_SLOT_STATUS: PortSpec = { name: 'status', kind: 'hands-status' };
+/** What a scripted or replayed hand source says: nothing to wait for. */
+export const SCRIPTED_HANDS_STATUS: HandsStatus = Object.freeze({ phase: 'ready', message: 'Scripted hands' });
+
 export const SOURCE_SLOT_CONTRACT: SlotContract = {
   role: 'source' as Role,
   requiredInputs: [],
   output: SOURCE_SLOT_OUTPUT,
+  outputs: [SOURCE_SLOT_STATUS],
 };

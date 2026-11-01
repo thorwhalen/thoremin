@@ -380,17 +380,23 @@ describe('canvas-overlay composable elements', () => {
     expect(drawWith(onlyElement('bodySkeleton'), { bodyFrame: half }).calls.filter((c) => c.m === 'arc')).toHaveLength(32);
   });
 
-  it('bodySkeleton: prints the load state instead of a skeleton while the model loads or fails', () => {
-    const loading = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'loading', message: 'Loading body model...' } });
+  it('sourceStatus: prints the body model\'s load state (the line moved here from bodySkeleton, #737), and the skeleton draws nothing meanwhile', () => {
+    const loading = drawWith(onlyElement('sourceStatus'), { bodyStatus: { phase: 'loading', message: 'Loading body model...' } });
     expect(textsOf(loading)).toContain('Body: Loading body model...');
-    const failed = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'error', message: 'Could not load body model' } });
+    const failed = drawWith(onlyElement('sourceStatus'), { bodyStatus: { phase: 'error', message: 'Could not load body model' } });
     expect(textsOf(failed)).toContain('Body: Could not load body model');
-    const noCam = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase: 'unavailable', reason: 'no-camera', message: 'Body tracking needs the camera' } });
+    const noCam = drawWith(onlyElement('sourceStatus'), { bodyStatus: { phase: 'unavailable', reason: 'no-camera', message: 'Body tracking needs the camera' } });
     expect(textsOf(noCam)).toContain('Body: Body tracking needs the camera');
     for (const phase of ['off', 'ready', 'active'] as const) {
-      const quiet = drawWith(onlyElement('bodySkeleton'), { bodyStatus: { phase, message: 'x' } });
+      const quiet = drawWith(onlyElement('sourceStatus'), { bodyStatus: { phase, message: 'x' } });
       expect(textsOf(quiet).some((t) => t.startsWith('Body:'))).toBe(false);
     }
+    // The skeleton element says nothing itself, and draws no skeleton while the model is not ready.
+    const { landmarks, world } = makeBodyKeypoints({ width: 640, height: 480, cx: 0.5, cy: 0.6, torso: 100, leftArm: 0.5, rightArm: 0.2, kneeBend: 0, lean: 0 });
+    const bodyFrame: BodyFrame = { width: 640, height: 480, present: true, landmarks, world, visibility: new Array(33).fill(1) };
+    const skeleton = drawWith(onlyElement('bodySkeleton'), { bodyFrame, bodyStatus: { phase: 'loading', message: 'Loading body model...' } });
+    expect(skeleton.count('arc')).toBe(0);
+    expect(textsOf(skeleton).some((t) => t.startsWith('Body:'))).toBe(false);
   });
 
   it('faceLandmarks (Input): one dot per landmark when a present face frame has them', () => {

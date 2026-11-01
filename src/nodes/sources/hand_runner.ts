@@ -62,7 +62,14 @@ export interface HandRunner {
   /** Look for `n` hands from the next frame on (#325). Rejects if the model could not change. */
   setNumHands(n: number): Promise<void>;
   close(): void;
+  /** Whether it is inferring (#737): `running`; `replacing` while a dead worker's main-thread
+   *  replacement loads; `retrying` while it waits to try again after a load failed; `failed`
+   *  once every try is spent. A runner that is never replaced (one thread, for good) has none
+   *  and is always running. */
+  state?(): HandRunnerState;
 }
+
+export type HandRunnerState = 'running' | 'replacing' | 'retrying' | 'failed';
 
 /** How a runner reaches MediaPipe: what the hand node's own loader would create. */
 export interface LandmarkerOptions {
@@ -379,8 +386,11 @@ export async function createHandRunner(
   // thread in place. `numHands` follows the facade, so the replacement looks for the same count.
   let current: HandRunner | null = null;
   let closed = false;
+  /** What the facade is doing while there is no live runner (#737): the state it reports then. */
+  let between: Exclude<HandRunnerState, 'running'> = 'replacing';
   let numHands = options.numHands;
   const facade: HandRunner = {
+    state: () => (current ? 'running' : between),
     get where() {
       return current?.where ?? 'main';
     },
@@ -415,6 +425,7 @@ export async function createHandRunner(
    *  leaving the hands frozen for the session with only a console line (#737). */
   const replaceOnMain = (o: LandmarkerOptions, attempt: number): void => {
     const loading = numHands;
+    between = 'replacing';
     void deps
       .loadMain({ ...o, numHands: loading })
       .then((lm) => {
@@ -431,9 +442,11 @@ export async function createHandRunner(
       .catch((err) => {
         if (closed) return;
         if (attempt >= MAIN_REPLACEMENT_RETRIES) {
+          between = 'failed';
           console.error('[thoremin] the hand model could not load on the main thread either; the hands stay off', err);
           return;
         }
+        between = 'retrying';
         console.warn(`[thoremin] the hand model could not load on the main thread (retry ${attempt + 1} of ${MAIN_REPLACEMENT_RETRIES} in ${MAIN_REPLACEMENT_RETRY_MS} ms)`, err);
         setTimer(() => {
           if (!closed && current === null) replaceOnMain(o, attempt + 1);

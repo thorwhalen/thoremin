@@ -57,6 +57,7 @@ export const trunk = defineBranch({
   edges: [
     to({ node: TRUNK.cam, port: 'hands' }, { node: TRUNK.feat, port: 'hands' }),
     to({ node: TRUNK.cam, port: 'hands' }, overlay('hands')),
+    to({ node: TRUNK.cam, port: 'status' }, overlay('handsStatus')),
     to({ node: TRUNK.feat, port: 'features' }, overlay('features')),
     to({ node: TRUNK.cam, port: 'hands' }, { node: 'handVec', port: 'hands' }),
     to({ node: TRUNK.feat, port: 'features' }, { node: 'gesture', port: 'features' }),
@@ -79,7 +80,7 @@ export const trunk = defineBranch({
     // `store-controls` emits it, the overlay draws only these. Data on a port, not a param.
     to(ui('graphElements'), overlay('elements')),
   ],
-  overlay: ['video', 'landmarks', 'tagHud'],
+  overlay: ['video', 'landmarks', 'sourceStatus', 'tagHud'],
 });
 
 export const fieldVoices = defineBranch({

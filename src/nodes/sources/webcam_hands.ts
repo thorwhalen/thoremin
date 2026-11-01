@@ -30,7 +30,7 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import { SOURCE_SLOT_OUTPUT } from './source_contract';
+import { SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS, type HandsStatus } from './source_contract';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
 import { HAND_MODEL_URL, TASKS_VISION_WASM_BASE } from './tasks_vision';
@@ -45,6 +45,7 @@ import {
   type HandResult,
   type HandRunner,
   type HandRunnerChoice,
+  type HandRunnerState,
   type LoadLandmarker,
   type WorkerLike,
   type WorkerRunnerDeps,
@@ -171,6 +172,32 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
   };
 }
 
+/**
+ * The source's lifecycle as words (#737), one frozen object per state so a tick allocates none.
+ *
+ * There is no "loading" and no "could not load": `init()` awaits the runner, and the engine runs
+ * no `process()` before init resolves (a failed init tears the node down), so the port only ever
+ * speaks for a runner that exists. What it can say is what that runner goes through afterwards: a
+ * dead worker's main-thread replacement loading, waiting to try again, or out of tries.
+ */
+export const HANDS_STATUS = {
+  replacing: Object.freeze({ phase: 'loading', message: 'The hand model is moving to the main thread' }),
+  retrying: Object.freeze({ phase: 'loading', message: 'The hand model could not load; trying again' }),
+  failed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model stopped and could not load again (offline?); reload the page' }),
+  ready: Object.freeze({ phase: 'ready', message: 'Hand model ready' }),
+  active: Object.freeze({ phase: 'active', message: 'Hands detected' }),
+} as const satisfies Record<string, HandsStatus>;
+
+/**
+ * What the hand source says (#737): what its runner is going through while it is not inferring
+ * (replacing, retrying, failed); else ready, or active while a hand is in the frame. A runner with
+ * no `state` (one thread for good) is always running. Pure.
+ */
+export function handsStatus(state: HandRunnerState, handsInView: boolean): HandsStatus {
+  if (state !== 'running') return HANDS_STATUS[state];
+  return handsInView ? HANDS_STATUS.active : HANDS_STATUS.ready;
+}
+
 /** Where to run: the host's override when it gives a valid one, else the param. */
 export function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
   const parsed = HandRunnerChoiceSchema.safeParse(resources[HAND_RUNNER_RESOURCE_KEY]);
@@ -183,7 +210,7 @@ export const webcamHandsNode = defineNode<Params>({
   title: 'Webcam Hands',
   description: 'MediaPipe hand landmark detection from a webcam video element.',
   inputs: [],
-  outputs: [SOURCE_SLOT_OUTPUT],
+  outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: Params,
   make(p) {
     let runner: HandRunner | null = null;
@@ -273,7 +300,12 @@ export const webcamHandsNode = defineNode<Params>({
         pump.start();
       },
       process() {
-        return { hands: latest };
+        const state = runner?.state?.() ?? 'running';
+        // Not inferring (a dead worker being replaced, or out of tries): the last frame is stale,
+        // so it is dropped rather than held. A held frame would keep a voice droning and a
+        // skeleton drawn beside the overlay's "Hands: ... stopped" (#737).
+        if (state !== 'running') latest = EMPTY;
+        return { hands: latest, status: handsStatus(state, latest.hands.length > 0) };
       },
       dispose() {
         disposed = true;

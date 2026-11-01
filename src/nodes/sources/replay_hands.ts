@@ -33,7 +33,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { HandsFrameSchema, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { SOURCE_SLOT_OUTPUT } from './source_contract';
+import { SCRIPTED_HANDS_STATUS, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS } from './source_contract';
 
 /**
  * What a source with nothing to replay emits. **Not** `undefined`: the contract
@@ -76,7 +76,7 @@ export const replayHandsNode = defineNode<Params>({
   title: 'Replay Hands',
   description: 'Replays a recorded hand-landmark stream, one frame per tick. Camera-free and deterministic.',
   inputs: [],
-  outputs: [SOURCE_SLOT_OUTPUT],
+  outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: Params,
   make({ frames, loop }) {
     // Per-INSTANCE, so a replay swapped into a running graph starts at frame 0.
@@ -89,7 +89,7 @@ export const replayHandsNode = defineNode<Params>({
           const replay = (ctx?.resources?.[HAND_REPLAY_RESOURCE_KEY] as (() => HandReplay | null) | undefined)?.();
           if (!replay || replay.frames.length === 0) {
             playing = null;
-            return { hands: EMPTY };
+            return { hands: EMPTY, status: SCRIPTED_HANDS_STATUS };
           }
           if (playing?.id !== replay.id) playing = { id: replay.id, start: ctx.time };
           const span = replay.times[replay.times.length - 1];
@@ -100,14 +100,14 @@ export const replayHandsNode = defineNode<Params>({
           // A float remainder a hair under the period is the loop's start (time sums drift).
           const wrapped = elapsed % period;
           const at = replay.loop ? (period - wrapped < 1e-6 ? 0 : wrapped) : elapsed;
-          return { hands: replay.frames[frameAt(replay.times, at)] as HandsFrame };
+          return { hands: replay.frames[frameAt(replay.times, at)] as HandsFrame, status: SCRIPTED_HANDS_STATUS };
         }
         const i = loop ? n % frames.length : Math.min(n, frames.length - 1);
         n += 1;
         // The frame as recorded, stamps included (#226): its `tOrigin` is another
         // document's, so `frameTime` samples it at the tick, and its `t` is what lets
         // the conductor tell the two per-tick copies of one camera frame apart.
-        return { hands: frames[i] as HandsFrame };
+        return { hands: frames[i] as HandsFrame, status: SCRIPTED_HANDS_STATUS };
       },
     };
   },

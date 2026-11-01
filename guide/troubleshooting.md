@@ -19,6 +19,7 @@ Browsers will not make sound until you tap. Press **Tap to play** once. If the s
 - Keep your hand in view and a little away from the camera, with the palm toward it.
 - The **Wrist Theremin** instrument is steadier than the fingertip.
 - With two hands close together the second can be missed; move them apart.
+- If the top-left corner says **Hands: the hand model stopped and could not load again**, the hand tracker failed (often a dropped connection): reload the page. While it says it is moving or trying again, wait a moment.
 
 ## Browsers
 

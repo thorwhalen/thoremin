@@ -9,6 +9,7 @@ import type { ExpressionScores } from '@/music/expression';
 import type { TagOverlayFrame } from '@thoremin/taglog/presentation';
 import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { HandMap } from '../../mapping/hand_map';
+import type { HandsStatus } from '../../sources/source_contract';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
 
 // The params schemas (the overlay's settings contract) live in `../canvas_overlay.schema`.
@@ -23,6 +24,8 @@ export const CHORD_COLOR = '#f5d142'; // warm gold
 
 /** A HUD cue's distance from the canvas edge (the cue layout's, and the trainer HUD's own box). */
 export const CUE_MARGIN = 12;
+/** Room kept clear at the top for the top-left brand and the top-right panel. */
+export const CUE_TOP_INSET = 68;
 
 /** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {
@@ -48,8 +51,10 @@ export interface OverlayView {
     faceFrame?: FaceFrame;
     /** The latest full-body pose (#186), for the skeleton element. */
     bodyFrame?: BodyFrame;
-    /** The body model's lifecycle, so the skeleton element can say 'loading'. */
+    /** The body model's lifecycle, for the source-status element's "Body: ..." line. */
     bodyStatus?: BodyStatus;
+    /** The hand source's lifecycle (#737), for the source-status element's "Hands: ..." line. */
+    handsStatus?: HandsStatus;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */
     handMap?: HandMap;
