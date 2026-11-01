@@ -22,7 +22,7 @@ const CATEGORIES: Array<{ name: string; blurb: string; types: string[] }> = [
   { name: 'Inputs (sources)', blurb: 'Where signals enter the graph.', types: ['webcam-hands', 'webcam-face', 'webcam-body', 'keyboard-source', 'audio-events', 'store-controls', 'synthetic-hands', 'replay-source', 'replay-source-timed', 'replay-hands', 'synthetic-body', 'replay-body'] },
   { name: 'Features', blurb: 'Raw sensor data → normalized control signals.', types: ['hand-features', 'hands-dwell', 'face-features', 'face-controls', 'face-expression', 'face-categorizer', 'pose-categorizer', 'gesture-classifier', 'face-feature-vector', 'hand-feature-vector', 'body-feature-vector', 'body-pulse'] },
   { name: 'Mapping (direct ↔ indirect)', blurb: 'Features → engine parameters, across the expression spectrum.', types: ['voice-mapping', 'physical-theremin', 'body-route', 'indirect-map', 'keyboard-control', 'pick', 'one-euro', 'synth-merge', 'chord-select', 'delay', 'category-blend'] },
-  { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['chord', 'progression', 'expression-chord', 'pose-chord', 'categorizer-chord'] },
+  { name: 'Music logic (tonal guidance)', blurb: 'Harmony kept in-key.', types: ['expression-chord', 'pose-chord', 'categorizer-chord'] },
   { name: 'Conductor mode', blurb: 'Direct a fixed piece with gesture (tempo + dynamics).', types: ['conductor', 'transport', 'score', 'performance'] },
   { name: 'Air instruments', blurb: 'Strike, pluck or blow at nothing — hits and plucks predicted before the frame that shows them (#233, #249).', types: ['air-drum', 'drum-out', 'air-bass', 'air-guitar', 'air-flute', 'pluck-out', 'chord-map', 'chord-wheel', 'chord-chart', 'chord-strum-out'] },
   { name: 'Sign language', blurb: 'Read ASL from the hand: the fingerspelled alphabet and a few words; A..G play chords of the key.', types: ['asl-signs', 'sign-chord'] },
@@ -66,7 +66,7 @@ Two things worth knowing:
 
 const EXAMPLES: Array<{ title: string; chain: string; note: string }> = [
   { title: 'Theremin (direct)', chain: 'webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)', note: 'Hand x → scale-snapped pitch, y → volume. Two hands = two voices.' },
-  { title: 'Gesture → harmony', chain: "hand-features → pick('right.x') → progression → chord → webaudio-synth", note: 'Hand position walks an in-key chord progression.' },
+  { title: 'Gesture → harmony', chain: 'webcam-hands → chord-map → synth-merge → webaudio-synth', note: 'The chord hand points at one of a key\'s seven chords on a map; the other hand plays a melody on its tones (the harmony extension).' },
   { title: 'Conductor', chain: 'webcam-hands → conductor → score → synth-merge → webaudio-synth', note: 'The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece\'s tempo + dynamics, directed live. Behind the Conductor dial.' },
   { title: 'Conductor with the orchestra', chain: 'conductor → orchestra (spessasynth_lib, a cut General MIDI soundfont)', note: 'The same conducted piece played by sampled instruments: notes committed just ahead of the conductor\'s beat, stroke size as expression on sounding notes. Loads only when switched on in the Conductor panel.' },
   { title: 'Indirect / AI (gesture or expression)', chain: 'hand-features / face-features → indirect-map → lyria', note: 'Openness/smile/etc. steer weighted prompts + dials of Google Lyria RealTime.' },

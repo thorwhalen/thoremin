@@ -314,8 +314,6 @@ browser):
 
 ```bash
 vite-node scripts/render_audio.ts test/fixtures/video_hand_sweep/map.params.ndjson media/audio/sweep.wav
-vite-node scripts/gen_chord_demo.ts media/chord_demo.params.ndjson   # I–IV–V–vi in C
-vite-node scripts/render_audio.ts media/chord_demo.params.ndjson media/audio/chords.wav
 ```
 
 `test/render_audio.test.ts` covers the DSP (non-silent tone, silence→silence,

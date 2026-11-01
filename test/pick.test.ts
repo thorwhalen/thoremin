@@ -1,10 +1,10 @@
 /**
- * Tests the `pick` adapter and the full gesture→harmony DAG it unlocks:
- *   synthetic-hands → hand-features → pick(right.x) → progression → chord
+ * Tests the `pick` adapter (one scalar out of a structured stream), alone and in a DAG:
+ *   synthetic-hands → hand-features → pick(right.x)
  */
 import { describe, it, expect } from 'vitest';
 import { replayNode, runHeadless, type GraphSpec } from '@thoremin/dag';
-import { pickNode, createCoreRegistry, ABSENT_HAND, type HandFeatures, type SynthParams } from '@/nodes';
+import { pickNode, createCoreRegistry, ABSENT_HAND, type HandFeatures } from '@/nodes';
 
 function feat(rightX: number, present = true): HandFeatures {
   return { left: { ...ABSENT_HAND }, right: { ...ABSENT_HAND, present, x: rightX } };
@@ -24,30 +24,23 @@ describe('pick node', () => {
   });
 });
 
-describe('gesture → harmony DAG (via pick)', () => {
-  it('hand x sweep drives the progression → chord changes', async () => {
+describe('pick in a DAG', () => {
+  it('a hand x sweep, picked from the hand features, moves across the frame', async () => {
     const spec: GraphSpec = {
       nodes: [
         { id: 'src', type: 'synthetic-hands', params: { hands: 'right', sweepPeriod: 2 } },
         { id: 'feat', type: 'hand-features', params: { mirrorX: false, mirrorHandedness: false } },
-        { id: 'x', type: 'pick', params: { path: 'right.x' } },
-        { id: 'prog', type: 'progression', params: { key: 'C', romanNumerals: ['I', 'IV', 'V', 'vi'] } },
-        { id: 'chord', type: 'chord', params: { baseOctave: 4, maxVoices: 4 } },
+        { id: 'x', type: 'pick', params: { path: 'right.x', default: -1 } },
       ],
       edges: [
         { from: { node: 'src', port: 'hands' }, to: { node: 'feat', port: 'hands' } },
         { from: { node: 'feat', port: 'features' }, to: { node: 'x', port: 'in' } },
-        { from: { node: 'x', port: 'value' }, to: { node: 'prog', port: 'position' } },
-        { from: { node: 'prog', port: 'chord' }, to: { node: 'chord', port: 'chord' } },
       ],
     };
     const { recorder } = await runHeadless(spec, createCoreRegistry(), { ticks: 60, nominalDt: 1 / 30 });
-
-    const chords = recorder.values('prog.chord') as string[];
-    // The hand sweeps across the frame, so more than one chord is visited.
-    expect(new Set(chords).size).toBeGreaterThan(1);
-    // Every emitted chord renders to a non-empty voiced SynthParams.
-    const params = recorder.values('chord.params') as SynthParams[];
-    expect(params.every((p) => p.voices.length >= 3)).toBe(true);
+    const xs = recorder.values('x.value') as number[];
+    // The path resolves on every tick (never the default), and the sweep spans the frame.
+    expect(xs.every((x) => x >= 0 && x <= 1)).toBe(true);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.3);
   });
 });
