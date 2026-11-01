@@ -2,8 +2,8 @@
  * `pick` node — a tiny adapter that extracts a scalar from a structured input
  * via a dotted path (e.g. `right.x` from `HandFeatures`, or `smile` from
  * `FaceFeatures`). Bridges nodes whose output is an object to nodes that want a
- * bare number — e.g. `hand-features → pick('right.x') → progression.position`
- * to drive harmony from a gesture. Pure + deterministic.
+ * bare number — e.g. `hand-features → pick('right.x') → <a number input>`
+ * (a mapping parameter, a filter). Pure + deterministic.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';

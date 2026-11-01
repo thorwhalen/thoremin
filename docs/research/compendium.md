@@ -711,7 +711,7 @@ The follow-up #809 is open [397]. It would offer the rated tension as a fourth t
 - **Boundary blending** (#716, experimental): a hand on a hex vertex would sound the three adjacent chords cross-faded, since their union is the scale minus one note. There is no evidence yet that it sounds good, so it would start behind a dial [398].
 - **A rotating 3-D torus for teaching** (#717, low priority): a display-only view of the seven-chord map as Heawood's map, lighting the three cycles as loops. Chord Map Paths already draws a turning torus; the issue remains open on the tracker [333].
 - **A chord instruments group of its own** (#705): the chord instruments still sit under the air instruments' class in the Instruments view. Giving them their own class would remove the harmony slice's dependency on the air extension, at the cost of a visible change to the view [76].
-- **Removing the deprecated `chord` and `progression` nodes** (#783): no instrument composes them, but saved graphs must be checked before removal [399].
+- **Removing the deprecated `chord` and `progression` nodes** (#783): done; no instrument composed them and no saved data names a node type (instruments keep branch ids; the patcher saves no graph) [399].
 - **Live checks** on #146: whether two frames of dwell and 0.12 cell widths of hysteresis feel right, whether strums land on time, and how voice-led changes sound [80]. Recordings for the microphone chord fixture also wait on the owner [329].
 - **The video's middle chapters** (the 3-D map, the tension graph) remain unseen [377].
 

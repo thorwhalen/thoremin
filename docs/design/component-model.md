@@ -66,7 +66,7 @@ resolves — a node can legitimately be source + feature, or sink + generate):
 | `source` | Originates a stream the graph consumes (sensor, replay, keyboard, the UI store) | `webcam-hands`, `synthetic-hands`, `replay-source`, `keyboard-source`, `store-controls` |
 | `feature` | Extracts structured features from a source frame | `hand-features`, `face-features`, `gesture-classifier` |
 | `mapping` | Turns features+control into sound/visual params | `voice-mapping`, `indirect-map` |
-| `music` | Musical rules/constraints (scale-snap, chords, voicing) — a *soft* boundary with `mapping`; a node may carry both | `chord`, `progression`, `score` |
+| `music` | Musical rules/constraints (scale-snap, chords, voicing) — a *soft* boundary with `mapping`; a node may carry both | `expression-chord`, `pose-chord`, `score` |
 | `synth` | Renders params into audio | `webaudio-synth`, `lyria` |
 | `overlay` | Renders the visual canvas | `canvas-overlay` |
 

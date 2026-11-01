@@ -4,7 +4,7 @@
  * adds lag. The 1€ filter adapts its cutoff to signal speed: heavy smoothing
  * when the hand is still (kills jitter), light smoothing when moving fast (stays
  * responsive). Drop it between a feature and a mapping, e.g.
- * `pick('right.x') → one-euro → progression.position`.
+ * `pick('right.x') → one-euro → <a number input>`.
  *
  * Pure + deterministic (uses ctx.dt as the timestep), so it replays exactly.
  */

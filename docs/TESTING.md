@@ -70,7 +70,7 @@ The suite grew from ~33 files to 108 across the 2026-06 → 2026-09 tracks. Roug
 | Family | Files | Covers |
 |--------|-------|--------|
 | **Engine + nodes** | `dag_core`, `app_graph`, `slots`, `node_roles`, `clock`, `recorder`, `synth_merge`, `one_euro`, `pick`, `webcam_*` | The DAG itself, the production graph's wiring, roles/slots, pacing. |
-| **Features + music** | `hand_*`, `face_*`, `head_pose`, `gesture_classifier`, `expression*`, `music_theory`, `music_logic`, `voicing`, `sounds`, `pose_chord` | The pure signal + tonal layers. |
+| **Features + music** | `hand_*`, `face_*`, `head_pose`, `gesture_classifier`, `expression*`, `music_theory`, `voicing`, `sounds`, `pose_chord` | The pure signal + tonal layers. |
 | **Commands** (#87) | `commands_dispatch`, `commands_perdial`, `commands_instruments`, `commands_confirmation`, **`commands_firewall`**, `keyboard_shortcuts` | The registry, generation from the dials SSOT, the AI confirmation gate, and the **import firewall** that keeps commands out of the hot path. |
 | **Feature Lab** (#119) | `feature_catalog`, `feature_formula`, `feature_normalizer`, `feature_vector_nodes`, `feature_lab_overlay`, `lab_views` | The catalog, the no-eval formula compiler (incl. its rejection cases), the online normalizer. |
 | **Library** (#113–#115) | `library_model`, `library_store`, `library_summarize`, `library_systemtags`, `library_derive`, `library_emoji` | Tag identity invariants, both persistence shapes, the derived views. |
@@ -314,8 +314,6 @@ browser):
 
 ```bash
 vite-node scripts/render_audio.ts test/fixtures/video_hand_sweep/map.params.ndjson media/audio/sweep.wav
-vite-node scripts/gen_chord_demo.ts media/chord_demo.params.ndjson   # I–IV–V–vi in C
-vite-node scripts/render_audio.ts media/chord_demo.params.ndjson media/audio/chords.wav
 ```
 
 `test/render_audio.test.ts` covers the DSP (non-silent tone, silence→silence,

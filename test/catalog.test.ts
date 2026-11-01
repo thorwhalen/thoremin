@@ -18,7 +18,7 @@ describe('buildCatalog', () => {
     expect(catalog.length).toBe(createCoreRegistry().list().length);
     expect(catalog.every((e) => e.title.length > 0 && e.description.length > 0)).toBe(true);
     // a few expected members
-    for (const t of ['voice-mapping', 'chord', 'progression', 'face-features', 'gesture-classifier', 'transport']) {
+    for (const t of ['voice-mapping', 'face-features', 'gesture-classifier', 'transport']) {
       expect(byType[t]).toBeTruthy();
     }
   });
@@ -33,10 +33,9 @@ describe('buildCatalog', () => {
   });
 
   it('extracts params with types + defaults (incl. refined schemas)', () => {
-    // chord: plain ZodObject with defaults
-    const chord = byType['chord'];
-    const baseOctave = chord.params.find((p) => p.name === 'baseOctave');
-    expect(baseOctave).toMatchObject({ type: 'number', default: 4 });
+    // pick: plain ZodObject with defaults
+    const pick = byType['pick'];
+    expect(pick.params.find((p) => p.name === 'default')).toMatchObject({ type: 'number', default: 0 });
 
     // hand-features: a refined (ZodEffects) schema — unwrap must still find params
     const hf = byType['hand-features'];

@@ -16,8 +16,8 @@ This page catalogs the engine's building blocks — every node, its ports and it
 
 - **Theremin (direct)** — `webcam-hands → hand-features → voice-mapping → webaudio-synth ( + canvas-overlay)`  
   Hand x → scale-snapped pitch, y → volume. Two hands = two voices.
-- **Gesture → harmony** — `hand-features → pick('right.x') → progression → chord → webaudio-synth`  
-  Hand position walks an in-key chord progression.
+- **Gesture → harmony** — `webcam-hands → chord-map → synth-merge → webaudio-synth`  
+  The chord hand points at one of a key's seven chords on a map; the other hand plays a melody on its tones (the harmony extension).
 - **Conductor** — `webcam-hands → conductor → score → synth-merge → webaudio-synth`  
   The beating hand becomes musical time (packages/ictus/src): the bottom of each stroke is a beat, stroke size is loudness, and the score follows — a fixed piece's tempo + dynamics, directed live. Behind the Conductor dial.
 - **Conductor with the orchestra** — `conductor → orchestra (spessasynth_lib, a cut General MIDI soundfont)`  
@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (65)
+## Nodes (63)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -368,22 +368,6 @@ Continuous control from a categorizer's memberships: each category's value, weig
 
 ### Music logic (tonal guidance)
 _Harmony kept in-key._
-
-#### `chord` — Chord
-Deprecated (use the harmonic layers): chord symbol (e.g. Cmaj7) → voiced synth params (one voice per chord tone).
-
-- **roles:** music
-- **in:** chord:chord-symbol, gain:number
-- **out:** params:synth-params
-- **params:** baseOctave (number=4), maxVoices (number=4), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="sine")
-
-#### `progression` — Progression
-Deprecated (use the harmonic layers): Roman-numeral progression in a key + position (0..1) → current chord symbol.
-
-- **roles:** music
-- **in:** position:number
-- **out:** chord:chord-symbol, index:number
-- **params:** key (string="C"), romanNumerals (array=["I","IV","V","vi"])
 
 #### `expression-chord` — Expression Chord
 Facial expression → a voiced, rendered diatonic chord on the chord-source scale (active only in face "chord" mode).

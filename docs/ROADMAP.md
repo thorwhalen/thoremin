@@ -221,7 +221,8 @@ these rather than inside them, so read the status column, not the milestone numb
 ### Open engine decisions (recorded; defaults taken)
 
 1. **Music theory lib** — hand-rolled snapping stays on the hot path; Tonal.js does
-   chords/voicing/progression.
+   chords/voicing/progression. (Superseded: the chord instruments use
+   `@thoremin/sdk/harmony`; tonal was dropped in #783.)
 2. **Synth engine** — Web Audio with declarative additive presets (`src/music/sounds.ts`);
    adopt Tone.js only if richer effects/Transport are needed.
 3. **On-device vs backend** — frontend-only. Node interfaces stay clean so a

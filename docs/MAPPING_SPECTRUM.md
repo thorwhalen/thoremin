@@ -55,8 +55,9 @@ in the DAG app. The legacy AI-DJ is retired to `?engine=legacy` (#128); a DAG-na
 - `lyria` **(built, not wired)**: the generative-engine node behind the
   `GenerativeEngine` facade.
 - Harmony/melody from contour **(not built)**: gesture shape → chord progression
-  (Roman-numeral grammar / Markov) or melodic contour. The `progression` + `chord`
-  nodes that would back it are built and tested, but also not in the default graph.
+  (Roman-numeral grammar / Markov) or melodic contour. The early `progression` +
+  `chord` nodes were removed (#783); chords are now the harmonic layers'
+  (`docs/design/harmonic-layers.md`).
 
 ## "Conductor" mode — built + tested, NOT wired into the default graph
 
