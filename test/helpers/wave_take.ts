@@ -30,14 +30,21 @@ export type GesturePath = (tau: number, cycles: number) => readonly [number, num
 const hann = (tau: number) => Math.sin(Math.PI * tau) ** 2;
 const swing = (tau: number, cycles: number) => hann(tau) * Math.sin(2 * Math.PI * cycles * tau);
 
+/** Out to the side over `[0, a]`, held there until `1 - a`, back over `[1 - a, 1]`; eased (the
+ *  Hann window's halves), so it starts and ends at rest with no jump. */
+const outHoldBack = (tau: number, a: number) => (tau < a ? hann(tau / (2 * a)) : tau > 1 - a ? hann((1 - tau) / (2 * a)) : 1);
+
 /** The scripted gestures: a wave is a side-to-side swing, a nod the same swing up and down, a
- *  circle a loop, a push one swing out and back, a diagonal the swing at 45 degrees. */
+ *  circle a loop, a push one swing out and back, a diagonal the swing at 45 degrees, a reach a
+ *  push that pauses at its far end for a fifth of the repetition (#753: a gesture passing through
+ *  a held pose). */
 export const GESTURE_PATHS = {
   wave: (tau, cycles) => [swing(tau, cycles), 0],
   nod: (tau, cycles) => [0, swing(tau, cycles)],
   circle: (tau, cycles) => [hann(tau) * Math.sin(2 * Math.PI * cycles * tau), hann(tau) * (1 - Math.cos(2 * Math.PI * cycles * tau))],
   push: (tau) => [hann(tau), 0],
   diagonal: (tau, cycles) => [swing(tau, cycles) / Math.SQRT2, swing(tau, cycles) / Math.SQRT2],
+  reach: (tau) => [outHoldBack(tau, 0.4), 0],
 } satisfies Record<string, GesturePath>;
 
 export interface WaveScript {

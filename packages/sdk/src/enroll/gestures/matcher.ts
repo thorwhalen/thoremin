@@ -180,7 +180,7 @@ function checkTolerance(tolerance: number): void {
 }
 
 /** Group traces by gesture, in first-seen order. */
-function byGesture(traces: readonly Trace[]): Map<string, Trace[]> {
+export function byGesture(traces: readonly Trace[]): Map<string, Trace[]> {
   const out = new Map<string, Trace[]>();
   for (const tr of traces) {
     const list = out.get(tr.gesture);
@@ -190,23 +190,48 @@ function byGesture(traces: readonly Trace[]): Map<string, Trace[]> {
   return out;
 }
 
+/** What {@link buildGestureModel} resolves its options to: the series every trace becomes, the
+ *  band, and the radius's floor and minimum. Shared with the trace quality (#753), so it judges
+ *  the repetitions in exactly the space the matcher matches them in. */
+export interface ResolvedGestureOptions {
+  series: SeriesOptions;
+  band: number;
+  minRadius: number;
+  minTraces: number;
+}
+
+/** `options` with {@link MATCHER_DEFAULTS} filled in (see {@link ResolvedGestureOptions}). */
+export function resolveGestureOptions(options: GestureModelOptions): ResolvedGestureOptions {
+  const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
+  return {
+    series: { features: o.features, weights: o.weights, length: o.length, position: o.position, scale: o.scale },
+    band: o.band,
+    minRadius: o.minRadius,
+    minTraces: o.minTraces,
+  };
+}
+
+/**
+ * A gesture's radius from its templates' nearest-sibling distances: their median, floored at
+ * `minRadius` of the gesture's size, in series units (the amplitude is 1 once scaled, its
+ * weighted value otherwise). Not finite when no sibling distance is.
+ */
+export function gestureRadius(nearestSibling: readonly number[], amplitude: number, { minRadius, scale }: { minRadius: number; scale: boolean }): number {
+  const floor = minRadius * (scale ? 1 : amplitude);
+  return Math.max(median(nearestSibling), floor);
+}
+
 /** The model the matcher reads, derived from the player's traces (see the module header). */
 export function buildGestureModel(traces: readonly Trace[], options: GestureModelOptions): GestureModel {
-  const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
+  const o = resolveGestureOptions(options);
   if (!(o.minTraces >= 2)) throw new Error(`buildGestureModel: minTraces must be at least 2, one trace is no agreement (got ${o.minTraces})`);
   // A NaN band or floor, an infinite floor, or a series under two rows does not fail loudly
   // downstream: every gesture just lands in `skipped` (#912). A negative band or floor is meaningless
   // (it was silently treated as 0), so it is refused too.
   if (!(o.band >= 0)) throw new Error(`buildGestureModel: band must be a number at or above 0 (got ${o.band})`);
   if (!(Number.isFinite(o.minRadius) && o.minRadius >= 0)) throw new Error(`buildGestureModel: minRadius must be a finite number at or above 0 (got ${o.minRadius})`);
-  if (!(Number.isInteger(o.length) && o.length >= 2)) throw new Error(`buildGestureModel: length must be an integer of at least 2 rows (got ${o.length})`);
-  const series: SeriesOptions = {
-    features: o.features,
-    weights: o.weights,
-    length: o.length,
-    position: o.position,
-    scale: o.scale,
-  };
+  if (!(Number.isInteger(o.series.length) && o.series.length >= 2)) throw new Error(`buildGestureModel: length must be an integer of at least 2 rows (got ${o.series.length})`);
+  const { series } = o;
   const gestures: GestureTemplates[] = [];
   const skipped: string[] = [];
   for (const [gesture, list] of byGesture(traces)) {
@@ -219,9 +244,7 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
       Math.min(...templates.filter((_, j) => j !== i).map((b) => dtwDistance(a.rows, b.rows, { band: o.band }))),
     );
     const amplitude = median(templates.map((s) => s.amplitude));
-    // In series units: the amplitude is 1 once scaled, its weighted value otherwise.
-    const floor = o.minRadius * (o.scale ? 1 : amplitude);
-    const radius = Math.max(median(nearestSibling), floor);
+    const radius = gestureRadius(nearestSibling, amplitude, { minRadius: o.minRadius, scale: series.scale });
     if (!Number.isFinite(radius)) {
       skipped.push(gesture);
       continue;
