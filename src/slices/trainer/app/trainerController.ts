@@ -13,7 +13,7 @@
  * props.
  */
 import { useEffect, useRef } from 'react';
-import { categoryKey, type Category, type TrainedModel } from '@thoremin/sdk/enroll';
+import { categoryKey, type Category, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { TRAINED_KIND, trainedId } from '@thoremin/sdk/enroll/record';
 import { controls } from '@thoremin/sdk-ui/host';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
@@ -37,7 +37,27 @@ const SAMPLE_INTERVAL_MS = 33;
 
 /** Now, on the engine's clock (ms): the tap's stamp, or the same wall clock before the
  *  first tick. */
-export const nowMs = (): number => readLiveVector()?.t ?? performance.now();
+export const nowMs = (): number => readLiveVector()?.tickT ?? performance.now();
+
+/**
+ * One poll of the live vector into the trainer (#858). A vector's stamp is its camera frame's
+ * and repeats while the camera has not delivered a new frame (and for good once a replay has
+ * ended), so only a NEW stamp is a sample; otherwise the trainer still ticks on the clock, so a
+ * stalled camera cannot freeze the runner's patience. Returns the last stamp sampled.
+ */
+export function pollLiveVector(
+  lastSampled: number,
+  live: { vector: FeatureVector; t: number; tickT: number } | null,
+  trainer: { sample(vector: FeatureVector, tMs: number): void; tick(tMs: number): void },
+  now: () => number = () => performance.now(),
+): number {
+  if (live && live.t > lastSampled) {
+    trainer.sample(live.vector, live.t);
+    return live.t;
+  }
+  trainer.tick(live?.tickT ?? now());
+  return lastSampled;
+}
 
 /** Everything the panel shows, read reactively. */
 export function useTrainerView() {
@@ -166,11 +186,10 @@ export function useTrainerSession(running: boolean): void {
   runningRef.current = running;
   useEffect(() => {
     if (!running) return;
+    let lastSampled = -Infinity;
     const id = setInterval(() => {
       if (!runningRef.current) return;
-      const live = readLiveVector();
-      if (live) useTrainer.getState().sample(live.vector, live.t);
-      else useTrainer.getState().tick(performance.now());
+      lastSampled = pollLiveVector(lastSampled, readLiveVector(), useTrainer.getState());
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running]);

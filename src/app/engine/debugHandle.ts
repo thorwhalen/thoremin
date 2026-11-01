@@ -53,7 +53,7 @@ export function makeDebugHandle(engine: OutputReader, resources: Record<string, 
   let buffer: Float32Array<ArrayBuffer> | null = null;
   return Object.freeze({
     getOutput: (nodeId: string, port: string) => engine.getOutput(nodeId, port),
-    liveVectorTime: () => readLiveVector()?.t ?? 0,
+    liveVectorTime: () => readLiveVector()?.tickT ?? 0,
     level: () => {
       const master = resources.masterGain as GainNode | undefined;
       const ac = resources.audioContext as AudioContext | undefined;
