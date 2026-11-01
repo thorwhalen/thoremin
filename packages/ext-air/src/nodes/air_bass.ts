@@ -33,6 +33,7 @@ import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_event
 
 // The player's hands (the SDK's since #674, shared with the harmony slice), re-exported here.
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+import { definedOnly } from '@thoremin/sdk/util/options';
 export { PLAYER_HANDS, labelFor, type PlayerHand };
 export const PLUCK_POINTS = ['indexTip', 'wrist'] as const;
 export type PluckPoint = (typeof PLUCK_POINTS)[number];
@@ -210,7 +211,7 @@ export const airBassNode = defineNode<Params>({
       if (raw && typeof raw === 'object') {
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+          const overrides = definedOnly(parsed.data);
           cfg = { ...p, ...overrides } as Params;
           return cfg;
         }

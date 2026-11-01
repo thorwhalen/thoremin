@@ -97,6 +97,7 @@ import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];
@@ -422,7 +423,7 @@ export const chordMapNode = defineNode<Params>({
       if (raw && typeof raw === 'object') {
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+          const overrides = definedOnly(parsed.data);
           cfg = { ...p, ...overrides } as Params;
           return cfg;
         }

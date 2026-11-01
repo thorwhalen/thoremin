@@ -54,6 +54,7 @@ import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
 import { PLAYER_HANDS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 import { CHORD_MAP_POINTS, displayPoint } from './chord_map';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 /** The moves each wheel offers, clockwise from the top. The diatonic wheel puts each move
  *  opposite its inverse (a fourth up at the top, a fourth down at the bottom). */
@@ -357,7 +358,7 @@ export const chordWheelNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       const parsed = raw && typeof raw === 'object' ? Params.partial().safeParse(raw) : null;
-      cfg = parsed?.success ? ({ ...p, ...Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) } as Params) : p;
+      cfg = parsed?.success ? ({ ...p, ...definedOnly(parsed.data) } as Params) : p;
       return cfg;
     };
 

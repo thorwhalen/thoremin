@@ -37,6 +37,7 @@ import { LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 export const STRUM_POINTS = ['wrist', 'indexTip'] as const;
 
@@ -140,7 +141,7 @@ export const airGuitarNode = defineNode<Params>({
       if (raw && typeof raw === 'object') {
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+          const overrides = definedOnly(parsed.data);
           cfg = { ...p, ...overrides } as Params;
           return cfg;
         }

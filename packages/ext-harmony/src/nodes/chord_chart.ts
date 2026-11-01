@@ -24,6 +24,7 @@ import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremi
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { chartAt, chartOfScore, type ChordChart } from '../lib/chord_chart';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 /** The chart's voices: a block of their own (the chord map's is 4_000_000, the wheel's 5_000_000). */
 export const CHORD_CHART_VOICE_ID_BASE = 6_000_000;
@@ -125,7 +126,7 @@ export const chordChartNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       const parsed = raw && typeof raw === 'object' ? Params.partial().safeParse(raw) : null;
-      cfg = parsed?.success ? ({ ...p, ...Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) } as Params) : p;
+      cfg = parsed?.success ? ({ ...p, ...definedOnly(parsed.data) } as Params) : p;
       return cfg;
     };
 

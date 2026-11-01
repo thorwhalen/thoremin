@@ -35,6 +35,7 @@ import { parseNoteName } from '../lib/notes';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import type { HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor, type PlayerHand } from './air_bass';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 /** The flute's synth voice id. The hands are 0-1, the chords 2-10, and the score takes
  *  11 + its note index, unbounded (a symphony movement has thousands of notes), so the
@@ -181,7 +182,7 @@ export const airFluteNode = defineNode<Params>({
       if (raw && typeof raw === 'object') {
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+          const overrides = definedOnly(parsed.data);
           cfg = { ...p, ...overrides } as Params;
           return cfg;
         }
