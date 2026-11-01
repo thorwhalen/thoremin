@@ -338,10 +338,9 @@ export const airDrumNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       if (raw && typeof raw === 'object') {
-        // The override is merged over the build-time params and the WHOLE is validated:
-        // `Params.partial()` would fill every field the override leaves out with its
-        // schema default, silently resetting the node's own params (and an explicitly
-        // undefined key is no override).
+        // The override is merged over the build-time params and the WHOLE is validated: `Params.partial()`
+        // would fill every field the override leaves out with its schema default, silently resetting
+        // the node's own params (and an explicitly undefined key is no override).
         const overrides = definedOnly(raw as Record<string, unknown>);
         const parsed = Params.safeParse({ ...p, ...overrides });
         if (parsed.success) {
