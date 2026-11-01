@@ -71,6 +71,9 @@ export interface SegmenterOptions {
   minTraceMs?: number;
   /** Longest motion kept as a trace, in ms. */
   maxTraceMs?: number;
+  /** Keep every trace for {@link MotionSegmenter.traces} (a take). Off for a live stream, which
+   *  only reads the trace `push` returns and would otherwise grow without bound. Default on. */
+  retain?: boolean;
 }
 
 /**
@@ -94,7 +97,7 @@ export const SEGMENTER_DEFAULTS = {
 export interface MotionSegmenter {
   /** Feed one frame. Returns a trace on the frame it closes (`quietMs` after the motion). */
   push(vector: FeatureVector, tMs: number): Trace | null;
-  /** Every trace cut so far. */
+  /** Every trace cut so far (none when `retain` is off). */
   traces(): Trace[];
   /** Drop the traces and any open run; disarm. */
   reset(): void;
@@ -120,6 +123,7 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
   const o = { ...SEGMENTER_DEFAULTS, ...options };
   const meter = createWindowMotion({ features: o.features, noise: o.noise, seed: o.seed });
   const cut: Trace[] = [];
+  let count = 0;
   let run: Run | null = null;
   /** When the reading last fell to `stopSigma` or below and stayed there; null while above. */
   let quietSince: number | null = null;
@@ -132,8 +136,9 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
     run = null;
     armed = true;
     if (r.tooLong || r.lastMove - r.firstMove < o.minTraceMs) return null;
-    const trace: Trace = { id: `${o.cue}#${cut.length + 1}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
-    cut.push(trace);
+    count += 1;
+    const trace: Trace = { id: `${o.cue}#${count}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
+    if (o.retain !== false) cut.push(trace);
     return trace;
   };
 
@@ -176,6 +181,7 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
     traces: () => cut.slice(),
     reset() {
       cut.length = 0;
+      count = 0;
       run = null;
       quietSince = null;
       armed = false;
