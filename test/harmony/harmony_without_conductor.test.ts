@@ -44,7 +44,8 @@ describe.runIf(AIR && HARMONY)('the chord instruments without the conductor slic
     for (const { name, patch } of fold.instruments) expect(() => compose(patch as DerivationSettings), name).not.toThrow();
   });
 
-  it('the harmony slice needs the air extension for its catalog class (until #705): listed alone, the fold says so at load', () => {
-    expect(() => foldContributions([HARMONY_EXTENSION] as unknown as Extension[])).toThrow(/listed under the class "air", which no extension and not core declares/);
+  it('the harmony slice declares its own catalog class (#705): listed alone, without the air extension, it loads', () => {
+    const folded = foldContributions([HARMONY_EXTENSION] as unknown as Extension[]);
+    expect(folded.classes.map((c) => c.id)).toContain('harmony');
   });
 });

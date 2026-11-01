@@ -58,15 +58,19 @@ const chordStrumOutNode = makePluckOutNode(CHORD_STRUM_OUT, {
 
 export const HARMONY_EXTENSION = defineExtension({
   id: HARMONY_EXTENSION_ID,
-  // Its rows of the Instruments view's catalog, under the air extension's class (as before #674).
+  // A class of its own (#705): the chord map, wheel and chart are harmony instruments a player picks
+  // between, not mimed air instruments (they follow MIDI, the microphone, the conductor). Declared
+  // here, so the slice no longer needs the air extension to load.
+  classes: [{ id: 'harmony', label: 'Chord instruments', emoji: '🎼', colour: 'hsl(140 50% 40%)', showEmpty: true }],
+  // Its rows of the Instruments view's catalog.
   catalog: [
     // The chord map plays the chords of the chord-source scale, the key the Sound section sets.
-    { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'air', usesScale: true, on: dialOn('chordMap') },
+    { id: 'chords', label: 'Chord map', emoji: '🎼', class: 'harmony', usesScale: true, on: dialOn('chordMap') },
     // The chord wheel steps through a space of chords from the chord-source key.
-    { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'air', usesScale: true, on: dialOn('chordWheel') },
+    { id: 'wheel', label: 'Chord wheel', emoji: '🎡', class: 'harmony', usesScale: true, on: dialOn('chordWheel') },
     // The chord chart plays the conducted piece's own chords, not the scale.
     // It walks the conducted piece: listed only in a build that ships the conductor (#697).
-    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'air', usesScale: false, on: dialOn('chordChart'), requires: ['conductor'] },
+    { id: 'chart', label: 'Chord chart', emoji: '📜', class: 'harmony', usesScale: false, on: dialOn('chordChart'), requires: ['conductor'] },
   ],
   // Its overlay elements: the chord wheel's grid (#600 S5) and the chord map's (#610 item 4; core's
   // `cellGrid` before), just above the drum pads and beneath the markers, where core drew it. Each

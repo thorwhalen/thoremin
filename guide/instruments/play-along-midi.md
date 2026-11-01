@@ -1,6 +1,6 @@
 ---
 seed: Play Along (MIDI)
-area: chords
+area: harmony
 do:
   - Connect a MIDI keyboard (in Chrome or Edge) and play chords on it.
   - The chord you hold lights up on the map.

@@ -1,6 +1,6 @@
 ---
 seed: Next-Chord Wheel
-area: chords
+area: harmony
 do:
   - Hold a chord with your left hand.
   - The likeliest next chord is on top; push up to take it.

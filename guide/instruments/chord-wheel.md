@@ -1,6 +1,6 @@
 ---
 seed: Chord Wheel
-area: chords
+area: harmony
 do:
   - Hold your left hand in the middle of the wheel: that chord keeps sounding.
   - Push the hand toward one of the moves around it and hold a moment.

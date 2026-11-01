@@ -1,6 +1,6 @@
 ---
 seed: Face Wheel
-area: chords
+area: harmony
 do:
   - Look at the camera with a calm face.
   - Hold an expression for a moment: a smile moves to one chord, a sad face to another.

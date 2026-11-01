@@ -1,6 +1,6 @@
 ---
 seed: Conduct the Chords (Body)
-area: chords
+area: harmony
 do:
   - Stand back so the camera sees you from the head to the hips; it loads a Haydn string quartet.
   - Open the Conductor tool and conduct with your whole arm, as on a podium.

@@ -1,6 +1,6 @@
 ---
 seed: Wheel Walk
-area: chords
+area: harmony
 do:
   - Hold your left hand on a chord.
   - Push toward a move and keep holding it out.
