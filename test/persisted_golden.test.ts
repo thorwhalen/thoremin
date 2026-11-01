@@ -18,8 +18,12 @@
  * the `__golden__/*.json` files beside them. A change that is MEANT to change what a returning
  * player gets regenerates them (`npx vitest run test/persisted_golden.test.ts -u`) and says why
  * in its PR; any other diff there is a bug.
+ *
+ * The last block (#741) pins the edges every load passes near: this build's own blob is a fixed
+ * point, a newer build's blob (a rollback) heals and is written back at this version, an
+ * envelope that is not JSON leaves the defaults, and a refused write-back loses nothing loaded.
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AIR, ASL, FACES, MIDI } from './helpers/extensions';
@@ -259,5 +263,85 @@ describe.runIf(SHIPPED)('a returning player\'s instrument library', () => {
   it('the tags and per-instrument metadata read back healed', async () => {
     const { listTags, readInstrumentMeta } = await import('@/app/library/store');
     await expect(pretty({ tags: await listTags(), meta: await readInstrumentMeta() })).toMatchFileSnapshot(golden('library.meta.json'));
+  });
+});
+
+/**
+ * The edges the per-version goldens do not reach (#741): what every load of this build's own
+ * blob does, a blob from a NEWER build (a rollback), an envelope that is not JSON, and a storage
+ * that refuses the write-back. Each starts from the newest blob, the one a player last wrote.
+ */
+describe.runIf(SHIPPED)('the edges of rehydration (#741)', () => {
+  beforeEach(() => localStorage.clear());
+  const KEY = 'thoremin-controls';
+  const newest = () => JSON.parse(readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8')) as { state: Record<string, unknown>; version: number };
+
+  /** Rehydrate a fresh store from `raw`, and return its state as data. */
+  async function rehydrateFrom(raw: string) {
+    const { useControls } = store;
+    useControls.setState(useControls.getInitialState(), true);
+    localStorage.setItem(KEY, raw);
+    await useControls.persist.rehydrate();
+    return asData(useControls.getState());
+  }
+  /** What the store writes for its current state, as zustand's envelope. */
+  const writtenEnvelope = () => JSON.stringify({ state: store.persistedControls(store.useControls.getState()), version: store.useControls.persist.getOptions().version });
+  /** The blob in storage after a real change (a write is skipped when nothing changed). */
+  const afterAChange = () => {
+    const { useControls } = store;
+    useControls.setState({ masterVolume: (useControls.getState().masterVolume ?? 0.5) === 0.31 ? 0.32 : 0.31 } as never);
+    return JSON.parse(localStorage.getItem(KEY) ?? 'null') as { state: Record<string, unknown>; version: number } | null;
+  };
+
+  it('what this build writes rehydrates to itself: a fixed point, and written again unchanged', async () => {
+    const first = await rehydrateFrom(JSON.stringify(newest()));
+    const written = writtenEnvelope();
+    const parsed = JSON.parse(written) as { state: Record<string, unknown>; version: number };
+    expect(parsed.version).toBe(VERSIONS.length);
+    const again = await rehydrateFrom(written);
+    expect(again).toEqual(first);
+    expect(writtenEnvelope()).toBe(written);
+  });
+
+  it('a blob from a newer build (a rollback) rehydrates through no step, heals, and is written back at this build\'s version', async () => {
+    const reference = await rehydrateFrom(JSON.stringify(newest()));
+    const future = { ...newest(), version: VERSIONS.length + 1 };
+    // A field this build does not know rides in the newer blob. The merge keeps unknown keys in
+    // memory (nothing reads them), and the write picks only this build's fields, so it is never
+    // written back: the newer build's value is lost on the first save, the documented trade-off.
+    future.state = { ...future.state, aFieldFromTheFuture: { on: true } };
+    const { aFieldFromTheFuture, ...s } = (await rehydrateFrom(JSON.stringify(future))) as Record<string, unknown>;
+    expect(aFieldFromTheFuture).toEqual({ on: true });
+    expect(s).toEqual(reference);
+    const back = afterAChange();
+    expect(back?.version).toBe(VERSIONS.length);
+    expect(back?.state).not.toHaveProperty('aFieldFromTheFuture');
+  });
+
+  it('an envelope that is not JSON leaves the defaults in place and is replaced by the first write', async () => {
+    const defaults = asData(store.useControls.getInitialState());
+    const s = await rehydrateFrom('{"state": {"masterVolume": 0.9, ');
+    expect(s).toEqual(defaults);
+    const back = afterAChange();
+    expect(back).not.toBeNull();
+    expect(back?.version).toBe(VERSIONS.length);
+  });
+
+  it('a storage that refuses the write-back (quota) still rehydrates to the golden state', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    try {
+      const raw = readFileSync(join(DIR, `controls.v${VERSIONS.length}.json`), 'utf8');
+      localStorage.setItem(KEY, raw);
+      setItem.mockImplementation(() => {
+        throw new DOMException('full', 'QuotaExceededError');
+      });
+      const { useControls } = store;
+      useControls.setState(useControls.getInitialState(), true);
+      await useControls.persist.rehydrate();
+      await expect(pretty(useControls.getState())).toMatchFileSnapshot(golden(`controls.v${VERSIONS.length}.state.json`));
+      expect(() => afterAChange()).not.toThrow();
+    } finally {
+      setItem.mockRestore();
+    }
   });
 });
