@@ -7,10 +7,15 @@
  * of a path, so it is judged by how alike its repetitions are and how unlike the others':
  *
  * - **Agreement**: each trace's mean DTW distance to its siblings, and the gesture's mean over
- *   its pairs; `relativeAgreement` puts it in units of the TYPICAL agreement across the player's
- *   gestures (their median), so "your five waves differ" means "differ more than your gestures
- *   usually do", not a number in feature units. Past {@link GESTURE_QUALITY_DEFAULTS.looseAgreement}
- *   the gesture is `loose`.
+ *   its pairs. A gesture is `loose` on either of two tests. ABSOLUTE: its agreement is past what
+ *   the matcher accepts around a gesture at its radius floor ({@link GESTURE_QUALITY_DEFAULTS.looseCeiling}
+ *   floors, the matcher's `tolerance x minRadius`, 0.2 series units by default), so it holds with
+ *   one gesture or two. RELATIVE: `relativeAgreement` is the agreement over the median agreement
+ *   of the player's OTHER gestures ("your five waves differ more than your gestures usually do"),
+ *   loose past {@link GESTURE_QUALITY_DEFAULTS.looseAgreement}, but only above the radius floor
+ *   (repetitions closer than that are the same motion to the matcher, however precise the
+ *   others). The gesture itself is never in its own reference: with one or two gestures it would
+ *   be half of it, and a sloppy gesture could never be loose.
  * - **The odd trace** (leave-one-trace-out, the suspect hold's analogue): the repetition whose
  *   removal most improves the gesture's agreement. It is `flagged` when it is clearly worse: its
  *   mean distance to the others at least {@link GESTURE_QUALITY_DEFAULTS.oddRatio} times the
@@ -24,12 +29,14 @@
  * - **Overlap with the held categories**: a trace that dwells inside a held category's reading,
  *   for at least the still-point sampler's dwell (`MOTION_DEFAULTS.dwellMs`), would also fire
  *   that category in play. The frames are read by the held model's own `classify` (its weighted
- *   distance in noise units, its reject radius and its taught Neutral), and the categories the
- *   trace starts and ends on (its first and last frames the model reads as a category) do not
- *   count: a gesture that starts and ends on a held pose (the resting open hand the wave starts
- *   from) is fine (design section 4), and a dwell back on the pose it started from is no entry
- *   (the category tracker holds through a rejected frame, so a flicker out and back is not one
- *   either; the everyday check skips the category its first reading is on for the same reason).
+ *   distance in noise units, its reject radius and its taught Neutral). A single REJECTED frame
+ *   between two frames of one category does not break its run (a flicker the tracker holds
+ *   through; {@link GESTURE_QUALITY_DEFAULTS.holdRejectedFrames}); a Neutral frame does (Neutral
+ *   is a reading the tracker enters, and leaving it re-enters the category). Only the LEADING
+ *   and TRAILING runs are exempt (once the rejected frames at either end, the hand not yet in any
+ *   reading, are set aside): a gesture that starts and ends on a held pose (the
+ *   resting open hand the wave starts from) is fine (design section 4), but a return to that pose
+ *   mid-way, after Neutral, is a fresh entry and counts.
  * - **Thin**: one trace is no agreement, "needs another repetition", as one hold is.
  *
  * ## Comparable pairs
@@ -42,6 +49,9 @@
  * `incomparable`). For two gestures, the fraction is taken over the features of the gesture being
  * judged. A trace with no comparable sibling has no agreement.
  *
+ * A pair whose DTW distance is not finite (no dimension measured in both, possible only with
+ * `minShared: 0`) is incomparable too, so an agreement is never Infinity.
+ *
  * Everything is measured in the matcher's own space (`resolveGestureOptions`: the gesture's
  * features in noise units, resampled, position and scale invariant by default), so a chip and the
  * matcher never disagree about what "alike" means. Pure and modality-free.
@@ -51,9 +61,10 @@ import { classify } from '../classify';
 import { MOTION_DEFAULTS } from '../motion';
 import { gradeDots, QUALITY_DEFAULTS, type QualityGrade } from '../quality';
 import type { FeatureVector, TrainedModel, Trace, TraceSample } from '../types';
+import { definedOnly } from '../../util/options';
 import { dtwDistance } from './dtw';
 import { gestureRadius, MATCHER_DEFAULTS, resolveGestureOptions, type GestureModelOptions } from './matcher';
-import { toSeries } from './series';
+import { toSeries, type Series } from './series';
 
 export const GESTURE_QUALITY_DEFAULTS = {
   /**
@@ -68,20 +79,27 @@ export const GESTURE_QUALITY_DEFAULTS = {
   closeRatio: MATCHER_DEFAULTS.tolerance,
   /** Separation below this is only OK: the held categories' line (`QUALITY_DEFAULTS.okRatio`). */
   okRatio: QUALITY_DEFAULTS.okRatio,
-  /** Agreement past this many times the typical one is `loose`: the matcher's tolerance again (a
-   *  repetition twice as far as usual is at the edge of what it accepts). */
+  /** Agreement past this many times the OTHER gestures' typical one is `loose`: the matcher's
+   *  tolerance again (a repetition twice as far as usual is at the edge of what it accepts). */
   looseAgreement: MATCHER_DEFAULTS.tolerance,
+  /** Agreement past this many radius floors is `loose` whatever the other gestures do: the
+   *  matcher's tolerance, so the line is `tolerance x minRadius` (0.2 series units), what the
+   *  matcher accepts around a gesture at its floor. */
+  looseCeiling: MATCHER_DEFAULTS.tolerance,
   /** The odd trace is flagged at this many times the others' agreement: past the matcher's
    *  tolerance, the matcher would refuse a repetition like it. */
   oddRatio: MATCHER_DEFAULTS.tolerance,
-  /** Fewer traces than this: "needs another repetition" (the matcher's own minimum). */
-  minTraces: MATCHER_DEFAULTS.minTraces,
   /** A trace inside a held category's reading for this long would fire it: the sampler's dwell. */
   dwellMs: MOTION_DEFAULTS.dwellMs,
+  /** The most consecutive rejected frames a dwell holds through: one, a flicker (a tracking
+   *  glitch), which the tracker holds through. Longer is the hand moving away: the tracker may
+   *  still REPORT the category through its exit hysteresis, but the hand is not dwelling in it
+   *  (a wave's swings out and back through its resting pose would read as one long dwell). */
+  holdRejectedFrames: 1,
 } as const;
 
 export type GestureQualityOptions = GestureModelOptions & {
-    [K in Exclude<keyof typeof GESTURE_QUALITY_DEFAULTS, 'minTraces'>]?: number;
+    [K in keyof typeof GESTURE_QUALITY_DEFAULTS]?: number;
   } & {
     /** Each gesture's own features (the shared-coverage denominator), by gesture; default: every
      *  weighted feature of `features`. `gestureSpace(c).featuresOf` for a categorizer's. */
@@ -127,9 +145,9 @@ export interface GestureQuality {
   traces: number;
   /** Mean DTW distance over its comparable pairs (series units); null with none. */
   agreement: number | null;
-  /** `agreement` over the typical agreement across gestures; null with none. */
+  /** `agreement` over the median agreement of the OTHER gestures; null when there is none. */
   relativeAgreement: number | null;
-  /** Past `looseAgreement`: "your repetitions differ". */
+  /** "Your repetitions differ": past the absolute line, or the relative one (module header). */
   loose: boolean;
   /** The matcher's radius over the comparable pairs; NaN with none. */
   radius: number;
@@ -155,77 +173,29 @@ export interface GestureQuality {
 export interface GestureSetQuality {
   gestures: GestureQuality[];
   traces: TraceQuality[];
-  /** The median agreement across gestures, floored at the matcher's radius floor. */
-  typicalAgreement: number;
 }
+
+/** The options with every default filled in, and the matcher's resolved radius floor. */
+type Options = GestureQualityOptions & { [K in keyof typeof GESTURE_QUALITY_DEFAULTS]: number } & { minRadius: number };
 
 /** Mean of `xs`; null when empty. */
 const mean = (xs: readonly number[]): number | null => (xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length);
 
-/**
- * The held categories `samples` dwells in (see the module header): runs of one category lasting
- * `dwellMs`, other than the categories it starts and ends on. Null when no frame carries
- * `minShared` of the model's weighted features.
- */
-function holdRuns(holds: TrainedModel, samples: readonly TraceSample[], minShared: number, dwellMs: number): Map<string, number> | null {
-  const features = holds.features.filter((f) => !Object.hasOwn(holds.weights, f) || holds.weights[f] !== 0);
-  const measured = (v: FeatureVector) => features.length > 0 && features.filter((f) => Number.isFinite(v[f])).length / features.length >= minShared;
-  const read = samples.map((s) => (measured(s.vector) ? { id: classify(holds, s.vector).categoryId } : null));
-  if (read.every((x) => x === null)) return null;
-  const ids = read.map((x) => x?.id ?? null);
-  const ends = new Set([ids.find((x) => x !== null), [...ids].reverse().find((x) => x !== null)]);
-  const out = new Map<string, number>();
-  let start = 0;
-  for (let i = 1; i <= samples.length; i++) {
-    const prev = ids[i - 1];
-    if (i < samples.length && ids[i] === prev) continue;
-    // The run [start, i - 1].
-    if (prev !== null && !ends.has(prev)) {
-      const ms = samples[i - 1].t - samples[start].t;
-      if (ms >= dwellMs) out.set(prev, Math.max(out.get(prev) ?? 0, ms));
-    }
-    start = i;
-  }
-  return out;
+/** One trace in the matcher's space, with the columns its first row measured. */
+interface Item {
+  trace: Trace;
+  s: Series;
+  finite: Set<number>;
 }
 
-/** The quality of a player's gestures from their traces (see the module header). */
-export function gestureQuality(traces: readonly Trace[], options: GestureQualityOptions): GestureSetQuality {
-  const o = { ...GESTURE_QUALITY_DEFAULTS, ...options };
-  const { series, band, minRadius, minTraces } = resolveGestureOptions(options);
-  const { features, weights } = series;
-  const weighted = (f: string) => Object.hasOwn(weights, f) && weights[f] !== 0;
+/** The pair questions every part asks: is a pair comparable for gesture `g`, and its distance. */
+interface PairSpace {
+  items: Item[];
+  /** Comparable for `g` AND at a finite distance: the only pairs any number is made from. */
+  pair(g: string, i: number, j: number): number | null;
+}
 
-  const items = traces.map((tr) => {
-    const s = toSeries(tr.samples, series);
-    const finite = new Set<number>();
-    if (s.rows.length > 0) s.rows[0].forEach((x, k) => Number.isFinite(x) && finite.add(k));
-    return { trace: tr, s, finite };
-  });
-  const order: string[] = [];
-  const members = new Map<string, number[]>();
-  items.forEach((it, i) => {
-    const g = it.trace.gesture;
-    if (!members.has(g)) {
-      members.set(g, []);
-      order.push(g);
-    }
-    if (it.s.rows.length > 0) members.get(g)!.push(i);
-  });
-  /** A gesture's own columns: the shared-coverage denominator. */
-  const columns = new Map(
-    order.map((g) => {
-      const own = options.featuresOf?.[g] ?? features;
-      const set = new Set(own);
-      return [g, features.flatMap((f, k) => (set.has(f) && weighted(f) ? [k] : []))];
-    }),
-  );
-  const comparable = (g: string, i: number, j: number): boolean => {
-    const cols = columns.get(g)!;
-    if (cols.length === 0) return false;
-    const shared = cols.filter((k) => items[i].finite.has(k) && items[j].finite.has(k)).length;
-    return shared / cols.length >= o.minShared;
-  };
+function makePairSpace(items: Item[], columns: ReadonlyMap<string, number[]>, minShared: number, band: number): PairSpace {
   const cache = new Map<string, number>();
   const dist = (i: number, j: number): number => {
     const key = i < j ? `${i},${j}` : `${j},${i}`;
@@ -236,123 +206,287 @@ export function gestureQuality(traces: readonly Trace[], options: GestureQuality
     }
     return d;
   };
+  const shares = (g: string, i: number, j: number): boolean => {
+    const cols = columns.get(g)!;
+    if (cols.length === 0) return false;
+    const shared = cols.filter((k) => items[i].finite.has(k) && items[j].finite.has(k)).length;
+    return shared / cols.length >= minShared;
+  };
+  return {
+    items,
+    pair(g, i, j) {
+      if (!shares(g, i, j)) return null;
+      const d = dist(i, j);
+      return Number.isFinite(d) ? d : null;
+    },
+  };
+}
 
-  const traceQuality: TraceQuality[] = [];
-  const perGesture = order.map((g) => {
+/** The traces in the matcher's space, grouped by gesture in first-seen order (a trace too short
+ *  for a series is counted in its gesture's order but has no member index). */
+function prepare(traces: readonly Trace[], series: Parameters<typeof toSeries>[1]) {
+  const items: Item[] = traces.map((trace) => {
+    const s = toSeries(trace.samples, series);
+    const finite = new Set<number>();
+    if (s.rows.length > 0) s.rows[0].forEach((x, k) => Number.isFinite(x) && finite.add(k));
+    return { trace, s, finite };
+  });
+  const members = new Map<string, number[]>();
+  items.forEach((it, i) => {
+    const list = members.get(it.trace.gesture) ?? [];
+    members.set(it.trace.gesture, list);
+    if (it.s.rows.length > 0) list.push(i);
+  });
+  return { items, members };
+}
+
+/** Each gesture's own weighted columns: the shared-coverage denominator. */
+function ownColumns(order: readonly string[], options: Options, features: readonly string[], weights: Readonly<Record<string, number>>): Map<string, number[]> {
+  const weighted = (f: string) => Object.hasOwn(weights, f) && weights[f] !== 0;
+  return new Map(
+    order.map((g) => {
+      const own = new Set(options.featuresOf?.[g] ?? features);
+      return [g, features.flatMap((f, k) => (own.has(f) && weighted(f) ? [k] : []))];
+    }),
+  );
+}
+
+interface Pair {
+  i: number;
+  j: number;
+  d: number;
+}
+
+/** The leave-one-trace-out candidate among `idx` (null below three traces or with no pairs). */
+function oddTrace(idx: readonly number[], pairs: readonly Pair[], items: readonly Item[], floor: number, oddRatio: number): OddTrace | null {
+  const agreement = mean(pairs.map((p) => p.d));
+  if (agreement === null || idx.length < 3) return null;
+  let odd: OddTrace | null = null;
+  for (const i of idx) {
+    const without = mean(pairs.filter((p) => p.i !== i && p.j !== i).map((p) => p.d));
+    const dI = mean(pairs.filter((p) => p.i === i || p.j === i).map((p) => p.d));
+    if (without === null || dI === null) continue;
+    const improvement = without > 0 ? agreement / without : agreement > 0 ? Infinity : 1;
+    if (odd && improvement <= odd.improvement) continue;
+    const ratio = dI / Math.max(without, floor);
+    odd = { id: items[i].trace.id, ratio, improvement, flagged: ratio >= oddRatio };
+  }
+  return odd;
+}
+
+/** How alike one gesture's repetitions are: its pairs, agreement, radius and odd trace. */
+function withinGesture(g: string, idx: readonly number[], space: PairSpace, o: Options, scale: boolean) {
+  const { items } = space;
+  const amplitude = median(idx.map((i) => items[i].s.amplitude));
+  const floor = o.minRadius * (scale ? 1 : amplitude);
+  const pairs: Pair[] = [];
+  let incomparable = 0;
+  for (let a = 0; a < idx.length; a++) {
+    for (let b = a + 1; b < idx.length; b++) {
+      const d = space.pair(g, idx[a], idx[b]);
+      if (d === null) incomparable += 1;
+      else pairs.push({ i: idx[a], j: idx[b], d });
+    }
+  }
+  const siblings = (i: number) => pairs.filter((p) => p.i === i || p.j === i).map((p) => p.d);
+  const traces: TraceQuality[] = idx.map((i) => {
+    const d = siblings(i);
+    return { id: items[i].trace.id, gesture: g, agreement: mean(d), comparable: d.length };
+  });
+  const nearestSibling = idx.map(siblings).filter((d) => d.length > 0).map((d) => Math.min(...d));
+  return {
+    agreement: mean(pairs.map((p) => p.d)),
+    radius: gestureRadius(nearestSibling, amplitude, { minRadius: o.minRadius, scale }),
+    floor,
+    odd: oddTrace(idx, pairs, items, floor, o.oddRatio),
+    traces,
+    incomparable,
+  };
+}
+
+/** The nearest other gesture to `g`: per trace the nearest comparable trace of each other
+ *  gesture, then the median over the traces. */
+function separation(g: string, idx: readonly number[], members: ReadonlyMap<string, number[]>, space: PairSpace) {
+  let nearest: string | null = null;
+  let distance = Infinity;
+  let incomparable = 0;
+  for (const [h, other] of members) {
+    if (h === g || other.length === 0) continue;
+    const per: number[] = [];
+    for (const i of idx) {
+      let best = Infinity;
+      for (const j of other) {
+        const d = space.pair(g, i, j);
+        if (d === null) incomparable += 1;
+        else best = Math.min(best, d);
+      }
+      if (Number.isFinite(best)) per.push(best);
+    }
+    const d = per.length > 0 ? median(per) : Infinity;
+    if (d < distance) {
+      distance = d;
+      nearest = h;
+    }
+  }
+  return { nearest, distance, incomparable };
+}
+
+/** One frame as the held model reads it: a category id, a rejection, or neither (Neutral). */
+interface HoldReading {
+  t: number;
+  id: string | null;
+  rejected: boolean;
+}
+
+/** The frames carrying `minShared` of the model's weighted features, read by `classify`. */
+function readHolds(holds: TrainedModel, samples: readonly TraceSample[], minShared: number): HoldReading[] {
+  const features = holds.features.filter((f) => !Object.hasOwn(holds.weights, f) || holds.weights[f] !== 0);
+  if (features.length === 0) return [];
+  const measured = (v: FeatureVector) => features.filter((f) => Number.isFinite(v[f])).length / features.length >= minShared;
+  return samples.flatMap((s) => {
+    if (!measured(s.vector)) return [];
+    const c = classify(holds, s.vector);
+    return [{ t: s.t, id: c.categoryId, rejected: c.rejected === true }];
+  });
+}
+
+/** The readings' ids with each run of at most `maxGap` rejected frames between two frames of one
+ *  category given that category (the tracker holds through it). */
+function holdThroughRejections(reads: readonly HoldReading[], maxGap: number): (string | null)[] {
+  const ids = reads.map((r) => r.id);
+  let i = 0;
+  while (i < reads.length) {
+    if (!reads[i].rejected) {
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < reads.length && reads[j].rejected) j += 1;
+    const before = i > 0 ? ids[i - 1] : null;
+    if (before !== null && j < reads.length && ids[j] === before && j - i <= maxGap) ids.fill(before, i, j);
+    i = j;
+  }
+  return ids;
+}
+
+/** Runs of one id, in order, with their duration from first to last frame. */
+function runsOf(ids: readonly (string | null)[], t: readonly number[]): { id: string | null; ms: number }[] {
+  const out: { id: string | null; ms: number }[] = [];
+  let start = 0;
+  for (let i = 1; i <= ids.length; i++) {
+    if (i < ids.length && ids[i] === ids[start]) continue;
+    out.push({ id: ids[start], ms: t[i - 1] - t[start] });
+    start = i;
+  }
+  return out;
+}
+
+/** `[from, to)`: the readings without their leading and trailing rejected frames (the hand not yet
+ *  in, or already out of, any reading: nothing the tracker would commit). */
+function trimRejected(reads: readonly HoldReading[]): [number, number] {
+  let from = 0;
+  let to = reads.length;
+  while (from < to && reads[from].rejected) from += 1;
+  while (to > from && reads[to - 1].rejected) to -= 1;
+  return [from, to];
+}
+
+/**
+ * The held categories `samples` dwells in (see the module header): runs of one category lasting
+ * `dwellMs`, other than the leading and trailing runs (once leading and trailing rejections are
+ * set aside), longest per category. Null when no frame carries `minShared` of the model's
+ * weighted features.
+ */
+function holdRuns(holds: TrainedModel, samples: readonly TraceSample[], o: Options): Map<string, number> | null {
+  const all = readHolds(holds, samples, o.minShared);
+  if (all.length === 0) return null;
+  const reads = all.slice(...trimRejected(all));
+  const runs = runsOf(
+    holdThroughRejections(reads, o.holdRejectedFrames),
+    reads.map((r) => r.t),
+  );
+  const out = new Map<string, number>();
+  runs.slice(1, -1).forEach(({ id, ms }) => {
+    if (id !== null && ms >= o.dwellMs) out.set(id, Math.max(out.get(id) ?? 0, ms));
+  });
+  return out;
+}
+
+/** The held categories a gesture's traces dwell in, most traces first; null when none measured. */
+function holdOverlaps(holds: TrainedModel, traces: readonly Trace[], o: Options): HoldOverlap[] | null {
+  const found = new Map<string, HoldOverlap>();
+  let measured = false;
+  for (const tr of traces) {
+    const runs = holdRuns(holds, tr.samples, o);
+    if (runs === null) continue;
+    measured = true;
+    for (const [category, ms] of runs) {
+      const cur = found.get(category) ?? { category, traces: 0, longestMs: 0 };
+      found.set(category, { category, traces: cur.traces + 1, longestMs: Math.max(cur.longestMs, ms) });
+    }
+  }
+  return measured ? [...found.values()].sort((a, b) => b.traces - a.traces || b.longestMs - a.longestMs) : null;
+}
+
+/** Whether a gesture's repetitions differ (see the module header), and by how much relative to
+ *  the other gestures' median agreement. */
+function looseness(agreement: number | null, others: readonly number[], floor: number, o: Options): { relativeAgreement: number | null; loose: boolean } {
+  if (agreement === null) return { relativeAgreement: null, loose: false };
+  const typical = others.length > 0 ? median(others) : NaN;
+  const relativeAgreement = typical > 0 ? agreement / typical : null;
+  const absolute = agreement > o.looseCeiling * floor;
+  const relative = relativeAgreement !== null && relativeAgreement > o.looseAgreement && agreement > floor;
+  return { relativeAgreement, loose: absolute || relative };
+}
+
+/** The quality of a player's gestures from their traces (see the module header). */
+export function gestureQuality(traces: readonly Trace[], options: GestureQualityOptions): GestureSetQuality {
+  const resolved = resolveGestureOptions(options);
+  const o: Options = { ...GESTURE_QUALITY_DEFAULTS, ...definedOnly(options), minRadius: resolved.minRadius };
+  const { series, band, minTraces } = resolved;
+  const { items, members } = prepare(traces, series);
+  const order = [...members.keys()];
+  const space = makePairSpace(items, ownColumns(order, o, series.features, series.weights), o.minShared, band);
+
+  const parts = order.map((g) => {
     const idx = members.get(g)!;
-    const amplitude = median(idx.map((i) => items[i].s.amplitude));
-    const floor = minRadius * (series.scale ? 1 : amplitude);
-    let incomparable = 0;
-    // Within: comparable pair distances, per trace and overall.
-    const pairs: { i: number; j: number; d: number }[] = [];
-    for (let a = 0; a < idx.length; a++) {
-      for (let b = a + 1; b < idx.length; b++) {
-        if (comparable(g, idx[a], idx[b])) pairs.push({ i: idx[a], j: idx[b], d: dist(idx[a], idx[b]) });
-        else incomparable += 1;
-      }
-    }
-    const siblings = (i: number) => pairs.filter((p) => p.i === i || p.j === i).map((p) => p.d);
-    const own = idx.map((i) => ({ i, d: siblings(i) }));
-    for (const { i, d } of own) traceQuality.push({ id: items[i].trace.id, gesture: g, agreement: mean(d), comparable: d.length });
-    const agreement = mean(pairs.map((p) => p.d));
-    const nearestSibling = own.filter((x) => x.d.length > 0).map((x) => Math.min(...x.d));
-    const radius = gestureRadius(nearestSibling, amplitude, { minRadius, scale: series.scale });
-
-    let odd: OddTrace | null = null;
-    if (agreement !== null && idx.length >= 3) {
-      for (const { i, d } of own) {
-        const without = mean(pairs.filter((p) => p.i !== i && p.j !== i).map((p) => p.d));
-        const dI = mean(d);
-        if (without === null || dI === null) continue;
-        const improvement = without > 0 ? agreement / without : agreement > 0 ? Infinity : 1;
-        if (odd && improvement <= odd.improvement) continue;
-        const ratio = dI / Math.max(without, floor);
-        odd = { id: items[i].trace.id, ratio, improvement, flagged: ratio >= o.oddRatio };
-      }
-    }
-
-    // Separation: per trace the nearest comparable trace of each other gesture, then the median.
-    let nearest: string | null = null;
-    let distance = Infinity;
-    for (const h of order) {
-      if (h === g) continue;
-      const other = members.get(h)!;
-      if (other.length === 0) continue;
-      const per: number[] = [];
-      for (const i of idx) {
-        let best = Infinity;
-        for (const j of other) {
-          if (!comparable(g, i, j)) {
-            incomparable += 1;
-            continue;
-          }
-          best = Math.min(best, dist(i, j));
-        }
-        if (Number.isFinite(best)) per.push(best);
-      }
-      const d = per.length > 0 ? median(per) : Infinity;
-      if (d < distance) {
-        distance = d;
-        nearest = h;
-      }
-    }
-    const ratio = nearest === null || !(radius > 0) ? Infinity : distance / radius;
-
-    // Overlap with the held categories.
-    let overlaps: HoldOverlap[] | null = null;
-    if (o.holds) {
-      const found = new Map<string, HoldOverlap>();
-      let measured = false;
-      for (const i of idx) {
-        const runs = holdRuns(o.holds, items[i].trace.samples, o.minShared, o.dwellMs);
-        if (runs === null) continue;
-        measured = true;
-        for (const [category, ms] of runs) {
-          const cur = found.get(category) ?? { category, traces: 0, longestMs: 0 };
-          found.set(category, { category, traces: cur.traces + 1, longestMs: Math.max(cur.longestMs, ms) });
-        }
-      }
-      overlaps = measured ? [...found.values()].sort((a, b) => b.traces - a.traces || b.longestMs - a.longestMs) : null;
-    }
-
-    return { g, idx, agreement, radius, floor, odd, nearest, distance, ratio, overlaps, incomparable };
+    const within = withinGesture(g, idx, space, o, series.scale);
+    const apart = separation(g, idx, members, space);
+    const overlaps = o.holds ? holdOverlaps(o.holds, idx.map((i) => items[i].trace), o) : null;
+    return { g, idx, within, apart, overlaps };
   });
 
-  const agreements = perGesture.flatMap((p) => (p.agreement === null ? [] : [p.agreement]));
-  const floors = perGesture.map((p) => p.floor).filter(Number.isFinite);
-  const typicalAgreement = Math.max(agreements.length > 0 ? median(agreements) : 0, floors.length > 0 ? median(floors) : 0);
-
-  const gestures = perGesture.map((p): GestureQuality => {
-    const relativeAgreement = p.agreement === null || !(typicalAgreement > 0) ? null : p.agreement / typicalAgreement;
-    const loose = relativeAgreement !== null && relativeAgreement > o.looseAgreement;
-    const confused = p.ratio < o.closeRatio;
-    const overlap = (p.overlaps?.length ?? 0) > 0;
+  const gestures = parts.map(({ g, idx, within, apart, overlaps }): GestureQuality => {
+    const others = parts.flatMap((p) => (p.g === g || p.within.agreement === null ? [] : [p.within.agreement]));
+    const { relativeAgreement, loose } = looseness(within.agreement, others, within.floor, o);
+    const ratio = apart.nearest === null || !(within.radius > 0) ? Infinity : apart.distance / within.radius;
+    const confused = ratio < o.closeRatio;
+    const overlap = (overlaps?.length ?? 0) > 0;
     const grade: QualityGrade =
-      p.idx.length < minTraces || p.agreement === null
+      idx.length < minTraces || within.agreement === null
         ? 'thin'
         : confused || overlap
           ? 'close'
-          : p.ratio < o.okRatio || loose || p.odd?.flagged
+          : ratio < o.okRatio || loose || within.odd?.flagged
             ? 'ok'
             : 'distinct';
-    const closeTo = grade !== 'close' ? null : confused ? p.nearest : (p.overlaps?.[0]?.category ?? null);
     return {
-      gesture: p.g,
-      traces: p.idx.length,
-      agreement: p.agreement,
+      gesture: g,
+      traces: idx.length,
+      agreement: within.agreement,
       relativeAgreement,
       loose,
-      radius: p.radius,
-      odd: p.odd,
-      nearest: p.nearest,
-      distance: p.distance,
-      ratio: p.ratio,
-      overlaps: p.overlaps,
-      incomparable: p.incomparable,
+      radius: within.radius,
+      odd: within.odd,
+      nearest: apart.nearest,
+      distance: apart.distance,
+      ratio,
+      overlaps,
+      incomparable: within.incomparable + apart.incomparable,
       grade,
       dots: gradeDots(grade),
-      closeTo,
+      closeTo: grade !== 'close' ? null : confused ? apart.nearest : (overlaps?.[0]?.category ?? null),
     };
   });
-  return { gestures, traces: traceQuality, typicalAgreement };
+  return { gestures, traces: parts.flatMap((p) => p.within.traces) };
 }

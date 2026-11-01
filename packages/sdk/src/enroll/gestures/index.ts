@@ -30,11 +30,12 @@ export {
 } from './matcher';
 export { gestureRestCue, GESTURE_REST_CUE, restlessGestures, withRestBeforeGestures, type RestlessGesture } from './rest';
 export {
-  defaultGestureId,
+  freshGestureId,
   fromStoredTrace,
   gestureModelFromCategorizer,
   gestureSection,
   gestureSpace,
+  gestureIds,
   gestureTraces,
   toStoredTrace,
   type GestureSectionOptions,

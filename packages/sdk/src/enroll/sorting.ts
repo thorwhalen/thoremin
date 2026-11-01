@@ -65,9 +65,9 @@ export function placeOf(c: PersonalCategorizer, id: string): Place | null {
   return null;
 }
 
-/** A category id no category of `c` has (and not `taken`): `cat-n`, smallest n first. */
-export function freshCategoryId(c: Pick<PersonalCategorizer, 'categories'>, taken: ReadonlySet<string> = new Set()): string {
-  const used = new Set([...c.categories.map((x) => x.id), ...taken]);
+/** A category id no category or gesture of `c` has (a binding is keyed by either, #753), nor `taken`: `cat-n`, smallest n first. */
+export function freshCategoryId(c: Pick<PersonalCategorizer, 'categories'> & Partial<Pick<PersonalCategorizer, 'gestures'>>, taken: ReadonlySet<string> = new Set()): string {
+  const used = new Set([...c.categories.map((x) => x.id), ...(c.gestures?.items ?? []).map((g) => g.id), ...taken]);
   let n = 1;
   while (used.has(`cat-${n}`)) n++;
   return `cat-${n}`;
@@ -201,7 +201,7 @@ export function placeLabelled(c: PersonalCategorizer, groups: readonly LabelledH
       const found = categories.find((x) => key(x.label.trim()) === key(g.label));
       if (found) to = found.id;
       else {
-        to = freshCategoryId({ categories: categories.map((x) => ({ ...x, members: [] })) }, taken);
+        to = freshCategoryId({ categories: categories.map((x) => ({ ...x, members: [] })), gestures: c.gestures }, taken);
         taken.add(to);
         categories.push({ id: to, label: g.label });
       }
@@ -518,7 +518,7 @@ export function recut(c: PersonalCategorizer, k: number, options: RecutOptions =
     let id: string;
     if (pinned !== undefined) id = pinned;
     else {
-      id = freshCategoryId({ categories: [] }, taken);
+      id = freshCategoryId({ categories: [], gestures: c.gestures }, taken);
       taken.add(id);
     }
     categories.push({ id, label: pinned !== undefined ? (labelOf.get(pinned) ?? '') : '' });
@@ -774,7 +774,7 @@ function remirrored(
       taken.add(cat.id);
       return cat;
     }
-    const id = freshCategoryId({ categories: cut.categorizer.categories }, taken);
+    const id = freshCategoryId(cut.categorizer, taken);
     taken.add(id);
     return { ...cat, id };
   });

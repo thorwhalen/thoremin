@@ -9,16 +9,20 @@
  * repetitions of a dozen gestures would dwarf the rest of the file. So each trace is projected
  * onto its gesture's chosen features and kept as rows aligned with them, rounded as a sample's
  * `support` is (`roundSupport`), with each frame's own time (the matcher resamples at the
- * frames' stamps, so a dropped frame must stay a gap, not a shift). The features and their
- * weights are captured per gesture at save time: what the player taught is matched later on
- * what was attended then, whatever the session's feature space becomes.
+ * frames' stamps, so a dropped frame must stay a gap, not a shift). The features are captured per
+ * gesture at save time, and their weights once for the section (one session, one noise estimate):
+ * what the player taught is matched later on what was attended then, whatever the session's
+ * feature space becomes. A feature with no weight is refused at save, never silently dropped.
  *
  * ## Ids and labels
  *
  * As a held category has a stable id (`cat-1`) and a player-facing label, so does a gesture: the
  * label is the name the cue asked for ("wave"), the id is what a binding is keyed by, so a rename
  * never breaks a binding. Read back, a trace names its gesture by the ID, which is what the
- * matcher then fires and a binding dispatches on.
+ * matcher then fires and a binding dispatches on. A new gesture gets the smallest free
+ * `gesture-n` ({@link freshGestureId}, the twin of `freshCategoryId`), never a position: a
+ * re-save after a deletion keeps every other gesture's id, given the ids it had
+ * ({@link gestureIds}).
  *
  * ## The model is derived, never stored
  *
@@ -30,26 +34,38 @@
  * Pure: traces and records in, records and traces out.
  */
 import {
+  ASIDE_BIN,
+  NEUTRAL_BIN,
   roundSupport,
   TRACE_TIME_DECIMALS,
-  type CategorizerGesture,
+  type CategorizerGestures,
   type CategorizerTrace,
   type PersonalCategorizer,
 } from '../categorizer';
 import type { FeatureVector, FeatureWeights, Trace } from '../types';
 import { buildGestureModel, byGesture, type GestureModel, type GestureModelOptions } from './matcher';
 
-/** The id a gesture gets when the caller has none for it: by first-seen order. */
-export const defaultGestureId = (_label: string, index: number): string => `gesture-${index + 1}`;
+/** A gesture id not in `taken`: `gesture-n`, smallest n first (`freshCategoryId`'s twin). */
+export function freshGestureId(taken: ReadonlySet<string>): string {
+  let n = 1;
+  while (taken.has(`gesture-${n}`)) n++;
+  return `gesture-${n}`;
+}
+
+/** A saved categorizer's gesture ids by label: what a re-save passes as `ids`. */
+export function gestureIds(c: Pick<PersonalCategorizer, 'gestures'>): Map<string, string> {
+  return new Map((c.gestures?.items ?? []).map((g) => [g.label, g.id]));
+}
 
 export interface GestureSectionOptions {
   /** The features each gesture is matched on: one list for all, or per gesture name. */
   features: readonly string[] | ((gesture: string) => readonly string[]);
-  /** The session's weights (`scaleWeights` of its noise estimate); each gesture keeps those of
-   *  its own features. */
+  /** The session's weights (`scaleWeights` of its noise estimate): one for every feature. */
   weights: Readonly<FeatureWeights>;
-  /** The id for a gesture name (an existing gesture keeps its id); default {@link defaultGestureId}. */
-  idFor?: (gesture: string, index: number) => string;
+  /** Ids already given, by label: such a gesture keeps its id. Default none; {@link gestureIds}. */
+  ids?: ReadonlyMap<string, string>;
+  /** Ids a NEW gesture may not take: the categorizer's category ids (the bins are always taken). */
+  taken?: Iterable<string>;
 }
 
 const roundTime = (x: number): number => Number(x.toFixed(TRACE_TIME_DECIMALS));
@@ -66,26 +82,62 @@ export function toStoredTrace(trace: Trace, features: readonly string[]): Catego
   };
 }
 
-/**
- * The `gestures` section for `traces`: one entry per gesture name, in first-seen order, each
- * with its features, their weights and its traces projected (see the module header). A trace
- * of fewer than two frames is dropped (it is no path); so is a gesture left with none.
- */
-export function gestureSection(traces: readonly Trace[], options: GestureSectionOptions): CategorizerGesture[] {
-  const featuresOf = typeof options.features === 'function' ? options.features : () => options.features as readonly string[];
-  const idFor = options.idFor ?? defaultGestureId;
-  const out: CategorizerGesture[] = [];
-  let index = 0;
-  for (const [label, list] of byGesture(traces)) {
-    const features = [...featuresOf(label)];
-    const kept = list.filter((tr) => tr.samples.length >= 2);
-    if (kept.length === 0) continue;
-    const weights: FeatureWeights = {};
-    for (const f of features) if (Object.hasOwn(options.weights, f)) weights[f] = options.weights[f];
-    out.push({ id: idFor(label, index), label, features, weights, traces: kept.map((tr) => toStoredTrace(tr, features)) });
-    index += 1;
+/** The ids of the gestures in `labels`: a kept id first (so no new one takes it), then the
+ *  smallest free `gesture-n` for each new label, in order. */
+function assignIds(labels: readonly string[], ids: ReadonlyMap<string, string>, taken: Iterable<string>): Map<string, string> {
+  const used = new Set<string>([NEUTRAL_BIN, ASIDE_BIN, ...taken]);
+  const out = new Map<string, string>();
+  for (const label of labels) {
+    const id = ids.get(label);
+    if (id !== undefined) {
+      out.set(label, id);
+      used.add(id);
+    }
+  }
+  for (const label of labels) {
+    if (out.has(label)) continue;
+    const id = freshGestureId(used);
+    out.set(label, id);
+    used.add(id);
   }
   return out;
+}
+
+/** `weights` on `features`; throws naming the feature when one has no weight, and the gesture
+ *  when none is above 0 (it could never be compared). */
+function sectionWeights(features: ReadonlyMap<string, readonly string[]>, weights: Readonly<FeatureWeights>): FeatureWeights {
+  const out: FeatureWeights = {};
+  for (const [label, list] of features) {
+    for (const f of list) {
+      if (!Object.hasOwn(weights, f)) throw new Error(`gestureSection: feature "${f}" of gesture "${label}" has no weight`);
+      out[f] = weights[f];
+    }
+    if (!list.some((f) => weights[f] > 0)) throw new Error(`gestureSection: gesture "${label}" has no feature with a weight above 0 (nothing it moves was measured at rest)`);
+  }
+  return out;
+}
+
+/**
+ * The `gestures` section for `traces`: one entry per gesture name, in first-seen order, each
+ * with its features and its traces projected, and the weights of every feature they list (see
+ * the module header). A trace of fewer than two frames is dropped (it is no path); so is a
+ * gesture left with none. Throws when a feature has no weight, or a gesture none above 0.
+ */
+export function gestureSection(traces: readonly Trace[], options: GestureSectionOptions): CategorizerGestures {
+  const featuresOf = typeof options.features === 'function' ? options.features : () => options.features as readonly string[];
+  const kept = [...byGesture(traces)]
+    .map(([label, list]) => ({ label, list: list.filter((tr) => tr.samples.length >= 2), features: [...featuresOf(label)] }))
+    .filter((g) => g.list.length > 0);
+  const weights = sectionWeights(new Map(kept.map((g) => [g.label, g.features])), options.weights);
+  const ids = assignIds(
+    kept.map((g) => g.label),
+    options.ids ?? new Map(),
+    options.taken ?? [],
+  );
+  return {
+    weights,
+    items: kept.map((g) => ({ id: ids.get(g.label)!, label: g.label, features: g.features, traces: g.list.map((tr) => toStoredTrace(tr, g.features)) })),
+  };
 }
 
 /** A stored trace as a {@link Trace} naming its gesture by `gestureId`: vectors keyed by the
@@ -108,12 +160,11 @@ export function fromStoredTrace(stored: CategorizerTrace, gestureId: string, fea
 
 /** Every stored trace, as traces naming their gesture by its id. */
 export function gestureTraces(c: Pick<PersonalCategorizer, 'gestures'>): Trace[] {
-  return (c.gestures ?? []).flatMap((g) => g.traces.map((tr) => fromStoredTrace(tr, g.id, g.features)));
+  return (c.gestures?.items ?? []).flatMap((g) => g.traces.map((tr) => fromStoredTrace(tr, g.id, g.features)));
 }
 
 /** The one feature space the stored gestures are matched in: the union of their features (in
- *  first-seen order), their weights (the first gesture naming a feature gives its weight; one
- *  session gives them all the same), and each gesture's own features by id. */
+ *  first-seen order), the section's weights, and each gesture's own features by id. */
 export interface GestureSpace {
   features: string[];
   weights: FeatureWeights;
@@ -121,20 +172,13 @@ export interface GestureSpace {
 }
 
 export function gestureSpace(c: Pick<PersonalCategorizer, 'gestures'>): GestureSpace {
-  const features: string[] = [];
-  const seen = new Set<string>();
-  const weights: FeatureWeights = {};
-  const featuresOf: Record<string, string[]> = {};
-  for (const g of c.gestures ?? []) {
-    featuresOf[g.id] = [...g.features];
-    for (const f of g.features) {
-      if (seen.has(f)) continue;
-      seen.add(f);
-      features.push(f);
-      if (Object.hasOwn(g.weights, f)) weights[f] = g.weights[f];
-    }
-  }
-  return { features, weights, featuresOf };
+  const items = c.gestures?.items ?? [];
+  const features = [...new Set(items.flatMap((g) => g.features))];
+  return {
+    features,
+    weights: { ...(c.gestures?.weights ?? {}) },
+    featuresOf: Object.fromEntries(items.map((g) => [g.id, [...g.features]])),
+  };
 }
 
 /**

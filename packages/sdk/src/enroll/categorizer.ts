@@ -55,14 +55,24 @@
  * ## Dynamic gestures (#753): an optional, additive section
  *
  * `gestures` holds the player's named moving gestures beside the held categories
- * (`docs/design/dynamic-gestures.md` section 3): per gesture a stable `id` (what a binding is
- * keyed by, as a category's is), the player's `label`, the `features` it is matched on with their
- * `weights`, and its repetitions (`traces`), each a run of rows aligned with `features` and
- * rounded as `support` is, at the frames' own times. The traces are the source of truth: the
- * matcher's model is derived from them (`gestures/file.ts`), never stored, and its live tuning
- * (tolerance, refractory period) stays on the device. The version is unchanged: the section is
- * absent from older files, and an older build drops it on read, as it does `skeleton`.
+ * (`docs/design/dynamic-gestures.md` section 3): one `weights` map for the whole section (the
+ * session's noise units: a weight belongs to the session's noise estimate, not to a gesture, so
+ * every feature a gesture lists must have one), and its `items`, per gesture a stable `id` (what a
+ * binding is keyed by, as a category's is; never a category's or a bin's), the player's `label`,
+ * the `features` it is matched on, and its repetitions (`traces`), each a run of rows aligned with
+ * `features` and rounded as `support` is, at the frames' own times. The traces are the source of
+ * truth: the matcher's model is derived from them (`gestures/file.ts`), never stored, and its live
+ * tuning (tolerance, refractory period) stays on the device. Its size is bounded at the door
+ * ({@link MAX_GESTURE_FRAMES}), never by the schema, for the reason given at
+ * {@link MAX_CATEGORIZER_SAMPLES}.
  *
+ * The version is unchanged: the section is absent from older files, and an older build ignores it
+ * on read, as it does `skeleton`. **Known data-loss path:** Zod strips the keys a schema does not
+ * declare, so an older build that RE-SAVES a record (any edit to the held categories, a rename, an
+ * import and save) writes it back without `gestures`, and the player's gestures are gone. This
+ * stays true until no build older than #753 runs on the player's devices; a version bump would
+ * have made the older build refuse the file outright instead, which loses the held categories too.
+
  * Non-finite feature values (a feature not measurable on that frame) are DROPPED on the way
  * in: JSON cannot carry NaN, and a missing key is exactly how every distance in `enroll/`
  * already treats a non-finite value.
@@ -166,15 +176,17 @@ const CategorizerCategorySchema = z.object({
   members: z.array(z.string().min(1)).min(1),
 });
 
-/** The most dynamic gestures one categorizer may hold (#753): the design budgets a dozen
- *  (`dynamic-gestures.md` section 5), so this is a bound on an untrusted file, not a target. */
-export const MAX_GESTURES = 64;
-/** The most repetitions one gesture may keep: three to five is the literature's floor (design
- *  section 7, question 2), a few rounds of "record more" stay well inside. */
-export const MAX_GESTURE_TRACES = 32;
-/** The most frames one trace may carry: the segmenter keeps a repetition of at most 3 s
- *  (`SEGMENTER_DEFAULTS.maxTraceMs`) plus one window, so 600 is that at 120 fps with room over. */
-export const MAX_TRACE_FRAMES = 600;
+/**
+ * The most trace frames, over all of its gestures, an IMPORTED file may carry (#753). The design
+ * keeps the gestures "inside the budget a categorizer file already has for `support`"
+ * (`dynamic-gestures.md` section 3), so the bound IS that budget: {@link MAX_CATEGORIZER_SAMPLES}
+ * samples of {@link MAX_SAMPLE_SUPPORT} frames each, 24,000 frames. A dozen gestures of ten
+ * repetitions at the segmenter's longest (3 s) at 60 fps is 21,600; the five 1.5 s repetitions of
+ * a dozen at 30 fps the design budgets are 1,800 (about 700 kB of pretty JSON at 14 features).
+ * Like {@link MAX_CATEGORIZER_SAMPLES} it is enforced at the untrusted door
+ * ({@link importCategorizer}), never by the schema, so a saved record over it still loads.
+ */
+export const MAX_GESTURE_FRAMES = MAX_CATEGORIZER_SAMPLES * MAX_SAMPLE_SUPPORT;
 /** Decimal places a trace frame's time keeps, in ms (a camera stamp's own precision is coarser). */
 export const TRACE_TIME_DECIMALS = 1;
 
@@ -186,10 +198,10 @@ const GestureTraceSchema = z.object({
   /** The first frame's time, in the caller's clock (ms). */
   t0: z.number(),
   /** Each frame's time after `t0` (ms), non-decreasing, one per row. */
-  t: z.array(z.number().nonnegative()).min(2).max(MAX_TRACE_FRAMES),
+  t: z.array(z.number().nonnegative()).min(2),
   /** One row per frame aligned with the gesture's `features` (null where not measurable),
    *  rounded to {@link SUPPORT_DECIMALS} places, like a sample's `support`. */
-  rows: z.array(z.array(z.number().nullable())).min(2).max(MAX_TRACE_FRAMES),
+  rows: z.array(z.array(z.number().nullable())).min(2),
 });
 
 const CategorizerGestureSchema = z.object({
@@ -197,16 +209,73 @@ const CategorizerGestureSchema = z.object({
   id: z.string().min(1),
   /** The player's name for it ("wave"). */
   label: z.string(),
-  /** The features it is matched on, in row order. */
+  /** The features it is matched on, in row order (each weighted in the section's `weights`). */
   features: z.array(z.string().min(1)).min(1).max(MAX_CATEGORIZER_FEATURES),
-  /** Per-feature weight (the session's noise units), as the categorizer's own `weights`. */
+  traces: z.array(GestureTraceSchema).min(1),
+});
+
+/** The `gestures` section: one weights map for all of them (the noise units are the session's,
+ *  not a gesture's), and the gestures. */
+const CategorizerGesturesSchema = z.object({
+  /** Per-feature weight (the session's noise units, `scaleWeights`), as the categorizer's own
+   *  `weights`: one for every feature a gesture lists. */
   weights: z.record(z.string(), z.number().nonnegative()),
-  traces: z.array(GestureTraceSchema).min(1).max(MAX_GESTURE_TRACES),
+  items: z.array(CategorizerGestureSchema),
 });
 
 /** The bins a sample can be in besides a category (E4's moves name them in `pins`). */
 export const NEUTRAL_BIN = 'neutral';
 export const ASIDE_BIN = 'aside';
+
+/** The `gestures` section's own rules (see the module header), reported through `issue`. */
+function checkGestures(
+  section: z.infer<typeof CategorizerGesturesSchema>,
+  categoryIds: ReadonlySet<string>,
+  issue: (message: string, path?: (string | number)[]) => void,
+): void {
+  const gestureIds = new Set<string>();
+  const traceIds = new Set<string>();
+  section.items.forEach((g, i) => {
+    const at = (...rest: (string | number)[]) => ['gestures', 'items', i, ...rest];
+    if (gestureIds.has(g.id)) issue(`duplicate gesture id "${g.id}"`, at('id'));
+    // A binding is keyed by id, gesture or category alike: the two must never share one.
+    if (categoryIds.has(g.id) || g.id === NEUTRAL_BIN || g.id === ASIDE_BIN) issue(`gesture id "${g.id}" is a category's or a bin's`, at('id'));
+    gestureIds.add(g.id);
+    const features = new Set<string>();
+    g.features.forEach((f, k) => {
+      if (features.has(f)) issue(`gesture "${g.id}" lists feature "${f}" twice`, at('features', k));
+      if (!Object.hasOwn(section.weights, f)) issue(`gesture "${g.id}" lists feature "${f}", which has no weight`, at('features', k));
+      features.add(f);
+    });
+    // All-zero weights compare nothing: the matcher could never judge it, so it is refused here
+    // rather than left to vanish from the model.
+    if (!g.features.some((f) => section.weights[f] > 0)) issue(`gesture "${g.id}" has no feature with a weight above 0`, at('features'));
+    g.traces.forEach((tr, k) => {
+      if (traceIds.has(tr.id)) issue(`trace id "${tr.id}" is used twice`, at('traces', k, 'id'));
+      traceIds.add(tr.id);
+      if (tr.rows.length !== tr.t.length) issue(`trace "${tr.id}" has ${tr.rows.length} rows and ${tr.t.length} times`, at('traces', k));
+      if (tr.rows.some((row) => row.length !== g.features.length)) issue(`trace "${tr.id}" has a row that is not one value per feature`, at('traces', k, 'rows'));
+      if (tr.t.some((x, n) => n > 0 && x < tr.t[n - 1])) issue(`trace "${tr.id}" goes back in time`, at('traces', k, 't'));
+    });
+  });
+}
+
+/** Every trace frame of a `gestures` section (what {@link MAX_GESTURE_FRAMES} bounds); 0 for
+ *  anything that is not one, which the schema then refuses. */
+export function gestureFrameCount(section: unknown): number {
+  const items = (section as { items?: unknown } | null | undefined)?.items;
+  if (!Array.isArray(items)) return 0;
+  let n = 0;
+  for (const g of items) {
+    const traces = (g as { traces?: unknown } | null)?.traces;
+    if (!Array.isArray(traces)) continue;
+    for (const tr of traces) {
+      const rows = (tr as { rows?: unknown } | null)?.rows;
+      if (Array.isArray(rows)) n += rows.length;
+    }
+  }
+  return n;
+}
 
 export const PersonalCategorizerSchema = z
   .object({
@@ -260,7 +329,7 @@ export const PersonalCategorizerSchema = z
      *  `neutral` or `aside`. */
     pins: z.record(z.string(), z.string().min(1)).optional(),
     /** The player's dynamic gestures (#753; see the module header). Optional and additive. */
-    gestures: z.array(CategorizerGestureSchema).max(MAX_GESTURES).optional(),
+    gestures: CategorizerGesturesSchema.optional(),
   })
   .superRefine((c, ctx) => {
     const issue = (message: string, path: (string | number)[] = []) => ctx.addIssue({ code: 'custom', message, path });
@@ -298,31 +367,12 @@ export const PersonalCategorizerSchema = z
       if (!sampleIds.has(j)) issue(`pin names sample "${j}", which is not in samples`, ['pins']);
       if (to !== NEUTRAL_BIN && to !== ASIDE_BIN && !ids.has(to)) issue(`pin of "${j}" names "${to}", which is no category or bin`, ['pins']);
     }
-    const gestureIds = new Set<string>();
-    const traceIds = new Set<string>();
-    c.gestures?.forEach((g, i) => {
-      const at = (...rest: (string | number)[]) => ['gestures', i, ...rest];
-      if (gestureIds.has(g.id)) issue(`duplicate gesture id "${g.id}"`, at('id'));
-      // A binding is keyed by id, gesture or category alike: the two must never share one.
-      if (ids.has(g.id) || g.id === NEUTRAL_BIN || g.id === ASIDE_BIN) issue(`gesture id "${g.id}" is a category's or a bin's`, at('id'));
-      gestureIds.add(g.id);
-      const features = new Set<string>();
-      g.features.forEach((f, k) => {
-        if (features.has(f)) issue(`gesture "${g.id}" lists feature "${f}" twice`, at('features', k));
-        features.add(f);
-      });
-      g.traces.forEach((tr, k) => {
-        if (traceIds.has(tr.id)) issue(`trace id "${tr.id}" is used twice`, at('traces', k, 'id'));
-        traceIds.add(tr.id);
-        if (tr.rows.length !== tr.t.length) issue(`trace "${tr.id}" has ${tr.rows.length} rows and ${tr.t.length} times`, at('traces', k));
-        if (tr.rows.some((row) => row.length !== g.features.length)) issue(`trace "${tr.id}" has a row that is not one value per feature`, at('traces', k, 'rows'));
-        if (tr.t.some((x, n) => n > 0 && x < tr.t[n - 1])) issue(`trace "${tr.id}" goes back in time`, at('traces', k, 't'));
-      });
-    });
+    if (c.gestures) checkGestures(c.gestures, ids, issue);
   });
 
 export type PersonalCategorizer = z.infer<typeof PersonalCategorizerSchema>;
 export type CategorizerSample = z.infer<typeof SampleSchema>;
+export type CategorizerGestures = z.infer<typeof CategorizerGesturesSchema>;
 export type CategorizerGesture = z.infer<typeof CategorizerGestureSchema>;
 export type CategorizerTrace = z.infer<typeof GestureTraceSchema>;
 
@@ -633,6 +683,8 @@ export function importCategorizer(input: string | unknown, options: ImportOption
       return { ok: false, error: `invalid categorizer: ${key}: too many (${list.length}; at most ${max})` };
     }
   }
+  const frames = gestureFrameCount(d.gestures);
+  if (frames > MAX_GESTURE_FRAMES) return { ok: false, error: `invalid categorizer: gestures: too many trace frames (${frames}; at most ${MAX_GESTURE_FRAMES})` };
   // Drop non-finite feature values a hand-edited file may carry as null.
   if (Array.isArray(d.samples)) {
     d = {

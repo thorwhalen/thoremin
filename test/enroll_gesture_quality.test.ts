@@ -5,11 +5,14 @@
  * synthetic hand (`helpers/wave_take.ts`), cut by the motion segmenter as a session cuts them.
  *
  * The measured numbers these pin (seed 1, the hand's 14 raw position features in the take's own
- * noise units, the matcher's defaults): five waves agree at 0.10 series units (relative 0.93 of
- * the typical 0.11 across wave / nod / circle / push), every gesture at least 5.0 radii from its
- * nearest neighbour; a circle among the waves is the odd trace at 5.7 times the others' agreement
- * (the most a real wave reaches is 1.46, the flag is at 2); a second wave made 10 % bigger with
- * another jitter seed sits 0.92 radii from the first (CLOSE below 2).
+ * noise units, the matcher's defaults): five waves agree at 0.10 series units (relative 0.87 of
+ * the median 0.117 of the OTHER three, nod / circle / push), every gesture at least 5.0 radii from
+ * its nearest neighbour; one repetition each of five different paths under one name agrees at
+ * 0.67, past the absolute loose line (0.2) alone and 6.6 times the waves beside them; a circle
+ * among the waves is the odd trace at 5.7 times the others' agreement (the most a real wave
+ * reaches is 1.46, the flag is at 2); a second wave made 10 % bigger with
+ * another jitter seed sits 0.92 radii from the first (CLOSE below 2); a reach paused 400 ms at its
+ * far end dwells 667 ms in that held pose (the bar is 220).
  */
 import { describe, it, expect } from 'vitest';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
@@ -20,10 +23,13 @@ import {
   gestureEveryday,
   gestureModelFromCategorizer,
   gestureQuality,
+  freshGestureId,
+  gestureIds,
   gestureSection,
   gestureSpace,
   gestureTraces,
   GESTURE_QUALITY_DEFAULTS,
+  MATCHER_DEFAULTS,
   matchSegment,
 } from '@thoremin/sdk/enroll/gestures';
 import {
@@ -31,14 +37,17 @@ import {
   CATEGORIZER_VERSION,
   exportCategorizer,
   importCategorizer,
+  MAX_GESTURE_FRAMES,
   PersonalCategorizerSchema,
   SUPPORT_DECIMALS,
   type PersonalCategorizer,
 } from '@thoremin/sdk/enroll/categorizer';
-import { trainModel } from '@thoremin/sdk/enroll/classify';
+import { classify, trainModel, trainNeutral } from '@thoremin/sdk/enroll/classify';
 import { everydayFlags } from '@thoremin/sdk/enroll/everyday';
+import { parseRecord } from '@thoremin/sdk/enroll/record';
+import { freshCategoryId } from '@thoremin/sdk/enroll/sorting';
 import { createNoiseEstimator, scaleWeights, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
-import type { Trace } from '@thoremin/sdk/enroll/types';
+import type { Trace, TrainedModel } from '@thoremin/sdk/enroll/types';
 import { GESTURE_PATHS, waveTake, WAVE_SCRIPT, type WaveScript, type WaveTake } from './helpers/wave_take';
 
 /** The right hand's raw image positions, x and y: what these gestures move. */
@@ -87,8 +96,10 @@ describe('gestureQuality: agreement and separation', () => {
     }
     const wave = byName(q, 'wave');
     expect(wave.agreement!).toBeCloseTo(0.101, 2);
-    expect(wave.relativeAgreement!).toBeCloseTo(0.93, 1);
-    expect(q.typicalAgreement).toBeCloseTo(0.109, 2);
+    // Against the median of the OTHER three gestures' agreements, never its own.
+    const others = q.gestures.filter((g) => g.gesture !== 'wave').map((g) => g.agreement!).sort((a, b) => a - b)[1];
+    expect(wave.relativeAgreement!).toBeCloseTo(wave.agreement! / others, 12);
+    expect(wave.relativeAgreement!).toBeCloseTo(0.87, 2);
     // Each trace has a mean distance to its four siblings.
     expect(q.traces.filter((t) => t.gesture === 'wave').map((t) => t.comparable)).toEqual([4, 4, 4, 4, 4]);
   });
@@ -106,17 +117,46 @@ describe('gestureQuality: agreement and separation', () => {
     for (const w of clean) expect(circle.agreement!).toBeGreaterThan(3 * w.agreement!);
   });
 
+  /** "sloppy": one repetition of each of five different paths under one name. */
+  const SLOPPY: Trace[] = (['wave', 'nod', 'circle', 'push', 'diagonal'] as const).map((p, i) => ({
+    ...cutTraces('sloppy', takeOf(p, { seed: 11 + i, waves: 1 })).traces[0],
+    id: `sloppy#${i + 1}`,
+    gesture: 'sloppy',
+  }));
+  /** The absolute line: the matcher's tolerance times its radius floor, in series units. */
+  const LOOSE_LINE = GESTURE_QUALITY_DEFAULTS.looseCeiling * MATCHER_DEFAULTS.minRadius;
+
   it('calls a gesture loose when its repetitions differ far more than the player\'s gestures usually do', () => {
-    // "sloppy": one repetition of each of five different paths under one name.
-    const sloppy = (['wave', 'nod', 'circle', 'push', 'diagonal'] as const).map((p, i) => ({
-      ...cutTraces('sloppy', takeOf(p, { seed: 11 + i, waves: 1 })).traces[0],
-      id: `sloppy#${i + 1}`,
-      gesture: 'sloppy',
-    }));
-    const loose = gestureQuality([...ALL, ...sloppy], OPTS);
+    const loose = gestureQuality([...ALL, ...SLOPPY], OPTS);
     expect(byName(loose, 'sloppy').loose).toBe(true);
     expect(byName(loose, 'sloppy').relativeAgreement!).toBeGreaterThan(GESTURE_QUALITY_DEFAULTS.looseAgreement);
     expect(byName(loose, 'wave').loose).toBe(false);
+  });
+
+  it('calls a sloppy gesture loose on its own, or beside one other gesture (the absolute line)', () => {
+    expect(LOOSE_LINE).toBeCloseTo(0.2, 12);
+    // Alone: there is no other gesture to compare with, so only the absolute line can say it.
+    const alone = byName(gestureQuality(SLOPPY, OPTS), 'sloppy');
+    expect(alone.relativeAgreement).toBeNull();
+    expect(alone.agreement!).toBeGreaterThan(2 * LOOSE_LINE);
+    expect(alone).toMatchObject({ loose: true, grade: 'ok' });
+    // Five consistent waves alone are not loose: well inside the line.
+    const waves = byName(gestureQuality(CUTS.wave.traces, OPTS), 'wave');
+    expect(waves.agreement!).toBeLessThan(LOOSE_LINE / 1.5);
+    expect(waves).toMatchObject({ loose: false, grade: 'distinct', relativeAgreement: null });
+    // Beside the waves: the sloppy one is loose, relative to the waves too; the waves are not.
+    const pair = gestureQuality([...CUTS.wave.traces, ...SLOPPY], OPTS);
+    expect(byName(pair, 'sloppy').loose).toBe(true);
+    expect(byName(pair, 'sloppy').relativeAgreement!).toBeGreaterThan(GESTURE_QUALITY_DEFAULTS.looseAgreement);
+    expect(byName(pair, 'wave').loose).toBe(false);
+    expect(byName(pair, 'wave').relativeAgreement!).toBeLessThan(1);
+  });
+
+  it('reports no agreement, not Infinity, for a pair that shares no feature (minShared 0)', () => {
+    const a: Trace = { id: 'd#1', gesture: 'd', cue: 'd', samples: [0, 1, 2].map((i) => ({ t: i * 33, vector: { a: i } })) };
+    const b: Trace = { id: 'd#2', gesture: 'd', cue: 'd', samples: [0, 1, 2].map((i) => ({ t: i * 33, vector: { b: i } })) };
+    const g = gestureQuality([a, b], { features: ['a', 'b'], weights: { a: 1, b: 1 }, minShared: 0 }).gestures[0];
+    expect(g).toMatchObject({ agreement: null, incomparable: 1, grade: 'thin', loose: false });
   });
 
   it('separates a wave from a circle, and calls two near-identical gestures CLOSE', () => {
@@ -134,9 +174,13 @@ describe('gestureQuality: agreement and separation', () => {
       expect(x).toMatchObject({ grade: 'close', closeTo: other, dots: 1 });
     }
     expect(byName(close, 'circle').grade).toBe('distinct');
-    // The chip agrees with the matcher: a wave2 repetition is accepted as some wave.
+    // The chip agrees with the matcher, both ways. CLOSE: a matcher taught the wave and the circle
+    // but not wave2 accepts EVERY wave2 repetition as the wave (the player would get the other
+    // gesture). DISTINCT: a matcher taught the two waves refuses every circle repetition.
     const model = buildGestureModel([...CUTS.wave.traces, ...CUTS.circle.traces], OPTS);
-    expect(matchSegment(model, wave2[0].samples).gesture).toBe('wave');
+    for (const tr of wave2) expect(matchSegment(model, tr.samples).gesture).toBe('wave');
+    const waves = buildGestureModel([...CUTS.wave.traces, ...wave2], OPTS);
+    for (const tr of CUTS.circle.traces) expect(matchSegment(waves, tr.samples).gesture).toBeNull();
   });
 
   it('calls one repetition thin: "needs another repetition"', () => {
@@ -186,12 +230,26 @@ describe('gestureQuality: comparable pairs', () => {
 });
 
 describe('gestureQuality: overlap with the held categories', () => {
-  const reachTake = takeOf('reach');
-  const reach = cutTraces('reach', reachTake).traces;
-  /** Two held categories over the same features: the opening rest ("home") and the far end of the
-   *  reach ("aside"), its middle fifth. */
+  /** The reach pauses at its far end for a fifth of the repetition; at 2 s a repetition that
+   *  flat hold is 400 ms, clearly past the sampler's 220 ms dwell on its own (no credit from the
+   *  eased edges). Cut by the script's own windows: the motion segmenter would close a run at a
+   *  quiet that long (its `quietMs` IS the dwell: held for one is not moving for the other). */
+  const REACH_MS = 2000;
+  const HOLD_FROM = 0.4 * REACH_MS;
+  const HOLD_MS = 0.2 * REACH_MS;
+  const reachTake = takeOf('reach', { waveMs: REACH_MS });
+  const reach: Trace[] = reachTake.waves.map((w, i) => ({
+    id: `reach#${i + 1}`,
+    gesture: 'reach',
+    cue: 'reach-5',
+    samples: reachTake.frames.filter((f) => f.t >= w.startMs - 200 && f.t <= w.endMs + 200).map((f) => ({ vector: f.v, t: f.t })),
+  }));
+  /** Two held categories over the same features: the opening rest ("home") and the reach's far
+   *  end ("aside"), the middle of its flat hold. */
   const home = reachTake.frames.filter((f) => f.t < WAVE_SCRIPT.restMs - 200).map((f) => f.v);
-  const aside = reachTake.frames.filter((f) => reachTake.waves.some((w) => f.t > w.startMs + 450 && f.t < w.endMs - 450)).map((f) => f.v);
+  const aside = reachTake.frames
+    .filter((f) => reachTake.waves.some((w) => f.t > w.startMs + HOLD_FROM + 100 && f.t < w.startMs + HOLD_FROM + HOLD_MS - 100))
+    .map((f) => f.v);
   const holds = trainModel(
     [...home, ...aside],
     [home.map((_, i) => i), aside.map((_, i) => home.length + i)],
@@ -202,17 +260,16 @@ describe('gestureQuality: overlap with the held categories', () => {
   const ASIDE = holds.categories[1].id;
 
   it('flags a gesture that dwells on a held pose mid-way, and not one that passes through it', () => {
-    expect(reach).toHaveLength(5);
+    expect(HOLD_MS).toBeGreaterThan(1.5 * GESTURE_QUALITY_DEFAULTS.dwellMs);
     const q = gestureQuality([...CUTS.wave.traces, ...reach], { ...OPTS, holds });
     const r = byName(q, 'reach');
     expect(r.overlaps).toHaveLength(1);
-    expect(r.overlaps![0].category).toBe(ASIDE);
-    expect(r.overlaps![0].traces).toBeGreaterThanOrEqual(4);
-    expect(r.overlaps![0].longestMs).toBeGreaterThanOrEqual(GESTURE_QUALITY_DEFAULTS.dwellMs);
+    expect(r.overlaps![0]).toMatchObject({ category: ASIDE, traces: 5 });
+    expect(r.overlaps![0].longestMs).toBeGreaterThan(1.5 * GESTURE_QUALITY_DEFAULTS.dwellMs);
     expect(r).toMatchObject({ grade: 'close', closeTo: ASIDE });
     // The wave starts and ends on "home" and swings through "aside" without dwelling.
     expect(byName(q, 'wave').overlaps).toEqual([]);
-    expect(byName(q, 'wave').grade).toBe('distinct');
+    expect(byName(q, 'wave').grade).not.toBe('close');
   });
 
   it('a gesture that starts and ends resting on a held pose is fine: only an interior dwell counts', () => {
@@ -227,6 +284,55 @@ describe('gestureQuality: overlap with the held categories', () => {
     }));
     const q = gestureQuality(padded, { ...OPTS, holds });
     expect(byName(q, 'wave').overlaps).toEqual([]);
+  });
+
+  describe('on a two-feature model, frame by frame', () => {
+    const F = ['a', 'b'];
+    const WT = { a: 1, b: 1 };
+    const DT = 33;
+    const jitter = (i: number) => ((Math.sin(i * 12.9898) * 43758.5453) % 1) * 0.05;
+    const cloud = (x: number, y: number, n: number, seed: number) => Array.from({ length: n }, (_, i) => ({ a: x + jitter(i + seed), b: y + jitter(i + seed + 99) }));
+    const HOME = cloud(0, 0, 20, 0);
+    const ASIDE_CLOUD = cloud(10, 0, 20, 50);
+    const NEUTRAL_CLOUD = cloud(0, 10, 20, 200);
+    const base = trainModel([...HOME, ...ASIDE_CLOUD], [HOME.map((_, i) => i), ASIDE_CLOUD.map((_, i) => 20 + i)], F, WT, { restVectors: HOME });
+    type P = [number, number];
+    const hold = (p: P, n: number): P[] => Array.from({ length: n }, () => p);
+    const line = (from: P, to: P, n: number): P[] => Array.from({ length: n }, (_, i) => [from[0] + ((to[0] - from[0]) * (i + 1)) / n, from[1] + ((to[1] - from[1]) * (i + 1)) / n]);
+    /** Two identical traces of `pts` (two, so the gesture has an agreement). */
+    const twice = (pts: P[]): Trace[] =>
+      [1, 2].map((n) => ({ id: `x#${n}`, gesture: 'x', cue: 'x', samples: pts.map(([a, b], i) => ({ vector: { a, b }, t: i * DT })) }));
+    const overlapsOf = (pts: P[], model: TrainedModel) =>
+      gestureQuality(twice(pts), { features: F, weights: WT, holds: model, scale: false, position: false }).gestures[0].overlaps;
+
+    it('holds a dwell through a single rejected frame (a flicker the tracker holds through)', () => {
+      const FLICKER: P = [5, 0];
+      expect(classify(base, { a: 5, b: 0 })).toMatchObject({ categoryId: null, rejected: true });
+      // home, out to aside (the line's last frame is on it), 6 frames there, one rejected frame, 6
+      // more, back home: each half of the dwell (198 ms) is under the 220 ms bar, the whole
+      // (429 ms) is well over it.
+      const pts = [...hold([0, 0], 2), ...line([0, 0], [10, 0], 6), ...hold([10, 0], 6), FLICKER, ...hold([10, 0], 6), ...line([10, 0], [0, 0], 6), ...hold([0, 0], 2)];
+      const solid = pts.map((p) => (p === FLICKER ? ([10, 0] as P) : p));
+      const ASIDE_ID = base.categories[1].id;
+      expect(overlapsOf(pts, base)).toEqual([{ category: ASIDE_ID, traces: 2, longestMs: 13 * DT }]);
+      expect(overlapsOf(pts, base)).toEqual(overlapsOf(solid, base));
+      // Two rejected frames are the hand moving away: the halves stay apart, neither dwells.
+      const away = pts.flatMap((p) => (p === FLICKER ? [FLICKER, FLICKER] : [p]));
+      expect(overlapsOf(away, base)).toEqual([]);
+    });
+
+    it('a return to the starting pose mid-way, after a taught Neutral, is a fresh entry and counts', () => {
+      const neutral = trainNeutral([...HOME, ...ASIDE_CLOUD, ...NEUTRAL_CLOUD], NEUTRAL_CLOUD.map((_, i) => 40 + i), F, WT, base.categories);
+      const model: TrainedModel = { ...base, neutral };
+      expect(classify(model, { a: 0, b: 10 })).toMatchObject({ categoryId: null, neutral: true });
+      // home, Neutral for about 330 ms, home again for 429 ms, then Neutral to the end.
+      const pts = [...hold([0, 0], 2), ...line([0, 0], [0, 10], 5), ...hold([0, 10], 10), ...line([0, 10], [0, 0], 5), ...hold([0, 0], 13), ...line([0, 0], [0, 10], 5), ...hold([0, 10], 3)];
+      const HOME_ID = base.categories[0].id;
+      expect(overlapsOf(pts, model)).toEqual([{ category: HOME_ID, traces: 2, longestMs: 13 * DT }]);
+      // The leading home run (the pose it starts from) alone is exempt: cut the return, nothing.
+      const noReturn = [...hold([0, 0], 2), ...line([0, 0], [0, 10], 5), ...hold([0, 10], 10)];
+      expect(overlapsOf(noReturn, model)).toEqual([]);
+    });
   });
 
   it('a longer dwell bar lets the reach through; no held model measures nothing', () => {
@@ -270,14 +376,16 @@ describe('the categorizer file: the gestures section', () => {
     expect(gestureTraces(OLD)).toEqual([]);
   });
 
-  it('projects each trace onto the gesture\'s features, rounded, with ids, labels and weights', () => {
-    expect(section.map((g) => [g.id, g.label, g.traces.length])).toEqual([
+  it('projects each trace onto the gesture\'s features, rounded, with ids, labels and one weights map', () => {
+    expect(section.items.map((g) => [g.id, g.label, g.traces.length])).toEqual([
       ['gesture-1', 'wave', 5],
       ['gesture-2', 'circle', 5],
     ]);
-    const g = section[0];
+    const g = section.items[0];
     expect(g.features).toEqual(POSITION);
-    expect(Object.keys(g.weights).sort()).toEqual([...POSITION].sort());
+    // One map for the section: the session's weight of every feature a gesture lists, no others.
+    expect(Object.keys(section.weights).sort()).toEqual([...POSITION].sort());
+    for (const f of POSITION) expect(section.weights[f]).toBe(WEIGHTS[f]);
     const src = CUTS.wave.traces[0];
     const stored = g.traces[0];
     expect(stored.id).toBe(src.id);
@@ -289,10 +397,53 @@ describe('the categorizer file: the gestures section', () => {
     expect(stored.rows[3][0]).toBe(Number(x.toFixed(SUPPORT_DECIMALS)));
     expect(stored.t0 + stored.t[3]).toBeCloseTo(src.samples[3].t, 1);
     // Per gesture features, and an existing id kept.
-    const own = gestureSection(TRACES, { ...OPTS, features: (name) => (name === 'wave' ? POSITION.slice(0, 2) : POSITION), idFor: (name, i) => (name === 'wave' ? 'g-wave' : `g-${i}`) });
-    expect(own[0]).toMatchObject({ id: 'g-wave', features: POSITION.slice(0, 2) });
-    expect(own[0].traces[0].rows[0]).toHaveLength(2);
-    expect(own[1].id).toBe('g-1');
+    const own = gestureSection(TRACES, { ...OPTS, features: (name) => (name === 'wave' ? POSITION.slice(0, 2) : POSITION), ids: new Map([['wave', 'g-wave']]) });
+    expect(own.items[0]).toMatchObject({ id: 'g-wave', features: POSITION.slice(0, 2) });
+    expect(own.items[0].traces[0].rows[0]).toHaveLength(2);
+    expect(own.items[1].id).toBe('gesture-1');
+  });
+
+  it('a gesture keeps its id when another is deleted and the categorizer re-saved', () => {
+    // Delete the wave (gesture-1), re-save with the ids the file had: the circle stays gesture-2.
+    const resaved = gestureSection(CUTS.circle.traces, { ...OPTS, ids: gestureIds(withGestures) });
+    expect(resaved.items.map((g) => [g.id, g.label])).toEqual([['gesture-2', 'circle']]);
+    // A new gesture then takes the smallest free id, never a kept one or a category's.
+    const added = gestureSection([...CUTS.circle.traces, ...CUTS.nod.traces], { ...OPTS, ids: gestureIds({ gestures: resaved }), taken: ['gesture-1'] });
+    expect(added.items.map((g) => g.id)).toEqual(['gesture-2', 'gesture-3']);
+    expect(freshGestureId(new Set(['gesture-1', 'gesture-3']))).toBe('gesture-2');
+    // And a new held category never takes a gesture's id.
+    const withCustomIds: PersonalCategorizer = { ...OLD, gestures: gestureSection(TRACES, { ...OPTS, ids: new Map([['wave', 'cat-3']]) }) };
+    expect(freshCategoryId(withCustomIds)).toBe('cat-4');
+  });
+
+  it('refuses at save a feature with no weight, or a gesture whose features all weigh 0', () => {
+    const { [POSITION[0]]: _dropped, ...partial } = WEIGHTS;
+    expect(() => gestureSection(TRACES, { ...OPTS, weights: partial })).toThrow(`feature "${POSITION[0]}" of gesture "wave" has no weight`);
+    const zero = Object.fromEntries(POSITION.map((f) => [f, 0]));
+    expect(() => gestureSection(TRACES, { ...OPTS, weights: zero })).toThrow('gesture "wave" has no feature with a weight above 0');
+    // The schema says the same of a file, rather than letting the gesture vanish from the model.
+    expect(importCategorizer({ ...withGestures, gestures: { ...section, weights: partial } })).toMatchObject({ ok: false });
+    const dead = importCategorizer({ ...withGestures, gestures: { ...section, weights: { ...section.weights, ...zero } } });
+    expect(dead.ok).toBe(false);
+    if (!dead.ok) expect(dead.error).toContain('no feature with a weight above 0');
+  });
+
+  it('bounds the trace frames at the import door, never in the schema (a saved record still loads)', () => {
+    const frames = (c: PersonalCategorizer) => c.gestures!.items.reduce((n, g) => n + g.traces.reduce((m, tr) => m + tr.rows.length, 0), 0);
+    const tr = section.items[0].traces[0];
+    const copies = Math.ceil(MAX_GESTURE_FRAMES / tr.rows.length) + 1;
+    const huge: PersonalCategorizer = {
+      ...withGestures,
+      gestures: { ...section, items: [{ ...section.items[0], traces: Array.from({ length: copies }, (_, i) => ({ ...tr, id: `big#${i}` })) }] },
+    };
+    expect(frames(huge)).toBeGreaterThan(MAX_GESTURE_FRAMES);
+    const r = importCategorizer(huge);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('too many trace frames');
+    // The same document as a SAVED record (the schema, no door): it loads, bindings and all.
+    expect(PersonalCategorizerSchema.safeParse(huge).success).toBe(true);
+    const record = { id: 'hand:x', name: 'x', createdAt: 0, model: { categorizer: huge, bindings: { 'gesture-1': { command: 'chord.next' } } } };
+    expect(parseRecord(record)?.model).toMatchObject({ bindings: { 'gesture-1': { command: 'chord.next' } } });
   });
 
   it('round-trips through export and import, version unchanged, and derives the same matcher', () => {
@@ -327,14 +478,16 @@ describe('the categorizer file: the gestures section', () => {
   });
 
   it('refuses a gesture id a category already has, a row of the wrong width, and time going back', () => {
-    const bad = (gestures: unknown) => importCategorizer({ ...withGestures, gestures });
-    expect(bad([{ ...section[0], id: 'cat-1' }]).ok).toBe(false);
-    expect(bad([section[0], { ...section[1], id: section[0].id }]).ok).toBe(false);
-    const tr = section[0].traces[0];
-    expect(bad([{ ...section[0], traces: [{ ...tr, rows: tr.rows.map((r) => r.slice(1)) }] }]).ok).toBe(false);
-    expect(bad([{ ...section[0], traces: [{ ...tr, t: [...tr.t].reverse() }] }]).ok).toBe(false);
-    expect(bad([section[0], { ...section[1], traces: [section[0].traces[0]] }]).ok).toBe(false);
-    expect(bad(section).ok).toBe(true);
+    const bad = (items: unknown) => importCategorizer({ ...withGestures, gestures: { ...section, items } });
+    const [g1, g2] = section.items;
+    expect(bad([{ ...g1, id: 'cat-1' }]).ok).toBe(false);
+    expect(bad([{ ...g1, id: 'neutral' }]).ok).toBe(false);
+    expect(bad([g1, { ...g2, id: g1.id }]).ok).toBe(false);
+    const tr = g1.traces[0];
+    expect(bad([{ ...g1, traces: [{ ...tr, rows: tr.rows.map((r) => r.slice(1)) }] }]).ok).toBe(false);
+    expect(bad([{ ...g1, traces: [{ ...tr, t: [...tr.t].reverse() }] }]).ok).toBe(false);
+    expect(bad([g1, { ...g2, traces: [g1.traces[0]] }]).ok).toBe(false);
+    expect(bad(section.items).ok).toBe(true);
   });
 });
 
