@@ -99,5 +99,5 @@ try {
   }));
   await browser.close();
 } finally {
-  stop();
+  await stop();
 }

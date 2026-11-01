@@ -160,7 +160,7 @@ async function main() {
     console.log(json);
   } finally {
     await browser?.close();
-    stop?.();
+    await stop?.();
     rmSync(dir, { recursive: true, force: true }); // the barcoded copy is ~240 MB
   }
 }

@@ -297,7 +297,7 @@ async function main() {
     console.log(json);
   } finally {
     await browser?.close();
-    stop();
+    await stop();
   }
 }
 

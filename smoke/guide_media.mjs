@@ -21,11 +21,9 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { startPreview } from './lib/preview.mjs';
+import { join } from 'node:path';
+import { ROOT, startPreview } from './lib/preview.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'smoke', 'package.json'));
 const { chromium } = require('@playwright/test');
 
@@ -151,6 +149,6 @@ try {
   }
 } finally {
   await browser.close();
-  stop();
+  await stop();
 }
 console.log(`guide:media ${n} scenes -> public/guide/pics`);
