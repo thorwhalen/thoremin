@@ -31,8 +31,10 @@
  * zero displacement, deflating the noise estimate (#856 skips only an identical stamp). So the
  * tap also watches the sources ({@link SOURCE_FRAME_EDGES}) and stamps a part with the tick at
  * which its source frame was FIRST offered: a re-offer keeps the stamp, and every consumer's
- * same-stamp check skips it. Only a frame that CARRIES a stamp (`t`: a camera frame, live or
- * replayed) is a camera frame: the placeholders a source repeats while it has nothing (an empty
+ * same-stamp check skips it. A re-offer is the same frame object, or a frame with the same `t`
+ * and `tOrigin` (a recording written on every tick holds each camera frame on several lines,
+ * each parsed into its own object). Only a frame that CARRIES a stamp (`t`: a camera frame, live
+ * or replayed) is a camera frame: the placeholders a source repeats while it has nothing (an empty
  * or absent-frame constant before the model's first result, a replay with nothing loaded) and
  * the synthetic frames carry none, and keep the tick stamp, so the stamp never stops on them.
  * Identity, not the frame's capture stamp: `frameTime` honours a
@@ -45,6 +47,10 @@
  * otherwise drop it to an older part's). A vector whose parts are ALL re-offers repeats the
  * previous stamp; one with a new face frame and a re-offered hand frame gets the new stamp, its
  * hand features repeated (a stamp per part would be needed to skip those: #916).
+ *
+ * A replay that has ended (or a single-frame fixture) holds its last frame, so the stamp holds
+ * too: no new camera frame, no new sample. A clock that restarts lower (a new engine, without a
+ * reset) starts the tap over.
  *
  * The tick time is read beside it ({@link readLiveVector}'s `tickT`): what a consumer that needs
  * a CLOCK reads (the trainer's actions and its idle ticks, the smoke probe), since the frame
@@ -99,12 +105,15 @@ let currTick = -Infinity;
 export class LiveVectorTap implements Tap {
   onValue(key: string, value: unknown, ctx: NodeContext): void {
     if (ctx.time !== currTick) {
+      // A clock that went back is a new clock: nothing seen on the old one is a re-offer, and
+      // the old maximum must not hold the stamp.
+      if (ctx.time < currTick) resetLiveVector();
       prevTick = currTick;
       currTick = ctx.time;
     }
     if (SOURCE_KEYS.has(key)) {
       const seen = sources.get(key);
-      const continued = seen !== undefined && seen.frame === value && seen.lastSeen >= prevTick && carriesStamp(value);
+      const continued = seen !== undefined && seen.lastSeen >= prevTick && sameFrame(seen.frame, value);
       sources.set(key, { frame: value, firstSeen: continued ? seen.firstSeen : ctx.time, lastSeen: ctx.time });
       return;
     }
@@ -132,10 +141,19 @@ export class LiveVectorTap implements Tap {
   }
 }
 
-/** A camera frame (live or replayed) carries its capture stamp `t`; a placeholder or a
- *  synthetic frame does not, and is never taken for a re-offer. */
-function carriesStamp(frame: unknown): boolean {
-  return typeof frame === 'object' && frame !== null && typeof (frame as { t?: unknown }).t === 'number';
+/** A frame's stamp, when it carries one: a camera frame (live or replayed) does; a placeholder
+ *  or a synthetic frame does not, and is never taken for a re-offer. */
+function stampOf(frame: unknown): { t: number; tOrigin: unknown } | null {
+  if (typeof frame !== 'object' || frame === null) return null;
+  const { t, tOrigin } = frame as { t?: unknown; tOrigin?: unknown };
+  return typeof t === 'number' ? { t, tOrigin } : null;
+}
+
+/** The same camera frame offered again: the same object, or the same stamp and origin. */
+function sameFrame(a: unknown, b: unknown): boolean {
+  const sa = stampOf(a);
+  const sb = stampOf(b);
+  return sa !== null && sb !== null && (a === b || (sa.t === sb.t && sa.tOrigin === sb.tOrigin));
 }
 
 /** The most recent merged feature vector, or null if none has arrived yet: `t` is its camera
