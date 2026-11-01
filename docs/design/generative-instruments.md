@@ -80,7 +80,7 @@ Measured on this machine (esbuild `--bundle --minify`, gzip; checkpoints as byte
 | **Magenta.js Coconet** (`coconet/bach`) | (core 1,681 kB / 404 kB) | 2.2 MB | Four-part harmonisation of a melody. The smallest useful checkpoint by far. |
 | **ONNX Runtime Web** (`onnxruntime-web`) | 403 kB / 110 kB (`/webgpu` entry 113 kB / 37 kB) | wasm 13.6 MB (simd-threaded), 15.7 MB (jspi), 27.1 MB (jsep/WebGPU) [25] | A runtime, not a model. No small steerable symbolic music model is published in ONNX; exporting one is a research task, not an integration. Threaded builds need COOP/COEP headers the static host does not set. |
 | **transformers.js** (`@huggingface/transformers`) | 9.5 MB unpacked | MusicGen-small ≈ 656 MB (q8) | Audio-domain generation; seconds per clip. Not a live instrument. |
-| **Rule-based / tiny** (Tonal.js harmoniser, Euclidean/Markov rhythm, n-gram melody) | < 20 kB | none | Already have `tonal` as a dependency. Not "AI" in the maintainer's sense, but the honest baseline any model must beat, and the right *fallback* voice when a model has not loaded yet. |
+| **Rule-based / tiny** (Tonal.js harmoniser, Euclidean/Markov rhythm, n-gram melody) | < 20 kB | none | `tonal` was a dependency when this was written (removed in #783, unused). Not "AI" in the maintainer's sense, but the honest baseline any model must beat, and the right *fallback* voice when a model has not loaded yet. |
 
 ### 4a. The cloud option is real, experimental, and drifting
 
@@ -100,7 +100,7 @@ Magenta RealTime v1 (2025-06) showed the shape at 800 M parameters and two-secon
 
 ### 4e. The tiny baseline is not nothing
 
-`tonal` (already a dependency, 43 kB minified) gives scales, chords, progressions and voicings [36]; Euclidean rhythms are 15 kB [37]; a first-order Markov melody (the shape Tone.js once shipped as `CtrlMarkov` [38]) or a rule-based harmoniser is a few hundred lines, and Tone.js itself (345 kB) buys nothing over the raw Web Audio the synth already uses [35]. Rule-based accompaniment is microseconds per event, needs no download, and is the *fallback voice* the `music`+`generate` node should play while a checkpoint downloads, so that enabling the layer is never a silent wait. It is also the baseline a 15 MB model has to audibly beat before its download is justified; recording the comparison is a #146 item, not an assumption.
+`tonal` (a dependency when this was written, removed in #783; 43 kB minified) gives scales, chords, progressions and voicings [36]; Euclidean rhythms are 15 kB [37]; a first-order Markov melody (the shape Tone.js once shipped as `CtrlMarkov` [38]) or a rule-based harmoniser is a few hundred lines, and Tone.js itself (345 kB) buys nothing over the raw Web Audio the synth already uses [35]. Rule-based accompaniment is microseconds per event, needs no download, and is the *fallback voice* the `music`+`generate` node should play while a checkpoint downloads, so that enabling the layer is never a silent wait. It is also the baseline a 15 MB model has to audibly beat before its download is justified; recording the comparison is a #146 item, not an assumption.
 
 ### 4f. What the literature says about gesture-steered generation
 

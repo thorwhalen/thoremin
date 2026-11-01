@@ -10,7 +10,7 @@ This design separates them into seven parts, each a pure library contract in a n
 
 | # | Part | Question it answers | Today, buried in |
 |---|---|---|---|
-| 1 | **Chord** (vocabulary) | what a chord is, before any notes | `theory.ts` (`ChordQuality`, `diatonicChord`), `guitar.ts` (a second `ChordQuality`), tonal in `chord.ts` |
+| 1 | **Chord** (vocabulary) | what a chord is, before any notes | `theory.ts` (`ChordQuality`, `diatonicChord`), `guitar.ts` (a second `ChordQuality`), tonal in `chord.ts` (that node was removed in #783) |
 | 2 | **Space** (relations) | which chords there are and how they are related: a graph whose edges are named relations | implicit: "the seven degrees of a key", `moveText` in `chord_map.ts` |
 | 3 | **State** | where the harmony is: key, current chord, its function, history, what is pending and when | a local `lastDegree` in each node |
 | 4 | **Layout** | where each chord or move is on the screen, possibly as a function of the state | `layoutCells` in `ext-harmony/lib/chord_map.ts` |
@@ -40,7 +40,7 @@ Everything in this section is pure TypeScript in `packages/sdk/src/harmony/` (no
 
 ### 2.1 Chord: one vocabulary
 
-Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `sdk/music/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts`. The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
+Today thoremin has two chord-quality vocabularies (`ChordQuality` in `theory.ts`, the `CHORD_QUALITIES` table in `sdk/music/guitar.ts`) and a third via tonal's `Chord.get` in `src/nodes/music/chord.ts` (since removed, #783). The air guitar parses names, the chord map spells chords, the overlay classifies tones. One registry replaces the three:
 
 ```ts
 // packages/sdk/src/harmony/chord.ts
@@ -93,7 +93,7 @@ export function chordOfFunction(fn: Pick<ChordFunction, 'degree' | 'alter' | 'of
 
 `theory.ts` keeps its exports (`diatonicChord`, `romanNumeral`, `letterDegree`, `classifyChord`, `chordName`) as facades over this module, so no caller changes in the PR that adds it. A five-note key is read through its seven-note parent everywhere, as today (`defaultChordSpecFor`).
 
-Tonal (already a dependency, 6.4) supplies parsing and spelling where it is stronger (`Chord.get`, `ChordType`, `Chord.detect` for a set of MIDI notes); the registry above is thoremin's own because the qualities carry **roles** (`'1'`, `'b3'`, `'b7'`), which reduction and coloration need and tonal does not expose.
+Tonal (an npm library; it was a dependency at the time of writing, removed in #783 when nothing imported it) supplies parsing and spelling where it is stronger (`Chord.get`, `ChordType`, `Chord.detect` for a set of MIDI notes); the registry above is thoremin's own because the qualities carry **roles** (`'1'`, `'b3'`, `'b7'`), which reduction and coloration need and tonal does not expose.
 
 ### 2.2 Space: chords and named relations
 
@@ -402,8 +402,8 @@ The composer checks two pairings and refuses a graph that breaks them, naming bo
 | `sign-chord` (`thoremin-asl`, external) | category(letter), table(`letterDegree`), `holdChord` | last chord held | its own copy of voicing + gains | a `thoremin-asl` PR after H2 to call `createRealizer`; `letterDegree` stays in the SDK |
 | `chord-map` (`packages/ext-harmony/src/nodes/chord_map.ts`) | point(palm or fingertip), hit on `layoutCells`, `createCellTracker` (dwell 2 frames, hysteresis 0.12, release 0.3 s); strum mode: gated(predicted strum) | `lastDegree` | renderer (hold); `strumNotes` + `guitarVoicing` (strum) | layouts to `harmony/layout` (`lattice`, `strip`), tracker to `harmony/navigate`, `diatonicChords` to `harmony/chord`, strum to `harmony/trigger`, guitar voicing to the `fretboard` voicer; the node becomes `point-nav` + `harmonic-state` + `chord-realizer` in the harmony slice (H5) |
 | melody ladder (inside `chord-map`) | point(height) over the current chord's tones | reads the chord | one continuous voice | stays an element of the chord map: a layout of the chord's tones (a `strip` over `pitchClasses(chord)` in a register), not of chords |
-| `air-guitar` (`ext-air`) | category(an enrolled shape whose NAME is a chord), gated(predicted strum) | the latched chord | `strumNotes` over `guitarVoicing` | names parse with `harmony/chord` (`parseChordId` and tonal), voicing is the `fretboard` voicer, the strum is `harmony/trigger`; the node stays in ext-air |
-| `chord` + `progression` (`src/nodes/music/`) | progression: scalar(position) over a fixed list | none | `voiceChord`: close stacking | composed by no branch today (only the catalog lists them); keep, and re-express `progression` as `scalar-nav` over a `path` space when a branch wants one; deprecate `chord` after H2 |
+| `air-guitar` (`ext-air`) | category(an enrolled shape whose NAME is a chord), gated(predicted strum) | the latched chord | `strumNotes` over `guitarVoicing` | names parse with `harmony/chord` (`parseChordId`), voicing is the `fretboard` voicer, the strum is `harmony/trigger`; the node stays in ext-air |
+| `chord` + `progression` (`src/nodes/music/`) | progression: scalar(position) over a fixed list | none | `voiceChord`: close stacking | removed in #783 (no branch ever composed them); a progression, if wanted, is `scalar-nav` over a `path` space |
 | `chord-select` (`src/nodes/mapping/chord_select.ts`) | none | picks the first non-empty chord for the overlay | none | becomes S4's pool (`chord1..N` by priority); later the pool carries `harmonic-state` (H5) so the overlay shows the function and the history too |
 | `score` + `orchestra` + `scheduler` (`src/score/`, `src/nodes/output/orchestra*.ts`, `packages/ictus/src/scheduler.ts`) | the conductor's beat advances a written score | the score cursor | already-realized notes, GM sections, CC dynamics | stays; contributes (a) its clock (`musical-time`) to quantized commits and beat-domain figuration, (b) its scheduler's commit-late-never-move rule to figuration events in beats, (c) a chord analysis of the sounding notes (`classify`) to the harmonic state for display (§6.6) |
 | the expression confusion optimizer (`optimalExpressionToDegree` in `expression.ts`) | an assignment of categories to degrees so confusable expressions land on chords that share notes | | | generalizes to `assignTargets(confusion, targets, distance)` in `harmony/navigate`, usable for any categorizer and any space distance |
@@ -476,7 +476,7 @@ Two variants, both from §5.4:
 
 ### 6.5 Play along: MIDI or audio chooses, the camera performs
 
-- Navigation: `chord-in`. From MIDI: a Web MIDI input (the `webmidi` package is already a dependency, used by `midi-out`; Safari has no Web MIDI, as for output) gives held notes, tonal's `Chord.detect` or `classify` gives the chord, a short dwell drops passing tones. From audio: a microphone `AnalyserNode` gives a spectrum, folded into a 12-bin chroma and matched against chord templates (R§4.3) with a confidence and hysteresis; no new dependency.
+- Navigation: `chord-in`. From MIDI: a Web MIDI input (the `webmidi` package is already a dependency, used by `midi-out`; Safari has no Web MIDI, as for output) gives held notes, `classify` gives the chord, a short dwell drops passing tones. From audio: a microphone `AnalyserNode` gives a spectrum, folded into a 12-bin chroma and matched against chord templates (R§4.3) with a confidence and hysteresis; no new dependency.
 - Layout: the Harmonic Map or a ring, as a display of where the music is (it teaches the map).
 - The camera then realizes it: the hand strums or arpeggiates the chord the keyboard or the guitar holds (`gated(strum)` figuration), or the face colours it (6.4). A guitarist's open strings and a singer's hum become the harmony; thoremin performs and decorates it.
 
@@ -535,7 +535,7 @@ The first three steps are H1, H2 and H3. They are SDK-only, do not touch `extens
 
 ## Fleet search (what exists elsewhere)
 
-Searched with `ir search packages` and `ir discover packages` (chord relationships, tonnetz, voice leading, harmony, pitch class set, music theory, midi, arpeggio) and by reading the candidates. Nothing in the fleet implements a Tonnetz, neo-Riemannian moves or minimal voice leading. Reusable as ideas: `thorwhalen/atonal` (pitch-class sets as 12-bit masks, transposition and inversion classes, relation graphs as edge tables with a pluggable link predicate; its own `voice_leading_distance` matches sorted voices and is not minimal, so it is not to be ported); `accompy` (rhythmic skeletons kept apart from pitch patterns; Roman and Nashville parsing), which supports the `pattern(steps)` figuration; `tetrachord` (inversion and open/close spacing for triads in TS, and a note that Web MIDI is missing on Safari); `songleaf` (key estimation and chord function from symbols). Tonal (already a thoremin dependency) covers spelling, `Chord.detect`, voicing dictionaries and a top-note voice-leading rule. The missing component (relations, Tonnetz, minimal voice leading) is what `@thoremin/sdk/harmony` adds; a Python sibling in atonal is a separate, optional follow-up.
+Searched with `ir search packages` and `ir discover packages` (chord relationships, tonnetz, voice leading, harmony, pitch class set, music theory, midi, arpeggio) and by reading the candidates. Nothing in the fleet implements a Tonnetz, neo-Riemannian moves or minimal voice leading. Reusable as ideas: `thorwhalen/atonal` (pitch-class sets as 12-bit masks, transposition and inversion classes, relation graphs as edge tables with a pluggable link predicate; its own `voice_leading_distance` matches sorted voices and is not minimal, so it is not to be ported); `accompy` (rhythmic skeletons kept apart from pitch patterns; Roman and Nashville parsing), which supports the `pattern(steps)` figuration; `tetrachord` (inversion and open/close spacing for triads in TS, and a note that Web MIDI is missing on Safari); `songleaf` (key estimation and chord function from symbols). Tonal (a thoremin dependency at the time, removed in #783) covers spelling, `Chord.detect`, voicing dictionaries and a top-note voice-leading rule. The missing component (relations, Tonnetz, minimal voice leading) is what `@thoremin/sdk/harmony` adds; a Python sibling in atonal is a separate, optional follow-up.
 
 ## References
 
