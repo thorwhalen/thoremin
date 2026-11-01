@@ -13,10 +13,14 @@
  *    speed changes within a repetition; the resampling handles its overall length.
  * 3. **Position** (optional): each column minus its mean, so a wave made higher in the frame is
  *    the same wave.
- * 4. **Scale** (optional): every column divided by the series' amplitude (the RMS deviation
- *    from the column means, one number for all columns, so the shape's proportions are kept),
- *    so a big wave and a small one are the same wave. The amplitude is reported either way:
- *    it is the "how big" of the gesture's variation.
+ * 4. **Scale** (optional): the deviations from the column means divided by the series'
+ *    amplitude (the RMS deviation from the column means, one number for all columns, so the
+ *    shape's proportions are kept), so a big wave and a small one are the same wave. Only the
+ *    deviations are scaled: with position off, each column's mean is kept as it was, as an
+ *    offset (`row = mean + (x - mean) / amplitude`), so where the gesture is made still counts
+ *    and its size does not. Dividing the raw values instead would scale the offset with the
+ *    size, and a bigger wave would look like one made elsewhere. The amplitude is reported
+ *    either way: it is the "how big" of the gesture's variation.
  *
  * A feature with no finite value anywhere in the run is a column of `NaN`, which the DTW
  * skips (`dtw.ts`).
@@ -32,7 +36,7 @@ export interface SeriesOptions {
   length: number;
   /** Subtract each column's mean (position invariance). */
   position: boolean;
-  /** Divide by the amplitude (scale invariance). */
+  /** Divide the deviations from the column means by the amplitude (scale invariance). */
   scale: boolean;
 }
 
@@ -102,6 +106,6 @@ export function toSeries(samples: readonly TraceSample[], options: SeriesOptions
   const amplitude = n === 0 ? 0 : Math.sqrt(sq / n);
   const divisor = scale && amplitude > 0 ? amplitude : 1;
 
-  const rows = at.map((_, i) => columns.map((col, k) => (col[i] - (position ? means[k] : 0)) / divisor));
+  const rows = at.map((_, i) => columns.map((col, k) => (position ? 0 : means[k]) + (col[i] - means[k]) / divisor));
   return { rows, durationMs, amplitude };
 }

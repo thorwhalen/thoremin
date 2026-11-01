@@ -22,6 +22,7 @@ import {
   dtwDistance,
   matchSegment,
   MATCHER_DEFAULTS,
+  SEGMENTER_DEFAULTS,
   toSeries,
   type GestureFire,
   type GestureModel,
@@ -29,7 +30,7 @@ import {
 } from '@thoremin/sdk/enroll/gestures';
 import { createNoiseEstimator, scaleWeights, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
 import type { Trace, TraceSample } from '@thoremin/sdk/enroll/types';
-import { GESTURE_PATHS, waveTake, WAVE_SCRIPT, type WaveScript, type WaveTake } from './helpers/wave_take';
+import { GESTURE_PATHS, waveTake, WAVE_SCRIPT, type GesturePath, type WaveScript, type WaveTake } from './helpers/wave_take';
 
 /** The right hand's raw image positions, x and y: what these gestures move. */
 const POSITION = Object.keys(FEATURE_BY_ID).filter((id) => id.startsWith('hand.right.') && FEATURE_BY_ID[id].group === 'hand.position.raw');
@@ -51,7 +52,7 @@ function cutTraces(gesture: string, take: WaveTake): { traces: Trace[]; noise: N
 }
 
 /** Play a take live through `matcher`, feeding the noise estimate as a live caller does. */
-function play(take: WaveTake, make: (noise: NoiseEstimator) => WindowMatcher & { inRun(): boolean }) {
+function play(take: WaveTake, make: (noise: NoiseEstimator) => WindowMatcher) {
   const noise = createNoiseEstimator();
   const matcher = make(noise);
   const fires: GestureFire[] = [];
@@ -59,14 +60,17 @@ function play(take: WaveTake, make: (noise: NoiseEstimator) => WindowMatcher & {
     const r = matcher.push(f.v, f.t);
     expect(r.following).toBeNull();
     if (r.fired) fires.push(r.fired);
-    if (!matcher.inRun()) noise.push(f.v, f.t);
+    if (!matcher.inGesture()) noise.push(f.v, f.t);
   }
   return fires;
 }
 
 /** The training set: five repetitions of each taught gesture, from seed 1. */
-const TRAINING = TAUGHT.flatMap((g) => cutTraces(g, takeOf(g)).traces);
-const MODEL = buildGestureModel(TRAINING, { features: POSITION });
+const CUTS = TAUGHT.map((g) => cutTraces(g, takeOf(g)));
+const TRAINING = CUTS.flatMap((c) => c.traces);
+/** Noise units, from the training take's rest, as the session would weight them. */
+const WEIGHTS = scaleWeights(CUTS[0].noise.snapshot());
+const MODEL = buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS });
 
 /** The live takes: another seed, 40 % bigger, 25 % faster. */
 const LIVE: Partial<WaveScript> = { seed: 7, amplitude: WAVE_SCRIPT.amplitude * 1.4, waveMs: WAVE_SCRIPT.waveMs * 0.8 };
@@ -104,6 +108,15 @@ describe('dtwDistance', () => {
 
   it('finds a path between series of different lengths even with no band', () => {
     expect(Number.isFinite(dtwDistance(ramp(10), ramp(30), { band: 0 }))).toBe(true);
+    // Every pair of lengths: the least centred band is always wide enough.
+    for (let n = 2; n <= 40; n++) for (let m = 2; m <= 40; m++) expect(Number.isFinite(dtwDistance(ramp(n), ramp(m), { band: 0 }))).toBe(true);
+  });
+
+  it('reads two series a constant d apart as d, whatever their lengths (the symmetric step)', () => {
+    // Flat series, so no warping can bring them closer: every path costs d per unit of weight.
+    const flat = (n: number, v: number) => Array.from({ length: n }, () => [v, v]);
+    expect(dtwDistance(flat(20, 0), flat(20, 0.3), { band: 0.2 })).toBeCloseTo(0.3, 12);
+    expect(dtwDistance(flat(12, 0), flat(31, 0.3), { band: 0 })).toBeCloseTo(0.3, 12);
   });
 });
 
@@ -121,6 +134,24 @@ describe('toSeries', () => {
     // Without the invariances the two differ.
     const raw = { ...OPTS, position: false, scale: false };
     expect(toSeries(samples(5, 3, stamps), raw).rows[0][0]).not.toBeCloseTo(toSeries(samples(0, 1, stamps), raw).rows[0][0], 3);
+  });
+
+  it('with position kept, scales only the deviations, so the size goes and the place stays', () => {
+    const stamps = Array.from({ length: 30 }, (_, i) => i * 33);
+    const keepPlace = { ...OPTS, position: false };
+    const columnMean = (rows: number[][], k: number) => rows.reduce((sum, r) => sum + r[k], 0) / rows.length;
+    const deviations = (rows: number[][]) => rows.map((r) => r.map((x, k) => x - columnMean(rows, k)));
+    const small = toSeries(samples(5, 1, stamps), keepPlace);
+    const big = toSeries(samples(5, 3, stamps), keepPlace);
+    // The size is gone from the shape...
+    const [ds, db] = [deviations(small.rows), deviations(big.rows)];
+    for (let i = 0; i < 16; i++) for (let k = 0; k < 2; k++) expect(db[i][k]).toBeCloseTo(ds[i][k], 9);
+    // ...and the place is kept as it was, unscaled (about 5, where the path was made).
+    const raw = toSeries(samples(5, 3, stamps), { ...OPTS, position: false, scale: false });
+    for (let k = 0; k < 2; k++) expect(columnMean(big.rows, k)).toBeCloseTo(columnMean(raw.rows, k), 9);
+    expect(Math.abs(columnMean(big.rows, 0) - 5)).toBeLessThan(1);
+    // Made elsewhere, it is a different series.
+    expect(toSeries(samples(9, 3, stamps), keepPlace).rows[0][0]).not.toBeCloseTo(big.rows[0][0], 3);
   });
 
   it('resamples at the frames own stamps, so a dropped frame is bridged, not shifted', () => {
@@ -154,17 +185,80 @@ describe('buildGestureModel', () => {
   it('leaves out a gesture with a single trace: one repetition is no agreement', () => {
     const one = cutTraces('flick', takeOf('push', { waves: 1 })).traces;
     expect(one).toHaveLength(1);
-    const model = buildGestureModel([...TRAINING, ...one], { features: POSITION });
+    const model = buildGestureModel([...TRAINING, ...one], { features: POSITION, weights: WEIGHTS });
     expect(model.skipped).toEqual(['flick']);
     expect(model.gestures.map((g) => g.gesture)).not.toContain('flick');
   });
 
-  it('takes the session noise weights in place of the default spread weights', () => {
-    const { noise } = cutTraces('wave', takeOf('wave'));
-    const model = buildGestureModel(TRAINING, { features: POSITION, weights: scaleWeights(noise.snapshot()) });
-    expect(model.series.weights).not.toBe(MODEL.series.weights);
-    const live = cutTraces('wave', takeOf('wave', LIVE)).traces;
-    for (const tr of live) expect(matchSegment(model, tr.samples).gesture).toBe('wave');
+  it('refuses minTraces below 2, and skips a gesture whose radius is not finite', () => {
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minTraces: 1 })).toThrow(/minTraces/);
+    // Two repetitions that share no finite feature: no distance between them, so no radius.
+    const ghost = (id: string, key: 'x' | 'y'): Trace => ({
+      id,
+      gesture: 'ghost',
+      cue: 'ghost',
+      samples: Array.from({ length: 20 }, (_, i) => ({ t: i * 33, vector: { x: NaN, y: NaN, [key]: Math.sin(i / 3) } })),
+    });
+    const model = buildGestureModel([ghost('a', 'x'), ghost('b', 'y')], { features: ['x', 'y'], weights: { x: 1, y: 1 } });
+    expect(model.skipped).toEqual(['ghost']);
+    expect(model.gestures).toEqual([]);
+  });
+
+  it('keeps a default when an option is passed as undefined', () => {
+    const model = buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, length: undefined, band: undefined, minTraces: undefined });
+    expect(model.series.length).toBe(MATCHER_DEFAULTS.length);
+    expect(model.band).toBe(MATCHER_DEFAULTS.band);
+    expect(model.gestures).toHaveLength(TAUGHT.length);
+  });
+
+  it('measures in the weights it is given: a feature without one is not compared, and the units follow', () => {
+    const xOnly = Object.fromEntries(Object.entries(WEIGHTS).map(([id, w]) => [id, id.endsWith('.x') ? w : 0]));
+    const flat = buildGestureModel(TRAINING, { features: POSITION, weights: xOnly });
+    const yColumns = POSITION.flatMap((id, k) => (id.endsWith('.y') ? [k] : []));
+    expect(yColumns.length).toBeGreaterThan(0);
+    for (const k of yColumns) expect(flat.gestures[0].templates[0].rows[0][k]).toBeNaN();
+    // Unscaled, the series are in weighted units: doubling every weight doubles every size
+    // and every radius, and changes no decision.
+    const unscaled = (w: Record<string, number>) => buildGestureModel(TRAINING, { features: POSITION, weights: w, scale: false });
+    const once = unscaled(WEIGHTS);
+    const twice = unscaled(Object.fromEntries(Object.entries(WEIGHTS).map(([id, w]) => [id, 2 * w])));
+    once.gestures.forEach((g, i) => {
+      expect(twice.gestures[i].amplitude).toBeCloseTo(2 * g.amplitude, 9);
+      expect(twice.gestures[i].radius).toBeCloseTo(2 * g.radius, 9);
+    });
+    for (const tr of cutTraces('wave', takeOf('wave', LIVE)).traces) {
+      expect(matchSegment(twice, tr.samples).ratio).toBeCloseTo(matchSegment(once, tr.samples).ratio, 9);
+    }
+  });
+
+  it('adapts the radius to how loosely the player repeats: it decides what is accepted', () => {
+    // An ellipse of the circle's path, `aspect` its height over its width.
+    const ellipse = (aspect: number): GesturePath => (tau, cycles) => {
+      const [x, y] = GESTURE_PATHS.circle(tau, cycles);
+      return [x, aspect * y];
+    };
+    // Strict: five identical circles. Loose: five rings of every proportion, each at its own
+    // size and pace, one take apiece.
+    const strict = buildGestureModel(cutTraces('ring', waveTake({ path: ellipse(1) })).traces, { features: POSITION, weights: WEIGHTS });
+    const looseTraces = [0.5, 0.7, 1, 1.4, 2].flatMap(
+      (aspect, i) =>
+        cutTraces('ring', waveTake({ path: ellipse(aspect), waves: 1, seed: 10 + i, amplitude: WAVE_SCRIPT.amplitude * (0.8 + 0.1 * i), waveMs: WAVE_SCRIPT.waveMs * (1.2 - 0.1 * i) })).traces,
+    );
+    expect(looseTraces).toHaveLength(5);
+    const loose = buildGestureModel(looseTraces, { features: POSITION, weights: WEIGHTS });
+    expect(strict.gestures[0].radius).toBe(MATCHER_DEFAULTS.minRadius);
+    // Measured 0.145.
+    expect(loose.gestures[0].radius).toBeGreaterThan(1.3 * MATCHER_DEFAULTS.minRadius);
+    // A flatter ring than any taught: within the loose ring's radius (ratio 1.71-1.74), and
+    // refused by the same templates held to the strict radius (2.47-2.52).
+    const heldStrict: GestureModel = { ...loose, gestures: loose.gestures.map((g) => ({ ...g, radius: strict.gestures[0].radius })) };
+    const flat = cutTraces('ring', waveTake({ path: ellipse(0.2), ...LIVE })).traces;
+    expect(flat).toHaveLength(5);
+    for (const tr of flat) {
+      expect(matchSegment(loose, tr.samples).gesture).toBe('ring');
+      expect(matchSegment(heldStrict, tr.samples).gesture).toBeNull();
+      expect(matchSegment(strict, tr.samples).gesture).toBeNull();
+    }
   });
 });
 
@@ -181,6 +275,7 @@ describe('the segmenter for a live stream', () => {
     }
     expect(returned.map((t) => t.id)).toEqual(['live#1', 'live#2', 'live#3', 'live#4', 'live#5']);
     expect(seg.traces()).toEqual([]);
+    expect(SEGMENTER_DEFAULTS.retain).toBe(true);
   });
 });
 
@@ -210,17 +305,44 @@ describe('matchSegment (offline goldens)', () => {
   });
 
   it('reports what the invariances took away: bigger and faster', () => {
+    // Truly 1.4 bigger and 1.25 faster. Both read low (scale 1.335-1.359, speed 1.115-1.160)
+    // because the segment's cut points are not fixed on the path: the segmenter opens and
+    // closes on the noise-unit motion threshold, which a bigger, faster swing crosses earlier
+    // in its rise and later in its fall, so the live segment keeps more of the gesture's quiet
+    // ends than a template does. Recovering the true speed (aligning on the DTW path, not on
+    // the cut points) is a follow-up.
     for (const tr of liveTraces('wave')) {
       const { variation } = matchSegment(MODEL, tr.samples);
-      expect(variation.scale).toBeGreaterThan(1.2);
-      expect(variation.scale).toBeLessThan(1.6);
+      expect(variation.scale).toBeGreaterThan(1.32);
+      expect(variation.scale).toBeLessThan(1.37);
       expect(variation.speed).toBeGreaterThan(1.1);
-      expect(variation.speed).toBeLessThan(1.4);
+      expect(variation.speed).toBeLessThan(1.17);
     }
   });
 
+  it('absorbs a repetition paced unevenly within itself, which a lockstep distance refuses', () => {
+    // The wave's own clock bent: slow to start, rushed at the end (tau to tau^1.8).
+    const bent: GesturePath = (tau, cycles) => GESTURE_PATHS.wave(tau ** 1.8, cycles);
+    const lockstep = buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, band: 0 });
+    const traces = cutTraces('wave', waveTake({ path: bent, ...LIVE })).traces;
+    expect(traces).toHaveLength(5);
+    for (const tr of traces) {
+      // Measured: ratio 1.02-1.12 with the default band, 5.1-7.1 with none.
+      const banded = matchSegment(MODEL, tr.samples);
+      const diagonal = matchSegment(lockstep, tr.samples);
+      expect(banded.gesture).toBe('wave');
+      expect(diagonal.gesture).toBeNull();
+      expect(diagonal.distance).toBeGreaterThan(4 * banded.distance);
+    }
+  });
+
+  it('refuses a tolerance of 0 or below instead of answering NaN', () => {
+    expect(() => matchSegment(MODEL, TRAINING[0].samples, { tolerance: 0 })).toThrow(/tolerance/);
+    expect(() => createDtwMatcher({ model: MODEL, noise: createNoiseEstimator(), tolerance: 0 })).toThrow(/tolerance/);
+  });
+
   it('says nothing for an empty model or a segment too short to compare', () => {
-    const empty: GestureModel = buildGestureModel([], { features: POSITION });
+    const empty: GestureModel = buildGestureModel([], { features: POSITION, weights: WEIGHTS });
     const m = matchSegment(empty, TRAINING[0].samples);
     expect(m.gesture).toBeNull();
     expect(m.nearest).toBeNull();
@@ -253,18 +375,48 @@ describe('createDtwMatcher (live goldens)', () => {
     expect(fires[1].t - fires[0].t).toBeGreaterThanOrEqual(3000);
   });
 
-  it('reset forgets an open segment and the hold-off', () => {
+  it('keeps the defaults when options are passed as undefined', () => {
+    const fires = play(takeOf('wave', LIVE), (noise) =>
+      live(noise, { tolerance: undefined, refractoryMs: undefined, segmentation: { quietMs: undefined, startSigma: undefined } }),
+    );
+    expect(fires.map((f) => f.gesture)).toEqual(Array(5).fill('wave'));
+  });
+
+  it('reset forgets an open segment: the half wave it cut never fires', () => {
+    const take = takeOf('wave', LIVE);
+    const noise = createNoiseEstimator();
+    const matcher = live(noise);
+    const first = take.waves[0];
+    const midWave = take.frames.findIndex((f) => f.t >= (first.startMs + first.endMs) / 2);
+    const fires: GestureFire[] = [];
+    let wasInGesture = false;
+    take.frames.forEach((f, i) => {
+      const r = matcher.push(f.v, f.t);
+      if (r.fired) fires.push(r.fired);
+      if (!matcher.inGesture()) noise.push(f.v, f.t);
+      if (i === midWave) {
+        wasInGesture = matcher.inGesture();
+        matcher.reset();
+        expect(matcher.inGesture()).toBe(false);
+      }
+    });
+    expect(wasInGesture).toBe(true);
+    // Waves 2-5 fire, each after its own end; the first wave's second half fires nothing.
+    expect(fires).toHaveLength(4);
+    fires.forEach((f, i) => expect(f.t).toBeGreaterThan(take.waves[i + 1].endMs));
+  });
+
+  it('reset forgets the hold-off', () => {
     const take = takeOf('wave', LIVE);
     const noise = createNoiseEstimator();
     const matcher = live(noise, { refractoryMs: 60_000 });
     let fired = 0;
     for (const f of take.frames) {
       if (matcher.push(f.v, f.t).fired) fired += 1;
-      if (!matcher.inRun()) noise.push(f.v, f.t);
+      if (!matcher.inGesture()) noise.push(f.v, f.t);
     }
     expect(fired).toBe(1);
     matcher.reset();
-    expect(matcher.inRun()).toBe(false);
     // The same take again, on later stamps: the hold-off is gone, so the first wave fires.
     const offset = take.frames[take.frames.length - 1].t + 1000;
     let again = 0;

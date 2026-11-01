@@ -10,6 +10,13 @@
  * per repetition). `following` is the gesture being followed as it unfolds, with how far along
  * it is; a matcher that can only judge a whole repetition, like this one, always says `null`,
  * and the causal Gesture Variation Follower of phase 5 fills it without the seam changing.
+ * `inGesture()` says whether the frames are a gesture's rather than rest, which is what a
+ * caller needs to keep them out of its noise estimate; every matcher answers it.
+ *
+ * What a caller will eventually hold is the CONSTRUCTOR, not this module's model: the GVF of
+ * #755 follows raw traces, not a DTW {@link GestureModel}, so the injection point is "a matcher
+ * from traces", `(traces, options) => WindowMatcher`, of which `buildGestureModel` then
+ * `createDtwMatcher` is one.
  *
  * ## Rung 1: the motion segmenter, then DTW against the templates
  *
@@ -30,7 +37,9 @@
  * the player repeats precisely is matched precisely, and a loose one loosely, with one number.
  *
  * A gesture needs `minTraces` repetitions to have a radius at all (one trace is no agreement,
- * the design's section 4); with fewer it is left out of the model and listed in `skipped`.
+ * the design's section 4, so `minTraces` below 2 is refused); with fewer, or with repetitions
+ * that share no finite feature (a radius that is not finite would accept anything), it is left
+ * out of the model and listed in `skipped`.
  *
  * The **variation** of a fire is what the invariances took away: `speed` is the templates'
  * median duration over the segment's (2 = twice as fast), `scale` the segment's amplitude over
@@ -39,8 +48,10 @@
  * The model is derived from the traces, never stored (samples are the source of truth: the
  * design's section 3), so {@link buildGestureModel} is pure and cheap to re-run.
  */
+import { median } from '@thoremin/stats';
 import type { NoiseEstimator } from '../noise';
 import type { FeatureVector, FeatureWeights, Trace, TraceSample } from '../types';
+import { definedOnly } from '../../util/options';
 import { dtwDistance } from './dtw';
 import { createMotionSegmenter, type SegmenterOptions } from './segmenter';
 import { toSeries, type Series, type SeriesOptions } from './series';
@@ -83,6 +94,8 @@ export interface MatchReading {
 export interface WindowMatcher {
   push(vector: FeatureVector, tMs: number): MatchReading;
   reset(): void;
+  /** True while the frames are a gesture's, not rest: they must not feed a noise estimate. */
+  inGesture(): boolean;
 }
 
 /** The defaults, with where each comes from. Provisional until the real-take set of #754. */
@@ -93,14 +106,18 @@ export const MATCHER_DEFAULTS = {
   /** Sakoe-Chiba half-width, a fraction of the length: the common 10-20 % for gestures, at the
    *  top, because a player's repetitions vary in pacing within the repetition. */
   band: 0.2,
-  /** Accept up to twice the gesture's own radius: the median repetition sits at 1. */
+  /** Accept up to twice the gesture's own radius: the median repetition sits at 1. Must be
+   *  above 0 (confidence is `1 - ratio / tolerance`). */
   tolerance: 2,
   /** The radius's floor, as a fraction of the gesture's amplitude: repetitions that differ by
-   *  under a tenth of their own size are the same motion. On the synthetic goldens the
-   *  player's own repetitions sit within 0.07 and the nearest other gesture beyond 0.26, so
-   *  with `tolerance` the cut falls at 0.2, between the two. */
+   *  under a tenth of their own size are the same motion (a constant offset `d` reads `d`,
+   *  `dtw.ts`). Measured on the synthetic goldens: a live repetition sits within 0.125 of its
+   *  gesture's nearest template (ratio 1.25 at most), a template of another gesture is at least
+   *  0.49 from every template, and the untaught diagonal at least 0.50 from its nearest (ratio
+   *  4.4); with `tolerance` the cut falls at 0.2 (0.23 for the nod, whose radius is 0.113),
+   *  1.6 times above the farthest own repetition and 2.5 times below the nearest other. */
   minRadius: 0.1,
-  /** One trace is no agreement (design section 4). */
+  /** One trace is no agreement (design section 4); below 2 is refused. */
   minTraces: 2,
   /** A gesture is the same made anywhere in the frame... */
   position: true,
@@ -113,9 +130,9 @@ export const MATCHER_DEFAULTS = {
 export interface GestureModelOptions {
   /** The features a gesture is matched on (a wave is the wrist's path, not the mouth). */
   features: readonly string[];
-  /** Per-feature multipliers: `scaleWeights` of the session's noise estimate when there is
-   *  one. Default: each feature over its spread across all the traces. */
-  weights?: Readonly<FeatureWeights>;
+  /** Per-feature multipliers: `scaleWeights` of the session's noise estimate (the session
+   *  always has one), so every feature is in noise units. */
+  weights: Readonly<FeatureWeights>;
   length?: number;
   band?: number;
   position?: boolean;
@@ -147,7 +164,8 @@ export interface GestureModel {
 export interface SegmentMatch {
   /** The accepted gesture, or null for a stranger. */
   gesture: string | null;
-  /** The nearest gesture, accepted or not (null when the model is empty). */
+  /** The nearest gesture BY RATIO (`distance / radius`, not by distance), accepted or not;
+   *  null when the model is empty. */
   nearest: string | null;
   distance: number;
   /** `distance / radius` of the nearest gesture. */
@@ -156,33 +174,9 @@ export interface SegmentMatch {
   variation: Variation;
 }
 
-function median(xs: readonly number[]): number {
-  if (xs.length === 0) return NaN;
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = s.length >> 1;
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-/** Each feature over its standard deviation across every sample of every trace (0 if flat). */
-function spreadWeights(traces: readonly Trace[], features: readonly string[]): FeatureWeights {
-  const out: FeatureWeights = {};
-  for (const id of features) {
-    let sum = 0;
-    let sq = 0;
-    let n = 0;
-    for (const tr of traces) {
-      for (const s of tr.samples) {
-        const x = s.vector[id];
-        if (x === undefined || !Number.isFinite(x)) continue;
-        sum += x;
-        sq += x * x;
-        n += 1;
-      }
-    }
-    const variance = n > 1 ? sq / n - (sum / n) ** 2 : 0;
-    out[id] = variance > 0 ? 1 / Math.sqrt(variance) : 0;
-  }
-  return out;
+/** Refuse a tolerance that would make confidence meaningless (NaN at 0, negative below). */
+function checkTolerance(tolerance: number): void {
+  if (!(tolerance > 0)) throw new Error(`gesture matcher: tolerance must be above 0 (got ${tolerance})`);
 }
 
 /** Group traces by gesture, in first-seen order. */
@@ -198,10 +192,11 @@ function byGesture(traces: readonly Trace[]): Map<string, Trace[]> {
 
 /** The model the matcher reads, derived from the player's traces (see the module header). */
 export function buildGestureModel(traces: readonly Trace[], options: GestureModelOptions): GestureModel {
-  const o = { ...MATCHER_DEFAULTS, ...options };
+  const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
+  if (!(o.minTraces >= 2)) throw new Error(`buildGestureModel: minTraces must be at least 2, one trace is no agreement (got ${o.minTraces})`);
   const series: SeriesOptions = {
     features: o.features,
-    weights: o.weights ?? spreadWeights(traces, o.features),
+    weights: o.weights,
     length: o.length,
     position: o.position,
     scale: o.scale,
@@ -220,10 +215,15 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
     const amplitude = median(templates.map((s) => s.amplitude));
     // In series units: the amplitude is 1 once scaled, its weighted value otherwise.
     const floor = o.minRadius * (o.scale ? 1 : amplitude);
+    const radius = Math.max(median(nearestSibling), floor);
+    if (!Number.isFinite(radius)) {
+      skipped.push(gesture);
+      continue;
+    }
     gestures.push({
       gesture,
       templates,
-      radius: Math.max(median(nearestSibling), floor),
+      radius,
       durationMs: median(templates.map((s) => s.durationMs)),
       amplitude,
     });
@@ -237,6 +237,7 @@ export function matchSegment(
   samples: readonly TraceSample[],
   { tolerance = MATCHER_DEFAULTS.tolerance }: { tolerance?: number } = {},
 ): SegmentMatch {
+  checkTolerance(tolerance);
   const seg = toSeries(samples, model.series);
   let best: { g: GestureTemplates; distance: number; ratio: number } | null = null;
   if (seg.rows.length > 0) {
@@ -267,7 +268,7 @@ export type SegmentationOptions = Pick<SegmenterOptions, 'startSigma' | 'stopSig
 export interface DtwMatcherOptions {
   model: GestureModel;
   /** The noise units the live stream is segmented in; the caller feeds it with frames that
-   *  are not a gesture (`inRun()` says which), as the session does during a take. */
+   *  are not a gesture (`inGesture()` says which), as the session does during a take. */
   noise: NoiseEstimator;
   tolerance?: number;
   /** After a fire, no other fire for this long, in ms. */
@@ -275,20 +276,15 @@ export interface DtwMatcherOptions {
   segmentation?: SegmentationOptions;
 }
 
-/** A rung-1 {@link WindowMatcher}, plus the segmenter's `inRun` for the caller's noise feed. */
-export interface DtwMatcher extends WindowMatcher {
-  /** True while a segment is open: its frames are a gesture's, not noise. */
-  inRun(): boolean;
-}
-
 const NOTHING: MatchReading = Object.freeze({ fired: null, following: null });
 
 /** Build the rung-1 matcher: the motion segmenter, then {@link matchSegment} per segment. */
-export function createDtwMatcher(options: DtwMatcherOptions): DtwMatcher {
-  const tolerance = options.tolerance ?? MATCHER_DEFAULTS.tolerance;
-  const refractoryMs = options.refractoryMs ?? MATCHER_DEFAULTS.refractoryMs;
+export function createDtwMatcher(options: DtwMatcherOptions): WindowMatcher {
+  const { tolerance, refractoryMs } = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
+  checkTolerance(tolerance);
   const segmenter = createMotionSegmenter({
-    ...options.segmentation,
+    ...definedOnly<SegmentationOptions>(options.segmentation ?? {}),
+    // Placeholders: the trace is judged here and never kept, so it names no gesture or cue.
     gesture: '',
     cue: 'live',
     noise: options.noise,
@@ -310,6 +306,6 @@ export function createDtwMatcher(options: DtwMatcherOptions): DtwMatcher {
       segmenter.reset();
       lastFire = -Infinity;
     },
-    inRun: () => segmenter.inRun(),
+    inGesture: () => segmenter.inRun(),
   };
 }

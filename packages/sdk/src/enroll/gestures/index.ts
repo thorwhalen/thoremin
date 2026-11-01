@@ -12,7 +12,6 @@ export {
   createDtwMatcher,
   matchSegment,
   MATCHER_DEFAULTS,
-  type DtwMatcher,
   type DtwMatcherOptions,
   type Following,
   type GestureFire,

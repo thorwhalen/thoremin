@@ -48,6 +48,7 @@
 import { createWindowMotion, MOTION_DEFAULTS } from '../motion';
 import type { NoiseEstimator } from '../noise';
 import type { FeatureVector, Trace, TraceSample } from '../types';
+import { definedOnly } from '../../util/options';
 
 export interface SegmenterOptions {
   /** The gesture's name, stamped on every trace. */
@@ -72,7 +73,7 @@ export interface SegmenterOptions {
   /** Longest motion kept as a trace, in ms. */
   maxTraceMs?: number;
   /** Keep every trace for {@link MotionSegmenter.traces} (a take). Off for a live stream, which
-   *  only reads the trace `push` returns and would otherwise grow without bound. Default on. */
+   *  only reads the trace `push` returns and would otherwise grow without bound. */
   retain?: boolean;
 }
 
@@ -92,6 +93,8 @@ export const SEGMENTER_DEFAULTS = {
   minTraceMs: 400,
   /** Twice the design's typical 1.5 s repetition (`dynamic-gestures.md` section 5). */
   maxTraceMs: 3000,
+  /** A take keeps its traces; a live stream turns this off. */
+  retain: true,
 } as const;
 
 export interface MotionSegmenter {
@@ -120,7 +123,7 @@ interface Run {
 
 /** Build a motion segmenter. No clock of its own: `tMs` comes from the caller. */
 export function createMotionSegmenter(options: SegmenterOptions): MotionSegmenter {
-  const o = { ...SEGMENTER_DEFAULTS, ...options };
+  const o = { ...SEGMENTER_DEFAULTS, ...definedOnly(options) };
   const meter = createWindowMotion({ features: o.features, noise: o.noise, seed: o.seed });
   const cut: Trace[] = [];
   let count = 0;
@@ -138,7 +141,7 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
     if (r.tooLong || r.lastMove - r.firstMove < o.minTraceMs) return null;
     count += 1;
     const trace: Trace = { id: `${o.cue}#${count}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
-    if (o.retain !== false) cut.push(trace);
+    if (o.retain) cut.push(trace);
     return trace;
   };
 

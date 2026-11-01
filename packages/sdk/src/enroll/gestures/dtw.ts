@@ -11,11 +11,17 @@
  * Rows are time steps, columns are dimensions. The local cost of pairing row `i` of `a` with
  * row `j` of `b` is the RMS difference over the dimensions finite in both (a dimension a series
  * never measured says nothing, rather than poisoning every cell); a pair sharing no finite
- * dimension costs `Infinity`. The warping path may move one step in `a`, in `b` or in both, and
- * stays within the band: `|j - i * m / n| <= r`, where `r` is `band` times the longer length,
- * widened to the length difference so a path always exists. The result is the path's total
- * cost over `n + m`, the usual normalisation that keeps a long series from looking far only
- * because it is long.
+ * dimension costs `Infinity`. The warping path may move one step in `a`, in `b` or in both;
+ * the diagonal step counts its cost twice (the symmetric step pattern), so every path from the
+ * first cell to the last weighs exactly `n + m` and dividing by `n + m` is an average: two series
+ * a constant `d` apart read `d`, and a long series does not look far only because it is long.
+ *
+ * The path stays within a Sakoe-Chiba band centred on the grid's diagonal: at row `i`, the
+ * columns from `floor(i * m / n - r)` to `ceil(i * m / n + r)`, where `r` is `band` times the
+ * longer length. The rounding is outward, so a band admits up to one column more on each side
+ * than `r` says. For series of different lengths `r` is raised to the least width a centred
+ * band needs for any path to exist, `ceil(max / min) - 1` (the diagonal advances `m / n`
+ * columns per row), so no band is ever too narrow to answer.
  *
  * O(n * r) time, O(m) memory.
  */
@@ -48,7 +54,8 @@ export function dtwDistance(a: Rows, b: Rows, { band }: DtwOptions): number {
   const n = a.length;
   const m = b.length;
   if (n === 0 || m === 0) return Infinity;
-  const r = Math.max(Math.ceil(Math.max(0, band) * Math.max(n, m)), Math.abs(n - m));
+  const longer = Math.max(n, m);
+  const r = Math.max(Math.ceil(Math.max(0, band) * longer), Math.ceil(longer / Math.min(n, m)) - 1);
   let prev = new Float64Array(m + 1).fill(Infinity);
   let curr = new Float64Array(m + 1).fill(Infinity);
   prev[0] = 0;
@@ -59,9 +66,9 @@ export function dtwDistance(a: Rows, b: Rows, { band }: DtwOptions): number {
     const lo = Math.max(1, Math.floor(centre - r));
     const hi = Math.min(m, Math.ceil(centre + r));
     for (let j = lo; j <= hi; j++) {
-      const best = Math.min(prev[j - 1], prev[j], curr[j - 1]);
-      if (best === Infinity) continue;
-      curr[j] = best + rowCost(a[i - 1], b[j - 1]);
+      if (prev[j - 1] === Infinity && prev[j] === Infinity && curr[j - 1] === Infinity) continue;
+      const c = rowCost(a[i - 1], b[j - 1]);
+      curr[j] = Math.min(prev[j - 1] + 2 * c, prev[j] + c, curr[j - 1] + c);
     }
     [prev, curr] = [curr, prev];
   }

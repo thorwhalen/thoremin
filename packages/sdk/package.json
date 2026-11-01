@@ -135,6 +135,7 @@
     "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",
     "./timing/tracker": "./src/timing/tracker.ts",
     "./util/ids": "./src/util/ids.ts",
+    "./util/options": "./src/util/options.ts",
     "./view/frame_view": "./src/view/frame_view.ts",
     "./view/frame_hold": "./src/view/frame_hold.ts",
     "./sources/frame_pump": "./src/sources/frame_pump.ts",
