@@ -48,6 +48,7 @@
 import { createWindowMotion, MOTION_DEFAULTS } from '../motion';
 import type { NoiseEstimator } from '../noise';
 import type { FeatureVector, Trace, TraceSample } from '../types';
+import { definedOnly } from '../../util/options';
 
 export interface SegmenterOptions {
   /** The gesture's name, stamped on every trace. */
@@ -71,6 +72,9 @@ export interface SegmenterOptions {
   minTraceMs?: number;
   /** Longest motion kept as a trace, in ms. */
   maxTraceMs?: number;
+  /** Keep every trace for {@link MotionSegmenter.traces} (a take). Off for a live stream, which
+   *  only reads the trace `push` returns and would otherwise grow without bound. */
+  retain?: boolean;
 }
 
 /**
@@ -89,12 +93,14 @@ export const SEGMENTER_DEFAULTS = {
   minTraceMs: 400,
   /** Twice the design's typical 1.5 s repetition (`dynamic-gestures.md` section 5). */
   maxTraceMs: 3000,
+  /** A take keeps its traces; a live stream turns this off. */
+  retain: true,
 } as const;
 
 export interface MotionSegmenter {
   /** Feed one frame. Returns a trace on the frame it closes (`quietMs` after the motion). */
   push(vector: FeatureVector, tMs: number): Trace | null;
-  /** Every trace cut so far. */
+  /** Every trace cut so far (none when `retain` is off). */
   traces(): Trace[];
   /** Drop the traces and any open run; disarm. */
   reset(): void;
@@ -117,9 +123,10 @@ interface Run {
 
 /** Build a motion segmenter. No clock of its own: `tMs` comes from the caller. */
 export function createMotionSegmenter(options: SegmenterOptions): MotionSegmenter {
-  const o = { ...SEGMENTER_DEFAULTS, ...options };
+  const o = { ...SEGMENTER_DEFAULTS, ...definedOnly(options) };
   const meter = createWindowMotion({ features: o.features, noise: o.noise, seed: o.seed });
   const cut: Trace[] = [];
+  let count = 0;
   let run: Run | null = null;
   /** When the reading last fell to `stopSigma` or below and stayed there; null while above. */
   let quietSince: number | null = null;
@@ -132,8 +139,9 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
     run = null;
     armed = true;
     if (r.tooLong || r.lastMove - r.firstMove < o.minTraceMs) return null;
-    const trace: Trace = { id: `${o.cue}#${cut.length + 1}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
-    cut.push(trace);
+    count += 1;
+    const trace: Trace = { id: `${o.cue}#${count}`, gesture: o.gesture, cue: o.cue, samples: r.samples.filter((s) => s.t <= r.lastMove) };
+    if (o.retain) cut.push(trace);
     return trace;
   };
 
@@ -176,6 +184,7 @@ export function createMotionSegmenter(options: SegmenterOptions): MotionSegmente
     traces: () => cut.slice(),
     reset() {
       cut.length = 0;
+      count = 0;
       run = null;
       quietSince = null;
       armed = false;

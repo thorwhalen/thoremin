@@ -1,6 +1,7 @@
 /**
  * A scripted take of a hand waving (#751), for the motion segmenter's tests: an open right
  * hand held up, a rest, then `waves` waves with a pause between each, then a tail of rest.
+ * Any other gesture's path can stand in for the wave (`path`, `GESTURE_PATHS`; #752).
  *
  * Each frame is the scripted articulated hand (`@thoremin/ext-faces/lib/synthetic_hand`, its
  * per-keypoint jitter deterministic) shifted sideways, read by `handsFrameVector` exactly as the
@@ -19,7 +20,29 @@ import { handsFrameVector } from '@thoremin/sdk/features/modalities/hand';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 
+/**
+ * A gesture's path (#752): the hand's displacement at `tau` (0..1 through one repetition) in
+ * units of the amplitude, `[sideways, down]`, starting and ending at rest. `cycles` is the
+ * script's.
+ */
+export type GesturePath = (tau: number, cycles: number) => readonly [number, number];
+
+const hann = (tau: number) => Math.sin(Math.PI * tau) ** 2;
+const swing = (tau: number, cycles: number) => hann(tau) * Math.sin(2 * Math.PI * cycles * tau);
+
+/** The scripted gestures: a wave is a side-to-side swing, a nod the same swing up and down, a
+ *  circle a loop, a push one swing out and back, a diagonal the swing at 45 degrees. */
+export const GESTURE_PATHS = {
+  wave: (tau, cycles) => [swing(tau, cycles), 0],
+  nod: (tau, cycles) => [0, swing(tau, cycles)],
+  circle: (tau, cycles) => [hann(tau) * Math.sin(2 * Math.PI * cycles * tau), hann(tau) * (1 - Math.cos(2 * Math.PI * cycles * tau))],
+  push: (tau) => [hann(tau), 0],
+  diagonal: (tau, cycles) => [swing(tau, cycles) / Math.SQRT2, swing(tau, cycles) / Math.SQRT2],
+} satisfies Record<string, GesturePath>;
+
 export interface WaveScript {
+  /** What each repetition traces (default the wave). */
+  path: GesturePath;
   /** The opening rest, long enough for the noise estimate to warm (30 frames). */
   restMs: number;
   waves: number;
@@ -44,6 +67,7 @@ export interface WaveScript {
 }
 
 export const WAVE_SCRIPT: WaveScript = {
+  path: GESTURE_PATHS.wave,
   restMs: 2000,
   waves: 5,
   waveMs: 1000,
@@ -82,22 +106,24 @@ export function waveTake(script: Partial<WaveScript> = {}): WaveTake {
   const totalMs = s.waves > 0 ? waves[waves.length - 1].endMs + s.tailMs : s.restMs;
   const frameMs = 1000 / s.fps;
 
-  /** The sideways shift at `t`, in pixels. */
-  const shift = (t: number): number => {
+  /** The hand's shift at `t`, in pixels: the drift sideways, plus the gesture's path. */
+  const shift = (t: number): [number, number] => {
     let x = s.drift * L * Math.sin((2 * Math.PI * t) / s.driftPeriodMs);
+    let y = 0;
     for (const w of waves) {
       if (t < w.startMs || t > w.endMs) continue;
-      const tau = (t - w.startMs) / s.waveMs;
-      x += s.amplitude * L * Math.sin(Math.PI * tau) ** 2 * Math.sin(2 * Math.PI * s.cycles * tau);
+      const [px, py] = s.path((t - w.startMs) / s.waveMs, s.cycles);
+      x += s.amplitude * L * px;
+      y += s.amplitude * L * py;
     }
-    return x;
+    return [x, y];
   };
 
   const frames: WaveTake['frames'] = [];
   for (let i = 0; i * frameMs <= totalMs; i++) {
     const t = i * frameMs;
-    const dx = shift(t);
-    const keypoints = syntheticHandKeypoints(OPEN, s.seed * 1e6 + i).map((k) => ({ ...k, x: k.x + dx }));
+    const [dx, dy] = shift(t);
+    const keypoints = syntheticHandKeypoints(OPEN, s.seed * 1e6 + i).map((k) => ({ ...k, x: k.x + dx, y: k.y + dy }));
     const hands = [{ handedness: 'Right', keypoints, score: 1 }];
     if (s.leftHandFromMs !== null && t >= s.leftHandFromMs) {
       const left = syntheticHandKeypoints(REST, s.seed * 1e6 + i + 5e5).map((k) => ({ ...k, x: k.x + LEFT_HAND_DX }));
