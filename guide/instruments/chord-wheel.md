@@ -14,5 +14,5 @@ Around the chord in the middle are the key's six moves from it: up a fourth, dow
 :::
 
 :::details Settings
-**Chord wheel** in the editor: which moves (the key's, or the Tonnetz's, which leave the key); which hand steers, and with what; the wheel's size; how far to push and how long to hold before a move is made; walking on the beat; the tension shown under each chord and which model measures it; the order of the moves (fixed, or the likeliest next chord on top); and what keeps the beat for arpeggios. The key and how chords sound are in **Sound**.
+**Chord wheel** in the editor: which moves (the key's, or the Tonnetz's, which leave the key); which hand steers, and with what; the wheel's size; how far to push and how long to hold before a move is made; walking on the beat; the tension shown under each chord and which model measures it (your own ratings among them); the order of the moves (fixed, or the likeliest next chord on top); and what keeps the beat for arpeggios. The key and how chords sound are in **Sound**.
 :::

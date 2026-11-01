@@ -69,6 +69,7 @@ export const chordWheel = defineBranch({
   edges: [
     to({ node: TRUNK.hands, port: 'hands' }, { node: 'chordWheel', port: 'hands' }),
     to(ui('chordWheel'), { node: 'chordWheel', port: 'config' }),
+    to(ui('chordMapRatings'), { node: 'chordWheel', port: 'ratings' }),
     to(ui('chordSpec'), { node: 'chordWheel', port: 'spec' }),
     to(ui('chordConfig'), { node: 'chordWheel', port: 'chordConfig' }),
     to(ui('octaveShift'), { node: 'chordWheel', port: 'octaveShift' }),

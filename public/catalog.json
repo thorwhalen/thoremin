@@ -1762,6 +1762,10 @@
       {
         "name": "poses",
         "kind": "category-scores"
+      },
+      {
+        "name": "ratings",
+        "kind": "move-ratings"
       }
     ],
     "outputs": [
@@ -1890,7 +1894,7 @@
       },
       {
         "name": "tension",
-        "type": "enum(off | function | tps | profile)",
+        "type": "enum(off | function | tps | profile | rated)",
         "default": "off"
       },
       {

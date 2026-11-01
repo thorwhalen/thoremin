@@ -858,7 +858,7 @@ Around the chord in the middle are the key's six moves from it: up a fourth, dow
 
 **Settings**
 
-**Chord wheel** in the editor: which moves (the key's, or the Tonnetz's, which leave the key); which hand steers, and with what; the wheel's size; how far to push and how long to hold before a move is made; walking on the beat; the tension shown under each chord and which model measures it; the order of the moves (fixed, or the likeliest next chord on top); and what keeps the beat for arpeggios. The key and how chords sound are in **Sound**.
+**Chord wheel** in the editor: which moves (the key's, or the Tonnetz's, which leave the key); which hand steers, and with what; the wheel's size; how far to push and how long to hold before a move is made; walking on the beat; the tension shown under each chord and which model measures it (your own ratings among them); the order of the moves (fixed, or the likeliest next chord on top); and what keeps the beat for arpeggios. The key and how chords sound are in **Sound**.
 
 Its settings: [Chord wheel](#settings--chord-wheel), [Sound](#settings--sound). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
 
@@ -1750,7 +1750,7 @@ The chord wheel's own settings; the key and how chords sound are in **Sound**.
 - **Moves**: the key's six moves, or the Tonnetz's, which leave the key one or two changed notes at a time.
 - **Steering**: your hand, your face, or both, your signs, or your poses; which hand and which point of it; the wheel's size; and how far to push and how long to hold before a hand move is made. With signs, a fingerspelled letter A to G goes to that letter's chord in the key, and the next letter goes straight on (turn on **Sign language** too). With your poses, your first pose makes the top move, the next pose the next move clockwise (choose the poses in **Pose categorizer**).
 - **Order**: the moves in a fixed place, or the likeliest next chord on top. **Surprise** brings rarer moves to the top, from this setting, your other hand's height, or your face.
-- **Tension**: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named).
+- **Tension**: a number under each chord saying how far it is from home, and which model measures it (the models disagree, so the model is always named). **Your ratings** uses the tension you gave each move from the home chord in **Rate this move** (in the chord map's section); a move you have not rated is measured by Lerdahl's distance, on the same scale.
 - **Walk on the beat**: a push held out keeps making that move, every one to four beats.
 - **Timing**: what keeps the beat for arpeggios and walks (the Chord sound's tempo, a song loaded in the Song tool, or the conductor while you conduct).
 

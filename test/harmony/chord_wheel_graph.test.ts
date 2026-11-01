@@ -41,6 +41,8 @@ describe.runIf(HARMONY)('the chord wheel in the composed graph', () => {
     const port = overlayPortName('harmonic-layers', 'chordWheel', 'grid');
     expect(composed.spec.edges).toContainEqual({ from: { node: 'chordWheel', port: 'grid' }, to: { node: 'overlay', port } });
     expect(composed.spec.edges).toContainEqual({ from: { node: 'ui', port: 'chordWheel' }, to: { node: 'overlay', port: overlayPortName('harmonic-layers', 'chordWheel', 'config') } });
+    // The player's ratings reach the wheel for its own tension model (#809), map or no map.
+    expect(composed.spec.edges).toContainEqual({ from: { node: 'ui', port: 'chordMapRatings' }, to: { node: 'chordWheel', port: 'ratings' } });
     expect(composed.elements).toContain(overlayElementId('harmonic-layers', 'chordWheel'));
     expect(composed.spec.edges.some((e) => e.from.node === 'chordWheel' && e.from.port === 'triad' && e.to.node === 'chordSel')).toBe(true);
 
