@@ -24,3 +24,4 @@ export {
   type Variation,
   type WindowMatcher,
 } from './matcher';
+export { gestureRestCue, GESTURE_REST_CUE, restlessGestures, withRestBeforeGestures, type RestlessGesture } from './rest';

@@ -168,7 +168,8 @@ export const CueProductSchema = z.enum([
    * repetitions feed the session's noise estimate (a wave is deliberate motion, as a
    * nuisance demonstration is), so a routine runs a rest cue before it: the segmenter
    * judges motion in noise units, and those should already be known when the first
-   * repetition comes.
+   * repetition comes. `withRestBeforeGestures` (`gestures/rest.ts`, #857) prepends that
+   * rest to a routine that lacks one; `restlessGestures` names the cues that lack it.
    */
   'gesture',
 ]);
