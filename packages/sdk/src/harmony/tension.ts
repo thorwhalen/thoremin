@@ -15,16 +15,21 @@
  *
  * The three disagree, which is the point of naming them: the functional ladder makes V tenser
  * than ii (a dominant pulls), while Lerdahl's distance and the key profile both put ii further
- * from home than V. Pure.
+ * from home than V.
+ *
+ * A fourth is the player's own (#809): {@link ratedTensionModel}, from the ratings of "Rate this
+ * move" (`./ratings`). It is data, not a fixed table, so it is built, not listed. Pure.
  */
 import { diatonicChords, functionOf, parentKey, pitchClasses, type Chord, type Key } from './chord';
+import { moveKey, ratingMode, type RatingsTable } from './ratings';
 import { SCALE_TYPES, scalePitchClasses } from '../music/theory';
 
 export const TENSION_MODEL_IDS = ['function', 'tps', 'profile'] as const;
 export type TensionModelId = (typeof TENSION_MODEL_IDS)[number];
 
 export interface TensionModel {
-  id: TensionModelId;
+  /** One of the named models, or `rated` (the player's own, {@link ratedTensionModel}). */
+  id: TensionModelId | 'rated';
   /** The name a display shows beside every number it measures. */
   name: string;
   /** The tension of a chord heard in a key (larger: more tense), or null where the model has no
@@ -142,6 +147,37 @@ const profileModel: TensionModel = {
 };
 
 export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { function: functionModel, tps: tpsModel, profile: profileModel };
+
+/**
+ * The player's own tension (#809): a key's diatonic chord is as tense as the player rated the
+ * move from the tonic to it ("I → vi", settled -1 to tense 1, by scale degree and mode, `./ratings`).
+ * A chord with no rated move from the tonic (the tonic itself, an unrated degree, a chord outside
+ * the key) is measured by `fallback`, named in the model's name.
+ *
+ * The two must share one scale, or a rated chord and an unrated one could not be compared on the
+ * same wheel. So a rating is placed on the fallback's own range over the key's seven chords: -1 at
+ * its least tense diatonic chord, 1 at its most. A rated chord then reads as a number the fallback
+ * could have given, and the two rank together.
+ */
+export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): TensionModel {
+  return {
+    id: 'rated',
+    name: `Your ratings (an unrated move: ${fallback.name})`,
+    tension(chord, key) {
+      const fn = functionOf(chord, key);
+      const own = fn && fn.alter === undefined && fn.of === undefined ? diatonicChords(key)[fn.degree] : undefined;
+      const rated = fn && own && own.root === chord.root && own.quality === chord.quality && fn.degree !== 0 ? ratings[moveKey(ratingMode(key), 0, fn.degree)] : undefined;
+      if (!rated) return fallback.tension(chord, key);
+      const range = diatonicChords(key)
+        .map((c) => fallback.tension(c, key))
+        .filter((t): t is number => t !== null);
+      if (range.length === 0) return null;
+      const lo = Math.min(...range);
+      const hi = Math.max(...range);
+      return Math.round((lo + ((rated.tension + 1) / 2) * (hi - lo)) * 100) / 100;
+    },
+  };
+}
 
 /** A chord's tension as a display shows it: the number, or '' where the model has none. */
 export function tensionText(model: TensionModel, chord: Chord, key: Key): string {

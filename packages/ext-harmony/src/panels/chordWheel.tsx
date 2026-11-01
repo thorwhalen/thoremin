@@ -4,11 +4,14 @@
  * `dispatchDialSetIn` (the single write path). The key is the chord-source scale and a chord
  * sounds as the Chord sound section says, as for the chord map.
  */
-import { TENSION_MODEL_IDS, TENSION_MODELS } from '@thoremin/sdk/harmony/tension';
+import { ratedTensionModel, TENSION_MODEL_IDS, TENSION_MODELS } from '@thoremin/sdk/harmony/tension';
 import { dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordWheelLive, useChordWheelStatus } from '../app/chordWheelStatus';
-import { DEFAULT_FACE_MOVES, WHEEL_MOVES, WHEEL_MOVE_SETS, WHEEL_STEER, type ChordWheelDialParams } from '../nodes/chord_wheel';
+import { DEFAULT_FACE_MOVES, RATED_TENSION_FALLBACK, WHEEL_MOVES, WHEEL_MOVE_SETS, WHEEL_STEER, type ChordWheelDialParams } from '../nodes/chord_wheel';
+
+/** The player's own tension model's name (#809), which names its fallback. */
+const RATED_TENSION_NAME = ratedTensionModel({}, TENSION_MODELS[RATED_TENSION_FALLBACK]).name;
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { EMOTIONS, type Emotion } from '@thoremin/sdk/music/expression';
 import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
@@ -166,7 +169,7 @@ export function ChordWheelControls() {
       {order === 'likely' && surpriseFrom === 'dial' && (
         <Range label={`Surprise (${Math.round(surprise * 100)}%)`} path="chordWheel.surprise" value={surprise} min={0} max={1} step={0.05} enabled={enabled} />
       )}
-      <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the functional ladder makes V tenser than ii; Lerdahl's distance and the key profile put ii further from home), so a number always comes with its model.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="Each chord's tension under its name, by the model named over the wheel. The models disagree (the functional ladder makes V tenser than ii; Lerdahl's distance and the key profile put ii further from home), so a number always comes with its model. Your ratings: the tension you gave each move from the key's home chord in Rate this move (the chord map's section), placed on Lerdahl's scale; a move you have not rated is Lerdahl's.">
         Tension shown
         <select className={selectCls} value={tension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordWheel.tension', e.target.value)}>
           <option value="off">none</option>
@@ -175,6 +178,7 @@ export function ChordWheelControls() {
               {TENSION_MODELS[m].name}
             </option>
           ))}
+          <option value="rated">{RATED_TENSION_NAME}</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs" title="The beat the arpeggios and a walk step on: the Chord sound's tempo, or the song loaded in the Song tool while it plays.">
