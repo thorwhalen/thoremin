@@ -424,7 +424,7 @@ export const chordMapNode = defineNode<Params>({
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
           const overrides = definedOnly(parsed.data);
-          cfg = { ...p, ...overrides } as Params;
+          cfg = { ...p, ...overrides };
           return cfg;
         }
       }

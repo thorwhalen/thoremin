@@ -358,7 +358,7 @@ export const chordWheelNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       const parsed = raw && typeof raw === 'object' ? Params.partial().safeParse(raw) : null;
-      cfg = parsed?.success ? ({ ...p, ...definedOnly(parsed.data) } as Params) : p;
+      cfg = parsed?.success ? { ...p, ...definedOnly(parsed.data) } : p;
       return cfg;
     };
 

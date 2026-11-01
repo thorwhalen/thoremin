@@ -197,6 +197,8 @@ describe('buildGestureModel', () => {
     expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, band: -0.1 })).toThrow(/band/);
     expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: -1 })).toThrow(/minRadius/);
     expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: NaN })).toThrow(/minRadius/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: Infinity })).toThrow(/minRadius/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, length: 1 })).toThrow(/length/);
     // Two repetitions that share no finite feature: no distance between them, so no radius.
     const ghost = (id: string, key: 'x' | 'y'): Trace => ({
       id,
