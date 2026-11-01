@@ -55,11 +55,23 @@ describe('ratedTensionModel', () => {
     expect(m.tension(diatonicChords(C_MAJOR)[0], C_MAJOR)).toBe(tps.tension(diatonicChords(C_MAJOR)[0], C_MAJOR));
   });
 
-  it('is named as the player\'s, with its fallback beside it', () => {
+  it('is named as the player\'s, with its fallback beside it (short: it sits over the wheel)', () => {
     const m = ratedTensionModel({}, tps);
     expect(m.id).toBe('rated');
-    expect(m.name).toContain('Your ratings');
-    expect(m.name).toContain(tps.name);
+    expect(m.name).toBe("Your ratings, else Lerdahl's tonal pitch space");
+  });
+
+  it("applies a rating only to the chord the player heard: harmonic minor's V is not the rated v", () => {
+    const harmonic = keyOf({ root: 9, type: 'minorHarmonic' });
+    const table = rated({ [moveKey('minor', 0, 4)]: -1, [moveKey('minor', 0, 3)]: 1 });
+    const m = ratedTensionModel(table, tps);
+    const [, , , iv, V] = diatonicChords(harmonic);
+    // E major in A harmonic minor: the player rated Em (natural minor's v), so Lerdahl speaks.
+    expect(m.tension(V, harmonic)).toBe(tps.tension(V, harmonic));
+    // iv (Dm) is the same chord in both minors: the rating holds.
+    expect(m.tension(iv, harmonic)).toBe(range(harmonic).hi);
+    // In natural minor the rated v is the player's.
+    expect(m.tension(diatonicChords(A_MINOR)[4], A_MINOR)).toBe(range(A_MINOR).lo);
   });
 });
 

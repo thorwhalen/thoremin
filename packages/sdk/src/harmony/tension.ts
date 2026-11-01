@@ -151,30 +151,39 @@ export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { 
 /**
  * The player's own tension (#809): a key's diatonic chord is as tense as the player rated the
  * move from the tonic to it ("I → vi", settled -1 to tense 1, by scale degree and mode, `./ratings`).
- * A chord with no rated move from the tonic (the tonic itself, an unrated degree, a chord outside
- * the key) is measured by `fallback`, named in the model's name.
+ * A move is rated in the mode's practice key (major, or the NATURAL minor), so a rating applies only
+ * to the chord the player heard at that degree: harmonic minor's V (E major in A) is not the v (Em)
+ * that was rated, and is measured by the fallback. So is every chord no rated move reaches (the
+ * tonic itself, an unrated degree, a chord outside the key).
  *
  * The two must share one scale, or a rated chord and an unrated one could not be compared on the
  * same wheel. So a rating is placed on the fallback's own range over the key's seven chords: -1 at
  * its least tense diatonic chord, 1 at its most. A rated chord then reads as a number the fallback
- * could have given, and the two rank together.
+ * could have given, and the two rank together. The range is computed once per key.
  */
 export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): TensionModel {
-  return {
-    id: 'rated',
-    name: `Your ratings (an unrated move: ${fallback.name})`,
-    tension(chord, key) {
-      const fn = functionOf(chord, key);
-      const own = fn && fn.alter === undefined && fn.of === undefined ? diatonicChords(key)[fn.degree] : undefined;
-      const rated = fn && own && own.root === chord.root && own.quality === chord.quality && fn.degree !== 0 ? ratings[moveKey(ratingMode(key), 0, fn.degree)] : undefined;
-      if (!rated) return fallback.tension(chord, key);
-      const range = diatonicChords(key)
+  const ranges = new Map<string, { lo: number; hi: number } | null>();
+  const rangeOf = (key: Key) => {
+    const id = `${key.tonic}:${key.scale}`;
+    if (!ranges.has(id)) {
+      const ts = diatonicChords(key)
         .map((c) => fallback.tension(c, key))
         .filter((t): t is number => t !== null);
-      if (range.length === 0) return null;
-      const lo = Math.min(...range);
-      const hi = Math.max(...range);
-      return Math.round((lo + ((rated.tension + 1) / 2) * (hi - lo)) * 100) / 100;
+      ranges.set(id, ts.length === 0 ? null : { lo: Math.min(...ts), hi: Math.max(...ts) });
+    }
+    return ranges.get(id)!;
+  };
+  return {
+    id: 'rated',
+    name: `Your ratings, else ${fallback.name.replace(/ \(.*\)$/, '')}`,
+    tension(chord, key) {
+      const mode = ratingMode(key);
+      const fn = functionOf(chord, key);
+      const heard = fn && fn.alter === undefined && fn.of === undefined && fn.degree !== 0 ? diatonicChords({ tonic: parentKey(key).tonic, scale: mode })[fn.degree] : undefined;
+      const rated = heard && heard.root === chord.root && heard.quality === chord.quality ? ratings[moveKey(mode, 0, fn!.degree)] : undefined;
+      const range = rated ? rangeOf(key) : null;
+      if (!rated || !range) return fallback.tension(chord, key);
+      return Math.round((range.lo + ((rated.tension + 1) / 2) * (range.hi - range.lo)) * 100) / 100;
     },
   };
 }

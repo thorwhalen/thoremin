@@ -221,19 +221,24 @@ export interface ChordWheelStatus {
 
 export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, category: null, steer: 'hand', walking: false };
 
-/** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
 /** What measures a move the player has not rated, under the `rated` tension model (#809): Lerdahl's
  *  distance, which has an opinion on every chord (the functional ladder has none outside the key). */
 export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
 
 /** The tension model the wheel's setting names: none, a named one, or the player's own over their
- *  ratings (no ratings yet: every move is the fallback's). */
-function tensionModelOf(choice: Params['tension'], ratings: RatingsTable | null | undefined): TensionModel | null {
-  if (choice === 'off') return null;
-  if (choice === 'rated') return ratedTensionModel(ratings ?? {}, TENSION_MODELS[RATED_TENSION_FALLBACK]);
-  return TENSION_MODELS[choice];
+ *  ratings (no ratings yet: every move is the fallback's). The player's is built again only when the
+ *  ratings table changes (the same object between two ratings). */
+function createTensionModels(): (choice: Params['tension'], ratings: RatingsTable | null | undefined) => TensionModel | null {
+  let rated: { table: RatingsTable | null | undefined; model: TensionModel } | null = null;
+  return (choice, ratings) => {
+    if (choice === 'off') return null;
+    if (choice !== 'rated') return TENSION_MODELS[choice];
+    if (!rated || rated.table !== ratings) rated = { table: ratings, model: ratedTensionModel(ratings ?? {}, TENSION_MODELS[RATED_TENSION_FALLBACK]) };
+    return rated.model;
+  };
 }
 
+/** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
 function diatonicTarget(d: number, relation: string): number | null {
   const m = /^dia([+-])(\d)$/.exec(relation);
   return m ? (((d + (m[1] === '+' ? 1 : -1) * Number(m[2])) % 7) + 7) % 7 : null;
@@ -312,6 +317,7 @@ export const chordWheelNode = defineNode<Params>({
   params: Params,
   make(p) {
     const clockReader = createClockReader();
+    const tensionModelOf = createTensionModels();
     const realizer = createRealizer({ idBase: CHORD_WHEEL_VOICE_ID_BASE, maxVoices: MAX_CHORD_WHEEL_VOICES });
     let cfg: Params = p;
     let lastConfigRef: unknown = undefined;
