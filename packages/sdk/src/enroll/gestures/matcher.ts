@@ -194,6 +194,12 @@ function byGesture(traces: readonly Trace[]): Map<string, Trace[]> {
 export function buildGestureModel(traces: readonly Trace[], options: GestureModelOptions): GestureModel {
   const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
   if (!(o.minTraces >= 2)) throw new Error(`buildGestureModel: minTraces must be at least 2, one trace is no agreement (got ${o.minTraces})`);
+  // A NaN band or floor, an infinite floor, or a series under two rows does not fail loudly
+  // downstream: every gesture just lands in `skipped` (#912). A negative band or floor is meaningless
+  // (it was silently treated as 0), so it is refused too.
+  if (!(o.band >= 0)) throw new Error(`buildGestureModel: band must be a number at or above 0 (got ${o.band})`);
+  if (!(Number.isFinite(o.minRadius) && o.minRadius >= 0)) throw new Error(`buildGestureModel: minRadius must be a finite number at or above 0 (got ${o.minRadius})`);
+  if (!(Number.isInteger(o.length) && o.length >= 2)) throw new Error(`buildGestureModel: length must be an integer of at least 2 rows (got ${o.length})`);
   const series: SeriesOptions = {
     features: o.features,
     weights: o.weights,

@@ -30,6 +30,7 @@ import { clamp01 } from '@thoremin/stats';
 import { LM, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 // The player's hands (the SDK's since #674, shared with the harmony slice), re-exported here.
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
@@ -210,8 +211,8 @@ export const airBassNode = defineNode<Params>({
       if (raw && typeof raw === 'object') {
         const parsed = Params.partial().safeParse(raw);
         if (parsed.success) {
-          const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
-          cfg = { ...p, ...overrides } as Params;
+          const overrides = definedOnly(parsed.data);
+          cfg = { ...p, ...overrides };
           return cfg;
         }
       }

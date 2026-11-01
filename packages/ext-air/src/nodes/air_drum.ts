@@ -103,6 +103,7 @@ import { timingFrom, sampleTime, CAPTURE_LAG_PRIOR_S, type TimingView } from '@t
 import { APPROACH_WINDOW, CARRY_SWING_FRACTION, deepestSampleTime, fallingSegment, gripAtDeparture, isCarried, type TrackSample } from './air_drum_track';
 import { landingAt, velocityOf, type Landing } from './air_drum_landing';
 import { DrumHitsSchema, IDLE_STATUS, SUBFRAME_DWELL_FRAMES, magnetStanding, standing, subframeStanding, type AirDrumStatus, type DrumHit, type MagnetOutcome, type PlayerHand, type SubframeStanding } from './air_drum_hit';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -337,11 +338,10 @@ export const airDrumNode = defineNode<Params>({
       if (raw === lastConfigRef) return cfg;
       lastConfigRef = raw;
       if (raw && typeof raw === 'object') {
-        // The override is merged over the build-time params and the WHOLE is validated:
-        // `Params.partial()` would fill every field the override leaves out with its
-        // schema default, silently resetting the node's own params (and an explicitly
-        // undefined key is no override).
-        const overrides = Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([, v]) => v !== undefined));
+        // The override is merged over the build-time params and the WHOLE is validated: `Params.partial()`
+        // would fill every field the override leaves out with its schema default, silently resetting
+        // the node's own params (and an explicitly undefined key is no override).
+        const overrides = definedOnly(raw as Record<string, unknown>);
         const parsed = Params.safeParse({ ...p, ...overrides });
         if (parsed.success) {
           cfg = parsed.data;

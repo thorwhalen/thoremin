@@ -21,6 +21,7 @@ import { createDanceState } from './conductor_dance';
 import { createBodyTransport, rulesOn, START_BPM, START_EPS, type Grid, type StartFlags } from './conductor_transport';
 import { bodyChannelFrame, bodyQuantityOfMotion, conductorBodyJoints } from './conductor_body';
 import { MARK_LEVEL_CAPTURE, MARK_LEVEL_PERSIST_S, ConductorDialSchema, readLeadOffsets, type ConductorDialParams } from './conductor.schema';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 /** The live `config` port: a partial override of the params (the dial's value). */
 const ConfigOverride = ConductorDialSchema.partial();
@@ -144,7 +145,7 @@ export function createConductorFollower(p: ConductorDialParams) {
     if (raw && typeof raw === 'object') {
       const parsed = ConfigOverride.safeParse(raw);
       if (parsed.success) {
-        const overrides = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+        const overrides = definedOnly(parsed.data);
         cfg = { ...p, ...overrides } as ConductorDialParams;
         return cfg;
       }

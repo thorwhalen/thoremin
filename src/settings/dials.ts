@@ -60,6 +60,7 @@ function extensionSettingsOf(dials: Record<string, unknown>): Record<string, unk
 import { DEFAULT_HAND_MAP } from '@/nodes/mapping/hand_map.schema';
 import { SettingsSchema, HandMapSchema, DEFAULT_EXPRESSION_TARGETS, DEFAULT_FACE_CHORD, DEFAULT_HANDS, type Settings } from './schema';
 import { MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
+import { definedOnly } from '@thoremin/sdk/util/options';
 
 const ScaleEnum = z.enum(Object.keys(SCALE_TYPES) as [ScaleTypeId, ...ScaleTypeId[]]);
 const SoundEnum = z.enum(SOUND_IDS as [SoundId, ...SoundId[]]);
@@ -239,7 +240,7 @@ export function settingsToLayer(s: Settings): Layer {
 
 /** A copy of `layer` without its undefined-valued keys (see {@link settingsToLayer}). */
 function _dropUndefined(layer: Layer): Layer {
-  return Object.fromEntries(Object.entries(layer).filter(([, v]) => v !== undefined));
+  return definedOnly(layer);
 }
 
 /** The flat dials effective values → a validated nested {@link Settings}. */

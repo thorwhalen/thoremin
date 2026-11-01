@@ -192,6 +192,13 @@ describe('buildGestureModel', () => {
 
   it('refuses minTraces below 2, and skips a gesture whose radius is not finite', () => {
     expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minTraces: 1 })).toThrow(/minTraces/);
+    // A band or a floor that is not a number at or above 0 would silently skip every gesture (#912).
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, band: NaN })).toThrow(/band/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, band: -0.1 })).toThrow(/band/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: -1 })).toThrow(/minRadius/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: NaN })).toThrow(/minRadius/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, minRadius: Infinity })).toThrow(/minRadius/);
+    expect(() => buildGestureModel(TRAINING, { features: POSITION, weights: WEIGHTS, length: 1 })).toThrow(/length/);
     // Two repetitions that share no finite feature: no distance between them, so no radius.
     const ghost = (id: string, key: 'x' | 'y'): Trace => ({
       id,
