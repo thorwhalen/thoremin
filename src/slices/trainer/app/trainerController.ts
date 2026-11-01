@@ -166,11 +166,17 @@ export function useTrainerSession(running: boolean): void {
   runningRef.current = running;
   useEffect(() => {
     if (!running) return;
+    // A vector's stamp is its camera frame's (#858): it repeats while the camera has not
+    // delivered a new frame. Only a new stamp is a sample; otherwise time still moves on, so a
+    // stalled camera cannot freeze the runner's patience.
+    let lastSampled = -Infinity;
     const id = setInterval(() => {
       if (!runningRef.current) return;
       const live = readLiveVector();
-      if (live) useTrainer.getState().sample(live.vector, live.t);
-      else useTrainer.getState().tick(performance.now());
+      if (live && live.t > lastSampled) {
+        lastSampled = live.t;
+        useTrainer.getState().sample(live.vector, live.t);
+      } else useTrainer.getState().tick(performance.now());
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running]);
