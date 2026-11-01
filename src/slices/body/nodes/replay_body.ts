@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { BodyFrameSchema, EMPTY_BODY_FRAME, type BodyFrame, type BodyStatus } from '@thoremin/sdk/nodes/domain';
-import { BODY_SLOT_OUTPUT } from '@thoremin/sdk/sources/body_contract';
+import { BODY_SLOT_OUTPUT, BODY_SLOT_STATUS } from '@thoremin/sdk/sources/body_contract';
 
 const Params = z.object({
   /** The recorded frames, in tick order. */
@@ -27,7 +27,7 @@ export const replayBodyNode = defineNode<Params>({
   outputs: [
     BODY_SLOT_OUTPUT,
     // A replay is always loaded: 'active' while the replayed frame has a body, else 'ready'.
-    { name: 'status', kind: 'body-status' },
+    BODY_SLOT_STATUS,
   ],
   params: Params,
   make({ frames, loop }) {

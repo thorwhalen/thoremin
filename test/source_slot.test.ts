@@ -26,7 +26,7 @@ import { resolve } from 'node:path';
 import { createAppRegistry, BROWSER_NODES } from '@/nodes/browser';
 import { CORE_NODES } from '@/nodes';
 import { SLOTS, resolveSlot, defaultGraph, parseSlotSelection } from '@/app/graph';
-import { SOURCE_SLOT_CONTRACT, SOURCE_SLOT_OUTPUT } from '@/nodes/sources/source_contract';
+import { SOURCE_SLOT_CONTRACT, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS } from '@/nodes/sources/source_contract';
 import { HandsFrameSchema } from '@thoremin/sdk/nodes/domain';
 import type { SynthParams, HandsFrame, HandFeatures } from '@/nodes';
 
@@ -52,8 +52,29 @@ describe('the source slot contract', () => {
       expect(out!.schema, `${type}'s hands port must carry the contract schema`).toBe(HandsFrameSchema);
       // Sources are zero-input by definition; the slot's risk is all on the output.
       expect(def.inputs).toEqual([]);
+      // Every other output the contract lists (#737: the `status` the trunk wires to the overlay).
+      for (const want of SOURCE_SLOT_CONTRACT.outputs ?? []) {
+        expect(def.outputs.find((p) => p.name === want.name)?.kind, `${type} must emit "${want.name}"`).toBe(want.kind);
+      }
     }
     expect(SOURCE_SLOT_CONTRACT.requiredInputs).toEqual([]);
+    expect(SOURCE_SLOT_CONTRACT.outputs).toContain(SOURCE_SLOT_STATUS);
+  });
+
+  it('rejects a candidate lacking the status port the trunk wires (#737)', () => {
+    const reg = appRegistry();
+    reg.register(
+      defineNode({
+        type: 'statusless-source',
+        roles: ['source'],
+        inputs: [],
+        outputs: [SOURCE_SLOT_OUTPUT],
+        process: () => ({ hands: { width: 1, height: 1, hands: [] } }),
+      }),
+    );
+    const warnings: string[] = [];
+    expect(resolveSlot('source', { source: 'statusless-source' }, reg, (m) => warnings.push(m))).toBe('webcam-hands');
+    expect(warnings[0]).toContain('has no output port "status"');
   });
 
   it('has more than one real implementation, unlike the mapping slot', () => {

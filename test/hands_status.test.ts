@@ -2,12 +2,13 @@
  * The hand source says why the hands stopped (#737). Before, a dead worker whose main-thread
  * replacement could not load left `webcam-hands` holding its last frame with nothing on screen
  * but a frozen instrument. Now every hand source has a `status` port (the body sources' shared
- * `LoadStatus` vocabulary), the runner reports `replacing` / `failed`, and the overlay prints
- * "Hands: ..." beside the body's line while the hands are not working.
+ * `LoadStatus` vocabulary), the runner reports `replacing` / `retrying` / `failed`, and the
+ * overlay's source-status element prints "Hands: ..." under the body's line while the hands are
+ * not working. The node itself (the empty frame while not running) is `webcam_hands_status.test.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
-import { createHandRunner, MAIN_REPLACEMENT_RETRIES, type FromWorker, type HandRunner, type LandmarkerOptions, type ToWorker, type WorkerLike, type WorkerRunnerDeps } from '@/nodes/sources/hand_runner';
+import { createHandRunner, MAIN_REPLACEMENT_RETRIES, type FromWorker, type LandmarkerOptions, type ToWorker, type WorkerLike, type WorkerRunnerDeps } from '@/nodes/sources/hand_runner';
 import { handsStatus, HANDS_STATUS } from '@/nodes/sources/webcam_hands';
 import { syntheticHandsNode } from '@/nodes/sources/synthetic_hands';
 import { replayHandsNode } from '@/nodes/sources/replay_hands';
@@ -40,40 +41,45 @@ function deps(worker: FakeWorker, timers: (() => void)[]): WorkerRunnerDeps {
 }
 
 describe('the runner says whether it is inferring', () => {
-  it('running, then replacing while the main thread tries to load, then failed once every try is spent', async () => {
+  it('running; replacing while the main thread loads; retrying while it waits after a failed load; failed once every try is spent', async () => {
     const quiet = [vi.spyOn(console, 'warn').mockImplementation(() => {}), vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'info').mockImplementation(() => {})];
-    const timers: (() => void)[] = [];
-    const w = new FakeWorker();
-    const loadMain = vi.fn(async () => {
-      throw new Error('offline');
-    });
-    const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w, timers) });
-    expect(runner.state?.()).toBe('running');
-    const armed = timers.length;
-    w.onerror!(new Event('error'));
-    await flush();
-    expect(runner.state?.()).toBe('replacing');
-    for (let i = 0; i < MAIN_REPLACEMENT_RETRIES; i++) {
-      timers[armed + i]!();
+    try {
+      const timers: (() => void)[] = [];
+      const w = new FakeWorker();
+      let failLoad: (e: Error) => void = () => {};
+      const loadMain = vi.fn((): Promise<never> => new Promise((_, reject) => (failLoad = reject)));
+      const runner = await createHandRunner('auto', OPTIONS, () => {}, { loadMain, worker: deps(w, timers) });
+      expect(runner.state?.()).toBe('running');
+      const armed = timers.length;
+      w.onerror!(new Event('error'));
       await flush();
-      expect(runner.state?.()).toBe(i < MAIN_REPLACEMENT_RETRIES - 1 ? 'replacing' : 'failed');
+      expect(runner.state?.()).toBe('replacing'); // the main thread is loading
+      for (let i = 0; i <= MAIN_REPLACEMENT_RETRIES; i++) {
+        failLoad(new Error('offline'));
+        await flush();
+        expect(runner.state?.()).toBe(i < MAIN_REPLACEMENT_RETRIES ? 'retrying' : 'failed');
+        if (i === MAIN_REPLACEMENT_RETRIES) break;
+        timers[armed + i]!(); // the wait is over: loading again
+        expect(runner.state?.()).toBe('replacing');
+      }
+    } finally {
+      quiet.forEach((s) => s.mockRestore());
     }
-    quiet.forEach((s) => s.mockRestore());
   });
 });
 
 describe('handsStatus', () => {
-  const runnerIn = (state?: 'running' | 'replacing' | 'failed'): HandRunner => ({ where: 'main', offer: () => true, setNumHands: async () => {}, close: () => {}, ...(state ? { state: () => state } : {}) });
-
   it('names each state, and allocates nothing per tick', () => {
-    expect(handsStatus({ runner: null, initFailed: false, handsInView: false })).toBe(HANDS_STATUS.loading);
-    expect(handsStatus({ runner: null, initFailed: true, handsInView: false })).toBe(HANDS_STATUS.initFailed);
-    expect(handsStatus({ runner: runnerIn('replacing'), initFailed: false, handsInView: true })).toBe(HANDS_STATUS.replacing);
-    expect(handsStatus({ runner: runnerIn('failed'), initFailed: false, handsInView: false })).toBe(HANDS_STATUS.failed);
-    expect(handsStatus({ runner: runnerIn('running'), initFailed: false, handsInView: false })).toBe(HANDS_STATUS.ready);
-    // A runner with no state (one thread for good) is running.
-    expect(handsStatus({ runner: runnerIn(), initFailed: false, handsInView: true })).toBe(HANDS_STATUS.active);
+    expect(handsStatus('replacing', true)).toBe(HANDS_STATUS.replacing);
+    expect(handsStatus('retrying', false)).toBe(HANDS_STATUS.retrying);
+    expect(handsStatus('failed', false)).toBe(HANDS_STATUS.failed);
+    expect(handsStatus('running', false)).toBe(HANDS_STATUS.ready);
+    expect(handsStatus('running', true)).toBe(HANDS_STATUS.active);
     expect(HANDS_STATUS.failed.phase).toBe('error');
+    // Waiting to try again is not "moving to the main thread".
+    expect(HANDS_STATUS.retrying.message).not.toContain('main thread');
+    // No "loading" or "could not load": init awaits the runner, so process() never runs before it.
+    expect(Object.keys(HANDS_STATUS).sort()).toEqual(['active', 'failed', 'ready', 'replacing', 'retrying']);
   });
 });
 
@@ -89,15 +95,34 @@ describe('every hand source emits a status', () => {
 });
 
 describe('the overlay says why no hand is drawn', () => {
-  const drawWith = (handsStatus: unknown) => {
+  const BODY_LOADING = { phase: 'loading', message: 'Loading body model...' } as const;
+  /** Draw with the given statuses; `params` is the overlay's params (every element on by default). */
+  const drawWith = (inputs: { handsStatus?: unknown; bodyStatus?: unknown }, params: Record<string, unknown> = {}) => {
     const rc = makeRecordingCanvas();
-    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse({}));
-    handlers.process({ hands: { width: 640, height: 480, hands: [] }, handsStatus, octaveShift: 0 }, { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } } as NodeContext);
-    return rc.texts();
+    const handlers = canvasOverlayNode.make(canvasOverlayNode.params.parse(params));
+    handlers.process({ hands: { width: 640, height: 480, hands: [] }, ...inputs, octaveShift: 0 }, { tick: 0, time: 0, dt: 0, resources: { canvas: rc.canvas, video: rc.video } } as NodeContext);
+    return rc;
   };
-  it('prints the failure or the loading state, and nothing when ready or active', () => {
-    expect(drawWith(HANDS_STATUS.failed)).toContain(`Hands: ${HANDS_STATUS.failed.message}`);
-    expect(drawWith(HANDS_STATUS.loading)).toContain(`Hands: ${HANDS_STATUS.loading.message}`);
-    for (const quiet of [HANDS_STATUS.ready, HANDS_STATUS.active, undefined]) expect(drawWith(quiet).some((t) => t.startsWith('Hands:'))).toBe(false);
+  const lines = (rc: ReturnType<typeof makeRecordingCanvas>) => rc.calls.filter((c) => c.m === 'fillText' && /^(Body|Hands): /.test(String(c.args[0]))).map((c) => [c.args[0], c.args[2]]);
+
+  it('prints the replacing, retrying or failed state, and nothing when ready or active', () => {
+    for (const s of [HANDS_STATUS.replacing, HANDS_STATUS.retrying, HANDS_STATUS.failed]) expect(drawWith({ handsStatus: s }).texts()).toContain(`Hands: ${s.message}`);
+    for (const quiet of [HANDS_STATUS.ready, HANDS_STATUS.active, undefined]) expect(drawWith({ handsStatus: quiet }).texts().some((t) => t.startsWith('Hands:'))).toBe(false);
+  });
+
+  it('stacks the body and the hands lines with no gap when one is absent', () => {
+    const both = lines(drawWith({ bodyStatus: BODY_LOADING, handsStatus: HANDS_STATUS.failed }));
+    expect(both.map(([t]) => t)).toEqual([`Body: ${BODY_LOADING.message}`, `Hands: ${HANDS_STATUS.failed.message}`]);
+    expect(both[1][1]).toBeGreaterThan(both[0][1] as number);
+    // The hands alone take the first row, where the body's would be.
+    expect(lines(drawWith({ handsStatus: HANDS_STATUS.failed }))[0][1]).toBe(both[0][1]);
+  });
+
+  it('a failure is not hidden by the landmark, skeleton or status toggles; the passing notes are, by its own', () => {
+    const allOff = { landmarks: { show: false }, bodySkeleton: { show: false }, sourceStatus: { show: false } };
+    expect(drawWith({ handsStatus: HANDS_STATUS.failed }, allOff).texts()).toContain(`Hands: ${HANDS_STATUS.failed.message}`);
+    expect(drawWith({ handsStatus: HANDS_STATUS.replacing }, allOff).texts().some((t) => t.startsWith('Hands:'))).toBe(false);
+    // The landmark dots off does not hide a passing note either: only the status's own toggle does.
+    expect(drawWith({ handsStatus: HANDS_STATUS.replacing }, { landmarks: { show: false } }).texts()).toContain(`Hands: ${HANDS_STATUS.replacing.message}`);
   });
 });

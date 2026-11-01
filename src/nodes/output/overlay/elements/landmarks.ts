@@ -7,24 +7,6 @@
 import { LM } from '@thoremin/sdk/nodes/domain';
 import { LEFT_COLOR, type OverlayElement, type OverlayView, RIGHT_COLOR } from '../view';
 
-/** Where the hand source's status line sits: top-left, one line under the body's (`body_skeleton.ts`). */
-const STATUS_AT = { x: 12, y: 28 } as const;
-
-/** The hand source's state in words while it is not working (loading, moving thread, failed):
- *  the player's only sign of why no hand is drawn (#737). */
-function drawHandsStatus(g: CanvasRenderingContext2D, view: OverlayView): void {
-  const status = view.inputs.handsStatus;
-  if (!status || status.phase === 'off' || status.phase === 'ready' || status.phase === 'active') return;
-  g.save();
-  g.globalAlpha = 0.8;
-  g.fillStyle = RIGHT_COLOR;
-  g.font = '12px system-ui, sans-serif';
-  g.textAlign = 'left';
-  g.textBaseline = 'top';
-  g.fillText(`Hands: ${status.message}`, STATUS_AT.x, STATUS_AT.y);
-  g.restore();
-}
-
 /** The landmark used as the "note source" ring, per the hand map. */
 const sourceLm = (view: OverlayView): number =>
   view.inputs.handMap?.positionSource === 'wrist' ? LM.wrist : LM.index_tip;
@@ -35,7 +17,6 @@ export const landmarkDots: OverlayElement = {
   draw(g, view) {
     const { display, inputs, params } = view;
     if (!params.landmarks.show) return;
-    drawHandsStatus(g, view);
     const frame = inputs.hands;
     if (!frame) return;
     const srcLm = sourceLm(view);

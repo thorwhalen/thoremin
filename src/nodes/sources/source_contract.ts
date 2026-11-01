@@ -53,9 +53,9 @@ export const SOURCE_SLOT_OUTPUT: PortSpec = {
 export const SOURCE_SLOT_INPUTS: readonly PortSpec[] = [];
 
 /** A hand source's lifecycle in the shared `LoadStatus` vocabulary (#737), as the body sources
- *  have: the overlay says "Hands: ..." while the model loads, moves thread or has failed, so a
- *  frozen instrument is never silent about why. Every candidate of the slot emits it (the trunk
- *  wires it to the overlay whichever candidate fills the slot). */
+ *  have: the overlay says "Hands: ..." while a dead worker's model is replaced or has failed, so
+ *  a frozen instrument is never silent about why. Every candidate of the slot emits it: the trunk
+ *  wires it to the overlay whichever candidate fills the slot, so the contract lists it. */
 export type HandsStatus = LoadStatus;
 export const SOURCE_SLOT_STATUS: PortSpec = { name: 'status', kind: 'hands-status' };
 /** What a scripted or replayed hand source says: nothing to wait for. */
@@ -65,4 +65,5 @@ export const SOURCE_SLOT_CONTRACT: SlotContract = {
   role: 'source' as Role,
   requiredInputs: [],
   output: SOURCE_SLOT_OUTPUT,
+  outputs: [SOURCE_SLOT_STATUS],
 };

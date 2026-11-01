@@ -49,9 +49,9 @@ export interface OverlayView {
     faceFrame?: FaceFrame;
     /** The latest full-body pose (#186), for the skeleton element. */
     bodyFrame?: BodyFrame;
-    /** The body model's lifecycle, so the skeleton element can say 'loading'. */
+    /** The body model's lifecycle, for the source-status element's "Body: ..." line. */
     bodyStatus?: BodyStatus;
-    /** The hand source's lifecycle (#737), so the landmarks element can say why hands are missing. */
+    /** The hand source's lifecycle (#737), for the source-status element's "Hands: ..." line. */
     handsStatus?: HandsStatus;
     expression?: ExpressionScores;
     /** Live hand map (note source + finger routing), for feature-accurate cues. */

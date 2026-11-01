@@ -45,6 +45,7 @@ import {
   type HandResult,
   type HandRunner,
   type HandRunnerChoice,
+  type HandRunnerState,
   type LoadLandmarker,
   type WorkerLike,
   type WorkerRunnerDeps,
@@ -171,28 +172,30 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
   };
 }
 
-/** The source's lifecycle as words (#737), one frozen object per state so a tick allocates none. */
+/**
+ * The source's lifecycle as words (#737), one frozen object per state so a tick allocates none.
+ *
+ * There is no "loading" and no "could not load": `init()` awaits the runner, and the engine runs
+ * no `process()` before init resolves (a failed init tears the node down), so the port only ever
+ * speaks for a runner that exists. What it can say is what that runner goes through afterwards: a
+ * dead worker's main-thread replacement loading, waiting to try again, or out of tries.
+ */
 export const HANDS_STATUS = {
-  loading: Object.freeze({ phase: 'loading', message: 'Loading the hand model' }),
   replacing: Object.freeze({ phase: 'loading', message: 'The hand model is moving to the main thread' }),
+  retrying: Object.freeze({ phase: 'loading', message: 'The hand model could not load; trying again' }),
   failed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model stopped and could not load again (offline?); reload the page' }),
-  initFailed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model could not load (offline?); reload the page' }),
   ready: Object.freeze({ phase: 'ready', message: 'Hand model ready' }),
   active: Object.freeze({ phase: 'active', message: 'Hands detected' }),
 } as const satisfies Record<string, HandsStatus>;
 
 /**
- * What the hand source says (#737): loading until its runner exists (or failed if it could not be
- * made); then what the runner says (a dead worker's replacement loading, or every try spent); else
- * ready, or active while a hand is in the frame. Pure.
+ * What the hand source says (#737): what its runner is going through while it is not inferring
+ * (replacing, retrying, failed); else ready, or active while a hand is in the frame. A runner with
+ * no `state` (one thread for good) is always running. Pure.
  */
-export function handsStatus(s: { runner: HandRunner | null; initFailed: boolean; handsInView: boolean }): HandsStatus {
-  if (s.initFailed) return HANDS_STATUS.initFailed;
-  if (!s.runner) return HANDS_STATUS.loading;
-  const state = s.runner.state?.() ?? 'running';
-  if (state === 'replacing') return HANDS_STATUS.replacing;
-  if (state === 'failed') return HANDS_STATUS.failed;
-  return s.handsInView ? HANDS_STATUS.active : HANDS_STATUS.ready;
+export function handsStatus(state: HandRunnerState, handsInView: boolean): HandsStatus {
+  if (state !== 'running') return HANDS_STATUS[state];
+  return handsInView ? HANDS_STATUS.active : HANDS_STATUS.ready;
 }
 
 /** Where to run: the host's override when it gives a valid one, else the param. */
@@ -211,7 +214,6 @@ export const webcamHandsNode = defineNode<Params>({
   params: Params,
   make(p) {
     let runner: HandRunner | null = null;
-    let initFailed = false;
     let latest: HandsFrame = EMPTY;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
@@ -285,17 +287,10 @@ export const webcamHandsNode = defineNode<Params>({
         // Created looking for what the host wants now, so the first frames reconfigure nothing.
         numHands = wantedHands(resources, p.maxHands);
         const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
-        let loaded: HandRunner;
-        try {
-          loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
-            loadMain: loadOnMain,
-            worker: browserWorkerDeps(),
-          });
-        } catch (err) {
-          // Said on the status port (the overlay's "Hands: ..."), and still thrown, as before.
-          initFailed = true;
-          throw err;
-        }
+        const loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
+          loadMain: loadOnMain,
+          worker: browserWorkerDeps(),
+        });
         if (disposed) {
           // Unmounted while loading — don't resurrect.
           loaded.close();
@@ -305,7 +300,12 @@ export const webcamHandsNode = defineNode<Params>({
         pump.start();
       },
       process() {
-        return { hands: latest, status: handsStatus({ runner, initFailed, handsInView: latest.hands.length > 0 }) };
+        const state = runner?.state?.() ?? 'running';
+        // Not inferring (a dead worker being replaced, or out of tries): the last frame is stale,
+        // so it is dropped rather than held. A held frame would keep a voice droning and a
+        // skeleton drawn beside the overlay's "Hands: ... stopped" (#737).
+        if (state !== 'running') latest = EMPTY;
+        return { hands: latest, status: handsStatus(state, latest.hands.length > 0) };
       },
       dispose() {
         disposed = true;

@@ -12,7 +12,7 @@ import type { PortSpec } from '@thoremin/dag';
 /** The overlay's core input ports (every overlay has them; an extension's elements add theirs). */
 export const OVERLAY_CORE_INPUTS: readonly PortSpec[] = [
   { name: 'hands', kind: 'hands-frame' },
-  // The hand source's lifecycle (#737): "Hands: loading", or why the hands stopped.
+  // The hand source's lifecycle (#737): why the hands stopped, for the source-status element.
   { name: 'handsStatus', kind: 'hands-status' },
   { name: 'features', kind: 'hand-features' },
   { name: 'params', kind: 'synth-params' },
@@ -88,8 +88,15 @@ const Params = z.object({
   fingerLines: z.object({ show: z.boolean().default(false), showLabels: z.boolean().default(true) }).prefault({}),
   /** The detected face mesh (input feature) — available when a face mapping is on. */
   faceLandmarks: z.object({ show: z.boolean().default(true) }).prefault({}),
-  /** The full-body skeleton (#186) — drawn when body tracking is on; shows the load state. */
+  /** The full-body skeleton (#186) — drawn when body tracking is on (its load state is `sourceStatus`'s). */
   bodySkeleton: z.object({ show: z.boolean().default(true) }).prefault({}),
+  /**
+   * The camera models' status lines (#737): "Body: ..." / "Hands: ..." in the top-left corner
+   * while a model loads, moves thread or has failed. `show` hides the passing notes (loading);
+   * a failure (error, unavailable) is drawn regardless, since it is the only word on why the
+   * instrument is silent.
+   */
+  sourceStatus: z.object({ show: z.boolean().default(true) }).prefault({}),
   /** LEGACY (#610 item 4, the expand step, as S10 did for the drum pads): the chord map's grid is
    *  the harmony slice's overlay element now (#674; the air extension's before), and its show flag is `chordMap.gridOnVideo`, which
    *  a stored or saved value here is moved into (the chord map dial's v1 -> v2 step). Still
@@ -252,6 +259,7 @@ export const OVERLAY_ELEMENT_CATEGORIES: Readonly<Record<string, OverlayCategory
   faceExpression: 'output',
   categoryLabel: 'output',
   categoryBars: 'output',
+  sourceStatus: 'input',
   tagHud: 'output',
   fingerBars: 'output',
 };

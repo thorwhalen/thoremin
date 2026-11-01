@@ -18,6 +18,7 @@ import { indexFingerGuide } from './index_finger_guide';
 import { keyboardStripElement } from './keyboard_strip';
 import { landmarkDots } from './landmarks';
 import { scaleGuideElement } from './scale_guide';
+import { sourceStatus } from './source_status';
 import { tagHud } from './tag_hud';
 import { timbreLevels } from './timbre_levels';
 import type { OverlayElement } from '../view';
@@ -48,6 +49,8 @@ export const OVERLAY_ELEMENTS: readonly OverlayElement[] = [
   faceExpressionCue,
   categoryLabelCue,
   categoryBarsCue,
+  // The camera models' status lines (#737): HUD text in the top-left corner, above the scene.
+  sourceStatus,
   // The burned-in tag HUD sits above the cues (its own top corner); fingerBars stays
   // the array's last element so the z-order invariant + concurrent additions hold.
   tagHud,

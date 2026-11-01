@@ -23,6 +23,7 @@ import { defineExtension, dialSlice, overlayElementId, overlayPortName, transien
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
 import type { CategoryScores, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { BODY_SLOT_STATUS } from '@thoremin/sdk/sources/body_contract';
 
 export const PROBE_NODE_TYPE = 'probe-tone';
 export const PROBE_NODE_ID = 'probe';
@@ -131,9 +132,10 @@ export const probeBodyNode = defineNode({
   title: 'Probe body',
   description: 'A test-only body source that sees nobody.',
   inputs: [],
-  outputs: [{ name: 'body', kind: 'body-frame' }],
+  // The slot contract's ports (#737: its `status` too, which the body branch wires to the overlay).
+  outputs: [{ name: 'body', kind: 'body-frame' }, BODY_SLOT_STATUS],
   params: z.object({}),
-  process: () => ({ body: undefined }),
+  process: () => ({ body: undefined, status: { phase: 'off', message: 'Probe body' } }),
 });
 
 /** A branch a live claim implies by the feature groups it declares (#600 S17): no dial turns it on. */

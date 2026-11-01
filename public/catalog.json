@@ -1048,6 +1048,11 @@
         "default": {}
       },
       {
+        "name": "sourceStatus",
+        "type": "object",
+        "default": {}
+      },
+      {
         "name": "cellGrid",
         "type": "object",
         "default": {}

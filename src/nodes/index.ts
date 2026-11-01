@@ -46,7 +46,7 @@ export {
 } from './sources/state_generator';
 export type { StateGeneratorSpec, StateGeneratorInput, StateGeneratorParams } from './sources/state_generator';
 export { replayHandsNode } from './sources/replay_hands';
-export { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT } from './sources/body_contract';
+export { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT, BODY_SLOT_STATUS } from './sources/body_contract';
 export {
   SOURCE_SLOT_CONTRACT,
   SOURCE_SLOT_OUTPUT,
