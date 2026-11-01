@@ -16,7 +16,7 @@
  * `./captions` (`ratedCaptions`, the set `mine`) puts the words on a key's moves.
  */
 import { z } from 'zod';
-import { parentKey, type Key } from './chord';
+import { diatonicChords, functionOf, parentKey, type Chord, type Key } from './chord';
 
 export const RATING_MODES = ['major', 'minor'] as const;
 export type RatingMode = (typeof RATING_MODES)[number];
@@ -57,6 +57,22 @@ export function ratingMode(key: Key): RatingMode {
 }
 
 export const moveKey = (mode: RatingMode, from: number, to: number): string => `${mode}:${from}>${to}`;
+
+/**
+ * The degree a chord stands on as the player HEARD it when rating (#920): moves are rated in the
+ * mode's practice key (major, or the natural minor), so a chord has a rated degree only when it is
+ * that degree's chord there, as a triad or as its seventh chord (the map's Sevenths option plays
+ * G7 where the player rated G). Harmonic minor's V (E major in A) is not the v (Em) that was rated,
+ * and a borrowed or applied chord has none; nor do a scale's own stacked chords (the Pentatonic
+ * Map's C6, Gsus4, Asus4, Dsus4 were never rated). Null where no rating can apply.
+ */
+export function heardDegree(chord: Chord, key: Key): number | null {
+  const fn = functionOf(chord, key);
+  if (!fn || fn.alter !== undefined || fn.of !== undefined) return null;
+  const practice = { tonic: parentKey(key).tonic, scale: ratingMode(key) };
+  const same = (c: Chord | undefined) => !!c && c.root === chord.root && c.quality === chord.quality;
+  return same(diatonicChords(practice)[fn.degree]) || same(diatonicChords(practice, 4)[fn.degree]) ? fn.degree : null;
+}
 
 /** The degrees' numerals in each mode (the natural minor's for minor). */
 const NUMERALS: Record<RatingMode, readonly string[]> = {

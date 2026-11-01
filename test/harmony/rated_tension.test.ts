@@ -8,7 +8,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { diatonicChords, keyOf, type Chord } from '@thoremin/sdk/harmony/chord';
-import { moveKey, type RatingsTable } from '@thoremin/sdk/harmony/ratings';
+import { heardDegree, moveKey, type RatingsTable } from '@thoremin/sdk/harmony/ratings';
+import { ratedCaptions, tensionDirection, computedCaptions } from '@thoremin/sdk/harmony/captions';
 import { ratedTensionModel, TENSION_MODELS } from '@thoremin/sdk/harmony/tension';
 import { chordWheelNode, RATED_TENSION_FALLBACK } from '@thoremin/ext-harmony/nodes/chord_wheel';
 import type { ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -92,10 +93,61 @@ describe('the chord wheel shows the rated tension (#809)', () => {
     const fallback = TENSION_MODELS[RATED_TENSION_FALLBACK];
     expect(g.captions.map((c) => c.text)).toEqual([`Tension: ${ratedTensionModel({}, fallback).name}`]);
     const subOf = (label: string) => g.cells.find((c) => c.label === label)!.sub;
-    expect(subOf('G')).toMatch(new RegExp(`· ${range(C_MAJOR).hi}$`));
+    // The player's number is marked as theirs (#920); the fallback's is not.
+    expect(subOf('G')).toMatch(new RegExp(`· ${range(C_MAJOR).hi} \\(you\\)$`));
     expect(subOf('F')).toMatch(new RegExp(`· ${fallback.tension(diatonicChords(C_MAJOR)[3], C_MAJOR)}$`));
     // No ratings at all: every number is the fallback's.
     const none = grid(undefined);
     expect(none.cells.find((c) => c.label === 'G')!.sub).toMatch(new RegExp(`· ${fallback.tension(diatonicChords(C_MAJOR)[4], C_MAJOR)}$`));
+  });
+});
+
+describe('the player\'s tension beyond the wheel (#920)', () => {
+  const harmonic = keyOf({ root: 9, type: 'minorHarmonic' });
+
+  it('heardDegree: the degree only where the chord is the one rated in the practice key', () => {
+    const [, , , iv, V] = diatonicChords(harmonic);
+    expect(heardDegree(iv, harmonic)).toBe(3);
+    expect(heardDegree(V, harmonic)).toBeNull();
+    expect(heardDegree(diatonicChords(A_MINOR)[4], A_MINOR)).toBe(4);
+    expect(heardDegree(diatonicChords(C_MAJOR)[0], C_MAJOR)).toBe(0);
+    // With the map's Sevenths on, G7 is the G the player rated.
+    expect(heardDegree(diatonicChords(C_MAJOR, 4)[4], C_MAJOR)).toBe(4);
+    // A scale's own stacked chords (the Pentatonic Map's Gsus4) were never rated.
+    expect(heardDegree({ root: 7, quality: 'sus4' } as Chord, keyOf({ root: 0, type: 'pentatonic' }))).toBeNull();
+  });
+
+  it('with Sevenths on, the rated captions and the rated numbers still apply', () => {
+    const table = rated({ [moveKey('major', 1, 4)]: 1, [moveKey('major', 0, 4)]: 1 });
+    const [, ii7, , , V7] = diatonicChords(C_MAJOR, 4);
+    expect(ratedCaptions(table).caption({ from: ii7, to: V7 } as never, undefined, C_MAJOR)).toBeTruthy();
+    expect(ratedTensionModel(table, tps).isRated(V7, C_MAJOR)).toBe(true);
+  });
+
+  it('isRated says whose number it is: the player\'s, or the fallback\'s', () => {
+    const m = ratedTensionModel(rated({ [moveKey('major', 0, 4)]: 1 }), tps);
+    const [I, , , IV, V] = diatonicChords(C_MAJOR);
+    expect(m.isRated(V, C_MAJOR)).toBe(true);
+    expect(m.isRated(IV, C_MAJOR)).toBe(false);
+    expect(m.isRated(I, C_MAJOR)).toBe(false);
+  });
+
+  it('the computed captions\' direction reads a model built from data, and names it', () => {
+    const [, ii, , , V] = diatonicChords(C_MAJOR);
+    // Lerdahl: ii (8) is further from home than V (5), so ii -> V resolves. The player hears V as the
+    // tensest chord, so for them ii -> V opens.
+    const mine = ratedTensionModel(rated({ [moveKey('major', 0, 4)]: 1, [moveKey('major', 0, 1)]: -1 }), tps);
+    expect(tensionDirection(ii, V, C_MAJOR, 'tps')).toBe('resolving');
+    expect(tensionDirection(ii, V, C_MAJOR, mine)).toBe('opening');
+    expect(computedCaptions({ parts: ['direction'], tension: mine }).models).toEqual([mine.name]);
+  });
+
+  it('the rated captions apply only to the chords the player heard (harmonic minor\'s V is not the rated v)', () => {
+    const table = rated({ [moveKey('minor', 3, 4)]: 1 });
+    const set = ratedCaptions(table);
+    const [, , , iv, V] = diatonicChords(harmonic);
+    expect(set.caption({ from: iv, to: V } as never, undefined, harmonic)).toBeUndefined();
+    const [, , , ivN, vN] = diatonicChords(A_MINOR);
+    expect(set.caption({ from: ivN, to: vN } as never, undefined, A_MINOR)).toBeTruthy();
   });
 });

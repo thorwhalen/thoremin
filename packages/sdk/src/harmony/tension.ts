@@ -21,7 +21,7 @@
  * move" (`./ratings`). It is data, not a fixed table, so it is built, not listed. Pure.
  */
 import { diatonicChords, functionOf, parentKey, pitchClasses, type Chord, type Key } from './chord';
-import { moveKey, ratingMode, type RatingsTable } from './ratings';
+import { heardDegree, moveKey, ratingMode, type RatedMove, type RatingsTable } from './ratings';
 import { SCALE_TYPES, scalePitchClasses } from '../music/theory';
 
 export const TENSION_MODEL_IDS = ['function', 'tps', 'profile'] as const;
@@ -148,11 +148,18 @@ const profileModel: TensionModel = {
 
 export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { function: functionModel, tps: tpsModel, profile: profileModel };
 
+/** The player's own model: a {@link TensionModel} that can also say whether a chord's number is
+ *  the player's (a display marks it, #920) or the fallback's. */
+export interface RatedTensionModel extends TensionModel {
+  id: 'rated';
+  isRated(chord: Chord, key: Key): boolean;
+}
+
 /**
  * The player's own tension (#809): a key's diatonic chord is as tense as the player rated the
  * move from the tonic to it ("I → vi", settled -1 to tense 1, by scale degree and mode, `./ratings`).
  * A move is rated in the mode's practice key (major, or the NATURAL minor), so a rating applies only
- * to the chord the player heard at that degree: harmonic minor's V (E major in A) is not the v (Em)
+ * to the chord the player heard at that degree (`heardDegree`): harmonic minor's V (E major in A) is not the v (Em)
  * that was rated, and is measured by the fallback. So is every chord no rated move reaches (the
  * tonic itself, an unrated degree, a chord outside the key).
  *
@@ -161,7 +168,7 @@ export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { 
  * its least tense diatonic chord, 1 at its most. A rated chord then reads as a number the fallback
  * could have given, and the two rank together. The range is computed once per key.
  */
-export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): TensionModel {
+export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): RatedTensionModel {
   const ranges = new Map<string, { lo: number; hi: number } | null>();
   const rangeOf = (key: Key) => {
     const id = `${key.tonic}:${key.scale}`;
@@ -173,14 +180,17 @@ export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel)
     }
     return ranges.get(id)!;
   };
+  /** The rated move from the tonic to the chord, as the player heard it (the tonic itself has none). */
+  const ratedMove = (chord: Chord, key: Key): RatedMove | undefined => {
+    const d = heardDegree(chord, key);
+    return d === null || d === 0 ? undefined : ratings[moveKey(ratingMode(key), 0, d)];
+  };
   return {
     id: 'rated',
     name: `Your ratings, else ${fallback.name.replace(/ \(.*\)$/, '')}`,
+    isRated: (chord, key) => ratedMove(chord, key) !== undefined && rangeOf(key) !== null,
     tension(chord, key) {
-      const mode = ratingMode(key);
-      const fn = functionOf(chord, key);
-      const heard = fn && fn.alter === undefined && fn.of === undefined && fn.degree !== 0 ? diatonicChords({ tonic: parentKey(key).tonic, scale: mode })[fn.degree] : undefined;
-      const rated = heard && heard.root === chord.root && heard.quality === chord.quality ? ratings[moveKey(mode, 0, fn!.degree)] : undefined;
+      const rated = ratedMove(chord, key);
       const range = rated ? rangeOf(key) : null;
       if (!rated || !range) return fallback.tension(chord, key);
       return Math.round((range.lo + ((rated.tension + 1) / 2) * (range.hi - range.lo)) * 100) / 100;
