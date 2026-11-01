@@ -24,6 +24,8 @@ export const CHORD_COLOR = '#f5d142'; // warm gold
 
 /** A HUD cue's distance from the canvas edge (the cue layout's, and the trainer HUD's own box). */
 export const CUE_MARGIN = 12;
+/** Room kept clear at the top for the top-left brand and the top-right panel. */
+export const CUE_TOP_INSET = 68;
 
 /** Everything an overlay element needs to draw a frame. */
 export interface OverlayView {

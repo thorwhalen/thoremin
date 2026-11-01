@@ -126,3 +126,10 @@ describe('the overlay says why no hand is drawn', () => {
     expect(drawWith({ handsStatus: HANDS_STATUS.replacing }, { landmarks: { show: false } }).texts()).toContain(`Hands: ${HANDS_STATUS.replacing.message}`);
   });
 });
+
+describe('the status element is composed in every instrument', () => {
+  it("the trunk's overlay lists sourceStatus, so the line can appear at all", async () => {
+    const { trunk } = await import('@/instruments/branches');
+    expect(trunk.overlay).toContain('sourceStatus');
+  });
+});

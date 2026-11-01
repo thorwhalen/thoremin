@@ -12,11 +12,12 @@
  * Part of the `canvas-overlay` node (`../../canvas_overlay.ts` is its public face).
  */
 import type { LoadStatus } from '@thoremin/lazy';
-import { BODY_COLOR, CUE_MARGIN, type OverlayElement, type OverlayView, RIGHT_COLOR } from '../view';
+import { BODY_COLOR, CUE_MARGIN, CUE_TOP_INSET, type OverlayElement, type OverlayView, RIGHT_COLOR } from '../view';
 
 /** Where the first line sits (top-left, clear of the Lab panel and the trainer HUD that anchor
  *  to the bottom), and how far apart the lines are. */
-const STATUS_ORIGIN = { x: CUE_MARGIN, y: CUE_MARGIN } as const;
+/** Top-left, below the brand (the cues' own inset), so the one word on a failure is not hidden. */
+const STATUS_ORIGIN = { x: CUE_MARGIN, y: CUE_TOP_INSET } as const;
 const STATUS_ROW_HEIGHT = 16;
 const STATUS_FONT = '12px system-ui, sans-serif';
 const STATUS_ALPHA = 0.8;

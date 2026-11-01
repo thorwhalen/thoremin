@@ -6,11 +6,10 @@
  */
 import type { CuePosition } from '../canvas_overlay.schema';
 import { OVERLAY_ELEMENTS } from './elements/index';
-import { CUE_MARGIN, type OverlayElement, type OverlayView } from './view';
+import { CUE_MARGIN, CUE_TOP_INSET, type OverlayElement, type OverlayView } from './view';
 
 // ---- Cue layout: stack the active cues along their chosen edges ------------------
 const CUE_GAP = 10;
-const CUE_TOP_INSET = 68; // leave room for the top-left brand / top-right panel
 const CUE_BOTTOM_INSET = 68; // and for the tools bar / the object-cover crop band
 
 /** Compute each active cue's top-left origin, auto-stacking cues that share an edge. */

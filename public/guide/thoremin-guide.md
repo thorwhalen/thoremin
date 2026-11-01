@@ -1690,7 +1690,7 @@ What the face does: nothing; *timbre* (a smile brightens, an open mouth adds vib
 
 ### Overlay
 
-What is drawn on the video: the video itself, the hand landmarks, the control markers, pitch and scale guides, chord names, the keyboard strip, the face mesh, the finger lines and bars. Switch things off for a clean picture.
+What is drawn on the video: the video itself, the hand landmarks, the control markers, pitch and scale guides, chord names, the keyboard strip, the face mesh, the finger lines and bars, and the model loading notes in the top-left corner. Switch things off for a clean picture; turning the loading notes off never hides a failure ("Hands: ... reload the page").
 
 <a id="settings--keyboard"></a>
 
@@ -1846,6 +1846,7 @@ Browsers will not make sound until you tap. Press **Tap to play** once. If the s
 - Keep your hand in view and a little away from the camera, with the palm toward it.
 - The **Wrist Theremin** instrument is steadier than the fingertip.
 - With two hands close together the second can be missed; move them apart.
+- If the top-left corner says **Hands: the hand model stopped and could not load again**, the hand tracker failed (often a dropped connection): reload the page. While it says it is moving or trying again, wait a moment.
 
 ### Browsers
 
