@@ -37,7 +37,7 @@ const SAMPLE_INTERVAL_MS = 33;
 
 /** Now, on the engine's clock (ms): the tap's stamp, or the same wall clock before the
  *  first tick. */
-export const nowMs = (): number => readLiveVector()?.t ?? performance.now();
+export const nowMs = (): number => readLiveVector()?.tickT ?? performance.now();
 
 /** Everything the panel shows, read reactively. */
 export function useTrainerView() {
@@ -176,7 +176,7 @@ export function useTrainerSession(running: boolean): void {
       if (live && live.t > lastSampled) {
         lastSampled = live.t;
         useTrainer.getState().sample(live.vector, live.t);
-      } else useTrainer.getState().tick(performance.now());
+      } else useTrainer.getState().tick(live?.tickT ?? performance.now());
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running]);

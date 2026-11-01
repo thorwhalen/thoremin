@@ -31,16 +31,24 @@
  * zero displacement, deflating the noise estimate (#856 skips only an identical stamp). So the
  * tap also watches the sources ({@link SOURCE_FRAME_EDGES}) and stamps a part with the tick at
  * which its source frame was FIRST offered: a re-offer keeps the stamp, and every consumer's
- * same-stamp check skips it. Identity, not the frame's capture stamp: `frameTime` honours a
+ * same-stamp check skips it. Only a frame that CARRIES a stamp (`t`: a camera frame, live or
+ * replayed) is a camera frame: the placeholders a source repeats while it has nothing (an empty
+ * or absent-frame constant before the model's first result, a replay with nothing loaded) and
+ * the synthetic frames carry none, and keep the tick stamp, so the stamp never stops on them.
+ * Identity, not the frame's capture stamp: `frameTime` honours a
  * capture stamp only at speed 1 and for this document's own frames (a replay or a batch clock
  * gets the tick time, and the dedupe would vanish), while the source frame object is the same
  * one in every mode; and the stamp stays on the tick's base, which the trainer's clock shares.
  * Never by vector content: a pinned feature repeats legitimately.
  *
- * The merged stamp is the newest part's. A vector whose parts are ALL re-offers repeats the
+ * The merged stamp is the newest part's, and never goes back (a branch leaving the graph would
+ * otherwise drop it to an older part's). A vector whose parts are ALL re-offers repeats the
  * previous stamp; one with a new face frame and a re-offered hand frame gets the new stamp, its
- * hand features repeated (a per-feature stamp would be needed to skip those, and the slow-camera
- * case is one camera feeding every source).
+ * hand features repeated (a stamp per part would be needed to skip those: #916).
+ *
+ * The tick time is read beside it ({@link readLiveVector}'s `tickT`): what a consumer that needs
+ * a CLOCK reads (the trainer's actions and its idle ticks, the smoke probe), since the frame
+ * stamp stands still while the camera does.
  */
 import type { NodeContext, Tap } from '@thoremin/dag';
 import type { FeatureVector } from '@thoremin/sdk/enroll';
@@ -66,6 +74,8 @@ let latest: FeatureVector | null = null;
  *  speed estimate (displacement / dt) was a thousand times too large, so nothing
  *  ever read as "held". Convert HERE, at the boundary, once. */
 let latestT = 0;
+/** The tick of the latest vector, in milliseconds: a clock, which the frame stamp is not. */
+let latestTickT = 0;
 
 /** Per-edge last value and the tick (`ctx.time`) it came from. Only the parts emitted in
  *  the CURRENT tick are merged: a source whose node left the graph (the face branch drops
@@ -94,7 +104,7 @@ export class LiveVectorTap implements Tap {
     }
     if (SOURCE_KEYS.has(key)) {
       const seen = sources.get(key);
-      const continued = seen !== undefined && seen.frame === value && seen.lastSeen >= prevTick;
+      const continued = seen !== undefined && seen.frame === value && seen.lastSeen >= prevTick && carriesStamp(value);
       sources.set(key, { frame: value, firstSeen: continued ? seen.firstSeen : ctx.time, lastSeen: ctx.time });
       return;
     }
@@ -117,20 +127,29 @@ export class LiveVectorTap implements Tap {
       newest = Math.max(newest, part.stamp);
     }
     latest = merged;
-    latestT = newest * 1000;
+    latestT = Math.max(latestT, newest * 1000);
+    latestTickT = ctx.time * 1000;
   }
 }
 
-/** The most recent merged feature vector (and its tick time in ms), or null if none
- *  has arrived yet. */
-export function readLiveVector(): { vector: FeatureVector; t: number } | null {
-  return latest ? { vector: latest, t: latestT } : null;
+/** A camera frame (live or replayed) carries its capture stamp `t`; a placeholder or a
+ *  synthetic frame does not, and is never taken for a re-offer. */
+function carriesStamp(frame: unknown): boolean {
+  return typeof frame === 'object' && frame !== null && typeof (frame as { t?: unknown }).t === 'number';
+}
+
+/** The most recent merged feature vector, or null if none has arrived yet: `t` is its camera
+ *  frame's stamp (repeated on a re-offer; feed samplers and estimators with it), `tickT` the tick
+ *  it was read on (a clock), both in ms. */
+export function readLiveVector(): { vector: FeatureVector; t: number; tickT: number } | null {
+  return latest ? { vector: latest, t: latestT, tickT: latestTickT } : null;
 }
 
 /** Forget everything — used by tests, and on engine teardown. */
 export function resetLiveVector(): void {
   latest = null;
   latestT = 0;
+  latestTickT = 0;
   byEdge.clear();
   sources.clear();
   prevTick = -Infinity;

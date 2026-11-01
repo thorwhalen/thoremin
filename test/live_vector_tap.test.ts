@@ -7,11 +7,17 @@
  * The acceptance test replays the resting part of the scripted hand take through the tap at
  * half the camera rate (every camera frame offered on two ticks, as at 60 Hz ticks and a 30 fps
  * camera) and feeds the noise estimator exactly what the trainer would: its snapshot must equal
- * the full-rate one. Then the edges: a source that leaves the graph and returns with the same
- * empty-frame object, a vector whose source is not watched, and two sources at different rates.
+ * the full-rate one; once by hand, once through a real engine with the real `replay-hands` source
+ * playing a 30 fps recording under 60 Hz ticks. Then the edges: the placeholder a source repeats
+ * while it has nothing (never a frozen stamp: the smoke probe and the trainer's clock read it),
+ * a source that leaves the graph and returns, a vector whose source is not watched, two sources
+ * at different rates, and a stamp that never goes back.
  */
 import { afterEach, describe, it, expect } from 'vitest';
-import type { NodeContext } from '@thoremin/dag';
+import { createRegistry, Engine, type GraphSpec, type NodeContext } from '@thoremin/dag';
+import { handFeatureVectorNode } from '@/nodes/features/hand_feature_vector';
+import { HAND_REPLAY_RESOURCE_KEY, replayHandsNode, type HandReplay } from '@/nodes/sources/replay_hands';
+import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { createNoiseEstimator } from '@thoremin/sdk/enroll/noise';
 import { LiveVectorTap, readLiveVector, resetLiveVector, SOURCE_FRAME_EDGES } from '@thoremin/sdk-ui/enroll/liveVector';
 import { waveTake } from './helpers/wave_take';
@@ -64,8 +70,8 @@ describe('the live vector tap stamps a vector with its camera frame (#858)', () 
 
   it('a re-offered frame keeps the stamp of its first offer; a new frame takes its own tick', () => {
     const tap = new LiveVectorTap();
-    const a = {};
-    const b = {};
+    const a = { t: 1 };
+    const b = { t: 2 };
     offer(tap, 1.0, [[HAND_SOURCE, a, 'handVec.vector', { x: 1 }]]);
     offer(tap, 1.016, [[HAND_SOURCE, a, 'handVec.vector', { x: 1 }]]);
     expect(readLiveVector()!.t).toBe(1000);
@@ -73,15 +79,35 @@ describe('the live vector tap stamps a vector with its camera frame (#858)', () 
     expect(readLiveVector()!.t).toBe(1033);
   });
 
-  it('a source that missed a tick starts over, even when it returns with the same empty-frame object', () => {
+  it('a placeholder frame (no stamp of its own) never freezes the stamp, and tickT is the tick', () => {
     const tap = new LiveVectorTap();
-    const EMPTY = {};
-    offer(tap, 1.0, [[HAND_SOURCE, EMPTY, 'handVec.vector', {}]]);
+    const EMPTY = { width: 640, height: 480, hands: [] };
+    for (const time of [1.0, 1.016, 1.033]) {
+      offer(tap, time, [[HAND_SOURCE, EMPTY, 'handVec.vector', {}]]);
+      expect(readLiveVector()).toMatchObject({ t: time * 1000, tickT: time * 1000 });
+    }
+  });
+
+  it('a source that missed a tick starts over, even when it returns with the same frame object', () => {
+    const tap = new LiveVectorTap();
+    const frame = { t: 1 };
+    offer(tap, 1.0, [[HAND_SOURCE, frame, 'handVec.vector', { x: 1 }]]);
     // The hand branch leaves the graph for a tick (only the face is offered)...
-    offer(tap, 1.016, [[FACE_SOURCE, {}, 'faceVec.vector', { f: 1 }]]);
-    // ...and returns with the same constant: a fresh stamp, not the one from a second ago.
-    offer(tap, 2.0, [[HAND_SOURCE, EMPTY, 'handVec.vector', { x: 1 }]]);
+    offer(tap, 1.016, [[FACE_SOURCE, { t: 1.01 }, 'faceVec.vector', { f: 1 }]]);
+    // ...and returns with the same object: a fresh stamp, not the one from a second ago.
+    offer(tap, 2.0, [[HAND_SOURCE, frame, 'handVec.vector', { x: 1 }]]);
     expect(readLiveVector()!.t).toBe(2000);
+  });
+
+  it('the stamp never goes back when the newest part leaves the graph; tickT moves on', () => {
+    const tap = new LiveVectorTap();
+    const hand = { t: 1 };
+    offer(tap, 1.0, [[HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
+    offer(tap, 1.016, [[FACE_SOURCE, { t: 1.01 }, 'faceVec.vector', { f: 1 }], [HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
+    expect(readLiveVector()!.t).toBe(1016);
+    // The face branch leaves: only the re-offered hand frame (first offered at 1.0) remains.
+    offer(tap, 1.033, [[HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
+    expect(readLiveVector()).toMatchObject({ t: 1016, tickT: 1033 });
   });
 
   it('stamps a vector with the tick when its source was not offered this tick (as before #858)', () => {
@@ -92,13 +118,61 @@ describe('the live vector tap stamps a vector with its camera frame (#858)', () 
 
   it('with two sources, the merged stamp is the newest part, and repeats only when both re-offer', () => {
     const tap = new LiveVectorTap();
-    const hand = {};
-    const face1 = {};
-    const face2 = {};
+    const hand = { t: 0.99 };
+    const face1 = { t: 0.98 };
+    const face2 = { t: 1.0 };
     offer(tap, 1.0, [[FACE_SOURCE, face1, 'faceVec.vector', { f: 1 }], [HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
     offer(tap, 1.016, [[FACE_SOURCE, face2, 'faceVec.vector', { f: 2 }], [HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
-    expect(readLiveVector()).toEqual({ vector: { f: 2, x: 1 }, t: 1016 });
+    expect(readLiveVector()).toMatchObject({ vector: { f: 2, x: 1 }, t: 1016 });
     offer(tap, 1.033, [[FACE_SOURCE, face2, 'faceVec.vector', { f: 2 }], [HAND_SOURCE, hand, 'handVec.vector', { x: 1 }]]);
     expect(readLiveVector()!.t).toBe(1016);
+  });
+});
+
+describe('through a real engine: replay-hands playing a 30 fps recording under 60 Hz ticks (#858)', () => {
+  /** The take's resting frames as a recording: the real hand frames, each with its capture stamp. */
+  const take = waveTake().frames.filter((f) => f.t < 1900);
+  const replay: HandReplay = {
+    id: 1,
+    frames: take.map((f, i) => ({ width: 640, height: 480, hands: [{ handedness: 'Right', keypoints: [], score: 1 }], t: f.t / 1000, i }) as unknown as HandsFrame),
+    times: take.map((f) => f.t / 1000),
+    loop: false,
+  };
+
+  /** Run the engine at `hz` and feed the estimator the trainer's way; returns the samples taken and
+   *  whether the stamp ever stood still while the tick moved. */
+  function run(hz: number) {
+    resetLiveVector();
+    const spec: GraphSpec = {
+      nodes: [
+        { id: 'cam', type: 'replay-hands', params: {} },
+        { id: 'handVec', type: 'hand-feature-vector', params: {} },
+      ],
+      edges: [{ from: { node: 'cam', port: 'hands' }, to: { node: 'handVec', port: 'hands' } }],
+    };
+    const engine = new Engine(spec, createRegistry([replayHandsNode, handFeatureVectorNode] as never), {
+      taps: [new LiveVectorTap()],
+      resources: { [HAND_REPLAY_RESOURCE_KEY]: () => replay },
+    });
+    const stamps = new Set<number>();
+    let held = 0;
+    const span = replay.times[replay.times.length - 1];
+    for (let i = 0; i / hz <= span; i++) {
+      engine.tick(i / hz);
+      const live = readLiveVector();
+      if (!live) continue;
+      if (stamps.has(live.t)) held += 1;
+      stamps.add(live.t);
+    }
+    return { samples: stamps.size, held };
+  }
+
+  it('each recorded frame is one sample at 60 Hz as at 30 Hz: the re-offers keep their stamp', () => {
+    const at30 = run(30);
+    const at60 = run(60);
+    expect(at30.samples).toBe(replay.frames.length);
+    expect(at60.samples).toBe(at30.samples);
+    // Half the 60 Hz ticks re-offer a frame, and were held.
+    expect(at60.held).toBeGreaterThan(replay.frames.length * 0.8);
   });
 });
