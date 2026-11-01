@@ -148,11 +148,18 @@ const profileModel: TensionModel = {
 
 export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { function: functionModel, tps: tpsModel, profile: profileModel };
 
+/** The player's own model: a {@link TensionModel} that can also say whether a chord's number is
+ *  the player's (a display marks it, #920) or the fallback's. */
+export interface RatedTensionModel extends TensionModel {
+  id: 'rated';
+  isRated(chord: Chord, key: Key): boolean;
+}
+
 /**
  * The player's own tension (#809): a key's diatonic chord is as tense as the player rated the
  * move from the tonic to it ("I → vi", settled -1 to tense 1, by scale degree and mode, `./ratings`).
  * A move is rated in the mode's practice key (major, or the NATURAL minor), so a rating applies only
- * to the chord the player heard at that degree: harmonic minor's V (E major in A) is not the v (Em)
+ * to the chord the player heard at that degree (`heardDegree`): harmonic minor's V (E major in A) is not the v (Em)
  * that was rated, and is measured by the fallback. So is every chord no rated move reaches (the
  * tonic itself, an unrated degree, a chord outside the key).
  *
@@ -161,13 +168,6 @@ export const TENSION_MODELS: Readonly<Record<TensionModelId, TensionModel>> = { 
  * its least tense diatonic chord, 1 at its most. A rated chord then reads as a number the fallback
  * could have given, and the two rank together. The range is computed once per key.
  */
-/** The player's own model: a {@link TensionModel} that can also say whether a chord's number is
- *  the player's (a display marks it, #920) or the fallback's. */
-export interface RatedTensionModel extends TensionModel {
-  id: 'rated';
-  isRated(chord: Chord, key: Key): boolean;
-}
-
 export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): RatedTensionModel {
   const ranges = new Map<string, { lo: number; hi: number } | null>();
   const rangeOf = (key: Key) => {

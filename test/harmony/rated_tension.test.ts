@@ -111,6 +111,17 @@ describe('the player\'s tension beyond the wheel (#920)', () => {
     expect(heardDegree(V, harmonic)).toBeNull();
     expect(heardDegree(diatonicChords(A_MINOR)[4], A_MINOR)).toBe(4);
     expect(heardDegree(diatonicChords(C_MAJOR)[0], C_MAJOR)).toBe(0);
+    // With the map's Sevenths on, G7 is the G the player rated.
+    expect(heardDegree(diatonicChords(C_MAJOR, 4)[4], C_MAJOR)).toBe(4);
+    // A scale's own stacked chords (the Pentatonic Map's Gsus4) were never rated.
+    expect(heardDegree({ root: 7, quality: 'sus4' } as Chord, keyOf({ root: 0, type: 'pentatonic' }))).toBeNull();
+  });
+
+  it('with Sevenths on, the rated captions and the rated numbers still apply', () => {
+    const table = rated({ [moveKey('major', 1, 4)]: 1, [moveKey('major', 0, 4)]: 1 });
+    const [, ii7, , , V7] = diatonicChords(C_MAJOR, 4);
+    expect(ratedCaptions(table).caption({ from: ii7, to: V7 } as never, undefined, C_MAJOR)).toBeTruthy();
+    expect(ratedTensionModel(table, tps).isRated(V7, C_MAJOR)).toBe(true);
   });
 
   it('isRated says whose number it is: the player\'s, or the fallback\'s', () => {
