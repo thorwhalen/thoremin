@@ -21,12 +21,10 @@
  *
  * The camera video is data: keep it outside the repo.
  */
-import { spawn } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
+import { startPreview } from '../lib/preview.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : fallback;
@@ -54,15 +52,14 @@ function instrument() {
   window.__frameCopies = stats;
 }
 
-const server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
+const { url, stop } = await startPreview(port);
 try {
-  await new Promise((r) => setTimeout(r, 4000));
   const browser = await chromium.launch({
     args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${resolve(video)}`],
   });
   const page = await browser.newPage();
   await page.addInitScript(instrument);
-  await page.goto(`http://localhost:${port}/thoremin/instruments/${query ? '?' + query : ''}`);
+  await page.goto(`${url}${query ? '?' + query : ''}`);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 60_000 });
   await page.locator('[data-tools-bar] [data-tool="conductor"]').click();
   await page.getByRole('radio', { name: 'Conduct with body' }).click();
@@ -102,5 +99,5 @@ try {
   }));
   await browser.close();
 } finally {
-  server.kill();
+  await stop();
 }

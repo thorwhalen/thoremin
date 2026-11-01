@@ -29,7 +29,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-import { DEFAULT_CLIP, fakeCameraFlags, startPreview } from './lib/harness.mjs';
+import { DEFAULT_CLIP, fakeCameraFlags } from './lib/harness.mjs';
+import { startPreview } from '../lib/preview.mjs';
 /** The barcode: this many bits, each a square of BIT_PX luma pixels, in the top-left corner. */
 const BITS = 16;
 const BIT_PX = 16;
@@ -145,10 +146,10 @@ async function main() {
   const { path, frames, dir } = burnBarcode(args.video);
   const launchArgs = fakeCameraFlags(path);
   let browser;
-  let proc;
+  let stop;
   try {
     const preview = await startPreview(args.port);
-    proc = preview.proc;
+    stop = preview.stop;
     const url = preview.url;
     browser = await chromium.launch({ headless: !args.headed, args: launchArgs });
     const results = [];
@@ -159,7 +160,7 @@ async function main() {
     console.log(json);
   } finally {
     await browser?.close();
-    proc?.kill();
+    await stop?.();
     rmSync(dir, { recursive: true, force: true }); // the barcoded copy is ~240 MB
   }
 }

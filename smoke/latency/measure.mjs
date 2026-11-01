@@ -54,7 +54,8 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-import { fakeCameraFlags, startPreview } from './lib/harness.mjs';
+import { fakeCameraFlags } from './lib/harness.mjs';
+import { startPreview } from '../lib/preview.mjs';
 
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
 const TASKS_VISION_VERSION = '1.1.1';
@@ -261,7 +262,7 @@ function summarize(xs) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { proc, url } = await startPreview(args.port);
+  const { url, stop } = await startPreview(args.port);
   const launchArgs = fakeCameraFlags(args.video);
   let browser;
   try {
@@ -296,7 +297,7 @@ async function main() {
     console.log(json);
   } finally {
     await browser?.close();
-    proc.kill();
+    await stop();
   }
 }
 
