@@ -27,10 +27,10 @@ import { functionOf, parentKey, type Chord, type Key } from './chord';
 import { commonTones } from './distance';
 import { TRANSITION_PRIORS, type PriorId } from './prior';
 import { QUALITIES, type QualityId } from './qualities';
-import { TENSION_MODELS, tpsDistance, type TensionModelId } from './tension';
+import { TENSION_MODELS, tpsDistance, type TensionModel, type TensionModelId } from './tension';
 import { SCALE_TYPES } from '../music/theory';
 import type { Edge, Relation } from './space';
-import { moveKey, ratingMode, ratingWords, type RatingsTable } from './ratings';
+import { heardDegree, moveKey, ratingMode, ratingWords, type RatingsTable } from './ratings';
 
 export const CAPTION_PARTS = ['tones', 'quality', 'expectedness', 'direction', 'distance'] as const;
 export type CaptionPart = (typeof CAPTION_PARTS)[number];
@@ -101,10 +101,14 @@ export function expectedness(from: Chord, to: Chord, key: Key, prior: PriorId = 
 
 export type TensionDirection = 'resolving' | 'opening' | null;
 
+/** A tension model by id, or one built from data (the player's own, `ratedTensionModel`, #920). */
+export type TensionModelRef = TensionModelId | TensionModel;
+const tensionModel = (ref: TensionModelRef): TensionModel => (typeof ref === 'string' ? TENSION_MODELS[ref] : ref);
+
 /** Whether tension falls or rises by a model, or null where it stays or the model has no
  *  opinion on one of the chords. */
-export function tensionDirection(from: Chord, to: Chord, key: Key, model: TensionModelId = 'function'): TensionDirection {
-  const m = TENSION_MODELS[model];
+export function tensionDirection(from: Chord, to: Chord, key: Key, model: TensionModelRef = 'function'): TensionDirection {
+  const m = tensionModel(model);
   const a = m.tension(from, key);
   const b = m.tension(to, key);
   if (a === null || b === null || a === b) return null;
@@ -137,8 +141,8 @@ export interface CaptionOptions {
   parts?: readonly CaptionPart[];
   /** The prior `expectedness` reads. */
   prior?: PriorId;
-  /** The tension model `direction` reads. */
-  tension?: TensionModelId;
+  /** The tension model `direction` reads: a named one, or one built from data. */
+  tension?: TensionModelRef;
   /** The player's ratings, for their own set (`mine`, #715). */
   ratings?: RatingsTable;
 }
@@ -199,7 +203,7 @@ export function computedCaptions(options: CaptionOptions = {}): CaptionSet {
   const tension = options.tension ?? 'function';
   const models: string[] = [];
   if (parts.includes('expectedness')) models.push(TRANSITION_PRIORS[prior].name);
-  if (parts.includes('direction')) models.push(TENSION_MODELS[tension].name);
+  if (parts.includes('direction')) models.push(tensionModel(tension).name);
   if (parts.includes('distance')) models.push(TENSION_MODELS.tps.name.replace(/ \(.*\)$/, ''));
   return {
     id: 'computed',
@@ -223,12 +227,6 @@ export const INTERVAL_CAPTIONS: CaptionSet = {
   caption: () => undefined,
 };
 
-/** The degree of a key's own diatonic chord, or null for a borrowed, applied or foreign one. */
-function diatonicDegree(chord: Chord, key: Key): number | null {
-  const f = functionOf(chord, key);
-  return f && f.alter === undefined && f.of === undefined ? f.degree : null;
-}
-
 /** The player's caption set (#715): a rated move's words, nothing (the relation's label) for the rest. */
 export function ratedCaptions(table: RatingsTable): CaptionSet {
   return {
@@ -236,8 +234,8 @@ export function ratedCaptions(table: RatingsTable): CaptionSet {
     name: 'Yours (your ratings)',
     models: ['your ratings'],
     caption(edge, _relation, key) {
-      const from = diatonicDegree(edge.from, key);
-      const to = diatonicDegree(edge.to, key);
+      const from = heardDegree(edge.from, key);
+      const to = heardDegree(edge.to, key);
       if (from === null || to === null || from === to) return undefined;
       const r = table[moveKey(ratingMode(key), from, to)];
       return r ? ratingWords(r) : undefined;

@@ -39,7 +39,7 @@ import { radial, type Region } from '@thoremin/sdk/harmony/layout';
 import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { ratedTensionModel, TENSION_MODEL_IDS, TENSION_MODELS, tensionText, type TensionModel, type TensionModelId } from '@thoremin/sdk/harmony/tension';
+import { ratedTensionModel, TENSION_MODEL_IDS, TENSION_MODELS, tensionText, type RatedTensionModel, type TensionModel, type TensionModelId } from '@thoremin/sdk/harmony/tension';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
 import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
 import { arousalOf, createLevelTracker, createRestBaseline } from '@thoremin/sdk/harmony/affect';
@@ -225,12 +225,14 @@ export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves
 /** What measures a move the player has not rated, under the `rated` tension model (#809): Lerdahl's
  *  distance, which has an opinion on every chord (the functional ladder has none outside the key). */
 export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
+/** What follows a number under the player's own model when the number is theirs, not the fallback's. */
+export const RATED_MARK = '(you)';
 
 /** The tension model the wheel's setting names: none, a named one, or the player's own over their
  *  ratings (no ratings yet: every move is the fallback's). The player's is built again only when the
  *  ratings table changes (the same object between two ratings). */
-function createTensionModels(): (choice: Params['tension'], ratings: RatingsTable | null | undefined) => TensionModel | null {
-  let rated: { table: RatingsTable | null | undefined; model: TensionModel } | null = null;
+function createTensionModels(): (choice: Params['tension'], ratings: RatingsTable | null | undefined) => TensionModel | RatedTensionModel | null {
+  let rated: { table: RatingsTable | null | undefined; model: RatedTensionModel } | null = null;
   return (choice, ratings) => {
     if (choice === 'off') return null;
     if (choice !== 'rated') return TENSION_MODELS[choice];
@@ -532,7 +534,9 @@ export const chordWheelNode = defineNode<Params>({
         const model = tensionModelOf(c.tension, inputs.ratings as RatingsTable | null | undefined);
         const withTension = (sub: string, target: Chord | undefined) => {
           const t = model && target ? tensionText(model, target, k) : '';
-          return t ? `${sub} · ${t}` : sub;
+          // Under the player's own model a number is theirs or the fallback's: theirs is marked (#920).
+          const yours = t && target && model && 'isRated' in model && model.isRated(target, k) ? ` ${RATED_MARK}` : '';
+          return t ? `${sub} · ${t}${yours}` : sub;
         };
         // The setting is a level as it stands (no hysteresis: a saved value always loads the same);
         // the face moves through the tracker, a lost face reading as at rest.
