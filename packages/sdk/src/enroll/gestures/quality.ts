@@ -32,11 +32,18 @@
  *   distance in noise units, its reject radius and its taught Neutral). A single REJECTED frame
  *   between two frames of one category does not break its run (a flicker the tracker holds
  *   through; {@link GESTURE_QUALITY_DEFAULTS.holdRejectedFrames}); a Neutral frame does (Neutral
- *   is a reading the tracker enters, and leaving it re-enters the category). Only the LEADING
- *   and TRAILING runs are exempt (once the rejected frames at either end, the hand not yet in any
- *   reading, are set aside): a gesture that starts and ends on a held pose (the
+ *   is a reading the tracker enters, and leaving it re-enters the category). A frame that does
+ *   not carry `minShared` of the held model's features (the hand lost) is read as a rejected one,
+ *   under the same bridge: a dwell never spans a gap where the hand was not seen. Only the pose
+ *   the gesture STARTS and ENDS on is exempt: a gesture that starts and ends on a held pose (the
  *   resting open hand the wave starts from) is fine (design section 4), but a return to that pose
- *   mid-way, after Neutral, is a fresh entry and counts.
+ *   mid-way, after Neutral, is a fresh entry and counts. The starting pose is the first category
+ *   run, and only when it begins within `dwellMs` of the trace's first seen frame (a lead-in
+ *   shorter than a dwell, a rest that flickers out of its category for a few frames, is nothing
+ *   the tracker would commit); the ending pose likewise from the last seen frame. So a gesture
+ *   that starts from a REJECTED rest (no taught Neutral, or a rest that reads "none of these")
+ *   and reaches a held category only after moving for longer than a dwell has no starting pose,
+ *   and a dwell on that category counts, as it would from a held rest.
  * - **Thin**: one trace is no agreement, "needs another repetition", as one hold is.
  *
  * ## Comparable pairs
@@ -89,7 +96,9 @@ export const GESTURE_QUALITY_DEFAULTS = {
   /** The odd trace is flagged at this many times the others' agreement: past the matcher's
    *  tolerance, the matcher would refuse a repetition like it. */
   oddRatio: MATCHER_DEFAULTS.tolerance,
-  /** A trace inside a held category's reading for this long would fire it: the sampler's dwell. */
+  /** A trace inside a held category's reading for this long would fire it: the sampler's dwell.
+   *  Also how soon after the first seen frame (before the last) the starting (ending) pose must
+   *  begin (end) to be exempt: a shorter lead-in is nothing the tracker would commit. */
   dwellMs: MOTION_DEFAULTS.dwellMs,
   /** The most consecutive rejected frames a dwell holds through: one, a flicker (a tracking
    *  glitch), which the tracker holds through. Longer is the hand moving away: the tracker may
@@ -331,23 +340,27 @@ function separation(g: string, idx: readonly number[], members: ReadonlyMap<stri
   return { nearest, distance, incomparable };
 }
 
-/** One frame as the held model reads it: a category id, a rejection, or neither (Neutral). */
+/** One frame as the held model reads it: a category id, a rejection, or neither (Neutral). A frame
+ *  without enough of the model's features is `rejected` and not `measured`. */
 interface HoldReading {
   t: number;
   id: string | null;
   rejected: boolean;
+  measured: boolean;
 }
 
-/** The frames carrying `minShared` of the model's weighted features, read by `classify`. */
+/** Every frame read by `classify`; one not carrying `minShared` of the model's weighted features
+ *  reads as rejected (and unmeasured). Empty when no frame is measured. */
 function readHolds(holds: TrainedModel, samples: readonly TraceSample[], minShared: number): HoldReading[] {
   const features = holds.features.filter((f) => !Object.hasOwn(holds.weights, f) || holds.weights[f] !== 0);
   if (features.length === 0) return [];
   const measured = (v: FeatureVector) => features.filter((f) => Number.isFinite(v[f])).length / features.length >= minShared;
-  return samples.flatMap((s) => {
-    if (!measured(s.vector)) return [];
+  const reads = samples.map((s): HoldReading => {
+    if (!measured(s.vector)) return { t: s.t, id: null, rejected: true, measured: false };
     const c = classify(holds, s.vector);
-    return [{ t: s.t, id: c.categoryId, rejected: c.rejected === true }];
+    return { t: s.t, id: c.categoryId, rejected: c.rejected === true, measured: true };
   });
+  return reads.some((r) => r.measured) ? reads : [];
 }
 
 /** The readings' ids with each run of at most `maxGap` rejected frames between two frames of one
@@ -369,46 +382,58 @@ function holdThroughRejections(reads: readonly HoldReading[], maxGap: number): (
   return ids;
 }
 
-/** Runs of one id, in order, with their duration from first to last frame. */
-function runsOf(ids: readonly (string | null)[], t: readonly number[]): { id: string | null; ms: number }[] {
-  const out: { id: string | null; ms: number }[] = [];
+interface Run {
+  id: string | null;
+  /** Its first and last frame's time. */
+  from: number;
+  to: number;
+}
+
+/** Runs of one id, in order, with their first and last frame's time. */
+function runsOf(ids: readonly (string | null)[], t: readonly number[]): Run[] {
+  const out: Run[] = [];
   let start = 0;
   for (let i = 1; i <= ids.length; i++) {
     if (i < ids.length && ids[i] === ids[start]) continue;
-    out.push({ id: ids[start], ms: t[i - 1] - t[start] });
+    out.push({ id: ids[start], from: t[start], to: t[i - 1] });
     start = i;
   }
   return out;
 }
 
-/** `[from, to)`: the readings without their leading and trailing rejected frames (the hand not yet
- *  in, or already out of, any reading: nothing the tracker would commit). */
-function trimRejected(reads: readonly HoldReading[]): [number, number] {
+/** `[from, to)`: the readings without the unmeasured frames at either end (the hand not yet, or no
+ *  longer, seen: no reading at all, so the trace starts and ends where the hand was seen). */
+function seenSpan(reads: readonly HoldReading[]): [number, number] {
   let from = 0;
   let to = reads.length;
-  while (from < to && reads[from].rejected) from += 1;
-  while (to > from && reads[to - 1].rejected) to -= 1;
+  while (from < to && !reads[from].measured) from += 1;
+  while (to > from && !reads[to - 1].measured) to -= 1;
   return [from, to];
 }
 
 /**
  * The held categories `samples` dwells in (see the module header): runs of one category lasting
- * `dwellMs`, other than the leading and trailing runs (once leading and trailing rejections are
- * set aside), longest per category. Null when no frame carries `minShared` of the model's
+ * `dwellMs`, other than the starting and ending poses (the first and last category runs, when
+ * within `dwellMs` of the first and last seen frame), longest per category. Null when no frame carries `minShared` of the model's
  * weighted features.
  */
 function holdRuns(holds: TrainedModel, samples: readonly TraceSample[], o: Options): Map<string, number> | null {
   const all = readHolds(holds, samples, o.minShared);
   if (all.length === 0) return null;
-  const reads = all.slice(...trimRejected(all));
+  const reads = all.slice(...seenSpan(all));
   const runs = runsOf(
     holdThroughRejections(reads, o.holdRejectedFrames),
     reads.map((r) => r.t),
-  );
+  ).filter((r) => r.id !== null);
+  const t0 = reads[0].t;
+  const t1 = reads[reads.length - 1].t;
+  const first = runs.length > 0 && runs[0].from - t0 <= o.dwellMs ? runs[0] : null;
+  const last = runs.length > 0 && t1 - runs[runs.length - 1].to <= o.dwellMs ? runs[runs.length - 1] : null;
   const out = new Map<string, number>();
-  runs.slice(1, -1).forEach(({ id, ms }) => {
-    if (id !== null && ms >= o.dwellMs) out.set(id, Math.max(out.get(id) ?? 0, ms));
-  });
+  for (const run of runs) {
+    const ms = run.to - run.from;
+    if (run !== first && run !== last && ms >= o.dwellMs) out.set(run.id!, Math.max(out.get(run.id!) ?? 0, ms));
+  }
   return out;
 }
 
@@ -439,10 +464,22 @@ function looseness(agreement: number | null, others: readonly number[], floor: n
   return { relativeAgreement, loose: absolute || relative };
 }
 
+/** Refuses the quality's own options a reading would silently misread (a NaN ratio is never
+ *  past any line, a share above 1 compares no pair). */
+function checkQualityOptions(o: Options): void {
+  if (!(o.minShared >= 0 && o.minShared <= 1)) throw new Error(`gestureQuality: minShared must be a share between 0 and 1 (got ${o.minShared})`);
+  for (const k of ['closeRatio', 'okRatio', 'looseAgreement', 'looseCeiling', 'oddRatio'] as const) {
+    if (!(o[k] > 0 && Number.isFinite(o[k]))) throw new Error(`gestureQuality: ${k} must be a finite number above 0 (got ${o[k]})`);
+  }
+  if (!(o.dwellMs >= 0 && Number.isFinite(o.dwellMs))) throw new Error(`gestureQuality: dwellMs must be a finite number at or above 0 (got ${o.dwellMs})`);
+  if (!(Number.isInteger(o.holdRejectedFrames) && o.holdRejectedFrames >= 0)) throw new Error(`gestureQuality: holdRejectedFrames must be an integer at or above 0 (got ${o.holdRejectedFrames})`);
+}
+
 /** The quality of a player's gestures from their traces (see the module header). */
 export function gestureQuality(traces: readonly Trace[], options: GestureQualityOptions): GestureSetQuality {
   const resolved = resolveGestureOptions(options);
   const o: Options = { ...GESTURE_QUALITY_DEFAULTS, ...definedOnly(options), minRadius: resolved.minRadius };
+  checkQualityOptions(o);
   const { series, band, minTraces } = resolved;
   const { items, members } = prepare(traces, series);
   const order = [...members.keys()];

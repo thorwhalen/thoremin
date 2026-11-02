@@ -200,9 +200,18 @@ export interface ResolvedGestureOptions {
   minTraces: number;
 }
 
-/** `options` with {@link MATCHER_DEFAULTS} filled in (see {@link ResolvedGestureOptions}). */
+/**
+ * `options` with {@link MATCHER_DEFAULTS} filled in (see {@link ResolvedGestureOptions}), checked
+ * here so every reader of the matcher's space (the model, the quality) refuses the same values. A
+ * NaN band or floor, an infinite floor, or a series under two rows does not fail loudly downstream:
+ * every gesture just lands in `skipped`, or every quality reads thin (#912). A negative band or
+ * floor is meaningless (it was silently treated as 0), so it is refused too.
+ */
 export function resolveGestureOptions(options: GestureModelOptions): ResolvedGestureOptions {
   const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
+  if (!(o.band >= 0)) throw new Error(`gesture options: band must be a number at or above 0 (got ${o.band})`);
+  if (!(Number.isFinite(o.minRadius) && o.minRadius >= 0)) throw new Error(`gesture options: minRadius must be a finite number at or above 0 (got ${o.minRadius})`);
+  if (!(Number.isInteger(o.length) && o.length >= 2)) throw new Error(`gesture options: length must be an integer of at least 2 rows (got ${o.length})`);
   return {
     series: { features: o.features, weights: o.weights, length: o.length, position: o.position, scale: o.scale },
     band: o.band,
@@ -225,12 +234,6 @@ export function gestureRadius(nearestSibling: readonly number[], amplitude: numb
 export function buildGestureModel(traces: readonly Trace[], options: GestureModelOptions): GestureModel {
   const o = resolveGestureOptions(options);
   if (!(o.minTraces >= 2)) throw new Error(`buildGestureModel: minTraces must be at least 2, one trace is no agreement (got ${o.minTraces})`);
-  // A NaN band or floor, an infinite floor, or a series under two rows does not fail loudly
-  // downstream: every gesture just lands in `skipped` (#912). A negative band or floor is meaningless
-  // (it was silently treated as 0), so it is refused too.
-  if (!(o.band >= 0)) throw new Error(`buildGestureModel: band must be a number at or above 0 (got ${o.band})`);
-  if (!(Number.isFinite(o.minRadius) && o.minRadius >= 0)) throw new Error(`buildGestureModel: minRadius must be a finite number at or above 0 (got ${o.minRadius})`);
-  if (!(Number.isInteger(o.series.length) && o.series.length >= 2)) throw new Error(`buildGestureModel: length must be an integer of at least 2 rows (got ${o.series.length})`);
   const { series } = o;
   const gestures: GestureTemplates[] = [];
   const skipped: string[] = [];

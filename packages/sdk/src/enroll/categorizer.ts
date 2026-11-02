@@ -177,10 +177,12 @@ const CategorizerCategorySchema = z.object({
 });
 
 /**
- * The most trace frames, over all of its gestures, an IMPORTED file may carry (#753). The design
- * keeps the gestures "inside the budget a categorizer file already has for `support`"
- * (`dynamic-gestures.md` section 3), so the bound IS that budget: {@link MAX_CATEGORIZER_SAMPLES}
- * samples of {@link MAX_SAMPLE_SUPPORT} frames each, 24,000 frames. A dozen gestures of ten
+ * The most trace frames, over all of its gestures, an IMPORTED file may carry (#753). It is a
+ * SECOND budget beside the one for `support`, of the same size ({@link MAX_CATEGORIZER_SAMPLES}
+ * samples of {@link MAX_SAMPLE_SUPPORT} frames each, 24,000 frames), not a share of it: the support
+ * frames and the trace frames are bounded separately, so a file at both bounds carries twice the
+ * frames either allows. The design's "inside the budget a categorizer file already has for
+ * `support`" (`dynamic-gestures.md` section 3) is about the expected size, not this bound. A dozen gestures of ten
  * repetitions at the segmenter's longest (3 s) at 60 fps is 21,600; the five 1.5 s repetitions of
  * a dozen at 30 fps the design budgets are 1,800 (about 700 kB of pretty JSON at 14 features).
  * Like {@link MAX_CATEGORIZER_SAMPLES} it is enforced at the untrusted door

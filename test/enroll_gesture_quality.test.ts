@@ -47,7 +47,7 @@ import { everydayFlags } from '@thoremin/sdk/enroll/everyday';
 import { parseRecord } from '@thoremin/sdk/enroll/record';
 import { freshCategoryId } from '@thoremin/sdk/enroll/sorting';
 import { createNoiseEstimator, scaleWeights, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
-import type { Trace, TrainedModel } from '@thoremin/sdk/enroll/types';
+import type { FeatureVector, Trace, TrainedModel } from '@thoremin/sdk/enroll/types';
 import { GESTURE_PATHS, waveTake, WAVE_SCRIPT, type WaveScript, type WaveTake } from './helpers/wave_take';
 
 /** The right hand's raw image positions, x and y: what these gestures move. */
@@ -150,6 +150,65 @@ describe('gestureQuality: agreement and separation', () => {
     expect(byName(pair, 'sloppy').relativeAgreement!).toBeGreaterThan(GESTURE_QUALITY_DEFAULTS.looseAgreement);
     expect(byName(pair, 'wave').loose).toBe(false);
     expect(byName(pair, 'wave').relativeAgreement!).toBeLessThan(1);
+  });
+
+  describe('the relative test applies only above the radius floor', () => {
+    const F2 = ['a', 'b'];
+    const WT2 = { a: 1, b: 1 };
+    const hash = (i: number) => (Math.sin(i * 12.9898) * 43758.5453) % 1;
+    /** Five repetitions of `path` with per-frame noise `eps` (the path's size is about 1). */
+    const repeat = (g: string, eps: number, path: (tau: number) => [number, number], seed: number): Trace[] =>
+      Array.from({ length: 5 }, (_, k) => ({
+        id: `${g}#${k + 1}`,
+        gesture: g,
+        cue: g,
+        samples: Array.from({ length: 30 }, (_, i) => {
+          const [x, y] = path(i / 29);
+          return { t: i * 33, vector: { a: x + eps * hash(seed + k * 100 + i), b: y + eps * hash(seed + k * 100 + i + 50) } };
+        }),
+      }));
+    const hann = (t: number) => Math.sin(Math.PI * t) ** 2;
+    const wave = (t: number): [number, number] => [hann(t) * Math.sin(4 * Math.PI * t), 0];
+    const circle = (t: number): [number, number] => [hann(t) * Math.sin(2 * Math.PI * t), hann(t) * (1 - Math.cos(2 * Math.PI * t))];
+    /** The radius floor of a scaled series: the matcher's `minRadius`. */
+    const FLOOR = MATCHER_DEFAULTS.minRadius;
+    const judge = (waveEps: number, circleEps: number) =>
+      byName(gestureQuality([...repeat('w', waveEps, wave, 0), ...repeat('c', circleEps, circle, 7)], { features: F2, weights: WT2 }), 'w');
+
+    it('a gesture just above the floor, at about twice the other\'s agreement, is loose', () => {
+      const w = judge(0.06, 0.048);
+      expect(w.agreement!).toBeGreaterThan(FLOOR);
+      expect(w.agreement!).toBeLessThan(GESTURE_QUALITY_DEFAULTS.looseCeiling * FLOOR);
+      expect(w.relativeAgreement!).toBeGreaterThan(GESTURE_QUALITY_DEFAULTS.looseAgreement);
+      expect(w.relativeAgreement!).toBeLessThan(2.5);
+      expect(w.loose).toBe(true);
+    });
+
+    it('a gesture below the floor is never loose, however precise the other (the relative test alone would say it)', () => {
+      const w = judge(0.04, 0.01);
+      expect(w.agreement!).toBeLessThan(FLOOR);
+      expect(w.relativeAgreement!).toBeGreaterThan(2 * GESTURE_QUALITY_DEFAULTS.looseAgreement);
+      expect(w.loose).toBe(false);
+    });
+  });
+
+  it('refuses options the quality would silently misread', () => {
+    const q = (o: object) => () => gestureQuality(ALL, { ...OPTS, ...o });
+    expect(q({ minShared: 1.5 })).toThrow(/minShared/);
+    expect(q({ minShared: -0.1 })).toThrow(/minShared/);
+    expect(q({ minShared: NaN })).toThrow(/minShared/);
+    for (const k of ['closeRatio', 'okRatio', 'looseAgreement', 'looseCeiling', 'oddRatio']) {
+      expect(q({ [k]: 0 })).toThrow(new RegExp(k));
+      expect(q({ [k]: NaN })).toThrow(new RegExp(k));
+    }
+    expect(q({ dwellMs: -1 })).toThrow(/dwellMs/);
+    expect(q({ holdRejectedFrames: 0.5 })).toThrow(/holdRejectedFrames/);
+    // The matcher's own options are checked where both resolve them (#912).
+    expect(q({ band: NaN })).toThrow(/band/);
+    expect(q({ minRadius: -1 })).toThrow(/minRadius/);
+    expect(q({ length: 1 })).toThrow(/length/);
+    // Undefined still means the default.
+    expect(q({ minShared: undefined, band: undefined })).not.toThrow();
   });
 
   it('reports no agreement, not Infinity, for a pair that shares no feature (minShared 0)', () => {
@@ -332,6 +391,57 @@ describe('gestureQuality: overlap with the held categories', () => {
       // The leading home run (the pose it starts from) alone is exempt: cut the return, nothing.
       const noReturn = [...hold([0, 0], 2), ...line([0, 0], [0, 10], 5), ...hold([0, 10], 10)];
       expect(overlapsOf(noReturn, model)).toEqual([]);
+    });
+
+    it('a reach from a REJECTED rest that dwells on a held pose is flagged, as it is from a held rest', () => {
+      // The rest reads "none of these" (no taught Neutral): a run of no category, not a starting
+      // pose. The reach arrives on "aside" 297 ms in, past a dwell, so "aside" is not the pose the
+      // gesture starts from, and its 15-frame dwell counts (the review's probe on #753).
+      const REST: P = [0, 10];
+      expect(classify(base, { a: 0, b: 10 })).toMatchObject({ categoryId: null, rejected: true });
+      const ASIDE_ID = base.categories[1].id;
+      const fromRest = [...hold(REST, 4), ...line(REST, [10, 0], 6), ...hold([10, 0], 15), ...line([10, 0], REST, 6), ...hold(REST, 4)];
+      expect(overlapsOf(fromRest, base)).toEqual([{ category: ASIDE_ID, traces: 2, longestMs: 15 * DT }]);
+      // The same reach from "home" (a held rest) reads the same.
+      const fromHome = [...hold([0, 0], 4), ...line([0, 0], [10, 0], 6), ...hold([10, 0], 15), ...line([10, 0], [0, 0], 6), ...hold([0, 0], 4)];
+      expect(overlapsOf(fromHome, base)).toEqual([{ category: ASIDE_ID, traces: 2, longestMs: 15 * DT }]);
+    });
+
+    it('a rest that flickers out of its category for under a dwell is still the starting pose', () => {
+      // Four rejected frames (99 ms) before "home": the home run begins within a dwell of the
+      // first frame, so it is the pose the gesture starts from, however long it lasts.
+      const FLICKER: P = [5, 0];
+      const pts = [...hold(FLICKER, 4), ...hold([0, 0], 12), ...line([0, 0], [0, 4], 3), ...line([0, 4], [0, 0], 3), ...hold([0, 0], 12)];
+      expect(overlapsOf(pts, base)).toEqual([]);
+    });
+
+    describe('frames where the hand was not seen', () => {
+      /** Two identical traces; a null point is a frame with no feature measured. */
+      const twiceSeen = (pts: (P | null)[]): Trace[] =>
+        [1, 2].map((n) => ({ id: `y#${n}`, gesture: 'y', cue: 'y', samples: pts.map((p, i) => ({ vector: (p ? { a: p[0], b: p[1] } : {}) as FeatureVector, t: i * DT })) }));
+      const overlapsSeen = (pts: (P | null)[]) =>
+        gestureQuality(twiceSeen(pts), { features: F, weights: WT, holds: base, scale: false, position: false }).gestures[0].overlaps;
+      const lost = (n: number): null[] => Array(n).fill(null);
+      const ASIDE_ID = base.categories[1].id;
+
+      it('break a dwell like rejected frames: a gap where the hand was lost is not a dwell', () => {
+        // 2 frames on "aside", the hand lost for 8, 2 more: two short visits, not a 396 ms dwell.
+        const gap = [...hold([0, 0], 3), ...line([0, 0], [10, 0], 4), ...hold([10, 0], 2), ...lost(8), ...hold([10, 0], 2), ...line([10, 0], [0, 0], 4), ...hold([0, 0], 3)];
+        expect(overlapsSeen(gap)).toEqual([]);
+      });
+
+      it('a single lost frame inside a dwell is bridged, like one rejected frame', () => {
+        const one = [...hold([0, 0], 3), ...line([0, 0], [10, 0], 4), ...hold([10, 0], 6), null, ...hold([10, 0], 6), ...line([10, 0], [0, 0], 4), ...hold([0, 0], 3)];
+        expect(overlapsSeen(one)).toEqual([{ category: ASIDE_ID, traces: 2, longestMs: 13 * DT }]);
+      });
+
+      it('at either end are set aside: the trace starts and ends where the hand was first and last seen', () => {
+        // Lost for 400 ms at each end, then resting on "home" for 400 ms: still the starting and
+        // ending pose, measured from the first and last SEEN frame.
+        const pts = [...lost(12), ...hold([0, 0], 12), ...line([0, 0], [0, 4], 3), ...line([0, 4], [0, 0], 3), ...hold([0, 0], 12), ...lost(12)];
+        expect(overlapsSeen(pts)).toEqual([]);
+        expect(overlapsSeen(lost(10))).toBeNull();
+      });
     });
   });
 
