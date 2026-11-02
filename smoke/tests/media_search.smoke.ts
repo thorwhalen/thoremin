@@ -19,6 +19,9 @@ const DOWNLOAD = '/download/Toccata/Toccata_et_Fugue_BWV565.mp3';
 const SYNTHETIC = '?slot.source=synthetic-hands&slot.body=synthetic-body';
 const CORS = { 'access-control-allow-origin': '*' };
 
+/** The site under test's own origin (the local preview or the live site): never blocked. */
+const ownOrigin = (): string => new URL(String(test.info().project.use.baseURL)).origin;
+
 async function recordedNetwork(page: Page): Promise<string[]> {
   const asked: string[] = [];
   await page.route(/^https:\/\/archive\.org\//, (route) => {
@@ -31,8 +34,9 @@ async function recordedNetwork(page: Page): Promise<string[]> {
     return route.fulfill({ status: 404, headers: CORS, body: '' });
   });
   await page.route(/^https:\/\/api\.audius\.co\//, (route) => route.fulfill({ headers: CORS, contentType: 'application/json', body: fixture('audius_search_bach.json') }));
-  // Nothing else may reach the internet from this test.
-  await page.route(/^https:\/\/(?!archive\.org|api\.audius\.co)/, (route) => route.abort());
+  // Nothing else may reach the internet from this test, but the site itself may load.
+  const own = ownOrigin();
+  await page.route((url) => url.origin !== own && url.protocol === 'https:' && url.hostname !== 'archive.org' && url.hostname !== 'api.audius.co', (route) => route.abort());
   return asked;
 }
 
