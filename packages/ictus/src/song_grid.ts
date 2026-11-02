@@ -368,13 +368,16 @@ export function songTimeOfBeat(grid: SongGrid, k: number): number {
  * `nextBeatAt` are in ENGINE time (a song played at 1.1x has a 10 % shorter period), so
  * a consumer compares it with the dancer's {@link MusicalTime} directly. `state` is
  * `running` while playing and `hold` while paused (the beat does not advance);
- * `ready` without a ruler.
+ * `ready` without a ruler. `position` and `rate` carry the song position and the rate (0 while
+ * paused), ruler or not, so a reader can place song seconds on a song with no beat grid.
  */
 export function songTimeAt(grid: SongGrid, positionS: number, opts: { t: number; rate?: number; playing?: boolean }): MusicalTime {
   const rate = opts.rate !== undefined && opts.rate > 0 ? opts.rate : 1;
   const beat = beatIndexAt(grid, positionS);
+  // The song position travels with the reading either way: a song with no grid still has one.
+  const where = Number.isFinite(positionS) ? { position: positionS, rate: opts.playing === false ? 0 : rate } : {};
   if (!Number.isFinite(beat)) {
-    return { t: opts.t, beat: 0, phase: 0, tempo: 0, period: 0, confidence: 0, nextBeatAt: Infinity, beatsPerBar: grid.meter || 4, beatInBar: 0, state: 'ready', anchors: 0 };
+    return { t: opts.t, beat: 0, phase: 0, tempo: 0, period: 0, confidence: 0, nextBeatAt: Infinity, beatsPerBar: grid.meter || 4, beatInBar: 0, state: 'ready', anchors: 0, ...where };
   }
   const next = Math.floor(beat) + 1;
   const local = songTimeOfBeat(grid, next) - songTimeOfBeat(grid, next - 1);
@@ -393,5 +396,6 @@ export function songTimeAt(grid: SongGrid, positionS: number, opts: { t: number;
     beatInBar: ((Math.floor(beat) % beatsPerBar) + beatsPerBar) % beatsPerBar,
     state: opts.playing === false ? 'hold' : 'running',
     anchors: grid.beats.length,
+    ...where,
   };
 }

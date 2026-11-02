@@ -159,7 +159,8 @@
     "./context/producer": "./src/context/producer.ts",
     "./context/cache": "./src/context/cache.ts",
     "./context/scale": "./src/context/scale.ts",
-    "./context/reading": "./src/context/reading.ts"
+    "./context/reading": "./src/context/reading.ts",
+    "./context/from_user": "./src/context/from_user.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

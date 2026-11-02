@@ -29,3 +29,15 @@ export const DEFAULT_MUSIC_CONTEXT: MusicContextSettings = MusicContextSettingsS
 /** The dial's key and the transient field holding the timeline in force. */
 export const MUSIC_CONTEXT_DIAL = 'musicContext' as const;
 export const MUSIC_CONTEXT_ACTIVE = 'musicContextActive';
+
+/** The per-device pref holding what the player said about each piece: a key, a tapped tempo, a
+ *  chord chart, by the piece they said it about (`pieceKey`), most recent last. Never an instrument
+ *  setting: it is about the music, and holds under any instrument. */
+export const MUSIC_USER_PREF = 'musicUser';
+/** How many pieces' entries are kept (the oldest goes first). */
+export const MAX_USER_ENTRIES = 200;
+/** Each entry is stored as it was written and read one by one (`userPref`): an entry a newer build
+ *  wrote, which this one cannot read, is skipped and kept, never the reason every entry is lost. */
+export const MusicUserPrefSchema = z.object({ entries: z.record(z.string(), z.unknown()).default({}) });
+export type MusicUserPref = z.infer<typeof MusicUserPrefSchema>;
+export const DEFAULT_MUSIC_USER: MusicUserPref = { entries: {} };

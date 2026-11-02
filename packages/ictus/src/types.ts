@@ -117,6 +117,13 @@ export interface MusicalTime {
    *  rule is that a beat sounds at `nextBeatAt + leadOffset`; until a scheduler applies
    *  it, setting it changes nothing. */
   leadOffset?: number;
+  /** For a stream read off a recording: the song position (song seconds) at `t`. Absent for a
+   *  stream with no recording under it (a conductor, a dancer). What lets a reader place song
+   *  seconds even when the recording has no beat grid (a sound with no analysis). */
+  position?: number;
+  /** For a stream read off a recording: song seconds per engine second (the playback rate; 0
+   *  while it is paused). */
+  rate?: number;
 }
 
 /** A tempo/phase model over sparse anchors. Implementations: the adaptive oscillator

@@ -8,7 +8,9 @@
  *
  * The dials are read from the bridge's snapshot (`ctx.resources.controls`, the getter
  * `store-controls` reads), since a port carries only the right hand's spec; a cache keyed by the
- * snapshot and the key spares the arithmetic on ticks where neither changed.
+ * snapshot and the key spares the arithmetic on ticks where neither changed. A host with no such
+ * getter (a headless run that replays the bridge) gets the dials' scales passed through: the music
+ * cannot own a scale whose dials it cannot read.
  */
 import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';

@@ -2,8 +2,9 @@
  * `music-context` node: the active {@link MusicalContext} read at the music's position, every tick.
  *
  * The position comes from the clock that plays the timeline (`ActiveContext.clock`): the song
- * player's `songTime`, or the conductor's `time` for a conducted score. Its beat, extrapolated to
- * this tick while it runs, is mapped to song seconds through the timeline's ruler. Paused or held,
+ * player's `songTime`, or the conductor's `time` for a conducted score. A song's reading carries
+ * its song position, which is the song seconds; a conductor's beat, extrapolated to this tick while
+ * it runs, is mapped to song seconds through the timeline's ruler (`positionOf`). Paused or held,
  * the position stays; with no clock (nothing playing yet) it is the start.
  *
  * Out:
@@ -33,26 +34,45 @@ import { DEFAULT_MUSIC_CONTEXT, type MusicContextSettings } from '../schema';
 
 const Params = z.object({});
 
-/** Where the music is: song seconds now, the ruler's beat now, and the clock's beats per engine
- *  second (0 = not moving). */
+/** Where the music is: song seconds now, the ruler's beat now (NaN without a ruler), and how fast
+ *  it moves (0 = still): in the clock's beats per engine second for a beat-read clock, in song
+ *  seconds per engine second for a position-read one. */
 export interface MusicPosition {
   s: number;
-  /** The ruler's beat now (NaN without a ruler). */
   beat: number;
   beatsPerSecond: number;
+  /** Song seconds per engine second, for a clock read by its position (else undefined). */
+  rate?: number;
 }
 
-/** The position of `time` on `ctx`'s ruler at engine time `now`. */
+/**
+ * The position of `time` at engine time `now`. A stream read off a recording carries its song
+ * position (`time.position`) and its rate (0 while paused): that is the song seconds, extrapolated
+ * by the rate (a song with no beat grid reports `ready` whether it plays or not, so the rate is what
+ * says it moves). Any other stream (a conductor) is placed by its beat, extrapolated at its tempo
+ * while it runs, through the timeline's ruler.
+ */
 export function positionOf(ctx: MusicalContext, time: MusicalTime | null | undefined, now: number): MusicPosition {
-  if (!time || !Number.isFinite(time.beat) || ctx.beats.length < 2) return { s: 0, beat: NaN, beatsPerSecond: 0 };
+  const ruled = ctx.beats.length >= 2;
+  if (time && typeof time.position === 'number' && Number.isFinite(time.position)) {
+    const moving = time.state !== 'hold' && (typeof time.rate === 'number' ? time.rate > 0 : time.state === 'running');
+    const rate = typeof time.rate === 'number' && time.rate > 0 ? time.rate : 1;
+    const s = time.position + (moving ? Math.max(0, now - time.t) * rate : 0);
+    const beat = ruled ? beatOfSeconds(ctx, s) : NaN;
+    const perBeat = ruled ? secondsOfBeat(ctx, beat + 0.5) - secondsOfBeat(ctx, beat - 0.5) : NaN;
+    return { s, beat, beatsPerSecond: moving && perBeat > 0 ? rate / perBeat : 0, rate: moving ? rate : 0 };
+  }
+  if (!time || !Number.isFinite(time.beat) || !ruled) return { s: 0, beat: NaN, beatsPerSecond: 0 };
   const running = time.state === 'running' && Number.isFinite(time.tempo) && time.tempo > 0;
   const beat = running ? time.beat + (Math.max(0, now - time.t) * time.tempo) / 60 : time.beat;
   return { s: secondsOfBeat(ctx, beat), beat, beatsPerSecond: running ? time.tempo / 60 : 0 };
 }
 
-/** The engine time song seconds `t` is reached at the clock's tempo, counted in the ruler's beats
- *  (exact across the timeline's own tempo changes); Infinity while the music is still. */
+/** The engine time song seconds `t` is reached: by the song position's rate for a position-read
+ *  clock, else counted in the ruler's beats at the clock's tempo (exact across the timeline's own
+ *  tempo changes); Infinity while the music is still. */
 function engineTimeOf(ctx: MusicalContext, pos: MusicPosition, t: number, now: number): number {
+  if (pos.rate !== undefined) return pos.rate > 0 ? now + (t - pos.s) / pos.rate : Infinity;
   if (!(pos.beatsPerSecond > 0) || !Number.isFinite(pos.beat)) return Infinity;
   return now + (beatOfSeconds(ctx, t) - pos.beat) / pos.beatsPerSecond;
 }
@@ -119,7 +139,7 @@ export const musicContextNode = defineNode<z.infer<typeof Params>>({
           active: true,
           source: music.source,
           clock: active.clock,
-          moving: pos.beatsPerSecond > 0,
+          moving: pos.rate !== undefined ? pos.rate > 0 : pos.beatsPerSecond > 0,
           position: pos.s,
           key: key?.name ?? null,
           chord: chord.name,

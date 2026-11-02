@@ -638,6 +638,9 @@
     "scaleFrom": "dials"
   },
   "musicContextActive": null,
+  "musicUser": {
+    "entries": {}
+  },
   "muted": false,
   "octaveShift": 0,
   "overlay": {

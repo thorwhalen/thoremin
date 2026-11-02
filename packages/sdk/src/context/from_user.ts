@@ -106,36 +106,99 @@ export function parseChart(text: string): { bars: (Chord | null)[][]; errors: st
   return { bars, errors };
 }
 
-/**
- * Tap tempo: taps (song seconds, in order) to a tempo and the downbeat it starts from. Each tap is
- * a beat, the first one beat 0; a gap of more than twice the median interval starts the count
- * again (a pause, a new try), and only the last run counts. Null with fewer than `minTaps` taps in
- * that run.
- */
-export function tempoFromTaps(taps: readonly number[], { minTaps = 4, beatsPerBar = 4 }: { minTaps?: number; beatsPerBar?: number } = {}): UserTempo | null {
-  const sorted = [...taps].filter(Number.isFinite).sort((a, b) => a - b);
-  if (sorted.length < 2) return null;
-  const gaps = sorted.slice(1).map((t, i) => t - sorted[i]);
-  const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
-  let start = 0;
-  gaps.forEach((g, i) => {
-    if (g > 2 * median) start = i + 1;
-  });
-  const run = sorted.slice(start);
-  if (run.length < minTaps) return null;
-  // Least squares t = a + b k over the beat numbers k = 0..n-1.
-  const n = run.length;
-  const mk = (n - 1) / 2;
-  const mt = run.reduce((s, t) => s + t, 0) / n;
+/** A tap closer than this share of a beat to the one before is a bounce, not a beat. */
+export const TAP_BOUNCE = 0.4;
+/** A gap longer than this many beats is a pause: the count starts again after it. */
+export const TAP_PAUSE = 4;
+/** A second tap closer than this (seconds: 400 beats a minute) is a bounce: no beat is known yet to
+ *  tell it by. */
+export const TAP_MIN_GAP_S = 0.15;
+
+/** A tap with its beat number in the run (the run's first tap is beat 0, the downbeat). */
+export interface NumberedTap {
+  t: number;
+  k: number;
+}
+
+const median = (xs: readonly number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+/** The least-squares line t = t0 + period k through numbered taps (null when it is not a tempo). */
+export function fitTaps(taps: readonly NumberedTap[]): { t0: number; period: number } | null {
+  const n = taps.length;
+  if (n < 2) return null;
+  const mk = taps.reduce((s, x) => s + x.k, 0) / n;
+  const mt = taps.reduce((s, x) => s + x.t, 0) / n;
   let num = 0;
   let den = 0;
-  run.forEach((t, k) => {
-    num += (k - mk) * (t - mt);
-    den += (k - mk) ** 2;
+  for (const x of taps) {
+    num += (x.k - mk) * (x.t - mt);
+    den += (x.k - mk) ** 2;
+  }
+  const period = den > 0 ? num / den : NaN;
+  return period > 0 ? { t0: mt - period * mk, period } : null;
+}
+
+/**
+ * Number one more tap after a run: its beat number is the last one's plus the gap in beats, at
+ * least one (a missed tap counts two); the beat is the run's fitted period, or the median gap
+ * before there is one. Returns the run with it (`bounce`: the run unchanged, the tap was a finger
+ * bounce; `restart`: a pause, the tap starts a new run as its beat 0).
+ */
+export function numberTap(run: readonly NumberedTap[], t: number): { run: NumberedTap[]; event: 'added' | 'bounce' | 'restart' } {
+  const last = run[run.length - 1];
+  if (!last || t <= last.t) return { run: [{ t, k: 0 }], event: last ? 'restart' : 'added' };
+  const gaps = run.slice(1).map((x, i) => (x.t - run[i].t) / Math.max(1, x.k - run[i].k));
+  const fit = run.length >= 3 ? fitTaps(run) : null;
+  const beat = fit?.period ?? (gaps.length ? median(gaps) : t - last.t);
+  const gap = t - last.t;
+  if ((gaps.length && gap < TAP_BOUNCE * beat) || gap < TAP_MIN_GAP_S) return { run: [...run], event: 'bounce' };
+  if (gaps.length && gap > TAP_PAUSE * beat) return { run: [{ t, k: 0 }], event: 'restart' };
+  return { run: [...run, { t, k: last.k + Math.max(1, Math.round(gap / beat)) }], event: 'added' };
+}
+
+/** A run's tempo, its downbeat at beat 0 (null with fewer than `minTaps` taps or no tempo). */
+export function tempoOfRun(run: readonly NumberedTap[], { minTaps = 4, beatsPerBar = 4 }: { minTaps?: number; beatsPerBar?: number } = {}): UserTempo | null {
+  if (run.length < minTaps) return null;
+  const fit = fitTaps(run);
+  if (!fit) return null;
+  return UserTempoSchema.parse({ bpm: Math.min(400, Math.max(20, 60 / fit.period)), firstBeatS: Math.max(0, fit.t0), beatsPerBar });
+}
+
+/**
+ * Tap tempo: taps (song seconds) to a tempo and the downbeat it starts from. The taps are numbered
+ * one after another (`numberTap`: a missed tap counts two beats, a bounce is dropped, a pause
+ * starts again), the first tap of the last run is beat 0 and stays the downbeat however long the
+ * player goes on, and a least-squares line through the numbered taps gives the period and the
+ * downbeat's time. Null with fewer than `minTaps` taps in the run.
+ */
+export function tempoFromTaps(taps: readonly number[], options: { minTaps?: number; beatsPerBar?: number } = {}): UserTempo | null {
+  let run: NumberedTap[] = [];
+  for (const t of [...taps].filter(Number.isFinite).sort((a, b) => a - b)) run = numberTap(run, t).run;
+  return tempoOfRun(run, options);
+}
+
+/**
+ * A chart placed on bar lines that are known (a score's: its pickup and its meter): bar i of the
+ * chart from `downbeats[i]` to the next bar line (the last to `endS`), its chords sharing it.
+ */
+export function chartOnBars(chart: string, downbeats: readonly number[], endS: number): ChordSpan[] {
+  const { bars } = parseChart(chart);
+  const out: ChordSpan[] = [];
+  bars.forEach((bar, b) => {
+    const from = downbeats[b];
+    if (from === undefined) return;
+    const to = downbeats[b + 1] ?? endS;
+    if (!(to > from)) return;
+    bar.forEach((chord, i) => {
+      const start = from + ((to - from) * i) / bar.length;
+      const end = from + ((to - from) * (i + 1)) / bar.length;
+      if (!chord) return;
+      const last = out[out.length - 1];
+      if (last && Math.abs(last.end - start) < 1e-9 && last.chord.root === chord.root && last.chord.quality === chord.quality && last.chord.bass === chord.bass) last.end = end;
+      else out.push({ start, end, chord, confidence: 1 });
+    });
   });
-  const period = num / den;
-  if (!(period > 0)) return null;
-  return UserTempoSchema.parse({ bpm: Math.min(400, Math.max(20, 60 / period)), firstBeatS: Math.max(0, mt - period * mk), beatsPerBar });
+  return out;
 }
 
 /** How far ahead a ruler is drawn past the chart (beats): reading extrapolates past it anyway. */
