@@ -96,6 +96,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songHoldSlow' }, to: { node: 'songPlayer', port: 'holdSlow' } },
   { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
   { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },
+  // The Song tool's playback session moves the song to a position (its seek).
+  { from: { node: 'ui', port: 'songSeek' }, to: { node: 'songPlayer', port: 'seek' } },
   // #186 PR H: the song follows the dancer; the pace controller reads the player back on
   // delayed edges and feeds its rate in.
   { from: { node: 'bodyPulse', port: 'pulse' }, to: { node: 'pace', port: 'pulse' } },

@@ -1,0 +1,30 @@
+{
+ "description": "Recorded responses of two public music APIs and one short audio excerpt, for the source adapters' tests and the Media search smoke. Recorded 2026-11-02.",
+ "files": {
+  "ia_search_bach.json": {
+   "request": "https://archive.org/advancedsearch.php?q=(bach) AND mediatype:audio AND licenseurl:* AND NOT collection:(librivoxaudio OR audio_bookspoetry OR podcasts OR radioprograms OR oldtimeradio)&fl[]=identifier,title,creator,licenseurl&rows=12&output=json",
+   "edits": "none"
+  },
+  "ia_metadata_open_goldberg.json": {
+   "request": "https://archive.org/metadata/The_Open_Goldberg_Variations-11823",
+   "edits": "kept metadata.identifier, title, creator, licenseurl, mediatype and each file's name, source, format, length, title, original; everything else dropped"
+  },
+  "audius_search_bach.json": {
+   "request": "https://api.audius.co/v1/tracks/search?query=bach&app_name=thoremin&limit=5",
+   "edits": "kept id, title, duration, permalink, is_streamable, is_stream_gated, is_available, license, genre, user.name, user.handle, artwork.150x150; everything else dropped"
+  },
+  "ia_metadata_toccata.json": {
+   "request": "https://archive.org/metadata/Toccata",
+   "edits": "kept metadata.identifier, title, creator, licenseurl, mediatype and each file's name, source, format, length, title, original; everything else dropped"
+  },
+  "toccata_bwv565_excerpt.mp3": {
+   "source": "https://archive.org/download/Toccata/Toccata_et_Fugue_BWV565.mp3",
+   "page": "https://archive.org/details/Toccata",
+   "work": "J. S. Bach, Toccata and Fugue in D minor BWV 565 (from the fugue)",
+   "performer": "Ashtar Moira, Tamburini organ, the performer's own recording released to the public domain (via Wikimedia Commons, as the item's page states)",
+   "licence": "Public Domain Mark 1.0, http://creativecommons.org/publicdomain/mark/1.0/",
+   "edits": "seconds 260 to 290, mono, 22.05 kHz, 64 kbit/s MP3 (ffmpeg -ss 260 -t 30 -ac 1 -ar 22050 -b:a 64k)",
+   "beat": "trackSongGrid reads 163.7 bpm, confidence 0.72 (decoded by ffmpeg; a browser's decoder may differ slightly)"
+  }
+ }
+}

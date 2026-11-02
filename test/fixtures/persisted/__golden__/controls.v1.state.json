@@ -785,6 +785,7 @@
     "rate": 1,
     "volume": 0.8
   },
+  "songSeek": null,
   "songStartBeat": 0,
   "steer": {
     "config": {

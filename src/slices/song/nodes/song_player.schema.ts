@@ -17,6 +17,27 @@ export interface SongHandle {
   url: string;
   durationS: number;
   grid: SongGrid;
+  /** The source item it was opened from (a `MediaItem` of `@thoremin/sources`, read here by its
+   *  shape: the node's contract stays free of that package): its provider, rights, licence and
+   *  page. Absent for a song set directly (a test). */
+  item?: SongSourceItem;
+}
+
+/** What the song knows of the source item it came from. */
+export interface SongSourceItem {
+  source: string;
+  id: string;
+  title: string;
+  artist?: string;
+  rights: string;
+  pageUrl?: string;
+  licence?: { name: string; url?: string };
+}
+
+/** A request to move the song to a position (a playback session's `seek`): a fresh id per request. */
+export interface SongSeek {
+  id: number;
+  positionS: number;
 }
 
 /** How a song is played at a rate, pitch preserved. */

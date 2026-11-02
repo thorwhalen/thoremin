@@ -34,16 +34,12 @@ import { songConducted, songDanced, songFollows } from '../derive';
 import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_RATE_MAX, SONG_RATE_MIN } from '../schema';
 import { unlockSongPlayback, type SongHandle } from '../nodes/song_player.schema';
 import { controls } from '@thoremin/sdk-ui/host';
+import MediaSearch, { SourceLine } from './MediaSearch';
+import { formatTime } from './format';
 
 export const SONG_TOOL_ID = 'song';
 
-/** "3:07" from seconds. */
-export function formatTime(s: number): string {
-  if (!Number.isFinite(s) || s < 0) return '0:00';
-  const m = Math.floor(s / 60);
-  const r = Math.floor(s % 60);
-  return `${m}:${String(r).padStart(2, '0')}`;
-}
+export { formatTime };
 
 /** What the tracker found, in words. */
 export function describeGrid(song: SongHandle): string {
@@ -112,6 +108,8 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
   const dancedByConductor = useSongField(() => songDanced(controls().get()) && !songFollows(controls().get()));
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  // Opens in flight from the search box (several may overlap; the latest wins).
+  const [searching, setSearching] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { volume, rate, follow, followRange, holdFadeS, holdSlow, alignStart } = prefs;
 
@@ -121,8 +119,9 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
     setError(null);
     try {
       await loadSongFile(file);
-    } catch {
-      setError(`${file.name} could not be decoded. Try an MP3, M4A, WAV, OGG or FLAC file.`);
+    } catch (e) {
+      // A later choice replaced this one: nothing went wrong.
+      if ((e as { name?: string } | null)?.name !== 'AbortError') setError(`${file.name} could not be decoded. Try an MP3, M4A, WAV, OGG or FLAC file.`);
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -139,9 +138,10 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
         data-testid="song-file"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
+      <MediaSearch onBusy={(on) => setSearching((n) => Math.max(0, n + (on ? 1 : -1)))} />
       <button
         onClick={() => fileRef.current?.click()}
-        disabled={busy}
+        disabled={busy || searching > 0}
         className="w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
       >
         {busy ? 'Finding the beat...' : song ? 'Choose another song...' : 'Choose a song...'}
@@ -153,6 +153,7 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
             <div className="truncate font-semibold text-white/90" title={song.name}>
               {song.name} <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>
             </div>
+            <SourceLine item={song.item} />
             <div className="text-white/60" data-testid="song-grid">{describeGrid(song)}</div>
             {conducted && <div className="text-emerald-300/80" data-testid="song-conducted">The conductor leads this song: it plays, holds and keeps time with the beat.</div>}
             {dancedByConductor && <div className="text-emerald-300/80" data-testid="song-danced">The dancer leads this song (the Conductor's Dance the orchestra): its tempo follows your steps.</div>}
@@ -268,8 +269,9 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
         </>
       )}
       <p className="text-[10px] leading-relaxed text-white/50">
-        The song stays on this device: it is decoded and its beat tracked in the browser, and it is never saved with an
-        instrument. The tempo slider changes the speed without changing the pitch; following the dancer pulls it around
+        The song stays on this device: it is decoded and its beat tracked in the browser, never uploaded, and never saved
+        with an instrument. Search finds freely streamable music on the Internet Archive and Audius; each item shows the
+        licence its page states. The tempo slider changes the speed without changing the pitch; following the dancer pulls it around
         that tempo, never further than the range.
       </p>
     </div>

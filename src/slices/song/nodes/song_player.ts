@@ -31,7 +31,8 @@
  * A conductor can lead the transport too (#187 PR 7): `followPlaying`, when present,
  * replaces `playing` (the conductor's beat servo pauses the song while he waits or
  * holds), and `cue` moves the song to a beat (seeking to its time on the grid) whenever
- * its id changes.
+ * its id changes. `seek` moves it to a position in seconds the same way (the playback session the
+ * Song tool opened, `../app/sources.ts`).
  * A hold under a conductor fades instead of cutting (#366): with `holdFade` > 0 the
  * stretcher's fader ramps to silence over that many seconds, the song keeps sounding
  * meanwhile and pauses once it is silent; a release before the end of the ramp climbs
@@ -111,6 +112,11 @@ export const songPlayerNode = defineNode<Params>({
       description: "The conductor's transport (#187 PR 7): replaces `playing` when present (paused while the conductor waits or holds)",
     },
     { name: 'cue', kind: 'song-cue', description: "Move the song to a beat (the conductor's cue): seeks whenever its id changes" },
+    {
+      name: 'seek',
+      kind: 'song-seek',
+      description: "Move the song to a position in seconds (a playback session's seek): acted on whenever its id changes, once the song is playable",
+    },
     { name: 'volume', kind: 'number', default: 0.8 },
     {
       name: 'holdFade',
@@ -132,6 +138,7 @@ export const songPlayerNode = defineNode<Params>({
     { name: 'position', kind: 'number', description: 'Seconds into the song, on its own timeline' },
     { name: 'rate', kind: 'number', description: 'The rate the song is played at, after the clamp (what the pace controller reads back)' },
     { name: 'songTime', kind: 'musical-time', description: 'The song\'s beat at the playback position, tempo in engine time' },
+    { name: 'seeked', kind: 'number', description: 'The id of the last seek answered (acted on, or dropped while a leader held the song), so the app clears the request' },
   ],
   params: Params,
   make(p) {
@@ -155,6 +162,10 @@ export const songPlayerNode = defineNode<Params>({
     /** The last cue acted on (by id). Forgotten while no cue arrives, so a new leader's
      *  ids (a fresh servo counts from 1 again) are never mistaken for an old one's. */
     let cuedId: number | null = null;
+    /** The last seek answered (by id); forgotten when a new song loads, since the store clears
+     *  the request with the song (`setSongHandle`) and once the player answers it (the status
+     *  reporter reads `seeked`), so one on the port then is a request about this song. */
+    let seekedId: number | null = null;
     /** Whether a leader held the transport last tick. */
     let wasLed = false;
     /** The press counter last honoured (#344): a change is a press even while the
@@ -207,6 +218,7 @@ export const songPlayerNode = defineNode<Params>({
       position: 0,
       rate: 1,
       songTime: songTimeAt(grid, 0, { t: ctx.time, playing: false }) as MusicalTime,
+      seeked: seekedId ?? undefined,
     });
 
     return {
@@ -252,6 +264,7 @@ export const songPlayerNode = defineNode<Params>({
           // A cue standing from the previous song is not a request about this one.
           const standing = inputs.cue as { id?: unknown } | undefined;
           cuedId = typeof standing?.id === 'number' ? standing.id : null;
+          seekedId = null;
           status = { phase: 'loading', message: `Loading ${song.name}...` };
           const id = song.id;
           s.load(song.url).then(
@@ -323,6 +336,14 @@ export const songPlayerNode = defineNode<Params>({
           if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(song.durationS, at)));
           cuedId = cue.id;
         }
+        // A session's seek, by position; like a cue it waits out a fade-out and a load. While a
+        // leader holds the transport the song's place is his: the request is dropped (answered,
+        // not acted on), or the servo would undo it.
+        const seek = inputs.seek as { id?: unknown; positionS?: unknown } | undefined;
+        if (playable && !fadingOut && seek && typeof seek.id === 'number' && seek.id !== seekedId) {
+          if (!led && typeof seek.positionS === 'number' && Number.isFinite(seek.positionS) && s.seek) s.seek(Math.max(0, Math.min(song.durationS, seek.positionS)));
+          seekedId = seek.id;
+        }
         if (playable) {
           // A rising edge plays (from the start when the song had ended); holding
           // `playing` after the end does not loop it.
@@ -378,6 +399,7 @@ export const songPlayerNode = defineNode<Params>({
           position,
           rate,
           songTime: songTimeAt(song.grid, position, { t: ctx.time, rate, playing: s.playing() }),
+          seeked: seekedId ?? undefined,
         };
       },
       dispose() {

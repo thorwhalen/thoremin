@@ -25,6 +25,7 @@ export const SONG_PLAYBACK = defineBranch({
     to(ui('songVolume'), { node: SONG_PLAYER, port: 'volume' }),
     to(ui('songHoldFade'), { node: SONG_PLAYER, port: 'holdFade' }),
     to(ui('songHoldSlow'), { node: SONG_PLAYER, port: 'holdSlow' }),
+    to(ui('songSeek'), { node: SONG_PLAYER, port: 'seek' }),
     to(ui('claimed'), { node: SONG_PLAYER, port: 'claimed' }),
   ],
 });

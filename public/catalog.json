@@ -4004,6 +4004,11 @@
         "description": "Move the song to a beat (the conductor's cue): seeks whenever its id changes"
       },
       {
+        "name": "seek",
+        "kind": "song-seek",
+        "description": "Move the song to a position in seconds (a playback session's seek): acted on whenever its id changes, once the song is playable"
+      },
+      {
         "name": "volume",
         "kind": "number",
         "default": 0.8
@@ -4046,6 +4051,11 @@
         "name": "songTime",
         "kind": "musical-time",
         "description": "The song's beat at the playback position, tempo in engine time"
+      },
+      {
+        "name": "seeked",
+        "kind": "number",
+        "description": "The id of the last seek answered (acted on, or dropped while a leader held the song), so the app clears the request"
       }
     ],
     "params": [
@@ -4347,6 +4357,10 @@
       {
         "name": "songStartBeat",
         "kind": "number"
+      },
+      {
+        "name": "songSeek",
+        "kind": "song-seek"
       },
       {
         "name": "trainerHudSnapshot",

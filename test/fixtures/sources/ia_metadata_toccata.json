@@ -1,0 +1,50 @@
+{
+ "metadata": {
+  "identifier": "Toccata",
+  "title": "Toccata ",
+  "creator": "Johann Sebastian Bach",
+  "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/",
+  "mediatype": "audio"
+ },
+ "files": [
+  {
+   "name": "Toccata_archive.torrent",
+   "source": "metadata",
+   "format": "Archive BitTorrent"
+  },
+  {
+   "name": "Toccata_et_Fugue_BWV565.mp3",
+   "source": "derivative",
+   "format": "VBR MP3",
+   "length": "08:33",
+   "original": "Toccata_et_Fugue_BWV565.ogg"
+  },
+  {
+   "name": "Toccata_et_Fugue_BWV565.ogg",
+   "source": "original",
+   "format": "Ogg Vorbis",
+   "length": "513.56"
+  },
+  {
+   "name": "Toccata_et_Fugue_BWV565.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Toccata_et_Fugue_BWV565.mp3"
+  },
+  {
+   "name": "Toccata_files.xml",
+   "source": "metadata",
+   "format": "Metadata"
+  },
+  {
+   "name": "Toccata_meta.xml",
+   "source": "metadata",
+   "format": "Metadata"
+  },
+  {
+   "name": "__ia_thumb.jpg",
+   "source": "original",
+   "format": "Item Tile"
+  }
+ ]
+}
