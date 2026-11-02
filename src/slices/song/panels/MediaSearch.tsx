@@ -11,6 +11,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import type { MediaItem, SearchHit } from '@thoremin/sources';
 import { SOURCES, openInput, openMedia, resolveHit } from '../app/sources';
 import { formatTime } from './format';
+import type { SongSourceItem } from '../nodes/song_player.schema';
 
 type View =
   | { kind: 'idle' }
@@ -194,7 +195,7 @@ function Results({ view, onPick }: { view: Extract<View, { kind: 'results' }>; o
 }
 
 /** Where the loaded song came from, with its licence and a link to its page. */
-export function SourceLine({ item }: { item: MediaItem | undefined }) {
+export function SourceLine({ item }: { item: SongSourceItem | undefined }) {
   if (!item || item.source === 'file') return null;
   return (
     <div className="truncate text-[10px] text-white/50" data-testid="song-source">

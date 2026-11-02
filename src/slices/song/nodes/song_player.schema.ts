@@ -5,7 +5,6 @@
  * `src/nodes` imports this module.
  */
 import { type SongGrid } from '@thoremin/ictus';
-import type { MediaItem } from '@thoremin/sources/types';
 
 /** The song as the instrument sees it: one stable object per loaded file. Never
  *  persisted (the object URL dies with the page; the grid is re-tracked on load). */
@@ -18,9 +17,21 @@ export interface SongHandle {
   url: string;
   durationS: number;
   grid: SongGrid;
-  /** The source item it was opened from (`@thoremin/sources`): its provider, rights, licence and
+  /** The source item it was opened from (a `MediaItem` of `@thoremin/sources`, read here by its
+   *  shape: the node's contract stays free of that package): its provider, rights, licence and
    *  page. Absent for a song set directly (a test). */
-  item?: MediaItem;
+  item?: SongSourceItem;
+}
+
+/** What the song knows of the source item it came from. */
+export interface SongSourceItem {
+  source: string;
+  id: string;
+  title: string;
+  artist?: string;
+  rights: string;
+  pageUrl?: string;
+  licence?: { name: string; url?: string };
 }
 
 /** A request to move the song to a position (a playback session's `seek`): a fresh id per request. */
