@@ -23,6 +23,33 @@ import { HEARING, SEED_PLAY } from '../helpers/seedBehaviour';
 import { skipWhenStarved } from '../helpers/load';
 
 type Seed = { name: string; body: boolean; silent?: string };
+
+/**
+ * What a struck instrument and the audio graph say, for a failure message (#890). The drum's status
+ * splits "it never hit" (no camera frame reached it: `frameAspect` 0; frames but no stroke passed the
+ * gates: `ready`, `hits` 0) from "it hit" (`hits`, `predicted`, the last hit's `lastLead`, `lastOnTime`,
+ * `lastLateBy`). Downstream, `drum-out` drops a hit silently when strikes are muted (`muteStrikes`,
+ * read here), when the context is not running (`audio().state`), or when the clock is not at speed 1
+ * (not readable from the debug handle: the one remaining blind spot). A failed read never hides the
+ * test's own message.
+ */
+async function strikeDiagnosis(page: Page): Promise<string> {
+  try {
+    const read = await page.evaluate(() => {
+      const t = window.thoremin!;
+      const s = t.getOutput('airDrum', 'status') as Record<string, unknown> | undefined;
+      const pick = (k: string) => s?.[k];
+      return {
+        drum: s ? { enabled: pick('enabled'), frameAspect: pick('frameAspect'), ready: pick('ready'), hits: pick('hits'), predicted: pick('predicted'), lastLead: pick('lastLead'), lastOnTime: pick('lastOnTime'), lastLateBy: pick('lastLateBy') } : null,
+        muteStrikes: t.getOutput('ui', 'muteStrikes'),
+        audio: t.audio(),
+      };
+    });
+    return `; ${JSON.stringify(read)}`;
+  } catch (err) {
+    return `; diagnosis failed: ${String(err)}`;
+  }
+}
 const seeds = (manifest.seeds as Seed[]).filter((s) => !s.silent);
 
 /** One page per address (hand source, body, extra query), its seeds played in turn. */
@@ -65,7 +92,10 @@ for (const hands of ['synthetic', 'none'] as const) {
             const loudest = peaks.reduce((m, p) => Math.max(m, p), 0);
             // Too few: if the page could not keep the frame rate a stroke needs, that is the runner.
             const fps = heard < HEARING.hits ? await skipWhenStarved(page, `${seed.name} hits`) : NaN;
-            expect(heard, `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks, the page at ${fps.toFixed(1)} fps`).toBeGreaterThanOrEqual(HEARING.hits);
+            // When it fails (#890: a near-silent output on CI), say where the sound was lost: did the
+            // instrument hit at all, on time, and was the audio running?
+            const why = heard < HEARING.hits ? await strikeDiagnosis(page) : '';
+            expect(heard, `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks, the page at ${fps.toFixed(1)} fps${why}`).toBeGreaterThanOrEqual(HEARING.hits);
             expect(errors.splice(0)).toEqual([]);
             return;
           }
