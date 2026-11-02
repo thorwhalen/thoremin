@@ -33,6 +33,8 @@ export const ALLOWED: readonly string[] = [
   // The song model and its note text (pure: arithmetic and a type import of the score schema).
   'packages/sdk/src/score/song.ts',
   'packages/sdk-ui/src/audio/',
+  // The listening gate the hub asks (a dozen lines, no imports).
+  'packages/sdk-ui/src/listening.ts',
 ];
 
 /**

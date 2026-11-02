@@ -31,16 +31,20 @@ interface SongReads {
 
 const reads = (s: ExtensionDerivationSettings): SongReads => s as SongReads;
 
+/** A loaded song a leader can pace: one with a beat of its own (a song in a provider's embedded
+ *  player is never analysed, so it has none and nothing follows it). */
+const paceable = (song: unknown): boolean => song != null && !(song as { player?: unknown }).player;
+
 /** Whether the song follows the dancer: following is on and a song is loaded. */
 export function songFollows(settings: ExtensionDerivationSettings): boolean {
   const s = reads(settings);
-  return s.songPrefs?.follow === true && s.songHandle != null;
+  return s.songPrefs?.follow === true && paceable(s.songHandle);
 }
 
 /** Whether the conductor is on and leads the loaded recording, whoever leads him. */
 function conductsRecording(settings: ExtensionDerivationSettings): boolean {
   const s = reads(settings);
-  return s.conductor?.enabled === true && s.conductor.conducts === 'recording' && s.songHandle != null;
+  return s.conductor?.enabled === true && s.conductor.conducts === 'recording' && paceable(s.songHandle);
 }
 
 /** Whether the conductor's BEAT leads the recording (#187 PR 7): conducting is on, it conducts the

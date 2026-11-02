@@ -85,3 +85,20 @@ describe.runIf(SONG)('song-player and an embedded player', () => {
     expect(yt.log).not.toContain('yt:dispose');
   });
 });
+
+describe.runIf(SONG)('song-player and an embed whose length arrives late', () => {
+  it('a seek is bounded by the player\'s length when the handle had none, and runs with no audio context', async () => {
+    const yt = Object.assign(fake('yt'), { durationS: () => 120 });
+    const song: SongHandle = { id: 'e2', name: 'v', url: 'u', durationS: 0, grid: EMPTY_SONG_GRID, player: yt };
+    const h = songPlayerNode.make(songPlayerNode.params.parse({}));
+    const out: PortValues[] = [];
+    const frames: PortValues[] = [{ song }, { song, seek: { id: 1, positionS: 75 } }, { song, seek: { id: 2, positionS: 500 } }];
+    for (let i = 0; i < frames.length; i++) {
+      out.push(h.process(frames[i], { tick: i, time: i / 30, dt: i ? 1 / 30 : 0, resources: {} }));
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    expect(out[1].position).toBe(75);
+    expect(out[2].position).toBe(120);
+  });
+});

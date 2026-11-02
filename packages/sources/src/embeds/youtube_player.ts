@@ -67,6 +67,7 @@ export function createYouTubePlayer(container: HTMLElement, item: MediaItem, win
   let seekAsked: number | null = null;
   let pauseLead: TimingFigure | null = null;
   let seekGranularity: TimingFigure | null = null;
+  let failure: string | null = null;
   const now = () => performance.now() / 1000;
 
   const host = container.ownerDocument.createElement('div');
@@ -107,7 +108,8 @@ export function createYouTubePlayer(container: HTMLElement, item: MediaItem, win
             },
             onError: (e: { data: number }) => {
               const why = YOUTUBE_ERRORS[e.data] ?? `YouTube error ${e.data}`;
-              reject(new Error(`${item.title} cannot be played here: ${why}`));
+              failure = `${item.title} cannot be played here: ${why}`;
+              reject(new Error(failure));
               emit('error');
             },
           },
@@ -138,8 +140,9 @@ export function createYouTubePlayer(container: HTMLElement, item: MediaItem, win
     seek: (s) => {
       if (!player) return;
       seekAsked = s;
+      const stale = player.getCurrentTime();
       player.seekTo(s, true);
-      clock.report(s);
+      clock.seek(s, stale);
     },
     setRate: (r) => {
       const want = nearest(r);
@@ -164,6 +167,7 @@ export function createYouTubePlayer(container: HTMLElement, item: MediaItem, win
     durationS: () => player?.getDuration() ?? 0,
     playing: () => state === STATE.playing,
     ended: () => state === STATE.ended,
+    error: () => failure,
     on(event, listener) {
       listeners[event].add(listener);
       return () => listeners[event].delete(listener);

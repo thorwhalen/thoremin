@@ -36,6 +36,7 @@ import { unlockSongPlayback, type SongHandle } from '../nodes/song_player.schema
 import { controls } from '@thoremin/sdk-ui/host';
 import MediaSearch, { SourceLine } from './MediaSearch';
 import { SOURCES, useActiveSession } from '../app/sources';
+import { useEmbedNotice } from '../app/embeds';
 import { formatTime } from './format';
 
 export const SONG_TOOL_ID = 'song';
@@ -116,6 +117,7 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
   // A song in a provider's own player: what its transport allows, and no beat (never analysed).
   const session = useActiveSession((s) => s.session);
   const caps = song?.player ? session?.capabilities : undefined;
+  const embedNotice = useEmbedNotice((s) => s.notice);
   const provider = song?.item ? (() => { try { return SOURCES.get(song.item.source).label; } catch { return song.item.source; } })() : '';
 
   const onFile = async (file: File | undefined) => {
@@ -156,7 +158,7 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
         <>
           <div className="space-y-0.5 text-xs">
             <div className="truncate font-semibold text-white/90" title={song.name}>
-              {song.name} <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>
+              {song.name} {song.durationS > 0 && <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>}
             </div>
             <SourceLine item={song.item} />
             <div className="text-white/60" data-testid="song-grid">
@@ -165,6 +167,11 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
             {conducted && <div className="text-emerald-300/80" data-testid="song-conducted">The conductor leads this song: it plays, holds and keeps time with the beat.</div>}
             {dancedByConductor && <div className="text-emerald-300/80" data-testid="song-danced">The dancer leads this song (the Conductor's Dance the orchestra): its tempo follows your steps.</div>}
           </div>
+          {song.player && embedNotice && (
+            <p className="text-[11px] text-amber-300/90" role="alert" data-testid="song-embed-notice">
+              {embedNotice}
+            </p>
+          )}
           {song.player && caps && !caps.play && (
             <p className="text-[11px] text-white/60" data-testid="song-own-controls">
               Play and pause it with {provider}'s own buttons, in its player at the bottom left.

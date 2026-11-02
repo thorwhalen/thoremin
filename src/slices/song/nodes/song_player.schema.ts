@@ -60,6 +60,9 @@ export interface Stretcher {
   /** The rate actually playing, when the player rounds what it is asked (a provider's own
    *  rates); absent = the rate asked. */
   appliedRate?(): number;
+  /** The song's length as the player knows it now, when the handle's was not known at load (a
+   *  provider's player learns it after it starts). */
+  durationS?(): number;
   /** Position on the SONG's timeline, seconds: the audio leaving the stretcher now. */
   position(): number;
   /** Move to a position on the song's timeline, seconds (#187 PR 7: the conductor's cue). */

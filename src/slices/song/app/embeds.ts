@@ -10,7 +10,8 @@
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import type { EmbedPlayer, MediaItem, PlaybackSession, SessionEvent, TransportCapabilities } from '@thoremin/sources';
 import type { SongHandle, Stretcher } from '../nodes/song_player.schema';
-import { requestSongSeek, setSongHandle, setSongPlaying, setSongPrefs, songHandle } from './state';
+import { create } from 'zustand';
+import { requestSongSeek, setSongHandle, setSongPlaying, setSongPrefs, songHandle, songPlaying } from './state';
 import { SONG_RATE_MAX, SONG_RATE_MIN } from '../schema';
 
 /** The window's size: YouTube asks for at least 200 by 200 pixels. */
@@ -20,6 +21,8 @@ export const EMBED_HEIGHT_PX = 203;
 export const EMBED_MOUNT_CLASS = 'thoremin-embed-player';
 /** The title bar's height, for stacking windows. */
 const BAR_PX = 30;
+/** The lowest window's bottom edge: above the Tools bar, which runs along the bottom left. */
+export const EMBED_BOTTOM_PX = 72;
 
 /** The song player's view of an embedded player: the same verbs, sent only when they change. */
 export function embedStretcher(player: EmbedPlayer): Stretcher {
@@ -32,6 +35,7 @@ export function embedStretcher(player: EmbedPlayer): Stretcher {
       if (player.setRate) applied = player.setRate(r);
     },
     appliedRate: () => applied,
+    durationS: () => player.durationS(),
     setVolume: (v) => player.setVolume?.(v),
     position: () => player.position(),
     seek: player.seek ? (p) => player.seek!(p) : undefined,
@@ -52,16 +56,20 @@ export interface EmbedMount {
  *  link to its page, Close) over the provider's player. A window opened while another is still up
  *  (the next item loading while the last one plays) stacks above it, so neither is ever covered. */
 export function createEmbedMount(item: MediaItem, provider: string, onClose: () => void, doc: Document = document): EmbedMount {
-  const below = doc.getElementsByClassName(EMBED_MOUNT_CLASS).length;
+  // The lowest free slot: never one a window still up is in.
+  const taken = new Set([...doc.getElementsByClassName(EMBED_MOUNT_CLASS)].map((el) => Number((el as HTMLElement).dataset.slot)));
+  let slot = 0;
+  while (taken.has(slot)) slot++;
   const box = doc.createElement('div');
   box.className = EMBED_MOUNT_CLASS;
+  box.dataset.slot = String(slot);
   box.dataset.testid = 'embed-player';
   box.setAttribute('role', 'region');
   box.setAttribute('aria-label', `${provider} player`);
   styleOf(box, [
     'position:fixed',
     'left:16px',
-    `bottom:${16 + below * (EMBED_HEIGHT_PX + BAR_PX + 8)}px`,
+    `bottom:${EMBED_BOTTOM_PX + slot * (EMBED_HEIGHT_PX + BAR_PX + 8)}px`,
     'z-index:60',
     `width:min(${EMBED_WIDTH_PX}px, calc(100vw - 32px))`,
     'border-radius:10px',
@@ -130,6 +138,21 @@ export function embedSession(item: MediaItem, song: SongHandle, player: EmbedPla
   let closed = false;
   const live = () => !closed && songHandle() === song;
   const offs = (['state', 'ended', 'buffering'] as const).map((e) => player.on(e, () => live() && listeners[e].forEach((l) => l())));
+  // The provider's own buttons are the player's too: the song's transport follows them, so the song
+  // player never undoes a press made in the provider's player.
+  offs.push(
+    player.on('state', () => {
+      if (live() && caps().play && player.playing() !== songPlaying()) setSongPlaying(player.playing());
+    }),
+  );
+  // A player that stopped working says why (a video whose owner refuses embedding).
+  offs.push(
+    player.on('error', () => {
+      if (!live()) return;
+      useEmbedNotice.setState({ notice: player.error?.() ?? `${item.title} stopped playing` });
+      listeners.state.forEach((l) => l());
+    }),
+  );
   const caps = (): TransportCapabilities => player.capabilities;
   return {
     item,
@@ -155,7 +178,11 @@ export function embedSession(item: MediaItem, song: SongHandle, player: EmbedPla
       for (const set of Object.values(listeners)) set.clear();
       player.dispose();
       mount.remove();
+      useEmbedNotice.setState({ notice: null });
       if (mine) setSongHandle(null);
     },
   };
 }
+
+/** What the open embedded player last said went wrong, for the Song tool; null when nothing. */
+export const useEmbedNotice = create<{ notice: string | null }>(() => ({ notice: null }));

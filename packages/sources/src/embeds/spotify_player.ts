@@ -23,9 +23,13 @@ type SpotifyWindow = Window & { onSpotifyIframeApiReady?: (api: SpotifyIframeApi
 export const SPOTIFY_SCRIPT = 'https://open.spotify.com/embed/iframe-api/v1';
 
 function loadSpotify(win: SpotifyWindow): Promise<SpotifyIframeApi> {
-  win.__thoreminSpotifyApi ??= new Promise((resolve, reject) => {
+  win.__thoreminSpotifyApi ??= new Promise<SpotifyIframeApi>((resolve, reject) => {
     win.onSpotifyIframeApiReady = (api) => resolve(api);
     loadScriptOnce(SPOTIFY_SCRIPT, win.document).catch(reject);
+  }).catch((e: unknown) => {
+    // A failed load is retried by the next open, not remembered.
+    win.__thoreminSpotifyApi = undefined;
+    throw e;
   });
   return win.__thoreminSpotifyApi;
 }
@@ -86,7 +90,7 @@ export function createSpotifyPlayer(container: HTMLElement, item: MediaItem, win
     seek: (s) => {
       const whole = Math.max(0, Math.round(s));
       controller?.seek(whole);
-      clock.report(whole);
+      clock.seek(whole);
     },
     position: () => clock.read(),
     durationS: () => duration,

@@ -67,6 +67,13 @@ export function createPositionClock(now: () => number = () => performance.now() 
       pos = positionS;
       at = t;
     },
+    /** A seek: the position is `positionS` now, and `stale` (what the provider still reports
+     *  from before it) is not news. */
+    seek(positionS: number, stale?: number) {
+      pos = positionS;
+      at = now();
+      reported = stale ?? positionS;
+    },
     setPlaying(on: boolean) {
       if (on === playing) return;
       pos = this.read();

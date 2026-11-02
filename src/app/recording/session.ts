@@ -11,7 +11,7 @@
  * does the browser capture + wiring, so it is intentionally kept thin and is
  * covered by the app's build (not the Node strict typecheck), like `useEngine`.
  */
-import { listeningRefusal, ListeningRefused } from '@thoremin/sdk-ui/listening';
+import { listeningRefusal, ListeningRefused, onListeningChange } from '@thoremin/sdk-ui/listening';
 import type { Engine } from '@thoremin/dag';
 import { recordingFormat, convertAudioFormats, type ConvertedFormat } from './formats';
 import { recordingStem, prefillName } from '@thoremin/sdk-ui/recording/naming';
@@ -170,6 +170,9 @@ export class SessionRecorder {
   private pureRec: Rec | null = null;
   private alphaRec: Rec | null = null;
   private micRec: Rec | null = null;
+  /** The microphone track's end, when a streaming player opened mid-take and stopped it. */
+  private micCut: Promise<Blob> | null = null;
+  private offGate: (() => void) | null = null;
   /** The microphone track's reported input latency (s), for the manifest. */
   private micLatency: number | undefined;
   /** The microphone's device name, for the manifest. */
@@ -339,6 +342,14 @@ export class SessionRecorder {
     }
     if (micStream) {
       this.micRec = startRec(micStream, this.audioMime);
+      // A streaming player opened mid-take: the microphone stops here (it would record that player);
+      // the take keeps what it heard before.
+      const stream = micStream;
+      this.offGate = onListeningChange(() => {
+        if (!listeningRefusal() || !this.micRec || this.micCut) return;
+        this.micCut = stopRec(this.micRec);
+        for (const t of stream.getAudioTracks()) t.stop();
+      });
     }
     if (s.features) {
       this.tap = new FeatureJsonlTap(this.session.streams.featureEdges);
@@ -390,8 +401,10 @@ export class SessionRecorder {
       this.overlayRec ? stopRec(this.overlayRec) : Promise.resolve(null),
       this.pureRec ? stopRec(this.pureRec) : Promise.resolve(null),
       this.alphaRec ? stopRec(this.alphaRec) : Promise.resolve(null),
-      this.micRec ? stopRec(this.micRec) : Promise.resolve(null),
+      this.micRec ? (this.micCut ?? stopRec(this.micRec)) : Promise.resolve(null),
     ]);
+    this.offGate?.();
+    this.offGate = null;
 
     // Release the master-bus tap, the transparent overlay canvas, and every
     // capture stream we created (but never the shared live camera stream).
@@ -586,6 +599,8 @@ export class SessionRecorder {
       }
       this.annotationsActive = false;
     }
+    this.offGate?.();
+    this.offGate = null;
     for (const rec of [this.audioRec, this.overlayRec, this.pureRec, this.alphaRec, this.micRec]) {
       try {
         if (rec && rec.recorder.state !== 'inactive') rec.recorder.stop();

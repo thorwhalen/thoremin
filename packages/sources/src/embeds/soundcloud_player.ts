@@ -80,7 +80,7 @@ export function createSoundCloudPlayer(container: HTMLElement, item: MediaItem, 
     pause: () => widget?.pause(),
     seek: (s) => {
       widget?.seekTo(Math.max(0, s) * 1000);
-      clock.report(s);
+      clock.seek(s);
     },
     setVolume: (v) => {
       const pct = Math.round(Math.max(0, Math.min(1, v)) * 100);

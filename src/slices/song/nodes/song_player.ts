@@ -81,6 +81,10 @@ function audioOf(ctx: NodeContext): StretcherOptions | null {
 
 const finite = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
+/** The song's length for a clamp: the handle's, or the player's when the handle's was not known
+ *  at load; unbounded when neither knows yet. */
+const lengthOf = (song: SongHandle, s: Stretcher): number => (song.durationS > 0 ? song.durationS : s.durationS?.() || Infinity);
+
 /** Whether the song can be played and moved now: loaded (`ready`, `active`), or loaded and
  *  only waiting for the browser to allow audio. The player acts on a cue or a press only
  *  then; the pace controller leads only then (#500), since while a new song loads the
@@ -242,7 +246,7 @@ export const songPlayerNode = defineNode<Params>({
           status = OFF;
           return idle(ctx, status);
         }
-        if (!audio) {
+        if (!audio && !song.player) {
           // Boundary B, like the synth: at any clock speed but real time the song goes
           // silent too, rather than playing on at wall-clock rate under a silent instrument.
           if (driven && loadedId) driven.pause();
@@ -252,7 +256,7 @@ export const songPlayerNode = defineNode<Params>({
         // A new song retries a stretcher that failed to load (a chunk lost to a redeploy).
         if (failed && song.id !== failedFor) failed = false;
         // A song in a provider's own player is driven there; every other through the stretcher.
-        const s = song.player ?? stretcherFor(ctx, audio, song.id);
+        const s = song.player ?? stretcherFor(ctx, audio!, song.id);
         if (driven && driven !== s && loadedId) driven.pause();
         driven = s;
         if (!s) {
@@ -343,7 +347,7 @@ export const songPlayerNode = defineNode<Params>({
         const fadingOut = fading !== null || (fadeS > 0 && !playing && s.playing());
         if (playable && !fadingOut && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
           const at = songTimeOfBeat(song.grid, cue.beat);
-          if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(song.durationS, at)));
+          if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(lengthOf(song, s), at)));
           cuedId = cue.id;
         }
         // A session's seek, by position; like a cue it waits out a fade-out and a load. While a
@@ -351,7 +355,7 @@ export const songPlayerNode = defineNode<Params>({
         // not acted on), or the servo would undo it.
         const seek = inputs.seek as { id?: unknown; positionS?: unknown } | undefined;
         if (playable && !fadingOut && seek && typeof seek.id === 'number' && seek.id !== seekedId) {
-          if (!led && typeof seek.positionS === 'number' && Number.isFinite(seek.positionS) && s.seek) s.seek(Math.max(0, Math.min(song.durationS, seek.positionS)));
+          if (!led && typeof seek.positionS === 'number' && Number.isFinite(seek.positionS) && s.seek) s.seek(Math.max(0, Math.min(lengthOf(song, s), seek.positionS)));
           seekedId = seek.id;
         }
         if (playable) {

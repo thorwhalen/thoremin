@@ -144,6 +144,9 @@ export class SupersededOpen extends Error {
   }
 }
 
+/** How long a provider's player may take to start before the open gives up. */
+export const EMBED_READY_TIMEOUT_MS = 20_000;
+
 /** Counts opens, so only the latest one requested may become the song. */
 let opening = 0;
 
@@ -167,14 +170,24 @@ export function songSourceHost(analyze: AnalyzeOptions = {}, current: () => bool
     async openEmbed(item, makePlayer) {
       const label = SOURCES.get(item.source).label;
       let session: PlaybackSession | null = null;
-      const mount = createEmbedMount(item, label, () => (session && useActiveSession.getState().session === session ? closeMedia() : session?.close()));
+      let cancel: (reason: Error) => void = () => {};
+      const cancelled = new Promise<never>((_, reject) => (cancel = reject));
+      // Close while it loads cancels the open; once open it ends the session.
+      const onClose = () => (session ? (useActiveSession.getState().session === session ? closeMedia() : session.close()) : cancel(new SupersededOpen(item.title)));
+      const mount = createEmbedMount(item, label, onClose);
       const player = makePlayer(mount.body, item);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const tooLong = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${item.title}'s player did not start`)), EMBED_READY_TIMEOUT_MS);
+      });
       try {
-        await player.ready;
+        await Promise.race([player.ready, cancelled, tooLong]);
       } catch (e) {
         player.dispose();
         mount.remove();
         throw e;
+      } finally {
+        clearTimeout(timer);
       }
       if (!current()) {
         player.dispose();

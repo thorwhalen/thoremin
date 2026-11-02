@@ -160,6 +160,8 @@ export interface EmbedPlayer {
   durationS(): number;
   playing(): boolean;
   ended(): boolean;
+  /** Why the player stopped working, in words (after an `error` event), or null. */
+  error?(): string | null;
   on(event: EmbedEvent, listener: () => void): () => void;
   dispose(): void;
 }
