@@ -88,11 +88,13 @@ export function createSourceRegistry(adapters: readonly SourceAdapter[]): Source
     },
     async resolveHit(hit, opts) {
       const a = get(hit.source);
-      return checkItem(a, await a.resolve(hit.id, opts));
+      return checkItem(a, await a.resolve(hit.id, { ...opts, hit }));
     },
     async open(item, host) {
       const a = get(item.source);
       checkItem(a, item);
+      // Embed-only media opens only in its provider's player; decodable media never there.
+      if ((item.rights === 'embed_only') !== (item.media.kind === 'embed')) throw new SourceError('rights', `${item.title}: ${item.rights} media cannot be a ${item.media.kind}`, a.id);
       const session = await a.open(item, host);
       if (session.item !== item) throw new SourceError('bad-response', `source '${a.id}' opened a session for another item`, a.id);
       return session;

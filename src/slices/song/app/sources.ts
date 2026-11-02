@@ -16,15 +16,22 @@ import {
   createSourceRegistry,
   defaultAdapters,
   OWNED_TRANSPORT,
+  YOUTUBE_KEY_SETTING,
   type MediaItem,
   type PlaybackSession,
   type SearchHit,
   type SessionEvent,
   type SourceHost,
+  type Jsonp,
+  type SourceAdapter,
   type SourceInput,
   type TransportCapabilities,
 } from '@thoremin/sources';
+import { provideListeningGate } from '@thoremin/sdk-ui/listening';
+import { providerKey } from '@thoremin/sdk-ui/keys';
+import { contributedSourceAdapters, onSourceAdaptersChange } from '@thoremin/sdk-ui/sources';
 import { analyzeSong, type AnalyzeOptions } from './load';
+import { createEmbedMount, embedSession, embedSong } from './embeds';
 import { requestSongSeek, setSongHandle, setSongPlaying, setSongPrefs, songHandle } from './state';
 import { songPosition, useSongStatus } from './songStatus';
 import { SONG_RATE_MAX, SONG_RATE_MIN } from '../schema';
@@ -33,8 +40,29 @@ import type { SongHandle } from '../nodes/song_player.schema';
 /** The song player's transport, as its sessions state it. */
 export const SONG_TRANSPORT: TransportCapabilities = { ...OWNED_TRANSPORT, rate: { min: SONG_RATE_MIN, max: SONG_RATE_MAX } };
 
+/** How the catalogues are reached (a test's stand-ins; the browser's own by default). */
+let reach: { fetch?: typeof fetch; jsonp?: Jsonp } = {};
+
+const build = () => createSourceRegistry(defaultAdapters({ ...reach, transport: SONG_TRANSPORT, youtubeKey: () => providerKey(YOUTUBE_KEY_SETTING.provider), extra: contributedSourceAdapters() }));
+
+/** Reach the catalogues through other means (a test); the registry is rebuilt. */
+export function configureSourceReach(next: { fetch?: typeof fetch; jsonp?: Jsonp }): void {
+  reach = next;
+  SOURCES = build();
+}
+
+/** The adapters a search asks now: every searchable one whose key, if it needs one, is set. */
+export function searchReady(): SourceAdapter[] {
+  return SOURCES.searchable().filter((a) => !a.keySetting || providerKey(a.keySetting.provider) !== null);
+}
+
 /** The sources this build ships, in link order. */
-export const SOURCES = createSourceRegistry(defaultAdapters({ transport: SONG_TRANSPORT }));
+export let SOURCES = build();
+
+// A build's own adapters (`@thoremin/sdk-ui/sources`: the lab build's streaming embeds) join it.
+onSourceAdaptersChange(() => {
+  SOURCES = build();
+});
 
 interface ActiveSessionState {
   session: PlaybackSession | null;
@@ -116,6 +144,9 @@ export class SupersededOpen extends Error {
   }
 }
 
+/** How long a provider's player may take to start before the open gives up. */
+export const EMBED_READY_TIMEOUT_MS = 20_000;
+
 /** Counts opens, so only the latest one requested may become the song. */
 let opening = 0;
 
@@ -135,6 +166,38 @@ export function songSourceHost(analyze: AnalyzeOptions = {}, current: () => bool
       const withItem: SongHandle = { ...song, item };
       setSongHandle(withItem);
       return ownedSession(item, withItem);
+    },
+    async openEmbed(item, makePlayer) {
+      const label = SOURCES.get(item.source).label;
+      let session: PlaybackSession | null = null;
+      let cancel: (reason: Error) => void = () => {};
+      const cancelled = new Promise<never>((_, reject) => (cancel = reject));
+      // Close while it loads cancels the open; once open it ends the session.
+      const onClose = () => (session ? (useActiveSession.getState().session === session ? closeMedia() : session.close()) : cancel(new SupersededOpen(item.title)));
+      const mount = createEmbedMount(item, label, onClose);
+      const player = makePlayer(mount.body, item);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const tooLong = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${item.title}'s player did not start`)), EMBED_READY_TIMEOUT_MS);
+      });
+      try {
+        await Promise.race([player.ready, cancelled, tooLong]);
+      } catch (e) {
+        player.dispose();
+        mount.remove();
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!current()) {
+        player.dispose();
+        mount.remove();
+        throw new SupersededOpen(item.title);
+      }
+      const song = embedSong(item, player);
+      setSongHandle(song);
+      session = embedSession(item, song, player, mount);
+      return session;
     },
   };
 }
@@ -170,3 +233,12 @@ export function closeMedia(): void {
   useActiveSession.setState({ session: null });
   was?.close();
 }
+
+// The listening gate: shut while the active session's rights forbid analysing what plays.
+provideListeningGate({
+  refusal: analysisRefusal,
+  subscribe: (fn) => {
+    const off = useActiveSession.subscribe(fn);
+    return off;
+  },
+});

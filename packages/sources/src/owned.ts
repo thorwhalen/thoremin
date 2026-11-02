@@ -9,6 +9,8 @@ import { SourceError, type MediaItem, type PlaybackSession, type SourceHost, typ
 /** The song player's transport (the app's `song-player` node), as owned-audio adapters declare
  *  it. The app's session states its own (the same figures; a test keeps them equal). */
 export const OWNED_TRANSPORT: TransportCapabilities = {
+  play: true,
+  position: true,
   seek: true,
   rate: { min: 0.5, max: 2 },
   volume: true,

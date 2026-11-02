@@ -35,6 +35,7 @@
  * look-ahead is measured separately (offline, by the headless script) and added in
  * the report, not hidden in this number.
  */
+import { listeningRefusal } from '@thoremin/sdk-ui/listening';
 import { LatencyProbe, STAGES, type LatencySnapshot, type ProbeFrame } from '@/latency/probe';
 import { formatSummary, summarize, type Summary } from '@/latency/stats';
 import { pairStrikes, strikeOnsets, toneOnsets, TONE_DEFAULTS, type StrikePair } from '@/latency/onsets';
@@ -146,6 +147,8 @@ function createStrikeTest(probe: LatencyProbe, getAppAudio: () => AudioContext |
       if (starting) return starting;
       const appAc = getAppAudio();
       if (!appAc || appAc.state !== 'running') return Promise.reject(new Error('Tap to play first: the strike test answers through the instrument audio.'));
+      const refused = listeningRefusal();
+      if (refused) return Promise.reject(new Error(`The strike test listens to the microphone: ${refused}.`));
       const gen = generation;
       const abandoned = () => {
         if (gen !== generation) throw new Error('The strike test was stopped before it started.');

@@ -32,7 +32,9 @@ afterEach(() => vi.unstubAllGlobals());
 describe.runIf(SONG)('the Song tool opens every song through the sources', () => {
   it('states the song player\'s transport, the same figures the owned adapters declare', () => {
     expect(SONG_TRANSPORT).toEqual({ ...OWNED_TRANSPORT, rate: { min: SONG_RATE_MIN, max: SONG_RATE_MAX } });
-    expect(SOURCES.list().map((a) => a.capabilities.transport)).toEqual(SOURCES.list().map(() => SONG_TRANSPORT));
+    const owned = SOURCES.list().filter((a) => a.rights === 'pcm_local');
+    expect(owned.map((a) => a.id)).toEqual(['file', 'internet-archive', 'audius', 'url']);
+    expect(owned.map((a) => a.capabilities.transport)).toEqual(owned.map(() => SONG_TRANSPORT));
   });
 
   it('a chosen file goes through the local-file adapter and carries its item', async () => {

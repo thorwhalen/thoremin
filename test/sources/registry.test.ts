@@ -30,7 +30,7 @@ const routes = fakeFetch(
 
 const fakeSession = (item: MediaItem): PlaybackSession => ({
   item,
-  capabilities: { seek: false, rate: null, volume: false, pauseLead: null, seekGranularity: null, positionLag: null },
+  capabilities: { play: false, position: false, seek: false, rate: null, volume: false, pauseLead: null, seekGranularity: null, positionLag: null },
   play() {},
   pause() {},
   position: () => 0,
@@ -63,10 +63,10 @@ describe('links', () => {
 });
 
 describe('search', () => {
-  it('asks every searchable source and returns their hits in order', async () => {
+  it('asks the chosen searchable sources and returns their hits in order', async () => {
     const sources = createSourceRegistry(defaultAdapters({ fetch: routes }));
-    expect(sources.searchable().map((a) => a.id)).toEqual(['internet-archive', 'audius']);
-    const { hits, failures } = await sources.search('bach');
+    expect(sources.searchable().map((a) => a.id)).toEqual(['internet-archive', 'audius', 'youtube', 'deezer']);
+    const { hits, failures } = await sources.search('bach', { sources: ['internet-archive', 'audius'] });
     expect(failures).toEqual([]);
     expect(hits.filter((h) => h.source === 'internet-archive')).toHaveLength(12);
     expect(hits.filter((h) => h.source === 'audius').length).toBeGreaterThan(0);
@@ -75,7 +75,7 @@ describe('search', () => {
 
   it('keeps one source\'s hits when another fails', async () => {
     const half = fakeFetch((u) => (u.hostname === 'archive.org' ? json(recorded('ia_search_bach.json')) : new Response('down', { status: 503 })));
-    const { hits, failures } = await createSourceRegistry(defaultAdapters({ fetch: half })).search('bach');
+    const { hits, failures } = await createSourceRegistry(defaultAdapters({ fetch: half })).search('bach', { sources: ['internet-archive', 'audius'] });
     expect(hits).toHaveLength(12);
     expect(failures.map((f) => f.source)).toEqual(['audius']);
     expect(failures[0].error.message).toBe('Audius answered HTTP 503');
@@ -91,7 +91,7 @@ describe('search', () => {
 });
 
 describe('adapters are checked when registered', () => {
-  const base = defaultAdapters()[3];
+  const base = defaultAdapters().find((a) => a.id === 'url')!;
   it('refuses a duplicate id and capabilities that disagree with the functions', () => {
     expect(() => createSourceRegistry([base, base])).toThrow(/share the id/);
     expect(() => createSourceRegistry([{ ...base, capabilities: { ...base.capabilities, search: true } }])).toThrow(/declares search=true/);
@@ -118,7 +118,7 @@ describe('rights', () => {
 
   it('are checked on open: an item claiming more than its source is refused before the adapter runs', async () => {
     const open = vi.fn(async (item: MediaItem) => fakeSession(item));
-    const adapter: SourceAdapter = { ...defaultAdapters()[3], open };
+    const adapter: SourceAdapter = { ...defaultAdapters().find((a) => a.id === 'url')!, open };
     const sources = createSourceRegistry([adapter]);
     const item: MediaItem = { source: 'url', id: 'x', title: 'X', rights: 'pcm_redistributable', media: { kind: 'url', url: 'https://example.com/x.mp3' } };
     await expect(sources.open(item, {} as SourceHost)).rejects.toMatchObject({ reason: 'rights' });
@@ -136,7 +136,7 @@ describe('rights', () => {
 
   it('refuse a session for another item', async () => {
     const other: MediaItem = { source: 'url', id: 'y', title: 'Y', rights: 'pcm_local', media: { kind: 'url', url: 'https://example.com/y.mp3' } };
-    const sources = createSourceRegistry([{ ...defaultAdapters()[3], open: async () => fakeSession(other) }]);
+    const sources = createSourceRegistry([{ ...defaultAdapters().find((a) => a.id === 'url')!, open: async () => fakeSession(other) }]);
     await expect(sources.open({ ...other, id: 'x' }, {} as SourceHost)).rejects.toMatchObject({ reason: 'bad-response' });
   });
 });

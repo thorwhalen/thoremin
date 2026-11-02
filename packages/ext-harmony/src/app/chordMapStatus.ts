@@ -43,6 +43,7 @@ function describeState(live: ChordMapLive): string {
   if (live.midi === 'unavailable') return 'This browser cannot hear MIDI (Safari has no Web MIDI): use Chrome, Edge or Firefox, or choose the chords with your hand.';
   if (live.midi === 'no-input') return 'No MIDI keyboard found. Plug one in: it is heard as soon as it appears.';
   if (live.audio === 'waiting') return 'Waiting for the browser: allow the microphone to hear your instrument.';
+  if (live.audio === 'refused') return 'Listening is off while a streaming player plays: close it, or choose the chords with your hand.';
   if (live.audio === 'denied') return 'The microphone was refused. Allow it in the site settings, or choose the chords with your hand.';
   if (live.audio === 'unavailable') return 'This browser offers no microphone here: choose the chords with your hand or a MIDI keyboard.';
   if (live.audio === 'quiet' && live.chord === null && !live.inputChord) return `Key of ${live.key}. Play a chord near the microphone: a guitar, a piano, a band.`;

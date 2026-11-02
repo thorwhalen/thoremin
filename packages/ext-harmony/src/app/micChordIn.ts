@@ -14,9 +14,12 @@
  * is published only when it changes (silence once, a held chord rounded to two decimals), since
  * every hot-store write is a persist pass. The context is resumed (a browser creates it suspended
  * without a gesture, and a suspended analyser reads silence forever), once more on the next tap
- * or key if that was refused. The `startMidiChordIn` pattern.
+ * or key if that was refused. The `startMidiChordIn` pattern. While the page may not listen (the
+ * listening gate of `@thoremin/sdk-ui/listening`: a streaming player plays) the microphone stays
+ * closed and the map says why.
  */
 import { chromaFromSpectrum, createLevelGate } from '@thoremin/sdk/harmony/chroma';
+import { listeningRefusal, onListeningChange } from '@thoremin/sdk-ui/listening';
 import { harmonyControls } from './controls';
 import type { AudioHeard } from '../lib/audio_heard';
 
@@ -129,14 +132,19 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
     mic = null;
   };
 
+  /** Whether the page may not listen now (a streaming player plays), and was not last time. */
+  let refusedNow = false;
   const apply = (s: MapState) => {
-    const want = s.chordMap?.enabled === true && s.chordMap.follow === 'audio';
-    if (want === listening) return;
+    const asked = s.chordMap?.enabled === true && s.chordMap.follow === 'audio';
+    const refused = asked && listeningRefusal() !== null;
+    const want = asked && !refused;
+    if (want === listening && refused === refusedNow) return;
     listening = want;
+    refusedNow = refused;
     const mine = ++generation;
     if (!want) {
       stop();
-      send(null);
+      send(refused ? { available: false, chroma: [], sounding: false, reason: 'refused' } : null);
       return;
     }
     if (!open) {
@@ -164,8 +172,11 @@ export function startMicChordIn(deps: MicChordInDeps = {}): () => void {
   };
   apply(store.getState());
   const unsubscribe = store.subscribe(apply);
+  // The gate shuts while a streaming player plays, and opens again after.
+  const unsubscribeGate = onListeningChange(() => apply(store.getState()));
   return () => {
     unsubscribe();
+    unsubscribeGate();
     generation += 1;
     stop();
     send(null);

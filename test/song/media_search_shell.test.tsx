@@ -15,7 +15,7 @@ import { useTools } from '@/app/tools/toolsStore';
 import { useToolPins } from '@/app/tools/toolPins';
 import { TOOL_PINS_STORAGE_KEY } from '@/app/tools/toolsCollection';
 import { setSongHandle, songHandle } from '@/slices/song/app/state';
-import { useActiveSession } from '@/slices/song/app/sources';
+import { configureSourceReach, useActiveSession } from '@/slices/song/app/sources';
 import { renderClickTrack, SR } from '../helpers/clicks';
 import { fakeFetch, json, recorded } from '../sources/helpers';
 import { SONG } from '../helpers/extensions';
@@ -44,6 +44,8 @@ beforeEach(() => {
   useToolPins.setState({ choices: {} });
   setSongHandle(null);
   useActiveSession.setState({ session: null });
+  // Deezer answers JSONP: its recorded answer, with no script tag.
+  configureSourceReach({ jsonp: async () => recorded('deezer_search_bach.json') });
   vi.stubGlobal(
     'OfflineAudioContext',
     class {
@@ -59,6 +61,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  configureSourceReach({});
 });
 
 describe.runIf(SONG)('Media search in the Song tool', () => {
@@ -74,10 +77,11 @@ describe.runIf(SONG)('Media search in the Song tool', () => {
     const box = screen.getByLabelText('Search music or paste a link');
     fireEvent.change(box, { target: { value: 'bach' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find' }));
-    expect(screen.getByTestId('media-status').textContent).toBe('Searching Internet Archive and Audius for "bach"...');
+    expect(screen.getByTestId('media-status').textContent).toBe('Searching Internet Archive, Audius and Deezer for "bach"...');
     const results = await screen.findByTestId('media-results');
     expect(within(results).getByRole('region', { name: 'Internet Archive' })).toBeTruthy();
     expect(within(results).getByRole('region', { name: 'Audius' })).toBeTruthy();
+    expect(within(results).getByRole('region', { name: 'Deezer' })).toBeTruthy();
     fireEvent.click(within(results).getByText('Toccata'));
     await waitFor(() => expect(songHandle()?.name).toBe('Toccata'));
     expect(f.calls).toContain('https://archive.org/download/Toccata/Toccata_et_Fugue_BWV565.mp3');
@@ -92,6 +96,7 @@ describe.runIf(SONG)('Media search in the Song tool', () => {
     const f = network();
     vi.stubGlobal('fetch', (async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
+      if (url.hostname === 'api.audius.co') return json({ data: [] });
       return url.pathname === '/advancedsearch.php' ? json({ response: { docs: [goldberg] } }) : f(input);
     }) as typeof fetch);
     useTools.setState({ open: 'song' });
@@ -126,6 +131,6 @@ describe.runIf(SONG)('Media search in the Song tool', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Find' }));
     const results = await screen.findByTestId('media-results');
     expect(within(results).getAllByTestId('media-hit').length).toBeGreaterThan(0);
-    expect(within(results).getByText('Audius could not be reached.')).toBeTruthy();
+    expect(within(results).getByText('Audius: Audius answered HTTP 503.')).toBeTruthy();
   });
 });

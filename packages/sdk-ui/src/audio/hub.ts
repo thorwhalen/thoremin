@@ -26,6 +26,7 @@ import type { AnalyserMessage, AudioEvent } from '@thoremin/sdk/audio/types';
 import type { AnalyserSpec } from '@thoremin/sdk/audio/analysers';
 import type { ProcessorInMessage, ProcessorOutMessage } from '@thoremin/sdk/audio/processor';
 import { chooseInputStage, type InputStage } from '@thoremin/sdk/timing/input_stage';
+import { listeningRefusal, onListeningChange } from '../listening';
 
 export type AudioSourceKind = 'microphone' | 'replay' | 'synthetic';
 export const AUDIO_SOURCES: readonly AudioSourceKind[] = ['microphone', 'replay', 'synthetic'];
@@ -36,7 +37,8 @@ export interface MicConstraints {
   autoGainControl?: boolean;
 }
 
-export type HubState = 'idle' | 'waiting-audio' | 'opening' | 'live' | 'denied' | 'unsupported' | 'failed';
+/** `refused`: the listening gate is shut (`../listening.ts`: an embedded player plays), `error` says why. */
+export type HubState = 'idle' | 'waiting-audio' | 'opening' | 'live' | 'denied' | 'unsupported' | 'failed' | 'refused';
 
 export interface HubStatus {
   state: HubState;
@@ -233,6 +235,14 @@ export function createAudioInputHub(deps: HubDeps): AudioInputHub {
       if (state !== 'idle') set('idle');
       return;
     }
+    // The gate first: while it is shut the input is closed, whatever the leases want.
+    const refused = listeningRefusal();
+    if (refused) {
+      ++generation;
+      teardown();
+      if (state !== 'refused' || error !== refused) set('refused', refused);
+      return;
+    }
     const ctx = deps.audio();
     if (!ctx) {
       if (state !== 'waiting-audio') set('waiting-audio');
@@ -263,6 +273,11 @@ export function createAudioInputHub(deps: HubDeps): AudioInputHub {
         opened.close();
         return;
       }
+      if (listeningRefusal()) {
+        // The gate shut while the input opened.
+        opened.close();
+        return;
+      }
       input = opened;
       input.source.connect(node);
       openedWith = { kind, constraints: key };
@@ -274,9 +289,14 @@ export function createAudioInputHub(deps: HubDeps): AudioInputHub {
     } finally {
       busy = false;
     }
-    // Something changed while opening (a lease came or went, the constraints moved): settle it.
-    if (leases.size === 0 || (state === 'live' && (sourceNow() !== openedWith?.kind || JSON.stringify(constraintsNow()) !== openedWith?.constraints))) void ensure();
+    // Something changed while opening (a lease came or went, the constraints moved, the gate
+    // shut): settle it.
+    if (leases.size === 0 || listeningRefusal() || (state === 'live' && (sourceNow() !== openedWith?.kind || JSON.stringify(constraintsNow()) !== openedWith?.constraints))) void ensure();
   };
+
+  onListeningChange(() => {
+    if (leases.size > 0 || state === 'refused') void ensure();
+  });
 
   return {
     acquire(req) {

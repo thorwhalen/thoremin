@@ -102,6 +102,8 @@ export function micNotice(state: string): string | null {
       return 'No audio input here.';
     case 'waiting-audio':
       return 'Click or press a key to start the sound.';
+    case 'refused':
+      return 'Listening is off while a streaming player plays: close it to play.';
     default:
       return 'Opening the microphone...';
   }

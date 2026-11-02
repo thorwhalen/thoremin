@@ -23,6 +23,12 @@ export const LAZY_PACKAGES: readonly string[] = [
   'three', // a 3-D renderer, via @thoremin/ext-draw/lazy_ui (thorwhalen/thoremin-ar)
 ];
 
+/** Modules of the app's own (by path) the app may only load on demand: the embedded players, each
+ *  loading its provider's script, imported only when an item from that provider opens. */
+export const LAZY_MODULES: readonly string[] = [
+  '/packages/sources/src/embeds/', // YouTube, SoundCloud, Spotify and the plain iframe player, via each adapter's open()
+];
+
 /** The slice of a Rollup output chunk the guard reads. */
 export interface ChunkLike {
   type: 'chunk' | 'asset';
@@ -41,7 +47,7 @@ export function packageOf(id: string): string | null {
 }
 
 /** Every lazy package found in the entry chunks' static closure, with the chunk it is in. */
-export function findEagerLeaks(bundle: Record<string, ChunkLike>, lazy: readonly string[] = LAZY_PACKAGES): { pkg: string; chunk: string }[] {
+export function findEagerLeaks(bundle: Record<string, ChunkLike>, lazy: readonly string[] = LAZY_PACKAGES, lazyModules: readonly string[] = LAZY_MODULES): { pkg: string; chunk: string }[] {
   const chunks = Object.values(bundle).filter((c): c is ChunkLike & { type: 'chunk' } => c.type === 'chunk');
   const byName = new Map(chunks.map((c) => [c.fileName, c]));
   const seen = new Set<string>();
@@ -57,6 +63,8 @@ export function findEagerLeaks(bundle: Record<string, ChunkLike>, lazy: readonly
     for (const id of Object.keys(c.modules ?? {})) {
       const pkg = packageOf(id);
       if (pkg && lazy.includes(pkg)) found.add(pkg);
+      const path = id.replace(/\\/g, '/');
+      for (const m of lazyModules) if (path.includes(m)) found.add(m);
     }
     for (const pkg of found) leaks.push({ pkg, chunk: name });
     stack.push(...(c.imports ?? []));

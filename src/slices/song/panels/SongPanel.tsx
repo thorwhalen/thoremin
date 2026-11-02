@@ -35,6 +35,8 @@ import { SONG_HOLD_FADE_MAX, SONG_FOLLOW_RANGE_MAX, SONG_FOLLOW_RANGE_MIN, SONG_
 import { unlockSongPlayback, type SongHandle } from '../nodes/song_player.schema';
 import { controls } from '@thoremin/sdk-ui/host';
 import MediaSearch, { SourceLine } from './MediaSearch';
+import { SOURCES, useActiveSession } from '../app/sources';
+import { useEmbedNotice } from '../app/embeds';
 import { formatTime } from './format';
 
 export const SONG_TOOL_ID = 'song';
@@ -112,6 +114,11 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
   const [searching, setSearching] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { volume, rate, follow, followRange, holdFadeS, holdSlow, alignStart } = prefs;
+  // A song in a provider's own player: what its transport allows, and no beat (never analysed).
+  const session = useActiveSession((s) => s.session);
+  const caps = song?.player ? session?.capabilities : undefined;
+  const embedNotice = useEmbedNotice((s) => s.notice);
+  const provider = song?.item ? (() => { try { return SOURCES.get(song.item.source).label; } catch { return song.item.source; } })() : '';
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -151,14 +158,26 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
         <>
           <div className="space-y-0.5 text-xs">
             <div className="truncate font-semibold text-white/90" title={song.name}>
-              {song.name} <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>
+              {song.name} {song.durationS > 0 && <span className="font-normal text-white/40">{formatTime(song.durationS)}</span>}
             </div>
             <SourceLine item={song.item} />
-            <div className="text-white/60" data-testid="song-grid">{describeGrid(song)}</div>
+            <div className="text-white/60" data-testid="song-grid">
+              {song.player ? `Plays in ${provider}'s own player (bottom left): not analysed, so no beat is tracked.` : describeGrid(song)}
+            </div>
             {conducted && <div className="text-emerald-300/80" data-testid="song-conducted">The conductor leads this song: it plays, holds and keeps time with the beat.</div>}
             {dancedByConductor && <div className="text-emerald-300/80" data-testid="song-danced">The dancer leads this song (the Conductor's Dance the orchestra): its tempo follows your steps.</div>}
           </div>
-          <button
+          {song.player && embedNotice && (
+            <p className="text-[11px] text-amber-300/90" role="alert" data-testid="song-embed-notice">
+              {embedNotice}
+            </p>
+          )}
+          {song.player && caps && !caps.play && (
+            <p className="text-[11px] text-white/60" data-testid="song-own-controls">
+              Play and pause it with {provider}'s own buttons, in its player at the bottom left.
+            </p>
+          )}
+          {!(song.player && caps && !caps.play) && <button
             onClick={() => {
               // Inside the click, before the tick that plays it: the autoplay policy.
               if (!playing) unlockSongPlayback();
@@ -169,16 +188,17 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
             }`}
           >
             {playing ? 'Pause' : 'Play'}
-          </button>
+          </button>}
           <BeatTracker live={live} playing={playing && status.phase === 'active'} />
           <LoadStatusReadout status={status} enabled offMessage="No song loaded" />
           <label className="flex items-center justify-between gap-2 text-xs text-white/80">
             Volume
             <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => setPrefs({ volume: Number(e.target.value) })} />
           </label>
-          <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+          {(!song.player || caps?.rate) && <label className="flex items-center justify-between gap-2 text-xs text-white/80">
             <span>
               Tempo <span className="font-mono text-white/50">{Math.round(rate * 100)}%</span>
+              {caps?.rate?.steps && <span className="text-white/40"> ({provider} plays it in steps)</span>}
             </span>
             <input
               type="range"
@@ -188,8 +208,8 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
               value={rate}
               onChange={(e) => setPrefs({ rate: Number(e.target.value) })}
             />
-          </label>
-          <div className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="song-follow">
+          </label>}
+          {!song.player && <div className="space-y-2 rounded-lg border border-white/10 p-2" data-testid="song-follow">
             <label className="flex items-center justify-between gap-2 text-xs text-white/80">
               Follow the dancer
               <input
@@ -230,7 +250,7 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
                 </label>
               </>
             )}
-          </div>
+          </div>}
           <label className="flex items-center justify-between gap-2 text-xs text-white/80" data-testid="song-hold-fade">
             <span>
               Fade on a conductor's hold{' '}

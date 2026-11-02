@@ -25,6 +25,14 @@
    "licence": "Public Domain Mark 1.0, http://creativecommons.org/publicdomain/mark/1.0/",
    "edits": "seconds 260 to 290, mono, 22.05 kHz, 64 kbit/s MP3 (ffmpeg -ss 260 -t 30 -ac 1 -ar 22050 -b:a 64k)",
    "beat": "trackSongGrid reads 163.7 bpm, confidence 0.72 (decoded by ffmpeg; a browser's decoder may differ slightly)"
+  },
+  "deezer_search_bach.json": {
+   "request": "https://api.deezer.com/search?q=bach&limit=5 (the JSON body the JSONP call wraps)",
+   "edits": "kept id, title, duration, link, readable, artist.name, album.cover_small; everything else dropped"
+  },
+  "youtube_search_constructed.json": {
+   "request": "none: constructed in the shape of the YouTube Data API v3 search.list response (no key was used); video ids are placeholders",
+   "edits": "constructed"
   }
  }
 }
