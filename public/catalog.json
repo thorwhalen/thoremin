@@ -1375,6 +1375,10 @@
       {
         "name": "signs",
         "kind": "category-scores"
+      },
+      {
+        "name": "music",
+        "kind": "music-chord"
       }
     ],
     "outputs": [
@@ -1577,7 +1581,7 @@
       },
       {
         "name": "follow",
-        "type": "enum(hands | midi | audio | signs)",
+        "type": "enum(hands | midi | audio | signs | music)",
         "default": "hands"
       },
       {
@@ -3126,6 +3130,56 @@
     ]
   },
   {
+    "type": "music-context",
+    "title": "Musical context",
+    "description": "Reads the music's timeline (a score, the player's chart) at the playing position: the key and chord in force, the next ones on their beats, and, while the instrument follows the music, its scale.",
+    "roles": [
+      "music",
+      "control"
+    ],
+    "inputs": [
+      {
+        "name": "config",
+        "kind": "music-context-config"
+      },
+      {
+        "name": "context",
+        "kind": "music-context"
+      },
+      {
+        "name": "time",
+        "kind": "musical-time"
+      },
+      {
+        "name": "conductorTime",
+        "kind": "musical-time"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "scale",
+        "kind": "scale-override"
+      },
+      {
+        "name": "key",
+        "kind": "music-key"
+      },
+      {
+        "name": "chord",
+        "kind": "music-chord"
+      },
+      {
+        "name": "expectations",
+        "kind": "music-expectations"
+      },
+      {
+        "name": "status",
+        "kind": "music-context-status"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "one-euro",
     "title": "One-Euro Filter",
     "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",
@@ -4084,7 +4138,12 @@
       "source",
       "control"
     ],
-    "inputs": [],
+    "inputs": [
+      {
+        "name": "scaleOverride",
+        "kind": "scale-override"
+      }
+    ],
     "outputs": [
       {
         "name": "scaleRight",
@@ -4235,6 +4294,10 @@
         "kind": "conductor-config"
       },
       {
+        "name": "musicContext",
+        "kind": "music-context-config"
+      },
+      {
         "name": "physicalTheremin",
         "kind": "physical-theremin-config"
       },
@@ -4369,6 +4432,10 @@
       {
         "name": "scoreDoc",
         "kind": "score-doc"
+      },
+      {
+        "name": "musicContextActive",
+        "kind": "music-context"
       },
       {
         "name": "faceCategorizerModel",

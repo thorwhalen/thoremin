@@ -177,6 +177,8 @@ export const HARMONY_EXTENSION = defineExtension({
       if ((settings.chordMap as { face?: boolean }).face === true) ids.push('chord-map-face');
       // The sign reader's reading, only while signs choose the chord.
       if ((settings.chordMap as { follow?: string }).follow === 'signs') ids.push('chord-map-signs');
+      // The music's chords, only while the map follows the music.
+      if ((settings.chordMap as { follow?: string }).follow === 'music') ids.push('chord-map-music');
     }
     if (on(settings.chordChart)) ids.push('chord-chart');
     if (on(settings.chordWheel)) {
