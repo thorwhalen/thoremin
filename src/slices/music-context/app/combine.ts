@@ -1,11 +1,16 @@
 /**
  * Which timeline is in force, from what the producers made (pure): the player's entries and the
- * loaded score. A chart or a tapped tempo is a timeline of its own, on the song's clock, and wins.
- * A key alone overlays whatever else is in force (it is timeless): the score's bars and chords
- * stay, its keys give way to the player's. Otherwise the score; otherwise nothing.
+ * loaded score.
+ *
+ * - The player's timeline wins when it stands on its own: a tapped tempo, or a chart its ruler
+ *   placed (on the song's own beat grid). It plays on the song's clock.
+ * - Otherwise, over a score: the score's bars, clock and melody stay; the player's key, when they
+ *   gave one, replaces the score's keys, and the player's chart, when they wrote one, goes on the
+ *   score's bars in place of its chords.
+ * - Otherwise the player's (a key alone, or a chart waiting for a tempo), else the score's, else none.
  */
 import type { ActiveContext } from '@thoremin/sdk/context/reading';
-import { USER_ANALYZER, type UserEntry } from '@thoremin/sdk/context/from_user';
+import { contextFromUser, USER_ANALYZER, type UserEntry } from '@thoremin/sdk/context/from_user';
 
 export interface Layers {
   /** The player's timeline, and what they said (to tell a key alone from a chart). */
@@ -14,19 +19,21 @@ export interface Layers {
 }
 
 export function combineLayers({ user, score }: Layers): ActiveContext | null {
-  if (user && (user.entry.tempo !== null || user.entry.chart.trim() !== '')) return user.active;
-  if (user && user.entry.key !== null && score) {
-    const key = user.active.context.keys[0];
-    const base = score.context;
-    return {
-      clock: score.clock,
-      context: {
-        ...base,
-        source: 'user',
-        analyzers: [...base.analyzers, USER_ANALYZER],
-        keys: key ? [{ ...key, start: 0, end: Math.max(base.durationS, key.end) }] : [],
-      },
-    };
-  }
-  return user?.active ?? score ?? null;
+  if (!user) return score ?? null;
+  const { entry, active } = user;
+  if (entry.tempo !== null || active.context.chords.length > 0) return active;
+  if (!score) return active;
+  const base = score.context;
+  const key = active.context.keys[0];
+  const chart = entry.chart.trim() ? contextFromUser({ ...entry, tempo: null }, { ruler: base.beats.map((b) => b.t), durationS: base.durationS }) : null;
+  return {
+    clock: score.clock,
+    context: {
+      ...base,
+      source: 'user',
+      analyzers: [...base.analyzers, USER_ANALYZER],
+      keys: key ? [{ ...key, start: 0, end: Math.max(base.durationS, key.end) }] : base.keys,
+      chords: chart ? chart.chords : base.chords,
+    },
+  };
 }

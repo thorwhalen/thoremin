@@ -34,26 +34,43 @@ const SCORE_DOC_FIELD = 'scoreDoc';
  *  name; else the score being conducted, by its title; '' for none. */
 export function pieceKey(handle: SongLike | null = song()): string {
   if (handle?.item?.source && handle.item.id) return `${handle.item.source}:${handle.item.id}`;
-  if (handle?.name) return `file:${handle.name}`;
+  // A file by its name and length: two files of one name are rarely the same length.
+  if (handle?.name) return `file:${handle.name}${handle.durationS ? `:${Math.round(handle.durationS)}` : ''}`;
   const score = controls().get()[SCORE_DOC_FIELD] as { title?: string } | null | undefined;
   return score?.title ? `score:${score.title}` : '';
 }
 
-/** The pref, read (absent or unreadable: none). */
-export function userPref(): MusicUserPref {
+/** The pref as stored (absent or unreadable: none); its entries are read one by one. */
+function storedPref(): MusicUserPref {
   const parsed = MusicUserPrefSchema.safeParse(controls().get()[MUSIC_USER_PREF]);
   return parsed.success ? parsed.data : DEFAULT_MUSIC_USER;
 }
 
-/** The entry for the piece now (an empty one when the player said nothing about it). */
-export const currentEntry = (): UserEntry => userPref().entries[pieceKey()] ?? EMPTY_USER_ENTRY;
+/** The entries this build can read (one it cannot is skipped, and kept in the store). */
+export function userPref(): { entries: Record<string, UserEntry> } {
+  const entries: Record<string, UserEntry> = {};
+  for (const [key, raw] of Object.entries(storedPref().entries)) {
+    const parsed = UserEntrySchema.safeParse(raw);
+    if (parsed.success) entries[key] = parsed.data;
+  }
+  return { entries };
+}
+
+/** The entry for a piece (an empty one when the player said nothing about it). */
+function entryFor(key: string): UserEntry {
+  const parsed = UserEntrySchema.safeParse(storedPref().entries[key]);
+  return parsed.success ? parsed.data : EMPTY_USER_ENTRY;
+}
+
+/** The entry for the piece now. */
+export const currentEntry = (): UserEntry => entryFor(pieceKey());
 
 /** Write the entry for the piece now (an empty entry is removed). False when no piece is loaded. */
 export function writeEntry(update: (e: UserEntry) => UserEntry): boolean {
   const key = pieceKey();
   if (!key) return false;
-  const entries = { ...userPref().entries };
-  const next = UserEntrySchema.parse(update(entries[key] ?? EMPTY_USER_ENTRY));
+  const entries = { ...storedPref().entries };
+  const next = UserEntrySchema.parse(update(entryFor(key)));
   delete entries[key];
   if (hasUserEntry(next)) entries[key] = next;
   // The oldest go first past the cap (records keep insertion order: the latest written is last).
@@ -66,34 +83,47 @@ export function writeEntry(update: (e: UserEntry) => UserEntry): boolean {
 // ---- the song's position, for the taps ---------------------------------------------------------
 
 let lastSongTime: MusicalTime | null = null;
+/** The output stage (seconds from the song's position to the speaker), from the timing resource. */
+let outputStageS = 0;
 
-/** The status hook's sink: the song player's latest reading. */
-export const mirrorSongTime = (time: MusicalTime | null | undefined): void => {
+/** The status hook's sink: the song player's latest reading, and the output stage. */
+export const mirrorSongTime = (time: MusicalTime | null | undefined, stageS = 0): void => {
   lastSongTime = time ?? null;
+  outputStageS = Number.isFinite(stageS) && stageS > 0 ? stageS : 0;
 };
 
-/** The song position (song seconds) at engine time `now`, or null when no song is playing. */
+/**
+ * The song position (song seconds) the player HEARS at engine time `now`, or null when no song is
+ * playing: the position extrapolated to `now`, less what the output stage still holds (the
+ * player taps on the beat they hear, which left the player that long ago).
+ */
 export function songPositionAt(now: number, time: MusicalTime | null = lastSongTime): number | null {
   if (!time || typeof time.position !== 'number' || !Number.isFinite(time.position)) return null;
   // A paused song (rate 0, or a held grid) has no beat to tap along to.
   if (time.state === 'hold' || time.rate === 0) return null;
   const rate = typeof time.rate === 'number' && time.rate > 0 ? time.rate : 1;
-  return time.position + Math.max(0, now - time.t) * rate;
+  return Math.max(0, time.position + (Math.max(0, now - time.t) - outputStageS) * rate);
 }
 
-let taps: number[] = [];
-/** Taps older than this (seconds of song) before the latest are dropped. */
-const TAP_MEMORY_S = 20;
+/** The taps of the run: song positions with the engine times they were made at. */
+let taps: { at: number; now: number }[] = [];
+/** How many taps a run keeps (its first, the downbeat, always among them). */
+const MAX_TAPS = 128;
+/** A song that moved this much more or less than the clock between two taps was sought. */
+const SEEK_TOLERANCE_S = 0.15;
 
-/** One tap at engine time `now`: the tempo once there are enough taps (null before), or 'no-song'. */
+/** One tap at engine time `now`: the tempo once there are enough taps (only the count before), or
+ *  'no-song'. A seek between taps (the song moved otherwise than the clock) starts the run again. */
 export function tap(now: number): { bpm: number; taps: number } | { taps: number } | 'no-song' {
   const at = songPositionAt(now);
   if (at === null) return 'no-song';
-  // A tap behind the last one (a seek back) starts again.
-  if (taps.length && at < taps[taps.length - 1]) taps = [];
-  taps = [...taps.filter((t) => at - t <= TAP_MEMORY_S), at];
+  const last = taps[taps.length - 1];
+  const rate = lastSongTime?.rate && lastSongTime.rate > 0 ? lastSongTime.rate : 1;
+  if (last && Math.abs(at - last.at - (now - last.now) * rate) > SEEK_TOLERANCE_S) taps = [];
+  taps.push({ at, now });
+  if (taps.length > MAX_TAPS) taps = [taps[0], ...taps.slice(taps.length - MAX_TAPS + 1)];
   const beatsPerBar = currentEntry().tempo?.beatsPerBar ?? 4;
-  const tempo = tempoFromTaps(taps, { beatsPerBar });
+  const tempo = tempoFromTaps(taps.map((t) => t.at), { beatsPerBar });
   if (!tempo) return { taps: taps.length };
   writeEntry((e) => ({ ...e, tempo }));
   return { bpm: tempo.bpm, taps: taps.length };
@@ -103,6 +133,15 @@ export function tap(now: number): { bpm: number; taps: number } | { taps: number
 export function clearTaps({ tempo = false }: { tempo?: boolean } = {}): void {
   taps = [];
   if (tempo) writeEntry((e) => ({ ...e, tempo: null }));
+}
+
+/** Whether a chart written now would be placed: a tapped tempo, a song with a beat grid, or a
+ *  conducted score (the chart then goes on the score's bars). */
+export function chartPlaceable(): boolean {
+  if (currentEntry().tempo) return true;
+  const h = song();
+  if (h?.grid?.beats && h.grid.beats.length >= 2) return true;
+  return !h && !!controls().get()[SCORE_DOC_FIELD];
 }
 
 // ---- the producer -------------------------------------------------------------------------------

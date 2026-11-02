@@ -34,7 +34,7 @@ export const MUSIC_CONTEXT_EXTENSION = defineExtension({
   stores: Object.values(MUSIC_CONTEXT_STORES),
   // What the player said about each piece (key, tapped tempo, chart): a per-device pref, about the
   // music, never an instrument setting.
-  prefs: [{ key: MUSIC_USER_PREF, schema: MusicUserPrefSchema.default(DEFAULT_MUSIC_USER), liveInTab: true }],
+  prefs: [{ key: MUSIC_USER_PREF, schema: MusicUserPrefSchema.default(DEFAULT_MUSIC_USER) }],
   // The timeline in force: made by the producers, never persisted.
   transient: [transientPort<ActiveContext | null>()(MUSIC_CONTEXT_ACTIVE, 'music-context', null)] as const,
   derive: (s) => ((s as { musicContext?: Partial<MusicContextSettings> }).musicContext?.scaleFrom === 'music' ? [MUSIC_CONTEXT_BRANCH] : []),

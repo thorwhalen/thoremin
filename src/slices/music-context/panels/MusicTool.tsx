@@ -3,7 +3,7 @@
  * analysis included): its key, its tempo tapped along, and its chord chart, kept for that piece on
  * this device. Every change is a command (`music.*`). Underneath, what the music is doing now.
  */
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { controls } from '@thoremin/sdk-ui/host';
 import { dispatchCommand } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
@@ -23,6 +23,11 @@ export function MusicTool() {
   const { piece, entry } = JSON.parse(useSyncExternalStore(subscribe, entryJson, entryJson)) as { piece: string; entry: ReturnType<typeof currentEntry> };
   const [chart, setChart] = useState(entry.chart);
   const [message, setMessage] = useState<string | null>(null);
+  // Another piece, or the chart written from elsewhere (the palette, the assistant): the box shows it.
+  useEffect(() => {
+    setChart(entry.chart);
+    setMessage(null);
+  }, [piece, entry.chart]);
   const report = async (id: string, params: Record<string, unknown> = {}, done?: (value: unknown) => string) => {
     const r = await dispatchCommand(id, params);
     setMessage(r.ok ? (done ? done(r.value) : null) : r.error.message);
@@ -78,7 +83,7 @@ export function MusicTool() {
       </label>
       <div className="flex items-center justify-between gap-2">
         <span className="text-rose-300">{errors.length ? `Not chords: ${errors.slice(0, 4).join(', ')}` : ''}</span>
-        <button type="button" className="rounded bg-white/15 px-3 py-1 hover:bg-white/25 disabled:opacity-40" disabled={errors.length > 0 || chart === entry.chart} onClick={() => void report('music.chart.set', { chart }, () => 'Chart saved')}>
+        <button type="button" className="rounded bg-white/15 px-3 py-1 hover:bg-white/25 disabled:opacity-40" disabled={errors.length > 0 || chart === entry.chart} onClick={() => void report('music.chart.set', { chart }, (v) => ((v as { placed?: boolean }).placed ? 'Chart saved' : 'Chart saved: tap the tempo to place it (this song has no beat of its own)'))}>
           Save chart
         </button>
       </div>

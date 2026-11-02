@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { defineCommand, ok, err } from 'acture';
 import { KEY_MODES } from '@thoremin/sdk/score/schema';
 import { parseChart } from '@thoremin/sdk/context/from_user';
-import { clearTaps, tap, writeEntry } from './user';
+import { chartPlaceable, clearTaps, tap, writeEntry } from './user';
 
 const CATEGORY = 'Music';
 const NO_PIECE = 'Nothing is loaded to say it about: load a song in the Song tool, or a piece in the Conductor.';
@@ -64,7 +64,9 @@ export const setChartCmd = defineCommand({
   execute: async ({ chart }) => {
     const { errors } = parseChart(chart);
     if (errors.length) return err('bad_chart', `Not chords: ${errors.slice(0, 5).join(', ')}`);
-    return writeEntry((e) => ({ ...e, chart })) ? ok({ bars: parseChart(chart).bars.length }) : err('no_piece', NO_PIECE);
+    if (!writeEntry((e) => ({ ...e, chart }))) return err('no_piece', NO_PIECE);
+    // Saved either way; `placed` false says it waits for a tempo (a song with no beat of its own).
+    return ok({ bars: parseChart(chart).bars.length, placed: chartPlaceable() });
   },
 });
 

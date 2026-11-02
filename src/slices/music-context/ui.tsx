@@ -8,6 +8,7 @@ import { Music2 } from 'lucide-react';
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { SONG_PLAYER } from '@thoremin/sdk/instruments/trunk';
 import type { MusicalTime } from '@thoremin/ictus';
+import { timingFrom } from '@thoremin/sdk/timing/tracker';
 import { MUSIC_CONTEXT_NODE_ID } from '@thoremin/sdk/context/reading';
 import { MusicContextControls, MusicContextReadout } from './panels/MusicContextSection';
 import { makeMusicContextReporter, useMusicContextStatus } from './app/status';
@@ -40,7 +41,7 @@ export const MUSIC_CONTEXT_UI: ExtensionUi = {
     // The song's position, for the Music tool's taps.
     {
       nodeId: SONG_PLAYER,
-      make: (engine) => () => mirrorSongTime(engine.getOutput(SONG_PLAYER, 'songTime') as MusicalTime | undefined),
+      make: (engine, resources) => () => mirrorSongTime(engine.getOutput(SONG_PLAYER, 'songTime') as MusicalTime | undefined, timingFrom(resources()).outputStage.value),
       onRemoved: () => mirrorSongTime(null),
       reset: () => mirrorSongTime(null),
     },

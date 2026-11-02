@@ -106,32 +106,44 @@ export function parseChart(text: string): { bars: (Chord | null)[][]; errors: st
   return { bars, errors };
 }
 
+/** A tap closer than this share of the median gap to the one before is a bounce, not a beat. */
+const TAP_BOUNCE = 0.4;
+/** A gap longer than this many median gaps is a pause: the count starts again after it. */
+const TAP_PAUSE = 4;
+
 /**
- * Tap tempo: taps (song seconds, in order) to a tempo and the downbeat it starts from. Each tap is
- * a beat, the first one beat 0; a gap of more than twice the median interval starts the count
- * again (a pause, a new try), and only the last run counts. Null with fewer than `minTaps` taps in
- * that run.
+ * Tap tempo: taps (song seconds) to a tempo and the downbeat it starts from. The first tap of the
+ * run is beat 0 and stays the downbeat however long the player goes on; each later tap is numbered
+ * by its distance from it in median gaps (so a missed tap counts two beats), a bounce closer than
+ * {@link TAP_BOUNCE} of a gap to the tap before is dropped, and a pause longer than
+ * {@link TAP_PAUSE} gaps starts the run again. A least-squares line through the numbered taps gives
+ * the period and the downbeat's time. Null with fewer than `minTaps` taps in the run.
  */
 export function tempoFromTaps(taps: readonly number[], { minTaps = 4, beatsPerBar = 4 }: { minTaps?: number; beatsPerBar?: number } = {}): UserTempo | null {
   const sorted = [...taps].filter(Number.isFinite).sort((a, b) => a - b);
   if (sorted.length < 2) return null;
-  const gaps = sorted.slice(1).map((t, i) => t - sorted[i]);
+  const gaps = sorted.slice(1).map((t, i) => t - sorted[i]).filter((g) => g > 0);
+  if (!gaps.length) return null;
   const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)];
+  // Bounces out, then the last run after a pause.
+  const kept: number[] = [];
+  for (const t of sorted) if (!kept.length || t - kept[kept.length - 1] >= TAP_BOUNCE * median) kept.push(t);
   let start = 0;
-  gaps.forEach((g, i) => {
-    if (g > 2 * median) start = i + 1;
-  });
-  const run = sorted.slice(start);
+  for (let i = 1; i < kept.length; i++) if (kept[i] - kept[i - 1] > TAP_PAUSE * median) start = i;
+  const run = kept.slice(start);
   if (run.length < minTaps) return null;
-  // Least squares t = a + b k over the beat numbers k = 0..n-1.
+  const anchor = run[0];
+  const ks = run.map((t) => Math.round((t - anchor) / median));
+  if (new Set(ks).size < minTaps) return null;
+  // Least squares t = a + b k.
   const n = run.length;
-  const mk = (n - 1) / 2;
+  const mk = ks.reduce((s, k) => s + k, 0) / n;
   const mt = run.reduce((s, t) => s + t, 0) / n;
   let num = 0;
   let den = 0;
-  run.forEach((t, k) => {
-    num += (k - mk) * (t - mt);
-    den += (k - mk) ** 2;
+  run.forEach((t, i) => {
+    num += (ks[i] - mk) * (t - mt);
+    den += (ks[i] - mk) ** 2;
   });
   const period = num / den;
   if (!(period > 0)) return null;

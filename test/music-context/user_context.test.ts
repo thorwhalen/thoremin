@@ -50,6 +50,16 @@ describe('tap tempo', () => {
     expect(again.firstBeatS).toBeCloseTo(20, 6);
     expect(tempoFromTaps([1, 1.5, 2])).toBeNull();
   });
+
+  it('keeps the first tap as the downbeat however long the player taps', () => {
+    const taps = Array.from({ length: 60 }, (_, k) => 2 + k * 0.5);
+    expect(tempoFromTaps(taps)).toMatchObject({ bpm: 120, firstBeatS: 2 });
+  });
+
+  it('counts a missed tap as two beats and drops a bounce', () => {
+    expect(tempoFromTaps([0, 0.5, 1, 2, 2.5])!.bpm).toBeCloseTo(120, 6);
+    expect(tempoFromTaps([0, 0.5, 0.54, 1, 1.5, 2])!.bpm).toBeCloseTo(120, 6);
+  });
 });
 
 describe("the player's timeline", () => {
@@ -95,9 +105,15 @@ describe('which timeline is in force', () => {
     expect(out.context.analyzers.map((a) => a.name)).toEqual([...score.context.analyzers.map((a) => a.name), 'user']);
   });
 
-  it('a chart or a tapped tempo is a timeline of its own, on the song; nothing said leaves the score', () => {
-    const chart = UserEntrySchema.parse({ chart: 'C | G' });
-    expect(combineLayers({ user: userOf(chart), score })!.clock).toBe('song');
+  it("a chart with no tempo goes on the conducted score's bars; a tapped tempo is a timeline of its own", () => {
+    const chart = UserEntrySchema.parse({ chart: 'D | A | Bm | G' });
+    const over = combineLayers({ user: userOf(chart), score })!;
+    expect(over.clock).toBe('conductor');
+    expect(over.context.keys).toEqual(score.context.keys);
+    // Bar 2 of the study starts at 2.5 s (96 bpm, 4/4).
+    expect(chordAt(over.context, 2.6)?.chord).toEqual({ root: 9, quality: 'maj' });
+    const tapped = UserEntrySchema.parse({ tempo: { bpm: 100, firstBeatS: 1 }, chart: 'C | G' });
+    expect(combineLayers({ user: userOf(tapped), score })!.clock).toBe('song');
     expect(combineLayers({ user: null, score })).toBe(score);
     expect(combineLayers({})).toBeNull();
   });

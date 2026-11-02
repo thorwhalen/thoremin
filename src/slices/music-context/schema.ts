@@ -6,7 +6,6 @@
  */
 import { z } from 'zod';
 import { SCALE_FITS } from '@thoremin/sdk/context/scale';
-import { UserEntrySchema } from '@thoremin/sdk/context/from_user';
 
 export const SCALE_OWNERS = ['dials', 'music'] as const;
 export type ScaleOwner = (typeof SCALE_OWNERS)[number];
@@ -37,6 +36,8 @@ export const MUSIC_CONTEXT_ACTIVE = 'musicContextActive';
 export const MUSIC_USER_PREF = 'musicUser';
 /** How many pieces' entries are kept (the oldest goes first). */
 export const MAX_USER_ENTRIES = 200;
-export const MusicUserPrefSchema = z.object({ entries: z.record(z.string(), UserEntrySchema).default({}) });
+/** Each entry is stored as it was written and read one by one (`userPref`): an entry a newer build
+ *  wrote, which this one cannot read, is skipped and kept, never the reason every entry is lost. */
+export const MusicUserPrefSchema = z.object({ entries: z.record(z.string(), z.unknown()).default({}) });
 export type MusicUserPref = z.infer<typeof MusicUserPrefSchema>;
 export const DEFAULT_MUSIC_USER: MusicUserPref = { entries: {} };
