@@ -125,22 +125,28 @@ export const MOTION_SPAN_TAIL = 0.1;
  * How long the motion took, in ms: the time between the moments the cumulative path (the weighted
  * features' RMS step, frame to frame, at the frames' own stamps) reaches {@link MOTION_SPAN_TAIL} and
  * one minus it of its total. Scale-free (a bigger wave travels more path, in the same proportions)
- * and nearly free of the cut points. No path: 0.
+ * and nearly free of the cut points. A step that misses a weighted feature adds no path (measured
+ * over fewer features it would add a different amount). Tracker jitter adds a little path per
+ * frame, so a take at another frame rate than its templates reads a few percent off (1.007-1.052
+ * for a 60 fps wave against 30 fps templates). No path: 0.
  */
 export function motionSpanMs(samples: readonly TraceSample[], { features, weights }: Pick<SeriesOptions, 'features' | 'weights'>, tail = MOTION_SPAN_TAIL): number {
+  if (!(tail > 0 && tail < 0.5)) throw new Error(`motionSpanMs: tail must be between 0 and 0.5 (got ${tail})`);
+  const weighted = features.filter((id) => (weights[id] ?? 0) !== 0);
   const cumulative: number[] = [0];
   for (let i = 1; i < samples.length; i++) {
     let sq = 0;
-    let n = 0;
-    for (const id of features) {
-      const w = weights[id] ?? 0;
+    let complete = weighted.length > 0;
+    for (const id of weighted) {
       const a = samples[i - 1].vector[id];
       const b = samples[i].vector[id];
-      if (w === 0 || a === undefined || b === undefined || !Number.isFinite(a) || !Number.isFinite(b)) continue;
-      sq += ((b - a) * w) ** 2;
-      n += 1;
+      if (a === undefined || b === undefined || !Number.isFinite(a) || !Number.isFinite(b)) {
+        complete = false;
+        break;
+      }
+      sq += ((b - a) * weights[id]) ** 2;
     }
-    cumulative.push(cumulative[i - 1] + (n === 0 ? 0 : Math.sqrt(sq / n)));
+    cumulative.push(cumulative[i - 1] + (complete ? Math.sqrt(sq / weighted.length) : 0));
   }
   const total = cumulative[cumulative.length - 1];
   if (!(total > 0)) return 0;

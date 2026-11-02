@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { FEATURE_BY_ID } from '@thoremin/sdk/features/catalog';
 import {
+  motionSpanMs,
   buildGestureModel,
   createDtwMatcher,
   createMotionSegmenter,
@@ -170,6 +171,26 @@ describe('toSeries', () => {
   });
 });
 
+describe('motionSpanMs (#909)', () => {
+  const W = { features: ['x', 'y'], weights: { x: 1, y: 1 } };
+  const at = (pts: [number, number, number][]): TraceSample[] => pts.map(([t, x, y]) => ({ t, vector: { x, y } }));
+
+  it('is the time the middle of the path took, and 0 with no path', () => {
+    // Even motion from 0 to 1 over 100 ms: 10 % to 90 % of the path is 80 ms.
+    expect(motionSpanMs(at([[0, 0, 0], [100, 1, 0]]), W)).toBeCloseTo(80, 9);
+    // Still ends add no path, so they do not lengthen the span.
+    expect(motionSpanMs(at([[0, 0, 0], [500, 0, 0], [600, 1, 0], [1100, 1, 0]]), W)).toBeCloseTo(80, 9);
+    expect(motionSpanMs(at([[0, 1, 1], [100, 1, 1]]), W)).toBe(0);
+  });
+
+  it('adds no path for a step that misses a weighted feature, and refuses a tail outside (0, 0.5)', () => {
+    const gap = at([[0, 0, 0], [100, 1, 0], [200, 2, 0]]);
+    gap[1].vector.y = NaN;
+    expect(motionSpanMs(gap, W)).toBe(0);
+    expect(() => motionSpanMs(at([[0, 0, 0], [100, 1, 0]]), W, 0.5)).toThrow(/tail/);
+  });
+});
+
 describe('buildGestureModel', () => {
   it('learns every taught gesture from its five traces, each with a radius', () => {
     expect(TRAINING.length).toBe(20);
@@ -178,7 +199,7 @@ describe('buildGestureModel', () => {
     for (const g of MODEL.gestures) {
       expect(g.templates).toHaveLength(5);
       expect(g.radius).toBeGreaterThanOrEqual(MATCHER_DEFAULTS.minRadius);
-      expect(g.durationMs).toBeGreaterThan(WAVE_SCRIPT.waveMs * 0.8);
+      expect(g.motionSpanMs).toBeGreaterThan(WAVE_SCRIPT.waveMs * 0.4);
     }
   });
 
@@ -305,8 +326,8 @@ describe('the radius rule, on hand-made series', () => {
     // nearer the tight one by distance (0.4 against 0.6) but far nearer the loose one by ratio.
     const model: GestureModel = {
       gestures: [
-        { gesture: 'tight', templates: [series(0)], radius: 0.1, durationMs: 165, motionSpanMs: 132, amplitude: 1 },
-        { gesture: 'loose', templates: [series(1)], radius: 1, durationMs: 165, motionSpanMs: 132, amplitude: 1 },
+        { gesture: 'tight', templates: [series(0)], radius: 0.1, motionSpanMs: 132, amplitude: 1 },
+        { gesture: 'loose', templates: [series(1)], radius: 1, motionSpanMs: 132, amplitude: 1 },
       ],
       skipped: [],
       series: unscaled,

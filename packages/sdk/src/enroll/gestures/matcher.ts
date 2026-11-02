@@ -153,7 +153,6 @@ export interface GestureTemplates {
   templates: Series[];
   /** Median distance from a template to its nearest sibling, floored by `minRadius`. */
   radius: number;
-  durationMs: number;
   /** The templates' median motion span (`series.ts`), the speed's reference. */
   motionSpanMs: number;
   amplitude: number;
@@ -264,7 +263,6 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
       gesture,
       templates,
       radius,
-      durationMs: median(templates.map((s) => s.durationMs)),
       motionSpanMs: median(templates.map((s) => s.motionSpanMs)),
       amplitude,
     });
