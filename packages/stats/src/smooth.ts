@@ -121,7 +121,11 @@ export interface OneEuro2DOutput extends Point2 {
 }
 
 export interface OneEuro2D {
-  /** Fold in the point (`x`, `y`) captured at `t` seconds (non-decreasing) and return the smoothed one. */
+  /**
+   * Fold in the point (`x`, `y`) captured at `t` seconds (non-decreasing) and return the smoothed
+   * one. A repeated stamp or a non-finite value is skipped: the previous output is returned (NaN
+   * before the first finite point).
+   */
   push(t: number, x: number, y: number): OneEuro2DOutput;
   reset(): void;
   retune(options: OneEuro2DOptions): void;
@@ -147,6 +151,9 @@ export function createOneEuro2D(options: OneEuro2DOptions = {}): OneEuro2D {
   const out = (): OneEuro2DOutput => (predict > 0 ? { x, y, predicted: { x: x + vx * predict, y: y + vy * predict } } : { x, y });
   return {
     push(t, rawX, rawY) {
+      // A non-finite reading (a lost landmark, a bad stamp) is no observation: the previous
+      // output again, rather than a NaN that would re-seed the filter and snap on the next one.
+      if (!Number.isFinite(t) || !Number.isFinite(rawX) || !Number.isFinite(rawY)) return out();
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
         x = rawX;
         y = rawY;
