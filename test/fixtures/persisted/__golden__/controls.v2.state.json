@@ -629,6 +629,13 @@
     "muteFollowsMaster": true,
     "port": ""
   },
+  "musicContext": {
+    "fit": "flavour",
+    "horizonBeats": 4,
+    "lookAheadBeats": 1,
+    "scaleFrom": "dials"
+  },
+  "musicContextActive": null,
   "muted": false,
   "octaveShift": 0,
   "overlay": {

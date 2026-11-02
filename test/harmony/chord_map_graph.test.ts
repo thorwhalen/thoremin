@@ -19,7 +19,7 @@ import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { chordMapTake, W, H } from './synthetic_chord_map';
-import { HARMONY } from '../helpers/extensions';
+import { HARMONY, MUSIC } from '../helpers/extensions';
 
 const VOICE = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
 const tonic = () => layoutCells('harmonic', chordMapRegions('left', 0.65).chords, { aspect: W / H, cellSize: 0.2 }).find((c) => c.q === 0 && c.r === 0)!;
@@ -32,7 +32,9 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     expect(g.nodes.some((n) => n.id === 'chordMap' && n.type === 'chord-map')).toBe(true);
     expect(g.nodes.find((n) => n.id === 'chordStrumOut')?.params).toMatchObject({ timbre: 'guitar', mono: false });
     expect(has('ui', 'chordMap', 'chordMap', 'config')).toBe(true);
-    expect(has('ui', 'chordSpec', 'chordMap', 'spec')).toBe(true);
+    // The key: the bridge's chord-source scale, through the musical context's interposer when the
+    // build has it (#934, rule 6 of composeGraph).
+    expect(has(MUSIC ? 'musicScale' : 'ui', 'chordSpec', 'chordMap', 'spec')).toBe(true);
     expect(has('ui', 'chordConfig', 'chordMap', 'chordConfig')).toBe(true);
     expect(has('ui', 'octaveShift', 'chordMap', 'octaveShift')).toBe(true);
     expect(has('dwelled', 'hands', 'chordMap', 'hands')).toBe(true); // through the handedness dwell (#314)
@@ -41,7 +43,7 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     expect(g.edges.some((e) => e.from.node === 'chordMap' && e.from.port === 'params' && e.to.node === 'merge')).toBe(true);
     // Every input the node declares is connected: none left to its default by accident.
     const inbound = new Set(g.edges.filter((e) => e.to.node === 'chordMap').map((e) => e.to.port));
-    expect([...inbound].sort()).toEqual(['audio', 'chordConfig', 'conductorTime', 'config', 'face', 'hands', 'midi', 'octaveShift', 'ratings', 'signs', 'spec', 'time']);
+    expect([...inbound].sort()).toEqual(['audio', 'chordConfig', 'conductorTime', 'config', 'face', 'hands', 'midi', ...(MUSIC ? ['music'] : []), 'octaveShift', 'ratings', 'signs', 'spec', 'time']);
     expect(has('conductor', 'time', 'chordMap', 'conductorTime')).toBe(true); // the conductor's beat (H9), while conducting
     expect(has('ui', 'chordMapAudio', 'chordMap', 'audio')).toBe(true); // the microphone's chroma (H8)
     expect(has('songPlayer', 'songTime', 'chordMap', 'time')).toBe(true); // the song's beat (H9)

@@ -13,7 +13,7 @@ import { defaultGraph } from '@/app/graph';
 import { DEFAULT_AIR_BASS } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { bassTake } from './synthetic_bass';
-import { AIR } from '../helpers/extensions';
+import { AIR, hasExtension } from '../helpers/extensions';
 
 describe.runIf(AIR)('air bass in the default graph', () => {
   it('wires the dial, the hands, the scale and the notes — the #249 guard', () => {
@@ -24,7 +24,8 @@ describe.runIf(AIR)('air bass in the default graph', () => {
     expect(g.nodes.some((n) => n.id === 'bassOut' && n.type === 'pluck-out')).toBe(true);
     expect(has('ui', 'airBass', 'airBass', 'config')).toBe(true);
     expect(has('dwelled', 'hands', 'airBass', 'hands')).toBe(true);
-    expect(has('ui', 'scaleRight', 'airBass', 'scale')).toBe(true);
+    // Through the musical context's interposer on the scales when the build has it (#934).
+    expect(has(hasExtension('music-context') ? 'musicScale' : 'ui', 'scaleRight', 'airBass', 'scale')).toBe(true);
     expect(has('ui', 'octaveShift', 'airBass', 'octaveShift')).toBe(true);
     expect(has('airBass', 'notes', 'bassOut', 'notes')).toBe(true);
     const inbound = (id: string) => new Set(g.edges.filter((e) => e.to.node === id).map((e) => e.to.port));

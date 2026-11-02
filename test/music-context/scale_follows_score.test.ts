@@ -1,11 +1,13 @@
 /**
  * The acceptance of the musical context (#934): a MusicXML piece that modulates switches the
- * instrument's scale on the bar line. The composed graph's own nodes and edges (the bridge, the
- * `music-context` node, the delayed edge that hands the scale back to the bridge) are run headless,
- * with a stand-in for the conductor's clock playing the generated study (C major, G major from
- * bar 5 at 10 s, F major from bar 9 at 20 s; 96 bpm), at 60 Hz and at a 30 fps camera's ragged
- * ticks. The scale must be the old key on the last tick before each bar line and the new one on the
- * first tick at or after it.
+ * instrument's scale on the bar line. The composed graph's own nodes and edges are run headless (the
+ * bridge, the `music-context` node and the `music-scale` interposer that rule 6 of `composeGraph`
+ * stands on the bridge's scale ports), with a stand-in for the conductor's clock playing the
+ * generated study (C major, G major from bar 5 at 10 s, F major from bar 9 at 20 s; 96 bpm), at
+ * 60 Hz and at a 30 fps camera's ragged ticks. The scale every consumer reads must be the old key on
+ * the last tick before each bar line and the new one on the first tick at or after it; and, since
+ * nothing is predicted, a clock that waits just short of a bar line, jumps back, or crosses a tempo
+ * change never switches early.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -18,50 +20,66 @@ import { branchIdsFor, composeInstrumentGraph } from '@/app/graph';
 import { useControls } from '@/app/store';
 import { musicxmlToScoreDoc } from '@thoremin/music-formats/musicxml';
 import { contextFromScore } from '@thoremin/sdk/context/from_score';
+import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import type { ActiveContext, MusicChordReading, MusicContextStatus } from '@thoremin/sdk/context/reading';
-import { chordScaleInKey, keyInForce, scaleInKey, type ScaleOverride } from '@thoremin/sdk/context/scale';
-import { withScaleOverride } from '@/host/storeControls';
+import { chordScaleInKey, dialsInKey, scaleInKey, scalePorts, scalePortsInKey } from '@thoremin/sdk/context/scale';
 import { MUSIC } from '../helpers/extensions';
 
 const STUDY = join(__dirname, '..', '..', 'public', 'scores', 'modulation-study.musicxml');
 const BPM = 96;
 const BAR_5 = 10;
 const BAR_9 = 20;
+const study = (): ScoreDoc => musicxmlToScoreDoc(new Uint8Array(readFileSync(STUDY)));
 
-/** The conductor's clock, as a node: a running beat at a steady tempo from t = 0 (or held). */
-const clockNode = defineNode<{ state: string; heldBeat: number }>({
+/** The beat a clock stands at, given the tick's time. */
+type Script = (t: number) => { beat: number; state: MusicalTime['state']; tempo?: number };
+const SCRIPTS: Record<string, Script> = {
+  steady: (t) => ({ beat: (t * BPM) / 60, state: 'running' }),
+  // A conductor waiting for the downbeat of bar 5: running, held just short of beat 16 from 9.9 s to 11 s.
+  waiting: (t) => ({ beat: t < 9.9 ? (t * BPM) / 60 : t < 11 ? Math.min((t * BPM) / 60, 16 - 1e-3) : 16 + ((t - 11) * BPM) / 60, state: 'running' }),
+  // A jump back to the top at 12 s (a restart), from bar 5's key to bar 1's.
+  restart: (t) => ({ beat: t < 12 ? (t * BPM) / 60 : ((t - 12) * BPM) / 60, state: 'running' }),
+  // Held in bar 6 (a fermata).
+  held: () => ({ beat: 21, state: 'hold', tempo: 0 }),
+};
+
+/** The conductor's clock, as a node: its beat by a script of the tick's time. */
+const clockNode = defineNode<{ script: string }>({
   type: 'test-conductor-clock',
   title: 'Test clock',
-  description: 'A steady musical time.',
+  description: 'A scripted musical time.',
   inputs: [],
   outputs: [{ name: 'time', kind: 'musical-time' }],
-  params: z.object({ state: z.string().default('running'), heldBeat: z.number().default(0) }),
+  params: z.object({ script: z.string().default('steady') }),
   make: (p) => ({
     process: (_i, ctx) => {
-      const beat = p.state === 'running' ? (ctx.time * BPM) / 60 : p.heldBeat;
-      const time: MusicalTime = { t: ctx.time, beat, phase: beat % 1, tempo: BPM, period: 60 / BPM, confidence: 1, nextBeatAt: ctx.time + (1 - (beat % 1)) * (60 / BPM), beatsPerBar: 4, beatInBar: Math.floor(beat) % 4, state: p.state as MusicalTime['state'], anchors: 8 };
+      const { beat, state, tempo = BPM } = SCRIPTS[p.script](ctx.time);
+      const time: MusicalTime = { t: ctx.time, beat, phase: beat % 1, tempo, period: 60 / BPM, confidence: 1, nextBeatAt: ctx.time + (1 - (beat % 1)) * (60 / BPM), beatsPerBar: 4, beatInBar: Math.floor(beat) % 4, state, anchors: 8 };
       return { time };
     },
   }),
 });
 
-const KEEP = ['ui', 'musicContext'];
+const KEEP = ['ui', 'musicContext', 'musicScale', 'map'];
 
-/** The composed graph for an instrument whose scale follows the music, cut to the bridge and the
- *  node, plus the stand-in clock on the conductor's id. */
-function spec(registry: ReturnType<typeof createAppRegistry>, state = 'running', heldBeat = 0): GraphSpec {
+/** The composed graph for an instrument whose scale follows the music, cut to the bridge, the
+ *  node, the interposer and one consumer (the voice mapping), plus the clock on the conductor's id. */
+function spec(registry: ReturnType<typeof createAppRegistry>, script: string): GraphSpec {
   const ids = branchIdsFor({ musicContext: { scaleFrom: 'music' } });
   expect(ids).toContain('music-context');
   const { spec: s } = composeInstrumentGraph(ids, { source: 'synthetic-hands' }, registry);
-  const delayed = s.edges.find((e) => e.from.node === 'musicContext' && e.to.node === 'ui');
-  expect(delayed).toMatchObject({ from: { port: 'scale' }, to: { port: 'scaleOverride' }, delayed: true });
+  // Rule 6: the voice mapping reads the interposer's scales, the interposer the bridge's.
+  expect(s.edges.find((e) => e.to.node === 'map' && e.to.port === 'scaleRight')?.from).toEqual({ node: 'musicScale', port: 'scaleRight' });
+  expect(s.edges.find((e) => e.to.node === 'musicScale' && e.to.port === 'scaleRight')?.from).toEqual({ node: 'ui', port: 'scaleRight' });
+  expect(s.edges.filter((e) => e.from.node === 'ui' && e.from.port === 'chordSpec').every((e) => e.to.node === 'musicScale')).toBe(true);
   return {
-    nodes: [...s.nodes.filter((n) => KEEP.includes(n.id)), { id: 'conductor', type: 'test-conductor-clock', params: { state, heldBeat } }],
-    edges: [...s.edges.filter((e) => KEEP.includes(e.from.node) && KEEP.includes(e.to.node)), { from: { node: 'conductor', port: 'time' }, to: { node: 'musicContext', port: 'conductorTime' } }],
+    nodes: [...s.nodes.filter((n) => KEEP.includes(n.id) && n.id !== 'map'), { id: 'conductor', type: 'test-conductor-clock', params: { script } }],
+    edges: [...s.edges.filter((e) => KEEP.includes(e.from.node) && KEEP.includes(e.to.node) && e.to.node !== 'map'), { from: { node: 'conductor', port: 'time' }, to: { node: 'musicContext', port: 'conductorTime' } }],
   };
 }
 
 const pcs = (scale: readonly number[]) => [...new Set(scale.map((n) => ((n % 12) + 12) % 12))].sort((a, b) => a - b);
+const same = (a: readonly number[], b: readonly number[]) => JSON.stringify(a) === JSON.stringify(b);
 const C_PENTA = [0, 2, 4, 7, 9];
 const G_PENTA = [2, 4, 7, 9, 11];
 const F_PENTA = [0, 2, 5, 7, 9];
@@ -73,28 +91,27 @@ interface Tick {
   status: MusicContextStatus | undefined;
 }
 
-async function play(times: readonly number[], { scaleFrom = 'music', fit = 'flavour', state = 'running', heldBeat = 0 }: { scaleFrom?: string; fit?: string; state?: string; heldBeat?: number } = {}): Promise<Tick[]> {
+async function play(times: readonly number[], { scaleFrom = 'music', fit = 'flavour', script = 'steady', doc = study() }: { scaleFrom?: string; fit?: string; script?: string; doc?: ScoreDoc } = {}): Promise<Tick[]> {
   const registry = createAppRegistry();
   registry.register(clockNode);
-  const doc = musicxmlToScoreDoc(new Uint8Array(readFileSync(STUDY)));
   const active: ActiveContext = { context: contextFromScore(doc), clock: 'conductor' };
   const base = useControls.getState();
-  // The dials: a C major pentatonic (the default), the music owning the scale.
+  // The dials: a C major pentatonic, the music owning the scale.
   const snapshot = { ...base, right: { ...base.right, root: 0, type: 'pentatonic' as const }, left: { ...base.left, root: 0, type: 'pentatonic' as const }, musicContext: { scaleFrom, fit, lookAheadBeats: 1, horizonBeats: 4 }, musicContextActive: active };
-  const engine = new Engine(spec(registry, state, heldBeat), registry, { resources: { controls: () => snapshot } });
+  const engine = new Engine(spec(registry, script), registry, { resources: { controls: () => snapshot } });
   await engine.init();
   return times.map((t) => {
     engine.tick(t);
     return {
       t,
-      scale: pcs((engine.getOutput('ui', 'scaleRight') as number[] | undefined) ?? []),
+      scale: pcs((engine.getOutput('musicScale', 'scaleRight') as number[] | undefined) ?? []),
       chord: engine.getOutput('musicContext', 'chord') as MusicChordReading | undefined,
       status: engine.getOutput('musicContext', 'status') as MusicContextStatus | undefined,
     };
   });
 }
 
-/** Tick times from 0 to `until` at `hz`, each moved by a jitter of up to `jitter` seconds. */
+/** Tick times from about 0 to `until` at `hz`, each moved by a jitter of up to `jitter` seconds. */
 function ticks(hz: number, until: number, jitter = 0): number[] {
   const out: number[] = [];
   for (let i = 0, t = 0.0137; t < until; i++, t = 0.0137 + i / hz + (jitter ? jitter * Math.sin(i * 12.9898) : 0)) out.push(t);
@@ -114,11 +131,10 @@ describe.runIf(MUSIC)('the instrument scale follows a modulating score', () => {
     expect(run[0].scale).toEqual(C_PENTA);
     switches(run, BAR_5, C_PENTA, G_PENTA);
     switches(run, BAR_9, G_PENTA, F_PENTA);
-    // Never a stray scale in between.
-    expect(run.every((r) => [C_PENTA, G_PENTA, F_PENTA].some((s) => JSON.stringify(s) === JSON.stringify(r.scale)))).toBe(true);
+    expect(run.every((r) => [C_PENTA, G_PENTA, F_PENTA].some((s) => same(s, r.scale)))).toBe(true);
   });
 
-  it('switches on the bar line at a 30 fps camera\'s ragged ticks too', async () => {
+  it("switches on the bar line at a 30 fps camera's ragged ticks too", async () => {
     const run = await play(ticks(30, 24, 0.004));
     switches(run, BAR_5, C_PENTA, G_PENTA);
     switches(run, BAR_9, G_PENTA, F_PENTA);
@@ -129,7 +145,25 @@ describe.runIf(MUSIC)('the instrument scale follows a modulating score', () => {
     switches(run, BAR_9, [0, 2, 4, 6, 7, 9, 11], [0, 2, 4, 5, 7, 9, 10]);
   });
 
-  it('announces the next chord one beat ahead, timed to its bar line', async () => {
+  it('never switches early while a conductor waits just short of the bar line for the downbeat', async () => {
+    const run = await play(ticks(60, 12), { script: 'waiting' });
+    expect(run.filter((r) => r.t < 11).every((r) => same(r.scale, C_PENTA))).toBe(true);
+    expect(run.find((r) => r.t >= 11)!.scale).toEqual(G_PENTA);
+  });
+
+  it('follows a jump back to the top on the tick it happens', async () => {
+    const run = await play(ticks(60, 13), { script: 'restart' });
+    expect(run.filter((r) => r.t >= BAR_5 && r.t < 12).every((r) => same(r.scale, G_PENTA))).toBe(true);
+    expect(run.filter((r) => r.t >= 12).every((r) => same(r.scale, C_PENTA))).toBe(true);
+  });
+
+  it('plays the music\'s key from the first tick, whatever the dials say', async () => {
+    const doc = { ...study(), keys: [{ beat: 0, fifths: -3, mode: 'major' as const }] };
+    const run = await play(ticks(60, 1), { doc });
+    expect(run[0].scale).toEqual([0, 3, 5, 7, 10]); // E-flat major pentatonic
+  });
+
+  it('announces the next chord one beat ahead, timed to its bar line, across a tempo change', async () => {
     const run = await play(ticks(60, 11));
     const announcing = run.filter((r) => r.chord?.next?.name === 'G');
     expect(announcing.length).toBeGreaterThan(0);
@@ -138,21 +172,22 @@ describe.runIf(MUSIC)('the instrument scale follows a modulating score', () => {
     for (const r of announcing) expect(r.chord!.next!.at).toBeCloseTo(BAR_5, 6);
     expect(run.find((r) => r.t >= BAR_5)!.chord!.name).toBe('G');
     expect(run.at(-1)!.status).toMatchObject({ active: true, source: 'score', clock: 'conductor', moving: true, key: 'G major', ownsScale: true });
+    // The score halves its marked tempo at bar 5: the clock's beats are what land the chord, so the
+    // announcement still says 10 s.
+    const halved = await play(ticks(60, 10.2), { doc: { ...study(), tempoMap: [{ beat: 0, bpm: 96 }, { beat: 16, bpm: 48 }] } });
+    for (const r of halved.filter((x) => x.chord?.next?.name === 'G')) expect(r.chord!.next!.at).toBeCloseTo(BAR_5, 6);
   });
 
   it('leaves the scale to the dials while they own it', async () => {
     const run = await play(ticks(60, 12), { scaleFrom: 'dials' });
-    expect(run.every((r) => JSON.stringify(r.scale) === JSON.stringify(C_PENTA))).toBe(true);
+    expect(run.every((r) => same(r.scale, C_PENTA))).toBe(true);
     expect(run.at(-1)!.status).toMatchObject({ key: 'G major', ownsScale: false });
   });
 
   it('holds where the music holds: a held clock keeps its key and announces nothing', async () => {
-    // Held in bar 6 (a fermata): the key of bar 6 throughout, no change timed.
-    const run = await play(ticks(60, 3), { state: 'hold', heldBeat: 21 });
+    const run = await play(ticks(60, 3), { script: 'held' });
     expect(run.every((r) => r.chord?.next === null)).toBe(true);
-    // The first tick is the dials' scale: the override reaches the bridge on the next one.
-    expect(run[0].scale).toEqual(C_PENTA);
-    expect(run.slice(1).every((r) => JSON.stringify(r.scale) === JSON.stringify(G_PENTA))).toBe(true);
+    expect(run.every((r) => same(r.scale, G_PENTA))).toBe(true);
     expect(run.at(-1)!.status).toMatchObject({ moving: false, key: 'G major', chord: 'C' });
   });
 });
@@ -170,15 +205,16 @@ describe('fitting the dials to the music', () => {
     expect(chordScaleInKey({ tonic: 9, mode: 'minor' })).toEqual({ root: 9, type: 'minor' });
   });
 
-  it('picks the key by the reading tick, and rewrites the snapshot without touching the register', () => {
-    const o: ScaleOverride = { key: { tonic: 0, mode: 'major' }, next: { key: { tonic: 7, mode: 'major' }, at: 10 }, fit: 'flavour' };
-    expect(keyInForce(o, 9.999).tonic).toBe(0);
-    expect(keyInForce(o, 10).tonic).toBe(7);
+  it('keeps the register and pins the chord source, and computes the ports the bridge does', () => {
     const base = useControls.getState();
-    const snapshot = { ...base, right: { ...base.right, type: 'pentatonic' as const, baseOctave: 4 } };
-    const out = withScaleOverride(snapshot, o, 10.01);
-    expect(out.right).toMatchObject({ root: 7, type: 'pentatonic', baseOctave: 4 });
+    const dials = { ...base, right: { ...base.right, type: 'pentatonic' as const, baseOctave: 4 } };
+    const out = dialsInKey(dials, { key: { tonic: 7, mode: 'major' }, fit: 'flavour' });
+    expect(out.right).toMatchObject({ root: 7, type: 'pentatonic', baseOctave: 4, octaves: dials.right.octaves });
     expect(out.faceChord).toMatchObject({ chordSource: 'custom', chordRoot: 7, chordType: 'major' });
-    expect(withScaleOverride(snapshot, null, 10)).toBe(snapshot);
+    expect(dials.right.root).toBe(base.right.root); // the dials are not written
+    const ports = scalePortsInKey(dials, { key: { tonic: 7, mode: 'major' }, fit: 'flavour' });
+    expect(ports.chordSpec).toMatchObject({ root: 7, type: 'major', baseOctave: 4 });
+    expect(pcs(ports.scaleRight)).toEqual(G_PENTA);
+    expect(scalePorts(dials).rightSpec).toMatchObject({ root: base.right.root, type: 'pentatonic' });
   });
 });

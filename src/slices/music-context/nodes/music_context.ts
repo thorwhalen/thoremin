@@ -7,10 +7,10 @@
  * the position stays; with no clock (nothing playing yet) it is the start.
  *
  * Out:
- * - `scale`: while the dial says the instrument's scale follows the music, the key in force for
- *   `store-controls` (`ScaleOverride`), with the next key and the engine time it lands while the
- *   music moves, so the reader (a tick late, on a delayed edge) switches on the first tick at or
- *   after it; null while the dials own the scale.
+ * - `scale`: while the dial says the instrument's scale follows the music, the key in force at this
+ *   tick's position (`ScaleOverride`), for the `music-scale` interposer on the bridge's scale ports
+ *   in the same tick; null while the dials own the scale. Nothing is predicted: a clock held just
+ *   short of a bar line (a conductor waiting for the downbeat) keeps the old key.
  * - `chord`'s next chord is announced within the look-ahead (`lookAheadBeats`, one beat by
  *   default), with its time, so a consumer can land it on its beat.
  * - `key`, `chord`: the key and chord in force, the chord with the next one and its time.
@@ -25,7 +25,7 @@ import { defineNode, type NodeContext } from '@thoremin/dag';
 import type { MusicalTime } from '@thoremin/ictus';
 import { chordName, type Chord } from '@thoremin/sdk/harmony/chord';
 import { keyName } from '@thoremin/sdk/music/theory';
-import { chordAt, expectations, keyAt, nextSpan, secondsOfBeat } from '@thoremin/sdk/context/cursor';
+import { beatOfSeconds, chordAt, expectations, keyAt, nextSpan, secondsOfBeat } from '@thoremin/sdk/context/cursor';
 import { keyAsScale, type ScaleOverride } from '@thoremin/sdk/context/scale';
 import { IDLE_MUSIC_CONTEXT_STATUS, type ActiveContext, type MusicChordReading, type MusicContextStatus, type MusicKeyReading, type TimedExpectation } from '@thoremin/sdk/context/reading';
 import type { KeyRegion, MusicalContext } from '@thoremin/sdk/context/schema';
@@ -33,28 +33,29 @@ import { DEFAULT_MUSIC_CONTEXT, type MusicContextSettings } from '../schema';
 
 const Params = z.object({});
 
-/** Where the music is: song seconds now, and song seconds per engine second (0 = not moving). */
+/** Where the music is: song seconds now, the ruler's beat now, and the clock's beats per engine
+ *  second (0 = not moving). */
 export interface MusicPosition {
   s: number;
-  speed: number;
   /** The ruler's beat now (NaN without a ruler). */
   beat: number;
+  beatsPerSecond: number;
 }
 
 /** The position of `time` on `ctx`'s ruler at engine time `now`. */
 export function positionOf(ctx: MusicalContext, time: MusicalTime | null | undefined, now: number): MusicPosition {
-  if (!time || !Number.isFinite(time.beat) || ctx.beats.length < 2) return { s: 0, speed: 0, beat: time && Number.isFinite(time.beat) ? time.beat : 0 };
+  if (!time || !Number.isFinite(time.beat) || ctx.beats.length < 2) return { s: 0, beat: NaN, beatsPerSecond: 0 };
   const running = time.state === 'running' && Number.isFinite(time.tempo) && time.tempo > 0;
   const beat = running ? time.beat + (Math.max(0, now - time.t) * time.tempo) / 60 : time.beat;
-  const s = secondsOfBeat(ctx, beat);
-  if (!running) return { s, speed: 0, beat };
-  // Song seconds per beat here, times beats per engine second.
-  const perBeat = secondsOfBeat(ctx, beat + 0.5) - secondsOfBeat(ctx, beat - 0.5);
-  return { s, speed: perBeat > 0 ? (perBeat * time.tempo) / 60 : 0, beat };
+  return { s: secondsOfBeat(ctx, beat), beat, beatsPerSecond: running ? time.tempo / 60 : 0 };
 }
 
-/** The engine time song seconds `t` is reached, moving at `pos.speed` (Infinity when still). */
-const engineTimeOf = (pos: MusicPosition, t: number, now: number) => (pos.speed > 0 ? now + (t - pos.s) / pos.speed : Infinity);
+/** The engine time song seconds `t` is reached at the clock's tempo, counted in the ruler's beats
+ *  (exact across the timeline's own tempo changes); Infinity while the music is still. */
+function engineTimeOf(ctx: MusicalContext, pos: MusicPosition, t: number, now: number): number {
+  if (!(pos.beatsPerSecond > 0) || !Number.isFinite(pos.beat)) return Infinity;
+  return now + (beatOfSeconds(ctx, t) - pos.beat) / pos.beatsPerSecond;
+}
 
 function keyReading(k: KeyRegion): MusicKeyReading {
   const scale = keyAsScale(k);
@@ -99,18 +100,12 @@ export const musicContextNode = defineNode<z.infer<typeof Params>>({
         const lookAheadS = ahead(c.lookAheadBeats);
 
         const k = keyAt(music, pos.s);
-        // The next key is always handed on while the music moves, however far: `store-controls` reads
-        // this a tick late and needs the time to switch on the tick the change is due.
-        const nk = nextSpan(music.keys, pos.s);
-        const nkAt = nk ? engineTimeOf(pos, nk.start, now) : Infinity;
         const owns = c.scaleFrom === 'music' && k !== null;
-        const scale: ScaleOverride | null = owns
-          ? { key: { tonic: k.tonic, mode: k.mode }, ...(nk && Number.isFinite(nkAt) ? { next: { key: { tonic: nk.tonic, mode: nk.mode }, at: nkAt } } : {}), fit: c.fit }
-          : null;
+        const scale: ScaleOverride | null = owns ? { key: { tonic: k.tonic, mode: k.mode }, fit: c.fit } : null;
 
         const span = chordAt(music, pos.s);
         const nc = nextSpan(music.chords, pos.s);
-        const ncAt = nc && nc.start - pos.s <= lookAheadS ? engineTimeOf(pos, nc.start, now) : Infinity;
+        const ncAt = nc && nc.start - pos.s <= lookAheadS ? engineTimeOf(music, pos, nc.start, now) : Infinity;
         const chord: MusicChordReading = {
           chord: span?.chord ?? null,
           name: span ? nameIn(span.chord, k) : null,
@@ -118,13 +113,13 @@ export const musicContextNode = defineNode<z.infer<typeof Params>>({
           next: nc && Number.isFinite(ncAt) ? { chord: nc.chord, name: nameIn(nc.chord, keyAt(music, nc.start)), at: ncAt } : null,
         };
 
-        const coming: TimedExpectation[] = expectations(music, pos.s, ahead(c.horizonBeats)).map((e) => ({ ...e, at: engineTimeOf(pos, e.t, now) }));
+        const coming: TimedExpectation[] = expectations(music, pos.s, ahead(c.horizonBeats)).map((e) => ({ ...e, at: engineTimeOf(music, pos, e.t, now) }));
         const key = k ? keyReading(k) : null;
         const status: MusicContextStatus = {
           active: true,
           source: music.source,
           clock: active.clock,
-          moving: pos.speed > 0,
+          moving: pos.beatsPerSecond > 0,
           position: pos.s,
           key: key?.name ?? null,
           chord: chord.name,

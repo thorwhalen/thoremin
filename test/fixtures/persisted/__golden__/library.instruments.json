@@ -605,6 +605,12 @@
       "midi.enabled": false,
       "midi.muteFollowsMaster": true,
       "midi.port": "",
+      "musicContext": {
+        "fit": "flavour",
+        "horizonBeats": 4,
+        "lookAheadBeats": 1,
+        "scaleFrom": "dials"
+      },
       "overlay": {
         "bodySkeleton": {
           "show": true
@@ -1342,6 +1348,12 @@
       "midi.enabled": false,
       "midi.muteFollowsMaster": true,
       "midi.port": "",
+      "musicContext": {
+        "fit": "flavour",
+        "horizonBeats": 4,
+        "lookAheadBeats": 1,
+        "scaleFrom": "dials"
+      },
       "overlay": {
         "bodySkeleton": {
           "show": true

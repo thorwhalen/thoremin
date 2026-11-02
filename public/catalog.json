@@ -3180,6 +3180,64 @@
     "params": []
   },
   {
+    "type": "music-scale",
+    "title": "Scale from the music",
+    "description": "Stands on the instrument's scales: passes the settings' scales through, or, while the instrument follows the music, the same scales in the music's key.",
+    "roles": [
+      "music",
+      "control"
+    ],
+    "inputs": [
+      {
+        "name": "override",
+        "kind": "scale-override"
+      },
+      {
+        "name": "scaleRight",
+        "kind": "number[]"
+      },
+      {
+        "name": "scaleLeft",
+        "kind": "number[]"
+      },
+      {
+        "name": "rightSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordScale",
+        "kind": "number[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "scaleRight",
+        "kind": "number[]"
+      },
+      {
+        "name": "scaleLeft",
+        "kind": "number[]"
+      },
+      {
+        "name": "rightSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordSpec",
+        "kind": "scale-spec"
+      },
+      {
+        "name": "chordScale",
+        "kind": "number[]"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "one-euro",
     "title": "One-Euro Filter",
     "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",
@@ -4138,12 +4196,7 @@
       "source",
       "control"
     ],
-    "inputs": [
-      {
-        "name": "scaleOverride",
-        "kind": "scale-override"
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
         "name": "scaleRight",

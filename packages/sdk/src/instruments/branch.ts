@@ -95,6 +95,16 @@ export type BranchCategory = z.infer<typeof BranchCategorySchema>;
 export const BranchCategoryCaptionsSchema = z.object({ from: PortRefSchema, for: PortRefSchema });
 export type BranchCategoryCaptions = z.infer<typeof BranchCategoryCaptionsSchema>;
 
+/**
+ * An interposer a branch stands on a port (rule 6 of `composeGraph`): every edge out of `port` in
+ * the composed graph leaves from `through` instead, except the edges into `through`'s own node
+ * (the interposer reads the original there). It is how a branch changes what a port carries for
+ * everyone downstream in the same tick, without naming them (the music's key in place of the dials'
+ * scales).
+ */
+export const BranchInterposeSchema = z.object({ port: PortRefSchema, through: PortRefSchema });
+export type BranchInterpose = z.infer<typeof BranchInterposeSchema>;
+
 export const GraphBranchSchema = z.object({
   id: z.string().min(1),
   /** One line for the catalog and the composer's error messages. */
@@ -121,6 +131,8 @@ export const GraphBranchSchema = z.object({
   categoryCaptions: z.array(BranchCategoryCaptionsSchema).default([]),
   /** Overlay element ids this branch wants drawn (the overlay intersects with its dials). */
   overlay: z.array(z.string()).default([]),
+  /** Ports this branch stands an interposer on (rule 6 of `composeGraph`). */
+  interposes: z.array(BranchInterposeSchema).default([]),
   /** Feature-catalog group ids whose live demand implies this branch at runtime. */
   demands: z.array(z.string()).optional(),
   /**
