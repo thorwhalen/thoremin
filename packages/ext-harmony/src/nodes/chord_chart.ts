@@ -23,7 +23,7 @@ import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
 import type { SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
-import { chartAt, chartOfScore, type ChordChart } from '../lib/chord_chart';
+import { chartAt, chartOfScore, type ChordChart } from '@thoremin/sdk/score/chord_chart';
 import { definedOnly } from '@thoremin/sdk/util/options';
 
 /** The chart's voices: a block of their own (the chord map's is 4_000_000, the wheel's 5_000_000). */

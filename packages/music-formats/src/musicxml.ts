@@ -13,6 +13,9 @@
  * from the parsed score and the sidecar. A walk of the model is the fallback the map
  * names if this ever proves lossy; the seam is this one function.
  *
+ * The key signatures and chord symbols (`<key>`, `<harmony>`) are read from the parsed score and
+ * placed through the same sidecar (`./musicxml_harmony.ts`).
+ *
  * ABC notation (`./abc.ts`) is parsed by the same library into the same score model and takes
  * the same route (`scoreDocOf`).
  *
@@ -22,6 +25,7 @@
  */
 import { exportMidiWithTimingMap, getAllPartInfos, getDivisions, getDynamics, parseAuto } from 'musicxml-io/browser';
 import { midiToScoreDoc } from './midi';
+import { harmonyOf, keysOf, measureOccurrences } from './musicxml_harmony';
 import { dynamicValue, ScoreDocSchema, type DynamicMark, type ScoreDoc } from '@thoremin/sdk/score/schema';
 
 interface Breakpoint {
@@ -118,9 +122,14 @@ export function scoreDocOf(score: ReturnType<typeof parseAuto>, source: ScoreDoc
   }
   dynamics.sort((a, b) => a.beat - b.beat);
 
+  const occurrences = measureOccurrences(breakpoints, score.parts[0]?.measures ?? []);
+  const written = keysOf(score, occurrences);
+  const keys = written.length ? written : base.keys;
+  const harmony = harmonyOf(score, occurrences);
+
   const md = score.metadata;
   const docTitle = title?.trim() || [md.workTitle, md.movementTitle].filter((s) => s && s.trim()).join(' — ') || base.title;
   const firstSig = base.timeSignatures[0];
   const pickup = pickupOf(breakpoints, firstSig ? (firstSig.numerator * 4) / firstSig.denominator : 4);
-  return ScoreDocSchema.parse({ ...base, source, title: docTitle, dynamics, fermatas, ...(pickup > 0 ? { pickup } : {}) });
+  return ScoreDocSchema.parse({ ...base, source, title: docTitle, dynamics, fermatas, keys, harmony, ...(pickup > 0 ? { pickup } : {}) });
 }

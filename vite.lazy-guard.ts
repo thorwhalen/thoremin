@@ -17,6 +17,7 @@ export const LAZY_PACKAGES: readonly string[] = [
   'spessasynth_lib', // the orchestra's synth (#187 PR 5), via src/slices/conductor/app/orchestra_engine.ts
   'spessasynth_core', // its engine core, pulled in by spessasynth_lib
   '@tonejs/midi', // the MIDI score parser (#187 PR 3), via src/slices/conductor/score/midi.ts
+  'midi-file', // MIDI events read and written below @tonejs/midi (the key signatures), via the same module
   'musicxml-io', // the MusicXML score parser (#187 PR 3), via src/slices/conductor/score/musicxml.ts
   'signalsmith-stretch', // the song's time-stretch worklet (#187 PR 7), via src/slices/song/app/song_stretcher_signalsmith.ts
   'three', // a 3-D renderer, via @thoremin/ext-draw/lazy_ui (thorwhalen/thoremin-ar)

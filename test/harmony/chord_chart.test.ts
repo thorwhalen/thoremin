@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { loadScore } from '@/slices/conductor/score/load';
-import { chartAt, chartOfScore } from '@thoremin/ext-harmony/lib/chord_chart';
+import { chartAt, chartOfScore } from '@thoremin/sdk/score/chord_chart';
 import { chordChartNode, CHORD_CHART_VOICE_ID_BASE, type ChordChartStatus } from '@thoremin/ext-harmony/nodes/chord_chart';
 import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';

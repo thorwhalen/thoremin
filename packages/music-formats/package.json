@@ -9,12 +9,14 @@
     "./midi": "./src/midi.ts",
     "./musicxml": "./src/musicxml.ts",
     "./pack": "./src/pack.ts",
-    "./song_score": "./src/song_score.ts"
+    "./song_score": "./src/song_score.ts",
+    "./musicxml_harmony": "./src/musicxml_harmony.ts"
   },
   "dependencies": {
     "@thoremin/sdk": "*",
     "@tonejs/midi": "*",
-    "musicxml-io": "*",
-    "formatcast": "*"
+    "formatcast": "*",
+    "midi-file": "*",
+    "musicxml-io": "*"
   }
 }

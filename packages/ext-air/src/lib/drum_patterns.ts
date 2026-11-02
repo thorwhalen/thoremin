@@ -121,6 +121,8 @@ export function compilePattern(input: DrumPatternInput): DrumPattern {
     timeSignatures: [{ beat: 0, numerator: 4, denominator: 4 }],
     dynamics: [],
     fermatas: [],
+    keys: [],
+    harmony: [],
     lengthBeats,
   };
   return { id: input.id, name: input.name, description: input.description ?? '', bpm: input.bpm, stepsPerBeat, steps, lengthBeats, rows, events, score };
