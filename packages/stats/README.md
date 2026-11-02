@@ -1,6 +1,6 @@
 # @thoremin/stats
 
-The small pure statistics thoremin's timing code reads, written once: `quantileSorted` / `quantile` with the index rule stated at every call, `median` (and which middle an even sample takes), `median3`, `olsLine` (the centred least-squares line), `ewUpdate` (the NaN-seeded exponentially weighted step) and `clamp01`. A leaf package with no dependencies, imported by `@thoremin/sdk` (the timing resource, the glitch counter, the stamp de-jitter), by `@thoremin/ictus` (the impact predictor, the detector, the priors), by the air extension and by the latency probe.
+The small pure statistics thoremin's timing code reads, written once: `quantileSorted` / `quantile` with the index rule stated at every call, `median` (and which middle an even sample takes), `median3`, `olsLine` (the centred least-squares line), `ewUpdate` (the NaN-seeded exponentially weighted step), the 1-euro filter (`createOneEuro` for a scalar, `createOneEuro2D` for a point: one cutoff shared by both axes, the capture time as dt, an optional `predicted` point for a cursor dot) and `clamp01`. A leaf package with no dependencies, imported by `@thoremin/sdk` (the timing resource, the glitch counter, the stamp de-jitter), by `@thoremin/ictus` (the impact predictor, the detector, the priors), by the air extension and by the latency probe.
 
 ```ts
 import { quantile, median, olsLine } from '@thoremin/stats';
@@ -18,4 +18,4 @@ On a window of a few dozen samples the textbook quantile rules disagree by a who
 
 Stamps in milliseconds since page load sit near a million; the raw-sums determinant cancels badly there, the centred form does not. `olsLine` returns the residual sum of squares and the x spread so each caller states its own summary (an RMS over `n`, an sd over `n - 2`) and its own degeneracy threshold.
 
-Tests: `test/stats.test.ts`.
+Tests: `test/stats.test.ts`, `test/stats_one_euro_2d.test.ts`.
