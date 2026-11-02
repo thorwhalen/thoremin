@@ -146,20 +146,25 @@ export function dynamicValue(text: string): number | null {
 }
 
 /** The major key's tonic for a signature of `fifths` (C = 0, G = 7, F = 5). */
-const majorTonicOf = (fifths: number) => (((fifths * 7) % 12) + 12) % 12;
+const majorTonicOfFifths = (fifths: number) => (((fifths * 7) % 12) + 12) % 12;
 
 /** How far above the major tonic each mode's tonic sits, in semitones. */
 const MODE_OFFSET: Record<KeyMode, number> = { major: 0, ionian: 0, dorian: 2, phrygian: 4, lydian: 5, mixolydian: 7, minor: 9, aeolian: 9, locrian: 11 };
 
 /** The tonic pitch class a key signature names (A minor = 9, D dorian = 2). */
 export function tonicOf(key: Pick<KeySignature, 'fifths' | 'mode'>): number {
-  return (majorTonicOf(key.fifths) + MODE_OFFSET[key.mode]) % 12;
+  return (majorTonicOfFifths(key.fifths) + MODE_OFFSET[key.mode]) % 12;
+}
+
+/** The parent major key's tonic of a key given by its tonic and mode (A minor = C, D dorian = C). */
+export function majorTonicOf(key: { tonic: number; mode: KeyMode }): number {
+  return (((key.tonic - MODE_OFFSET[key.mode]) % 12) + 12) % 12;
 }
 
 /** The seven pitch classes of a key signature's scale, from its tonic (the major scale's,
  *  rotated to the mode). */
 export function keyPitchClasses(key: Pick<KeySignature, 'fifths' | 'mode'>): number[] {
-  const major = [0, 2, 4, 5, 7, 9, 11].map((i) => (majorTonicOf(key.fifths) + i) % 12);
+  const major = [0, 2, 4, 5, 7, 9, 11].map((i) => (majorTonicOfFifths(key.fifths) + i) % 12);
   const start = [0, 2, 4, 5, 7, 9, 11].indexOf(MODE_OFFSET[key.mode]);
   return [...major.slice(start), ...major.slice(0, start)];
 }

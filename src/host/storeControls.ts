@@ -8,6 +8,12 @@
  *
  * The injected getter returns a {@link ControlSnapshot}; if absent the node
  * emits nothing (safe in tests / before the host wires it up).
+ *
+ * Its one input, `scaleOverride` (`@thoremin/sdk/context/scale`), is how the music can own the
+ * scale: while a {@link ScaleOverride} arrives, the melody scales (both hands) and the chord-source
+ * scale are emitted in the music's key, each keeping its register (octaves, range) from the dials,
+ * and the dials are not written. The override arrives a tick late (a delayed edge from the
+ * `music-context` node), so the key is chosen by this tick's time (`keyInForce`).
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
@@ -16,6 +22,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
+import { chordScaleInKey, keyInForce, scaleInKey, SCALE_OVERRIDE_PORT, type ScaleOverride } from '@thoremin/sdk/context/scale';
 import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
 import type { FaceControlsDialParams } from '@/nodes/features/face_controls.schema';
 import type { ExtensionDials, ExtensionTransients } from '@/settings/schema';
@@ -111,6 +118,23 @@ export function hushOf(
   return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
 }
 
+/**
+ * The snapshot with the music's key in place of the dials' scales: both hands' root and kind fitted
+ * to the key, and the chord source pinned to the key's seven-note scale. Unchanged without an
+ * override.
+ */
+export function withScaleOverride(c: ControlSnapshot, override: ScaleOverride | null, now: number): ControlSnapshot {
+  if (!override) return c;
+  const key = keyInForce(override, now);
+  const chord = chordScaleInKey(key);
+  return {
+    ...c,
+    right: { ...c.right, ...scaleInKey(c.right, key, override.fit) },
+    left: { ...c.left, ...scaleInKey(c.left, key, override.fit) },
+    ...(c.faceChord ? { faceChord: { ...c.faceChord, chordSource: 'custom' as const, chordRoot: chord.root, chordType: chord.type } } : {}),
+  };
+}
+
 /** A slice's default value, parsed once. */
 const defaults = new WeakMap<DialSlice, unknown>();
 function sliceDefault(slice: DialSlice): unknown {
@@ -142,7 +166,7 @@ function defineStoreControls(extensions: readonly Extension[]) {
   roles: ['source', 'control'],
   title: 'UI Controls',
   description: 'Reads the live UI control store → scale + sound + overlay port values.',
-  inputs: [],
+  inputs: [SCALE_OVERRIDE_PORT],
   outputs: [
     { name: 'scaleRight', kind: 'number[]' },
     { name: 'scaleLeft', kind: 'number[]' },
@@ -200,10 +224,10 @@ function defineStoreControls(extensions: readonly Extension[]) {
     // What hushes the instrument's own voices besides core's rules (#600 S18a).
     const hushes = extensions.flatMap((e) => e.hushes ?? []);
     return {
-      process(_inputs, ctx: NodeContext) {
+      process(inputs, ctx: NodeContext) {
         const getter = ctx.resources.controls as (() => ControlSnapshot) | undefined;
         if (!getter) return {};
-        const c = getter();
+        const c = withScaleOverride(getter(), (inputs.scaleOverride as ScaleOverride | null | undefined) ?? null, ctx.time);
         const rightSpec: ScaleSpec = {
           root: c.right.root,
           type: c.right.type,

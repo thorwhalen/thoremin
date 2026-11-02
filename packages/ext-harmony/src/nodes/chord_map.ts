@@ -30,6 +30,9 @@
  * (`follow` = `signs`, ASL's reading on the `signs` input): a letter A..G held a moment lights the
  * chord of the key spelled on it (the ASL chords' rule, `letterDegree`: in D major F is F#m), the
  * harmony stays while other shapes pass, and the other hand plays the melody over it or strums it.
+ * So can the music itself (`follow` = `music`, the musical context's `chord` on the `music` input):
+ * the chord the timeline has in force (a score's symbol, or what its notes spell) lights its cell,
+ * with no dwell, since the music states it on its beat.
  *
  * It keeps time with the Chord sound's tempo or with the loaded song (`clock`, H9 of #613): the
  * arpeggio steps on the song's beats, and with `commit` = `beat` a held change waits for the
@@ -98,6 +101,7 @@ import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_event
 import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 import { definedOnly } from '@thoremin/sdk/util/options';
+import type { MusicChordReading } from '@thoremin/sdk/context/reading';
 
 export const CHORD_MAP_PLAY = ['hold', 'strum'] as const;
 export type ChordMapPlay = (typeof CHORD_MAP_PLAY)[number];
@@ -148,7 +152,7 @@ const PALM_POINTS = [LM.wrist, LM.index_mcp, LM.middle_mcp, LM.ring_mcp, LM.pink
 export const CHORD_MAP_IDIOMS = ['none', ...IDIOM_IDS] as [string, ...string[]];
 
 /** What chooses the map's chord. */
-export const CHORD_MAP_FOLLOW = ['hands', 'midi', 'audio', 'signs'] as const;
+export const CHORD_MAP_FOLLOW = ['hands', 'midi', 'audio', 'signs', 'music'] as const;
 
 const isLetter = (label: string | null | undefined): label is NoteLetter => !!label && (NOTE_LETTERS as readonly string[]).includes(label);
 
@@ -372,6 +376,8 @@ export const chordMapNode = defineNode<Params>({
     { name: 'face', kind: 'face-features' },
     // ASL's sign reading, while the map follows signs (`follow`): an optional edge.
     { name: 'signs', kind: 'category-scores' },
+    // The music's chord in force (the musical context), while the map follows the music (`follow`).
+    { name: 'music', kind: 'music-chord' },
   ],
   outputs: [
     { name: 'params', kind: 'synth-params' },
@@ -580,6 +586,10 @@ export const chordMapNode = defineNode<Params>({
         const audio = c.follow === 'audio' ? ((inputs.audio as AudioHeard | null | undefined) ?? null) : null;
         const signs = c.follow === 'signs' ? ((inputs.signs as CategoryScores | null | undefined) ?? null) : null;
         let heard: Chord | null = null;
+        if (c.follow === 'music') {
+          // The music states its chord on its beat: no dwell, nothing to confirm.
+          heard = ((inputs.music as MusicChordReading | null | undefined) ?? null)?.chord ?? null;
+        }
         if (c.follow === 'midi' || c.follow === 'audio' || c.follow === 'signs') {
           const dwell = c.follow === 'midi' ? c.midiDwellS : c.follow === 'audio' ? c.audioDwellS : c.signDwellS;
           const fKey = `${c.follow}|${dwell}`;
@@ -602,6 +612,11 @@ export const chordMapNode = defineNode<Params>({
             const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }, ownScale ? { qualities: [...CHROMA_QUALITIES, 'sus2', 'sus4', 'maj6'] } : {}) : null;
             heard = follower.pushChord(match && match.score >= AUDIO_MIN_SCORE && match.margin >= AUDIO_MIN_MARGIN ? match.chord : null, now);
           }
+        } else if (follower) {
+          follower = null;
+          followerKey = '';
+        }
+        if (c.follow !== 'hands') {
           const key = keyOf(spec);
           const d = !heard
             ? -1
@@ -610,9 +625,6 @@ export const chordMapNode = defineNode<Params>({
               : [keyChords(key), keyChords(key, 4)].reduce((found, set) => (found >= 0 ? found : set.findIndex((x) => x.root === heard!.root && x.quality === heard!.quality)), -1);
           const lit = choice.active !== null && placed[choice.active]?.degree === d ? choice.active : nearestOfDegree(placed, d, regions.chords);
           choice = { active: lit, candidate: null };
-        } else if (follower) {
-          follower = null;
-          followerKey = '';
         }
         const midiStatus: ChordMapStatus['midi'] =
           c.follow !== 'midi' ? 'off' : !midi || midi.reason === 'pending' ? 'waiting' : midi.reason === 'denied' ? 'denied' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';

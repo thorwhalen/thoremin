@@ -53,6 +53,8 @@ export const LAB = hasExtension('feature-lab');
 
 /** True when the build ships the physical theremin slice (the theremin through its physics). */
 export const THEREMIN = hasExtension('physical-theremin');
+/** The musical-context slice (#934): the timeline, the `music-context` node and `scaleFrom`. */
+export const MUSIC = hasExtension('music-context');
 
 /** The listening games slice (#866): Sing Along, Play Along Lessons, Match the Note and the timing take. */
 export const GAMES = hasExtension('audio-games');

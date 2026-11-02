@@ -157,7 +157,9 @@
     "./context/from_score": "./src/context/from_score.ts",
     "./context/cursor": "./src/context/cursor.ts",
     "./context/producer": "./src/context/producer.ts",
-    "./context/cache": "./src/context/cache.ts"
+    "./context/cache": "./src/context/cache.ts",
+    "./context/scale": "./src/context/scale.ts",
+    "./context/reading": "./src/context/reading.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

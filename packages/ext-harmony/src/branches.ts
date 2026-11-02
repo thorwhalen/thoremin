@@ -8,6 +8,7 @@ import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { SONG_PLAYER, TRUNK } from '@thoremin/sdk/instruments/trunk';
 import { overlayElementId, overlayPortName } from '@thoremin/sdk/instruments/extension';
 import { HARMONY_EXTENSION_ID } from './id';
+import { MUSIC_CONTEXT_BRANCH, MUSIC_CONTEXT_NODE_ID } from '@thoremin/sdk/context/reading';
 
 /** The chord map's overlay element (#610 item 4; it was core's `cellGrid`): this slice's own,
  *  drawn from its grid. */
@@ -187,4 +188,18 @@ export const chordChart = defineBranch({
   chords: [{ from: { node: 'chordChart', port: 'triad' }, priority: 7 }],
 });
 
-export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordMapSigns, chordWheel, chordWheelFace, chordWheelSigns, chordWheelCategorizer, chordWheelAffect, chordChart] as const;
+/**
+ * The music's chords choose the chord map's chord: the musical context's reading of the timeline
+ * (a score's chords, the player's chart) lights the chord in force, changing on its beat, while the
+ * hands play the melody over it or strum it. Composed only while the map follows the music;
+ * requires the musical-context slice's branch (left out of a build without it).
+ */
+export const chordMapMusic = defineBranch({
+  id: 'chord-map-music',
+  description: "The music's chords choose the chord map's chord: the chord written for this beat lights up, your other hand plays over it.",
+  requires: ['chord-map', MUSIC_CONTEXT_BRANCH],
+  nodes: [],
+  edges: [to({ node: MUSIC_CONTEXT_NODE_ID, port: 'chord' }, { node: 'chordMap', port: 'music' })],
+});
+
+export const HARMONY_BRANCHES = [chordMap, chordMapFace, chordMapSigns, chordMapMusic, chordWheel, chordWheelFace, chordWheelSigns, chordWheelCategorizer, chordWheelAffect, chordChart] as const;

@@ -128,13 +128,14 @@ export function ChordMapControls() {
           <option value="scale">the scale's own</option>
         </select>
       </label>
-      <label className="flex items-center justify-between gap-2 text-xs" title="A MIDI keyboard, the microphone or your signs can choose the chords: what is played (or the letter fingerspelled: A to G, the chord of the key on that letter) lights up on the map, and your hands play the melody over it or strum it. A keyboard or the microphone asks the browser for access when chosen; signs need the Sign language section on.">
+      <label className="flex items-center justify-between gap-2 text-xs" title="A MIDI keyboard, the microphone or your signs can choose the chords: what is played (or the letter fingerspelled: A to G, the chord of the key on that letter) lights up on the map, and your hands play the melody over it or strum it. A keyboard or the microphone asks the browser for access when chosen; signs need the Sign language section on. The music playing lights each chord a loaded score writes, on its beat.">
         Chords from
         <select className={selectCls} value={follow} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.follow', e.target.value)}>
           <option value="hands">your pointing hand</option>
           <option value="midi">a MIDI keyboard</option>
           <option value="audio">the microphone (a guitar, a piano, a band)</option>
           <option value="signs">signed letters A to G (Sign language on)</option>
+          <option value="music">the music playing (a score's chords)</option>
         </select>
       </label>
       <label className="flex items-center justify-between gap-2 text-xs" title="Letters: the map stays put across keys. A minor is home on the A chords (vi's place in C), and a change of key lights up the chords it changes (C to G: ii, IV and vii°). For a seven-chord map (not a pentatonic's own chords).">

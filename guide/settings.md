@@ -53,7 +53,7 @@ The chord map's own settings; the key is the **Sound** section's root and scale,
 - **Torus**: the seven chords drawn on a slowly turning ring-shaped surface above the map. On it every chord touches all six others, and the three loops are the three kinds of move (by a second, a third, a fourth), the same three directions as the honeycomb. The loop of the move you just made lights up. **Torus turns** sets its speed (0 holds it still).
 - **Melody**: on or off, its notes (the chord's tones, a pentatonic, the whole scale, or chosen by tilting the hand), its volume. **Seventh chords** turns the key's chords into sevenths. Also: draw the map on the video, the chords' share of the screen and the strum volume.
 - **Face**: whether your face colours the chords (a smile major, a frown minor; an open mouth with raised brows adds a seventh, then a ninth), and whether it is read against your face at rest.
-- **What chooses the chords**: your hand, a MIDI keyboard (Chrome or Edge), the microphone, or your signs: fingerspell a letter A to G and that letter's chord in the key lights up while your other hand plays over it (turn on **Sign language** too). **Chords from**: the key's seven, or a pentatonic's own five.
+- **What chooses the chords**: your hand, a MIDI keyboard (Chrome or Edge), the microphone, your signs (fingerspell a letter A to G and that letter's chord in the key lights up while your other hand plays over it; turn on **Sign language** too), or the music playing: each chord a loaded score writes lights up on its beat while you play over it (set **Scale from** to the music in the **Music** section to keep the map in the music's key too). **Chords from**: the key's seven, or a pentatonic's own five.
 - **Timing**: what keeps the beat (the Chord sound's tempo, a song loaded in the Song tool, or the conductor while you conduct), and whether a new chord waits for the next beat.
 - **Grid on the video**: draw the map over the video, or play it undrawn.
 
@@ -103,6 +103,10 @@ Turn on body tracking (the most expensive thing the app can run, so it is off un
 ## Conductor {#conductor}
 
 Switch conducting on, choose the piece, the orchestra and its parts, conduct with the hand or the body, where the loudness comes from, and how closely the score follows you.
+
+## Music {#music}
+
+Let the music playing set your scale. With **Scale from** set to the music, the instrument plays in the key of the piece you conduct, and changes key on the bar line where the piece does: try the **Modulation study** in the Conductor section, which goes from C to G to F. **Fit to the key** keeps your kind of scale (a pentatonic stays a pentatonic, in the new key, major or minor as the key is) or plays the key's own seven notes. The line underneath says the key and the chord the music is in right now. Your own settings are kept: set **Scale from** back to these settings and they return.
 
 ## Face categorizer {#face-categorizer}
 

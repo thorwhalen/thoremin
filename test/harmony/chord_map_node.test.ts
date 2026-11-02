@@ -525,3 +525,27 @@ describe('the chord-map node, chords from signs', () => {
     expect(melody(at(outs, 1).params).present).toBe(true);
   });
 });
+
+describe('the chord-map node, chords from the music', () => {
+  it("lights the chord the music has in force, with no dwell, and follows it when it changes", () => {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const chordAt = (t: number) => (t < 1 ? { root: 0, quality: 'maj' as const } : t < 2 ? { root: 7, quality: '7' as const } : { root: 9, quality: 'min' as const });
+    const outs = chordMapTake({ duration: 3, chordAt: () => null, otherAt: () => ({ x: 0.85, y: 0.5 }) }).map((fr) => ({
+      t: fr.t!,
+      out: h.process({ hands: fr, config: { ...ON, follow: 'music' }, spec: C_MAJOR, octaveShift: 0, music: { chord: chordAt(fr.t!), name: null, confidence: 1, next: null } }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out,
+    }));
+    const first = (from: number) => outs.find((o) => o.t >= from)!.out;
+    // The very first frame of each chord already lights it: no dwell.
+    expect(first(0).status.chord).toBe('C');
+    expect(first(1).status.chord).toBe('G');
+    expect(first(2).status.chord).toBe('Am');
+    expect(first(2).grid.cells.filter((c) => c.state === 'active').map((c) => c.label)).toContain('Am');
+  });
+
+  it('lights nothing while the music has no chord', () => {
+    const h = chordMapNode.make(chordMapNode.params.parse({}));
+    const fr = chordMapTake({ duration: 0.2, chordAt: () => null, otherAt: () => null })[0];
+    const out = h.process({ hands: fr, config: { ...ON, follow: 'music' }, spec: C_MAJOR, octaveShift: 0, music: null }, { time: 0, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+    expect(out.status.chord).toBeNull();
+  });
+});
