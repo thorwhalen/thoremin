@@ -9,6 +9,14 @@
  * hysteresis already filters a one-frame flicker). Neutral and "none of these" never count, and
  * neither does the category the first reading is already on (the face held as the check began).
  *
+ * A dynamic gesture (#753) is an event, not a state: it has no "on" to enter, it FIRES, and every
+ * fire counts (two waves in a row are two accidents). The same check takes them through
+ * {@link EverydayCheck.fire}, so one minute of ordinary movement counts held categories and
+ * gestures alike, in one result (their ids never collide: the categorizer file refuses it), and
+ * one flag rate judges both: ordinary movement is exactly what a gesture is made of, so the
+ * check matters more for gestures, not less. `gestures/everyday.ts` replays a recorded stream
+ * through a matcher into it.
+ *
  * Pure and modality-free, on the caller's clock, like the quiz.
  */
 import { z } from 'zod';
@@ -24,6 +32,9 @@ export interface EverydayCheck {
   start(tMs: number): void;
   /** Feed the settled reading at `tMs`. Ignored before start and once done. */
   push(reading: { categoryId: string | null }, tMs: number): void;
+  /** Count one fire of an event category (a dynamic gesture) at `tMs`. Ignored before start and
+   *  once done. */
+  fire(id: string, tMs: number): void;
   /** Time run so far (ms), at most the duration. */
   elapsedMs(tMs: number): number;
   done(tMs: number): boolean;
@@ -50,6 +61,10 @@ export function createEverydayCheck({ durationMs = EVERYDAY_DEFAULTS.durationMs 
       if (primed && id !== null && id !== current) fires[id] = (fires[id] ?? 0) + 1;
       primed = true;
       current = id;
+    },
+    fire(id, tMs) {
+      if (t0 === null || over(tMs)) return;
+      fires[id] = (fires[id] ?? 0) + 1;
     },
     elapsedMs: (tMs) => (t0 === null ? 0 : Math.min(durationMs, Math.max(0, tMs - t0))),
     done: over,

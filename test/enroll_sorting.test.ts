@@ -16,6 +16,7 @@ import {
   nameCategory,
   pinnedCategories,
   pinsHold,
+  placeLabelled,
   placeOf,
   recut,
   recutRange,
@@ -265,5 +266,44 @@ describe('the edits', () => {
     expect(nameCategory(c, c.categories[2].id, 'Smile').ok).toBe(false);
     const id = c.categories[1].id;
     for (let k = 1; k <= 6; k++) expect(ok(recut(c, k)).categories.find((x) => x.id === id)?.label).toBe('smile');
+  });
+});
+
+describe('a new category never takes a gesture\'s id (#753)', () => {
+  /** `doc`'s holds in one category "x", beside gestures holding the ids a new category would take
+   *  first (a binding is keyed by either id, so the two must never share one). */
+  function withGestures(vs: readonly FeatureVector[]): PersonalCategorizer {
+    const ids = vs.map((_, i) => `t:${i}`);
+    const trace = { id: 'g#1', cue: 'g', t0: 0, t: [0, 33], rows: [[0], [1]] };
+    return PersonalCategorizerSchema.parse({
+      format: CATEGORIZER_FORMAT,
+      version: CATEGORIZER_VERSION,
+      name: 'test',
+      features: ['x', 'y'],
+      weights: { x: 1, y: 1 },
+      strangers: 'nearest',
+      samples: vs.map((vector, i) => ({ id: ids[i], vector, t: i, cue: 'c' })),
+      categories: [{ id: 'x', label: 'all', members: ids }],
+      neutral: [],
+      gestures: {
+        weights: { x: 1 },
+        items: ['cat-1', 'cat-2'].map((id) => ({ id, label: id, features: ['x'], traces: [{ ...trace, id: `${id}#1` }] })),
+      },
+    });
+  }
+  const GESTURE_IDS = ['cat-1', 'cat-2'];
+
+  it('recut gives its new categories ids no gesture has', () => {
+    const cut = ok(recut(withGestures(vectors(rng(5))), 3));
+    expect(cut.categories.map((x) => x.id)).toEqual(['cat-3', 'cat-4', 'cat-5']);
+    expect(cut.gestures!.items.map((g) => g.id)).toEqual(GESTURE_IDS);
+  });
+
+  it('placeLabelled gives a new name\'s category an id no gesture has', () => {
+    const c = withGestures(vectors(rng(6)));
+    const placed = ok(placeLabelled(c, [{ label: 'wow', ids: ['t:0', 't:1'] }]));
+    const wow = placed.categories.find((x) => x.label === 'wow')!;
+    expect(GESTURE_IDS).not.toContain(wow.id);
+    expect(wow.id).toBe('cat-3');
   });
 });

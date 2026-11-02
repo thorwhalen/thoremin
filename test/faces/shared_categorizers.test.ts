@@ -85,6 +85,39 @@ describe('the shared index and files', () => {
     expect(readSharedFile(many)).toMatchObject({ ok: false, error: expect.stringMatching(/more than the 12/) });
   });
 
+  it('re-ids a gesture whose id a slot takes, and moves a pin with its category (#753)', () => {
+    // Categories x0, x1 and a gesture "cat-1" are a valid file; after the slots rename the
+    // categories cat-1, cat-2, the gesture must move off cat-1 or the next save fails its schema.
+    const f = twoFaces.features[0];
+    const trace = { id: 'wave#1', cue: 'wave', t0: 0, t: [0, 33], rows: [[0], [1]] };
+    const gestures = {
+      weights: { [f]: 1 },
+      items: [
+        { id: 'cat-1', label: 'wave', features: [f], traces: [trace] },
+        { id: 'gesture-1', label: 'nod', features: [f], traces: [{ ...trace, id: 'nod#1', cue: 'nod' }] },
+      ],
+    };
+    const firstMember = twoFaces.categories[1].members[0];
+    const file: PersonalCategorizer = {
+      ...twoFaces,
+      categories: twoFaces.categories.map((c, i) => ({ ...c, id: `x${i}` })),
+      pins: { [firstMember]: 'x1' },
+      gestures,
+    };
+    expect(importCategorizer(exportCategorizer(file)).ok).toBe(true);
+    const r = readSharedFile(exportCategorizer(file));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.categorizer.categories.map((c) => c.id)).toEqual(['cat-1', 'cat-2']);
+    // The colliding gesture takes the first id free of slots and gestures; the other keeps its id.
+    expect(r.categorizer.gestures!.items.map((g) => [g.label, g.id])).toEqual([
+      ['wave', 'gesture-2'],
+      ['nod', 'gesture-1'],
+    ]);
+    expect(r.categorizer.pins).toEqual({ [firstMember]: 'cat-2' });
+    // It still saves: the schema accepts the renamed file.
+    expect(importCategorizer(exportCategorizer(r.categorizer)).ok).toBe(true);
+  });
+
   it('every shipped entry is a readable categorizer of its modality, and its file is listed', () => {
     const { entries, error } = parseSharedIndex(read('index.json'));
     expect(error).toBeNull();

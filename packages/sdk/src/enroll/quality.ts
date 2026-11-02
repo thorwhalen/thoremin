@@ -82,8 +82,14 @@ export type QualityOptions = Partial<typeof QUALITY_DEFAULTS> & {
   supports?: readonly (readonly FeatureVector[] | undefined)[];
 };
 
-/** A chip's grade, best last. `thin`: too few holds to say. */
+/** A chip's grade, best last. `thin`: too few holds (or a gesture's repetitions) to say. */
 export type QualityGrade = 'thin' | 'close' | 'ok' | 'distinct';
+
+/** A grade's dots on the chip: three for distinct, two for ok, one otherwise. Shared with the
+ *  dynamic gestures' chips (`gestures/quality.ts`), so the two read alike. */
+export function gradeDots(grade: QualityGrade): 1 | 2 | 3 {
+  return grade === 'distinct' ? 3 : grade === 'ok' ? 2 : 1;
+}
 
 export interface CategoryQuality {
   id: string;
@@ -276,7 +282,7 @@ export function carveQuality(model: TrainedModel, vectors: readonly FeatureVecto
     const leak = tested < o.minLeakHolds ? 0 : missed / tested;
     const grade: QualityGrade =
       c.size < o.minHolds ? 'thin' : ratio < o.closeRatio || leak > o.closeLeak ? 'close' : ratio < o.okRatio || missed > 0 ? 'ok' : 'distinct';
-    const dots = grade === 'distinct' ? 3 : grade === 'ok' ? 2 : 1;
+    const dots = gradeDots(grade);
     const closeTo = grade === 'close' ? (leak > o.closeLeak && leaksTo ? leaksTo : near.id) : null;
     const outside = outsideShare(c);
     return { id: c.id, size: c.size, nearest: near.id, distance: near.d, spread, ratio, looAccuracy, leaksTo, outside, sloppy: outside !== null && outside > o.sloppyShare, grade, dots, closeTo };

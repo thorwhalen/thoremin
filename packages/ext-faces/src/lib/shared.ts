@@ -21,6 +21,7 @@
  */
 import { z } from 'zod';
 import { importCategorizer, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { freshGestureId } from '@thoremin/sdk/enroll/gestures/file';
 import { foreignModality } from '@thoremin/sdk/enroll/modality';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
@@ -87,9 +88,30 @@ export const SHARED_MODALITIES: Readonly<Record<NonNullable<SharedEntry['modalit
 /** What an entry reads (face when it does not say). */
 export const entryModality = (e: Pick<SharedEntry, 'modality'>): NonNullable<SharedEntry['modality']> => e.modality ?? 'face';
 
-/** `categorizer` with its categories' ids set to the dial's slots, in order. */
+/**
+ * `categorizer` with its categories' ids set to the dial's slots, in order, and what names a
+ * category id kept valid: a pin follows its category to the new id, and a gesture whose id a slot
+ * now takes is given a fresh one (`freshGestureId`), since a gesture may never share a category's
+ * id (the file would otherwise fail its schema at the next save).
+ */
 export function withSlotIds(categorizer: PersonalCategorizer): PersonalCategorizer {
-  return { ...categorizer, categories: categorizer.categories.map((c, i) => ({ ...c, id: categorySlot(i) })) };
+  const slotOf = new Map(categorizer.categories.map((c, i) => [c.id, categorySlot(i)]));
+  const categories = categorizer.categories.map((c, i) => ({ ...c, id: categorySlot(i) }));
+  const pins = categorizer.pins && Object.fromEntries(Object.entries(categorizer.pins).map(([j, to]) => [j, slotOf.get(to) ?? to]));
+  const slots = new Set(categories.map((c) => c.id));
+  const gestures = categorizer.gestures && {
+    ...categorizer.gestures,
+    items: (() => {
+      const taken = new Set([...slots, ...categorizer.gestures.items.map((g) => g.id)]);
+      return categorizer.gestures.items.map((g) => {
+        if (!slots.has(g.id)) return g;
+        const id = freshGestureId(taken);
+        taken.add(id);
+        return { ...g, id };
+      });
+    })(),
+  };
+  return { ...categorizer, categories, ...(pins ? { pins } : {}), ...(gestures ? { gestures } : {}) };
 }
 
 /**
