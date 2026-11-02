@@ -1,6 +1,6 @@
 ---
 seed: Chord Map Paths
-area: chords
+area: harmony
 do:
   - Hold your left hand over C, the middle chord. A dashed trail shows the next chords of Pachelbel's Canon.
   - Follow the trail one chord at a time; each chord you reach moves the trail on.

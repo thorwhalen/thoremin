@@ -18,7 +18,7 @@ Thoremin's [home page](app:) opens nothing by itself: from there you pick the ca
 
 - **[Field instruments](area:field)**: play the air like a theremin, with fingers, faces and open hands shaping the sound.
 - **[Air instruments](area:air)**: strike a drum, pluck a bass, strum a guitar, blow a flute, at nothing.
-- **[Chords and harmony](area:chords)**: point at chords on a map or a wheel instead of notes.
+- **[Chord instruments](area:harmony)**: point at chords on a map or a wheel instead of notes.
 - **[Sign instruments](area:sign)**: fingerspell and see or hear the letters.
 - **[Conduct and dance](conduct-and-dance.html)**: the [Conductor](tool:conductor) follows your beat; the [Song](tool:song) follows your pulse.
 - **[Teach it yourself](teach-it-yourself.html)**: [Your faces](tool:faces), [Your hand shapes](tool:hand-shapes) and [Your poses](tool:poses) learn the faces, shapes and poses you can make.

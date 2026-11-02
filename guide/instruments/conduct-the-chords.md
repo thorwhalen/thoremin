@@ -1,6 +1,6 @@
 ---
 seed: Conduct the Chords
-area: chords
+area: harmony
 do:
   - Choose this instrument; it loads a Haydn string quartet.
   - Open the Conductor tool and start conducting: beat time in front of the camera.

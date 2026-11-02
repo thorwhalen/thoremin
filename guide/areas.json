@@ -10,8 +10,8 @@
     "blurb": "Mime an instrument and it plays: strike a drum, pluck a bass, strum a guitar or blow a flute at nothing."
   },
   {
-    "id": "chords",
-    "title": "Chords and harmony",
+    "id": "harmony",
+    "title": "Chord instruments",
     "blurb": "Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct."
   },
   {

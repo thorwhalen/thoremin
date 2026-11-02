@@ -1,6 +1,6 @@
 ---
 seed: Play Along (microphone)
-area: chords
+area: harmony
 do:
   - Allow the microphone, then play a guitar, a piano, or a recording.
   - The chords it hears light up on the map a moment later.

@@ -1,6 +1,6 @@
 ---
 seed: Chord Map
-area: chords
+area: harmony
 do:
   - Hold your left hand over a chord on the map: that chord sounds and keeps sounding.
   - Raise and lower your right hand to play a melody on the chord's notes.

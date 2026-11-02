@@ -1,6 +1,6 @@
 ---
 seed: Chord Map + Face
-area: chords
+area: harmony
 do:
   - Point at a chord with your left hand, as on the Chord Map.
   - Hold a smile to turn the key major; hold a frown to turn it minor.

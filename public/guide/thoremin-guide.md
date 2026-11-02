@@ -29,7 +29,7 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
     - [Air Drum](#instruments-air-drum)
     - [Air Flute](#instruments-air-flute)
     - [Air Guitar](#instruments-air-guitar)
-  - [Chords and harmony](#areas-chords)
+  - [Chord instruments](#areas-harmony)
     - [Chord Map + Face](#instruments-chord-map-face)
     - [Chord Map Paths](#instruments-chord-map-paths)
     - [Chord Map Strum](#instruments-chord-map-strum)
@@ -93,7 +93,7 @@ Thoremin's [home page](https://apps.thorwhalen.com/thoremin/) opens nothing by i
 
 - **[Field instruments](#areas-field)**: play the air like a theremin, with fingers, faces and open hands shaping the sound.
 - **[Air instruments](#areas-air)**: strike a drum, pluck a bass, strum a guitar, blow a flute, at nothing.
-- **[Chords and harmony](#areas-chords)**: point at chords on a map or a wheel instead of notes.
+- **[Chord instruments](#areas-harmony)**: point at chords on a map or a wheel instead of notes.
 - **[Sign instruments](#areas-sign)**: fingerspell and see or hear the letters.
 - **[Conduct and dance](#conduct-and-dance)**: the [Conductor](#tools-conductor) follows your beat; the [Song](#tools-song) follows your pulse.
 - **[Teach it yourself](#teach-it-yourself)**: [Your faces](#tools-faces), [Your hand shapes](#tools-hand-shapes) and [Your poses](#tools-poses) learn the faces, shapes and poses you can make.
@@ -125,7 +125,7 @@ Mime an instrument and it plays: strike a drum, pluck a bass, strum a guitar or 
 
 [Air Bass](#instruments-air-bass) · [Air Drum](#instruments-air-drum) · [Air Flute](#instruments-air-flute) · [Air Guitar](#instruments-air-guitar)
 
-### [Chords and harmony](#areas-chords)
+### [Chord instruments](#areas-harmony)
 
 Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct.
 
@@ -702,11 +702,11 @@ The chord shapes you enrol are the ones it recognises, so you can use any shapes
 Its settings: [Air guitar](#settings--air-guitar). Every knob: [the manual](https://apps.thorwhalen.com/thoremin/manual.html).
 
 
-<a id="areas-chords"></a>
+<a id="areas-harmony"></a>
 
 [Instruments](#instruments)
 
-## Chords and harmony
+## Chord instruments
 
 Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard or a band that sets the chords for you to play over, a score whose chords you conduct.
 
@@ -728,7 +728,7 @@ Point at chords instead of notes: a map or a wheel of a key's chords, a keyboard
 
 <a id="instruments-chord-map-face"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Chord Map + Face
 
@@ -755,7 +755,7 @@ Its settings: [Chord map](#settings--chord-map), [Face](#settings--face). Every 
 
 <a id="instruments-chord-map-paths"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Chord Map Paths
 
@@ -782,7 +782,7 @@ Its settings: [Chord map](#settings--chord-map), [Sound](#settings--sound). Ever
 
 <a id="instruments-chord-map-strum"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Chord Map Strum
 
@@ -809,7 +809,7 @@ Its settings: [Chord map](#settings--chord-map). Every knob: [the manual](https:
 
 <a id="instruments-chord-map"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Chord Map
 
@@ -838,7 +838,7 @@ Its settings: [Chord map](#settings--chord-map), [Sound](#settings--sound). Ever
 
 <a id="instruments-chord-wheel"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Chord Wheel
 
@@ -865,7 +865,7 @@ Its settings: [Chord wheel](#settings--chord-wheel), [Sound](#settings--sound). 
 
 <a id="instruments-conduct-the-chords-body"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Conduct the Chords (Body)
 
@@ -888,7 +888,7 @@ Its settings: [Chord chart](#settings--chord-chart), [Conductor](#settings--cond
 
 <a id="instruments-conduct-the-chords"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Conduct the Chords
 
@@ -915,7 +915,7 @@ Its settings: [Chord chart](#settings--chord-chart), [Conductor](#settings--cond
 
 <a id="instruments-face-wheel"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Face Wheel
 
@@ -942,7 +942,7 @@ Its settings: [Chord wheel](#settings--chord-wheel), [Face](#settings--face). Ev
 
 <a id="instruments-next-chord-wheel"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Next-Chord Wheel
 
@@ -969,7 +969,7 @@ Its settings: [Chord wheel](#settings--chord-wheel). Every knob: [the manual](ht
 
 <a id="instruments-pentatonic-map"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Pentatonic Map
 
@@ -996,7 +996,7 @@ Its settings: [Chord map](#settings--chord-map), [Sound](#settings--sound). Ever
 
 <a id="instruments-play-along-microphone"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Play Along (microphone)
 
@@ -1023,7 +1023,7 @@ Its settings: [Chord map](#settings--chord-map). Every knob: [the manual](https:
 
 <a id="instruments-play-along-midi"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Play Along (MIDI)
 
@@ -1050,7 +1050,7 @@ Its settings: [Chord map](#settings--chord-map). Every knob: [the manual](https:
 
 <a id="instruments-tonnetz-wheel"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Tonnetz Wheel
 
@@ -1077,7 +1077,7 @@ Its settings: [Chord wheel](#settings--chord-wheel). Every knob: [the manual](ht
 
 <a id="instruments-wheel-walk"></a>
 
-[Instruments](#instruments) › [Chords and harmony](#areas-chords)
+[Instruments](#instruments) › [Chord instruments](#areas-harmony)
 
 ## Wheel Walk
 

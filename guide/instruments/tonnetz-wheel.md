@@ -1,6 +1,6 @@
 ---
 seed: Tonnetz Wheel
-area: chords
+area: harmony
 do:
   - Hold a chord with your left hand.
   - Push toward a move and hold.

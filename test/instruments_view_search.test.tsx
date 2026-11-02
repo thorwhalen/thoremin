@@ -10,7 +10,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import InstrumentsPanel from '@/app/dials/InstrumentsPanel';
 import { assembleSpec } from '@/app/graph';
 import { branchLabel, listingOf, whyMatched } from '@/app/library/instrumentsListing';
-import { AIR, ASL, DRAWN, THEREMIN, GAMES } from './helpers/extensions';
+import { AIR, ASL, DRAWN, THEREMIN, GAMES, HARMONY } from './helpers/extensions';
 
 beforeAll(() => localStorage.clear());
 afterEach(() => cleanup());
@@ -101,7 +101,9 @@ describe('filter chips', () => {
     const byClass = screen.getByRole('group', { name: 'Filter by class' });
     const air = within(byClass).getByRole('button', { name: /Air/ });
     const field = within(byClass).getByRole('button', { name: /Field/ });
-    expect(air.textContent).toMatch(ASL ? /^Air\s*20$/ : /^Air\s*18$/); // the sign instruments need ASL
+    expect(air.textContent).toMatch(/^Air\s*4$/);
+    // The chord instruments' own class (#705); the sign wheel and map need ASL.
+    if (HARMONY) expect(within(byClass).getByRole('button', { name: /^Chord/ }).textContent).toMatch(ASL ? /^Chord\s*16$/ : /^Chord\s*14$/);
     expect(field.textContent).toMatch(THEREMIN ? /^Field\s*17$/ : /^Field\s*16$/);
   });
 
@@ -111,7 +113,7 @@ describe('filter chips', () => {
     fireEvent.click(screen.getByRole('button', { name: /Filters/ }));
     const byClass = screen.getByRole('group', { name: 'Filter by class' });
     fireEvent.click(within(byClass).getByRole('button', { name: /Air/ }));
-    await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map Paths', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Conduct the Chords (Body)', ...(ASL ? ['Sign Wheel', 'Sign Map'] : []), 'Chord Map Strum']));
+    await waitFor(() => expect(rowNames()).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute']));
     // The N+1 rule: the unpicked class chip still says how many it would add.
     expect(within(screen.getByRole('group', { name: 'Filter by class' })).getByRole('button', { name: /Field/ }).textContent).toMatch(THEREMIN ? /17/ : /16/);
     // Closing the toggle does not hide an active filter.
@@ -121,7 +123,7 @@ describe('filter chips', () => {
     const order = within(screen.getByRole('group', { name: 'Filter by class' }))
       .getAllByRole('button')
       .map((b) => b.textContent?.replace(/[^A-Za-z]/g, ''));
-    expect(order).toEqual(['Field', 'Air', ...(ASL ? ['Sign'] : []), ...(DRAWN ? ['Drawn'] : []), ...(GAMES ? ['Listeninggames'] : [])]);
+    expect(order).toEqual(['Field', 'Air', ...(HARMONY ? ['Chord'] : []), ...(ASL ? ['Sign'] : []), ...(DRAWN ? ['Drawn'] : []), ...(GAMES ? ['Listeninggames'] : [])]);
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(rowNames().length).toBe(34 + (ASL ? 4 : 0) + (DRAWN ? 1 : 0) + (THEREMIN ? 1 : 0) + (GAMES ? 3 : 0)));
   });

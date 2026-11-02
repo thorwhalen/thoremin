@@ -18,7 +18,7 @@ import {
 } from '@/app/library/category';
 import { summarizeInstrument, summaryLines } from '@/app/library/summarize';
 import { deriveSystemTags } from '@/app/library/systemTags';
-import { AIR, ASL, DRAWN, GAMES } from './helpers/extensions';
+import { AIR, ASL, DRAWN, GAMES, HARMONY } from './helpers/extensions';
 
 const settingsOf = (name: string) => {
   const seed = SEED_INSTRUMENTS.find((s) => s.name === name);
@@ -27,9 +27,12 @@ const settingsOf = (name: string) => {
 };
 
 describe('instrument categories', () => {
-  it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
+  it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; the chord instruments are their own class', () => {
     const air = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'air').map((s) => s.name);
-    expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute', 'Chord Map', 'Chord Map Paths', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Conduct the Chords (Body)', ...(ASL ? ['Sign Wheel', 'Sign Map'] : []), 'Chord Map Strum']);
+    expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute']);
+    // The chord instruments have a class of their own (#705), the harmony slice's.
+    const chords = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'harmony').map((s) => s.name);
+    expect(chords).toEqual(HARMONY ? ['Chord Map', 'Chord Map Paths', 'Chord Map + Face', 'Pentatonic Map', 'Play Along (MIDI)', 'Play Along (microphone)', 'Chord Wheel', 'Face Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel', 'Conduct the Chords', 'Conduct the Chords (Body)', ...(ASL ? ['Sign Wheel', 'Sign Map'] : []), 'Chord Map Strum'] : []);
     expect(airInstrumentsOf(settingsOf('Chord Wheel'))).toEqual(['wheel']);
     expect(airInstrumentsOf(settingsOf('Chord Map'))).toEqual(['chords']);
     expect(airInstrumentsOf(settingsOf('Air Drum'))).toEqual(['drum']);
@@ -129,7 +132,7 @@ describe('instrument classes (the ADR\'s PR 2)', () => {
       expect(c.emoji.length).toBeGreaterThan(0);
       expect(c.colour).toMatch(/^hsl\(/);
     }
-    expect(ids).toEqual(['field', 'air', 'sign', ...(DRAWN ? ['drawn'] : []), ...(GAMES ? ['listen'] : [])]);
+    expect(ids).toEqual(['field', 'air', ...(HARMONY ? ['harmony'] : []), 'sign', ...(DRAWN ? ['drawn'] : []), ...(GAMES ? ['listen'] : [])]);
   });
 
   it.runIf(AIR)('normalises the former id `theremin` to `field` and rejects unknown ids', () => {

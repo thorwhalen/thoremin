@@ -1,6 +1,6 @@
 ---
 seed: Pentatonic Map
-area: chords
+area: harmony
 do:
   - Point at a chord with your left hand.
   - Play a melody with your right hand.

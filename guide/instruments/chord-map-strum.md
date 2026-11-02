@@ -1,6 +1,6 @@
 ---
 seed: Chord Map Strum
-area: chords
+area: harmony
 do:
   - Point at a chord with your left hand.
   - Strum down or up with your right hand.
