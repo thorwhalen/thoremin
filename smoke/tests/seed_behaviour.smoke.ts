@@ -23,6 +23,17 @@ import { HEARING, SEED_PLAY } from '../helpers/seedBehaviour';
 import { skipWhenStarved } from '../helpers/load';
 
 type Seed = { name: string; body: boolean; silent?: string };
+
+/** What a struck instrument and the audio graph say, for a failure message (#890): the drum's
+ *  own count of hits and its last hit's standing, the context state and the master level. */
+async function strikeDiagnosis(page: Page): Promise<string> {
+  const read = await page.evaluate(() => {
+    const t = window.thoremin!;
+    const s = t.getOutput('airDrum', 'status') as { hits?: number; predicted?: number; lastOnTime?: string; lastLateBy?: number } | undefined;
+    return { drum: s ? { hits: s.hits, predicted: s.predicted, lastOnTime: s.lastOnTime, lastLateBy: s.lastLateBy } : null, audio: t.audio(), level: t.level() };
+  });
+  return `; ${JSON.stringify(read)}`;
+}
 const seeds = (manifest.seeds as Seed[]).filter((s) => !s.silent);
 
 /** One page per address (hand source, body, extra query), its seeds played in turn. */
@@ -65,7 +76,10 @@ for (const hands of ['synthetic', 'none'] as const) {
             const loudest = peaks.reduce((m, p) => Math.max(m, p), 0);
             // Too few: if the page could not keep the frame rate a stroke needs, that is the runner.
             const fps = heard < HEARING.hits ? await skipWhenStarved(page, `${seed.name} hits`) : NaN;
-            expect(heard, `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks, the page at ${fps.toFixed(1)} fps`).toBeGreaterThanOrEqual(HEARING.hits);
+            // When it fails (#890: a near-silent output on CI), say where the sound was lost: did the
+            // instrument hit at all, on time, and was the audio running?
+            const why = heard < HEARING.hits ? await strikeDiagnosis(page) : '';
+            expect(heard, `${seed.name}: loudest ${loudest.toFixed(4)} over ${peaks.length} peaks, the page at ${fps.toFixed(1)} fps${why}`).toBeGreaterThanOrEqual(HEARING.hits);
             expect(errors.splice(0)).toEqual([]);
             return;
           }
