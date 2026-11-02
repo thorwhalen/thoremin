@@ -187,8 +187,8 @@ const NO_PULL = 0.0005;
 
 /** Ghost-note velocity for a stroke sounded on confirmation instead of prediction. */
 const GHOST_VELOCITY = 0.6;
-/** A falling stroke may rise this fraction of the smallest stroke between two samples
- *  (landmark jitter) and still be one fall. */
+/** A falling stroke may sit this fraction of the smallest stroke below the highest point of its
+ *  fall (landmark jitter) and still be one fall (`fallingSegment`, #890). */
 const FALL_JITTER = 0.25;
 /** Two samples closer than this are not two camera frames (the conductor's rule). */
 const MIN_SAMPLE_SPACING = 0.004;

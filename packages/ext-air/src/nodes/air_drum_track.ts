@@ -88,21 +88,29 @@ export const CARRY_SWING_FRACTION = 0.25;
 
 /**
  * The stroke's fall so far: the samples up to `tEnd`, walked back from the latest while
- * the point was still descending (y grows, down positive), tolerating `eps` of jitter, at
+ * the point was still descending (y grows, down positive), within `eps` of the fall's highest point, at
  * most {@link APPROACH_WINDOW} long, starting at the departure from the top. The top of
  * the swing, where the stick turns or waits, is not part of it, so a quadratic through
  * it is the stroke's own approach.
+ *
+ * The jitter is measured from the HIGHEST point of the fall, never from the neighbouring
+ * sample (#890): a step-to-step tolerance depends on the frame rate, and at 60 fps every
+ * step of a real stroke can be smaller than `eps` (a quarter of the smallest stroke),
+ * which read the whole fall as a stick held at the top, left three samples at the bottom,
+ * and so judged every stroke carried.
  */
 export function fallingSegment(samples: readonly TrackSample[], tEnd: number, eps: number): TrackSample[] {
   let i = samples.length - 1;
   while (i > 0 && samples[i].t > tEnd + 1e-9) i--;
   if (i < 0) return [];
   let j = i;
-  while (j > 0 && samples[j - 1].y < samples[j].y + eps && samples[i].t - samples[j - 1].t <= APPROACH_WINDOW) j--;
+  /** The highest point (least display `y`) of the fall walked so far. */
+  let top = samples[i].y;
+  while (j > 0 && samples[j - 1].y < top + eps && samples[i].t - samples[j - 1].t <= APPROACH_WINDOW) top = Math.min(top, samples[--j].y);
   // A stick held at the top (within the jitter of its highest point) has not started to
   // fall: keep only the last of those samples, the departure. The hand may move sideways
   // to the next pad while it waits there, and that is not the stroke's path.
-  while (j < i - 2 && samples[j + 1].y <= samples[j].y + eps) j++;
+  while (j < i - 2 && samples[j + 1].y <= top + eps) j++;
   return samples.slice(j, i + 1);
 }
 
