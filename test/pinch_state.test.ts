@@ -345,3 +345,18 @@ describe('the defaults are core\'s', () => {
     expect(PINCH_DEFAULTS.off).toBeCloseTo(distanceOf(gc.pinchOff), 12);
   });
 });
+
+describe('pinch params and stamps after the re-review (#815)', () => {
+  it('refuses an off at or above strengthApart (a hand opened to apart must release)', () => {
+    expect(() => PinchParamsSchema.parse({ on: 0.9, off: 1.3 })).toThrow(/strengthApart/);
+  });
+
+  it('a non-finite stamp is no observation and does not silence the machine', () => {
+    const m = createPinchState();
+    m.push({ present: true, distance: 1.0, x: 0, y: 0, t: 0 });
+    m.push({ present: true, distance: 1.0, x: 0, y: 0, t: Infinity });
+    const edges: (string | null)[] = [];
+    for (let i = 1; i <= 6; i++) edges.push(m.push({ present: true, distance: 0.3, x: 0, y: 0, t: i / 30 }).edge);
+    expect(edges).toContain('down');
+  });
+});

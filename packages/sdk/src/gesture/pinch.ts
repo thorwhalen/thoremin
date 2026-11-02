@@ -83,6 +83,8 @@ export const PinchParamsSchema = z
     strengthApart: z.number().positive().default(1.2),
   })
   .refine((p) => p.off > p.on, { message: 'off must be greater than on (the hysteresis band)', path: ['off'] })
+  // Release needs max(off, rMin + exitMargin) below strengthApart: off is bounded here, the margin below.
+  .refine((p) => p.off < p.strengthApart, { message: 'off must stay below strengthApart, or a hand opened to "apart" could never release', path: ['off'] })
   .refine((p) => p.strengthApart > p.strengthTouch, { message: 'strengthApart must be greater than strengthTouch', path: ['strengthApart'] })
   .refine((p) => p.on + p.exitMargin < p.strengthApart, {
     message: 'on + exitMargin must stay below strengthApart, or a tracked hand opened to "apart" could never release',
@@ -97,7 +99,9 @@ export const PINCH_DEFAULTS: PinchParams = PinchParamsSchema.parse({});
  * One frame of one hand. Push ONE reading per camera frame: a reading stamped at or before the
  * last one is ignored (no observation), which absorbs the engine's 60 Hz ticks over a 30 fps camera
  * in real time. In replay `frameTime` returns tick times, so a node must also dedupe by frame
- * identity (the conductor's `conductor_frame_dedupe` pattern) before pushing.
+ * identity (the conductor's `conductor_frame_dedupe` pattern) before pushing. An absence reading
+ * (`present: false`) moves the last stamp too, so it must carry the same clock as the present ones
+ * (the frame's capture time, not the tick's), or the next real frame can be swallowed.
  */
 export interface PinchReading {
   /** The hand is tracked this frame. When false the other fields are ignored. */
@@ -274,7 +278,9 @@ export function createPinchState(params: PinchParamsInput = {}): PinchState {
     push(reading) {
       // A frame pushed twice (two ticks over one camera frame) or a stamp that steps back: the
       // last output's state and strength again, no edge, nothing advanced.
-      if (!(reading.t > lastT)) return { state: down ? 'down' : 'up', edge: null, strength: lastStrength };
+      // A non-finite stamp is no observation either, and never becomes the last stamp (a far-future
+      // one would silence the machine until a reset).
+      if (!Number.isFinite(reading.t) || !(reading.t > lastT)) return { state: down ? 'down' : 'up', edge: null, strength: lastStrength };
       lastT = reading.t;
       const out = step(reading);
       lastStrength = out.strength;
