@@ -47,7 +47,10 @@ test('a YouTube link plays in its own window and the song player keeps time with
     if (/youtube_player-[^/]*\.js$/.test(r.url())) playerChunks.push(r.url());
   });
   await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({ contentType: 'text/javascript', body: STAND_IN }));
-  await page.route(/^https:\/\/(?!localhost)/, (route) => (route.request().url() === 'https://www.youtube.com/iframe_api' ? route.fallback() : route.abort()));
+  // Nothing else may reach the internet from this test, but the site under test itself may load
+  // (the local preview or the live site).
+  const own = new URL(String(test.info().project.use.baseURL)).origin;
+  await page.route((url) => url.origin !== own && url.protocol === 'https:' && url.href !== 'https://www.youtube.com/iframe_api', (route) => route.abort());
   await page.goto(SYNTHETIC);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Tools' }).click();
