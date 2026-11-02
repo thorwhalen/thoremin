@@ -415,8 +415,7 @@ interface HistoryPoint {
 }
 
 export function createImpactDetector(options: ImpactDetectorOptions = {}): ImpactDetector {
-  const { joints: jointsOpt, ...rest } = options;
-  const o = { ...IMPACT_DEFAULTS, ...definedOnly(rest) };
+  const { joints: jointsOpt, ...rest } = options, o = { ...IMPACT_DEFAULTS, ...definedOnly(rest) };
   const joints = (jointsOpt ?? BODY_IMPACT_JOINTS).map((j) => (typeof j === 'string' ? { channel: j, weight: 1 } : { channel: j.channel, weight: j.weight ?? 1 }));
   if (joints.length === 0) throw new Error('createImpactDetector: no joints');
   const ySign = (o.yDown ? 1 : -1) * (o.polarity === 'bottom' ? 1 : -1);
