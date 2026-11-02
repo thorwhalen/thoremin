@@ -181,7 +181,12 @@ const LATER_EXTENSION_NODES = new Set([
   // The physical theremin, a later slice; its own wiring is `test/theremin/theremin_graph.test.ts`.
   ...(hasExtension('physical-theremin') ? ['physTheremin'] : []),
   // The listening games (#866), tested in `test/games/`.
-  ...(hasExtension('audio-games') ? ['gamesAudio', 'listeningGame', 'gamesOut'] : [])]);
+  ...(hasExtension('audio-games') ? ['gamesAudio', 'listeningGame', 'gamesOut'] : []),
+  // The musical context (#934), tested in `test/music-context/`.
+  ...(hasExtension('music-context') ? ['musicContext', 'musicScale'] : [])]);
+/** The musical context's interposer stands on the bridge's scale ports when every branch is
+ *  composed (#934, rule 6): the edges it re-sources are put back on the bridge to compare. */
+const uninterposed = (e: EdgeSpec): EdgeSpec => (e.from.node === 'musicScale' && e.to.node !== 'musicScale' ? { ...e, from: { node: 'ui', port: e.from.port } } : e);
 /** The faces extension's categorizer REPLACES the general face chord when every branch is
  *  composed (#330 P4, rule 5): the general reading's two edges then run through `faceCat`, set
  *  aside above, so they are restored here to compare with the core + air snapshot. */
@@ -200,7 +205,7 @@ const withoutLaterExtensions = (spec: GraphSpec): GraphSpec => ({
   ...spec,
   nodes: spec.nodes.filter((n) => !LATER_EXTENSION_NODES.has(n.id)),
   edges: [
-    ...spec.edges.filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node) && !LATER_OVERLAY_PORT.test(e.to.port)),
+    ...spec.edges.map(uninterposed).filter((e) => !LATER_EXTENSION_NODES.has(e.from.node) && !LATER_EXTENSION_NODES.has(e.to.node) && !LATER_OVERLAY_PORT.test(e.to.port)),
     ...REPLACED_BY_LATER_EXTENSIONS,
   ],
 });

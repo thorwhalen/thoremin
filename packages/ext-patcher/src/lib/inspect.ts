@@ -64,8 +64,11 @@ export function dialsForPort(port: string, fieldKeys: readonly string[], { alias
 
 /** Every settings port that feeds `nodeId`, with the dials it reads, in the spec's edge order. */
 export function settingsFeeding(spec: Pick<GraphSpec, 'edges'>, nodeId: string, fieldKeys: readonly string[], { controlsNode = TRUNK.ui, aliases = DERIVED_PORT_DIALS }: InspectOptions = {}): SettingsFeed[] {
+  // A node that reads a bridge port and emits one of the same name stands on it (an interposer,
+  // rule 6 of `composeGraph`: the music's key on the scales): what it emits is still that setting.
+  const standsOn = (e: EdgeSpec) => spec.edges.some((x) => x.from.node === controlsNode && x.from.port === e.from.port && x.to.node === e.from.node && x.to.port === e.from.port);
   return spec.edges
-    .filter((e) => e.from.node === controlsNode && e.to.node === nodeId)
+    .filter((e) => e.to.node === nodeId && (e.from.node === controlsNode || standsOn(e)))
     .map((e) => ({ port: e.from.port, into: e.to.port, keys: dialsForPort(e.from.port, fieldKeys, { aliases }) }));
 }
 

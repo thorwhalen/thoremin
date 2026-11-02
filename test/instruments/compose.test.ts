@@ -167,6 +167,40 @@ describe('composeGraph rules', () => {
     expect(() => composeGraph(['needs-old', 'swap'], [old, needsOld, swap])).toThrow(/"old" is replaced by "swap"/);
   });
 
+  it('6: an interposer re-sources every edge out of its port but its own, in any composition order', () => {
+    const src = defineBranch({ id: 'src', nodes: [{ id: 'a', type: 'x' }] });
+    const readers = defineBranch({
+      id: 'readers',
+      requires: ['src'],
+      nodes: [{ id: 'r1', type: 'x' }, { id: 'r2', type: 'x' }],
+      edges: [
+        { from: { node: 'a', port: 'out' }, to: { node: 'r1', port: 'in' } },
+        { from: { node: 'a', port: 'out' }, to: { node: 'r2', port: 'in' } },
+        { from: { node: 'a', port: 'other' }, to: { node: 'r2', port: 'other' } },
+      ],
+    });
+    const shim = defineBranch({
+      id: 'shim',
+      requires: ['src'],
+      nodes: [{ id: 'i', type: 'x' }],
+      edges: [{ from: { node: 'a', port: 'out' }, to: { node: 'i', port: 'in' } }],
+      interposes: [{ port: { node: 'a', port: 'out' }, through: { node: 'i', port: 'out' } }],
+    });
+    for (const lib of [[src, readers, shim], [shim, src, readers]]) {
+      const { spec } = composeGraph(['readers', 'shim'], lib);
+      const from = (to: string, port = 'in') => spec.edges.find((e) => e.to.node === to && e.to.port === port)?.from;
+      expect(from('r1')).toEqual({ node: 'i', port: 'out' });
+      expect(from('r2')).toEqual({ node: 'i', port: 'out' });
+      expect(from('r2', 'other')).toEqual({ node: 'a', port: 'other' });
+      expect(from('i')).toEqual({ node: 'a', port: 'out' });
+    }
+    // Without the interposer's branch, nothing moves.
+    expect(composeGraph(['readers'], [src, readers, shim]).spec.edges.every((e) => e.from.node === 'a')).toBe(true);
+    // Two interposers on one port is an error.
+    const twin = defineBranch({ ...shim, id: 'twin', nodes: [{ id: 'j', type: 'x' }], edges: [], interposes: [{ port: { node: 'a', port: 'out' }, through: { node: 'j', port: 'out' } }] });
+    expect(() => composeGraph(['shim', 'twin'], [src, shim, twin])).toThrow(/interposed by branches "shim" and "twin"/);
+  });
+
   it('is deterministic: the same ids give the same spec', () => {
     const one = composeInstrumentGraph(ALL_BRANCH_IDS);
     const two = composeInstrumentGraph(ALL_BRANCH_IDS);

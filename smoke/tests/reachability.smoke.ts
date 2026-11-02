@@ -83,7 +83,7 @@ test.describe('every tool, core\'s and the extensions\', opens from the shell', 
 /** The settings sections a player reaches through the instrument editor. Kept in
  *  sync with DialsControlsPanel by the test itself: it reads every <details> the
  *  editor renders and asserts each one it finds; this list is the floor. */
-const REQUIRED_SECTIONS = ['Sound', 'Hand', 'Face', 'Body', 'Overlay', 'MIDI', 'Generative', 'Keyboard'];
+const REQUIRED_SECTIONS = ['Sound', 'Hand', 'Face', 'Body', 'Overlay', 'MIDI', 'Generative', 'Keyboard', 'Music'];
 
 test.describe('every settings section is reachable from a cold load', () => {
   test('instruments → Edit → each section expands to controls', async ({ page }) => {

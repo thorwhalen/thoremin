@@ -13,7 +13,8 @@ import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { DialSlice, Extension, HushDecl } from '@thoremin/sdk/instruments/extension';
 import type { NodeContext } from '@thoremin/dag';
-import { generateScale, defaultChordSpecFor, type ScaleSpec, type ScaleTypeId } from '@thoremin/sdk/music/theory';
+import type { ScaleTypeId } from '@thoremin/sdk/music/theory';
+import { scalePorts } from '@thoremin/sdk/context/scale';
 import type { SoundId } from '@thoremin/sdk/music/sounds';
 import { legacyFaceToMapping, type FaceMapping } from '@thoremin/sdk/nodes/domain';
 import type { FaceChord, FaceExpr, HandsSettings } from '@/settings/schema';
@@ -204,30 +205,13 @@ function defineStoreControls(extensions: readonly Extension[]) {
         const getter = ctx.resources.controls as (() => ControlSnapshot) | undefined;
         if (!getter) return {};
         const c = getter();
-        const rightSpec: ScaleSpec = {
-          root: c.right.root,
-          type: c.right.type,
-          octaves: c.right.octaves,
-          baseOctave: c.right.baseOctave,
-        };
-        // Resolve the chord-source scale (#75): custom pins root/type, auto derives
-        // the smart default from the melody. Register (baseOctave/octaves) tracks the
-        // melody — diatonicChord builds its bass from baseOctave, so it is load-bearing.
-        const cs = c.faceChord;
-        const resolved =
-          cs && cs.chordSource === 'custom'
-            ? { root: cs.chordRoot, type: cs.chordType }
-            : defaultChordSpecFor(rightSpec);
-        const chordSpec: ScaleSpec = {
-          root: resolved.root,
-          type: resolved.type,
-          octaves: c.right.octaves,
-          baseOctave: c.right.baseOctave,
-        };
+        // The melody and chord-source scales (#75): one SDK function, which an interposer that
+        // fits them to the music's key (`@thoremin/sdk/context/scale`) calls too.
+        const scales = scalePorts(c);
         const hush = hushOf(c, hushes);
         const out: Record<string, unknown> = {
-          scaleRight: generateScale(c.right),
-          scaleLeft: generateScale(c.left),
+          scaleRight: scales.scaleRight,
+          scaleLeft: scales.scaleLeft,
           soundRight: c.right.sound,
           soundLeft: c.left.sound,
           octaveShift: c.octaveShift ?? 0,
@@ -237,9 +221,9 @@ function defineStoreControls(extensions: readonly Extension[]) {
           muteAll: hush.muteAll,
           muteStrikes: hush.muteStrikes,
           claimed: hush.claimed,
-          rightSpec,
-          chordSpec,
-          chordScale: generateScale(chordSpec),
+          rightSpec: scales.rightSpec,
+          chordSpec: scales.chordSpec,
+          chordScale: scales.chordScale,
           faceMapping: c.faceMapping ?? legacyFaceToMapping(c.faceEnabled),
         };
         // Only emitted when the host actually has a tuning: an absent value must leave

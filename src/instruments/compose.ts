@@ -1,6 +1,6 @@
 /**
  * `composeGraph`: a pure union of branches into one `GraphSpec` the engine already
- * understands (`docs/design/instruments-as-graphs-and-extensions.md` §3.2). Five rules:
+ * understands (`docs/design/instruments-as-graphs-and-extensions.md` §3.2). Six rules:
  *
  * 1. Shared nodes must be the same node. A node id declared by two branches must resolve to
  *    the same type and structurally equal params; a conflicting duplicate is an error that
@@ -25,6 +25,11 @@
  *    they required goes too). A replaced branch that something else still requires is an
  *    error. This is how an extension swaps a part of a core instrument (#330: a personal face
  *    categorizer for the general one) without core naming it.
+ * 6. A branch may INTERPOSE on a port (`interposes`): once every edge is placed, each edge out of
+ *    that port leaves from the interposer's output instead, except the edges into the
+ *    interposer's own node (where it reads the original). Two branches interposing on one port is
+ *    an error. This is how the music's key reaches every consumer of the bridge's scales in the
+ *    same tick (#934) without the branch naming them.
  *
  * Deterministic and ORDER-INDEPENDENT: the composition order is the library's order (the
  * branch table), whatever order the caller names branches in, so the same SET of branch ids
@@ -316,6 +321,24 @@ export function composeGraph(
       if (reader.kind !== 'classifier') throw new ComposeError(`branch "${c.owner}" declares captions for ${portKey(c.for)}, a ${reader.kind}; only a classifier's classes carry captions`);
       if (!nodes.has(c.from.node)) throw new ComposeError(`branch "${c.owner}" declares captions ${portKey(c.from)} but node "${c.from.node}" is not in it`);
       if (wired) addEdge({ from: c.from, to: { node: target.node, port: target.captions(reader.slot) } }, c.owner);
+    }
+  }
+
+  // Rule 6: interposers, applied last, so pooled edges are re-sourced too.
+  const through = new Map<string, { to: { node: string; port: string }; owner: string }>();
+  for (const b of branches) {
+    for (const ip of b.interposes) {
+      const key = portKey(ip.port);
+      const prior = through.get(key);
+      if (prior) throw new ComposeError(`port "${key}" is interposed by branches "${prior.owner}" and "${b.id}"; a port has one interposer`);
+      if (!nodes.has(ip.through.node)) throw new ComposeError(`branch "${b.id}" interposes on "${key}" through node "${ip.through.node}", which is not in the composed graph`);
+      through.set(key, { to: ip.through, owner: b.id });
+    }
+  }
+  if (through.size) {
+    for (let i = 0; i < edges.length; i++) {
+      const ip = through.get(portKey(edges[i].from));
+      if (ip && edges[i].to.node !== ip.to.node) edges[i] = { ...edges[i], from: ip.to };
     }
   }
 
