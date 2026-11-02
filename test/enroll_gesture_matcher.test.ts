@@ -289,7 +289,7 @@ describe('the segmenter for a live stream', () => {
 describe('the radius rule, on hand-made series', () => {
   const flat = (x: number, n = 6): TraceSample[] => Array.from({ length: n }, (_, i) => ({ t: i * 33, vector: { x } }));
   const unscaled = { features: ['x'], weights: { x: 1 }, length: 4, position: false, scale: false };
-  const series = (x: number) => ({ rows: [[x], [x], [x], [x]], durationMs: 165, amplitude: 0 });
+  const series = (x: number) => ({ rows: [[x], [x], [x], [x]], durationMs: 165, motionSpanMs: 0, amplitude: 0 });
 
   it('floors an unscaled radius at minRadius times the amplitude', () => {
     const wobble = (k: number): TraceSample[] => Array.from({ length: 12 }, (_, i) => ({ t: i * 33, vector: { x: 3 * Math.sin(i / 2) } })).map((s, i) => (i === 0 ? { ...s, vector: { x: s.vector.x + k * 1e-9 } } : s));
@@ -305,8 +305,8 @@ describe('the radius rule, on hand-made series', () => {
     // nearer the tight one by distance (0.4 against 0.6) but far nearer the loose one by ratio.
     const model: GestureModel = {
       gestures: [
-        { gesture: 'tight', templates: [series(0)], radius: 0.1, durationMs: 165, amplitude: 1 },
-        { gesture: 'loose', templates: [series(1)], radius: 1, durationMs: 165, amplitude: 1 },
+        { gesture: 'tight', templates: [series(0)], radius: 0.1, durationMs: 165, motionSpanMs: 132, amplitude: 1 },
+        { gesture: 'loose', templates: [series(1)], radius: 1, durationMs: 165, motionSpanMs: 132, amplitude: 1 },
       ],
       skipped: [],
       series: unscaled,
@@ -345,19 +345,25 @@ describe('matchSegment (offline goldens)', () => {
   });
 
   it('reports what the invariances took away: bigger and faster', () => {
-    // Truly 1.4 bigger and 1.25 faster. Both read low (scale 1.335-1.359, speed 1.115-1.160)
-    // because the segment's cut points are not fixed on the path: the segmenter opens and
-    // closes on the noise-unit motion threshold, which a bigger, faster swing crosses earlier
-    // in its rise and later in its fall, so the live segment keeps more of the gesture's quiet
-    // ends than a template does. Recovering the true speed (aligning on the DTW path, not on
-    // the cut points) is a follow-up.
+    // Truly 1.4 bigger and 1.25 faster. The scale reads a little low (1.335-1.359): the segment's
+    // cut points move with the swing's size (a bigger swing crosses the noise-unit threshold earlier
+    // in its rise), so the live segment keeps more of the quiet ends, which the RMS amplitude averages
+    // in. The speed is read from the motion span, the time the middle of the path took (#909), which
+    // the cut points barely move: within 5 % of the scripted ratio (it read 1.12-1.16 from the cut
+    // durations before).
     for (const tr of liveTraces('wave')) {
       const { variation } = matchSegment(MODEL, tr.samples);
       expect(variation.scale).toBeGreaterThan(1.32);
       expect(variation.scale).toBeLessThan(1.37);
-      expect(variation.speed).toBeGreaterThan(1.1);
-      expect(variation.speed).toBeLessThan(1.17);
+      expect(Math.abs(variation.speed / 1.25 - 1)).toBeLessThan(0.05);
     }
+  });
+
+  it('the speed does not move with the size: a bigger wave at the same pace reads 1, a faster one at the same size reads its pace (#909)', () => {
+    const bigger = cutTraces('wave', takeOf('wave', { seed: 7, amplitude: WAVE_SCRIPT.amplitude * 1.6 })).traces;
+    for (const tr of bigger) expect(Math.abs(matchSegment(MODEL, tr.samples).variation.speed - 1)).toBeLessThan(0.05);
+    const faster = cutTraces('wave', takeOf('wave', { seed: 7, waveMs: WAVE_SCRIPT.waveMs * 0.7 })).traces;
+    for (const tr of faster) expect(Math.abs(matchSegment(MODEL, tr.samples).variation.speed / (1 / 0.7) - 1)).toBeLessThan(0.05);
   });
 
   it('absorbs a repetition paced unevenly within itself, which a lockstep distance refuses', () => {
@@ -400,6 +406,11 @@ describe('createDtwMatcher (live goldens)', () => {
     fires.forEach((f, i) => {
       expect(f.t).toBeGreaterThan(take.waves[i].endMs);
       expect(f.t).toBeLessThan(take.waves[i].endMs + 600);
+      // The fire carries when the repetition happened (#909): its first frame within a motion
+      // window or two of the scripted start, its last moving frame near the scripted end.
+      expect(Math.abs(f.startT - take.waves[i].startMs)).toBeLessThan(250);
+      expect(Math.abs(f.endT - take.waves[i].endMs)).toBeLessThan(250);
+      expect(f.endT).toBeLessThan(f.t);
     });
   });
 

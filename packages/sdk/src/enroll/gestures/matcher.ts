@@ -42,7 +42,9 @@
  * out of the model and listed in `skipped`.
  *
  * The **variation** of a fire is what the invariances took away: `speed` is the templates'
- * median duration over the segment's (2 = twice as fast), `scale` the segment's amplitude over
+ * median motion span over the segment's (2 = twice as fast; the motion span, `series.ts`, is the
+ * time the middle of the path took, so it does not move with where the segmenter cut the run,
+ * #909), `scale` the segment's amplitude over
  * the templates' median (2 = twice as big). An expressive channel for a binding, for free.
  *
  * The model is derived from the traces, never stored (samples are the source of truth: the
@@ -58,7 +60,7 @@ import { toSeries, type Series, type SeriesOptions } from './series';
 
 /** How a recognised repetition differed from the templates: what the invariances took away. */
 export interface Variation {
-  /** The templates' median duration over this one's: above 1 is faster. */
+  /** The templates' median motion span over this one's: above 1 is faster. */
   speed: number;
   /** This one's amplitude over the templates' median: above 1 is bigger. */
   scale: number;
@@ -67,8 +69,12 @@ export interface Variation {
 /** A recognised repetition. */
 export interface GestureFire {
   gesture: string;
-  /** The stamp of the frame it was recognised on. */
+  /** The stamp of the frame it was recognised on (the segment's closing quiet, after the motion). */
   t: number;
+  /** When the repetition happened (#909): its first frame (a window before the motion was first
+   *  seen) and its last moving frame, so a binding can act on the gesture's own time. */
+  startT: number;
+  endT: number;
   /** 1 on a template, 0 at the edge of what is accepted. */
   confidence: number;
   /** DTW distance to the nearest template, in series units. */
@@ -148,6 +154,8 @@ export interface GestureTemplates {
   /** Median distance from a template to its nearest sibling, floored by `minRadius`. */
   radius: number;
   durationMs: number;
+  /** The templates' median motion span (`series.ts`), the speed's reference. */
+  motionSpanMs: number;
   amplitude: number;
 }
 
@@ -257,6 +265,7 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
       templates,
       radius,
       durationMs: median(templates.map((s) => s.durationMs)),
+      motionSpanMs: median(templates.map((s) => s.motionSpanMs)),
       amplitude,
     });
   }
@@ -290,7 +299,7 @@ export function matchSegment(
     ratio: best.ratio,
     confidence: accepted ? 1 - best.ratio / tolerance : 0,
     variation: {
-      speed: seg.durationMs > 0 ? best.g.durationMs / seg.durationMs : NaN,
+      speed: seg.motionSpanMs > 0 ? best.g.motionSpanMs / seg.motionSpanMs : NaN,
       scale: best.g.amplitude > 0 ? seg.amplitude / best.g.amplitude : NaN,
     },
   };
@@ -334,7 +343,8 @@ export function createDtwMatcher(options: DtwMatcherOptions): WindowMatcher {
       const m = matchSegment(options.model, segment.samples, { tolerance });
       if (m.gesture === null) return NOTHING;
       lastFire = tMs;
-      return { fired: { gesture: m.gesture, t: tMs, confidence: m.confidence, distance: m.distance, variation: m.variation }, following: null };
+      const samples = segment.samples;
+      return { fired: { gesture: m.gesture, t: tMs, startT: samples[0].t, endT: samples[samples.length - 1].t, confidence: m.confidence, distance: m.distance, variation: m.variation }, following: null };
     },
     reset() {
       segmenter.reset();

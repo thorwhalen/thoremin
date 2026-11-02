@@ -44,6 +44,9 @@ export interface Series {
   rows: number[][];
   /** The run's duration, first to last stamp, in ms. */
   durationMs: number;
+  /** How long the motion itself took, in ms ({@link motionSpanMs}): the speed's measure, which
+   *  does not move with where the segmenter cut the run. */
+  motionSpanMs: number;
   /** RMS deviation from the column means, in weighted units, before any scaling. */
   amplitude: number;
 }
@@ -75,7 +78,7 @@ function finiteMean(xs: readonly number[]): number {
 /** `samples` as a {@link Series} (see the module header). Fewer than two samples: no rows. */
 export function toSeries(samples: readonly TraceSample[], options: SeriesOptions): Series {
   const { features, weights, length, position, scale } = options;
-  if (samples.length < 2 || length < 2) return { rows: [], durationMs: 0, amplitude: 0 };
+  if (samples.length < 2 || length < 2) return { rows: [], durationMs: 0, motionSpanMs: 0, amplitude: 0 };
   const t0 = samples[0].t;
   const durationMs = samples[samples.length - 1].t - t0;
   const at = Array.from({ length }, (_, i) => t0 + (durationMs * i) / (length - 1));
@@ -107,5 +110,48 @@ export function toSeries(samples: readonly TraceSample[], options: SeriesOptions
   const divisor = scale && amplitude > 0 ? amplitude : 1;
 
   const rows = at.map((_, i) => columns.map((col, k) => (position ? 0 : means[k]) + (col[i] - means[k]) / divisor));
-  return { rows, durationMs, amplitude };
+  return { rows, durationMs, motionSpanMs: motionSpanMs(samples, options), amplitude };
+}
+
+/**
+ * The share of a run's path that its motion span leaves out at each end (#909): the span runs from
+ * where a tenth of the path has been travelled to where nine tenths have. The slow tails, which a
+ * bigger or a smaller repetition pushes across the segmenter's threshold at different moments, hold
+ * little path, so the span measures the motion and not the cut.
+ */
+export const MOTION_SPAN_TAIL = 0.1;
+
+/**
+ * How long the motion took, in ms: the time between the moments the cumulative path (the weighted
+ * features' RMS step, frame to frame, at the frames' own stamps) reaches {@link MOTION_SPAN_TAIL} and
+ * one minus it of its total. Scale-free (a bigger wave travels more path, in the same proportions)
+ * and nearly free of the cut points. No path: 0.
+ */
+export function motionSpanMs(samples: readonly TraceSample[], { features, weights }: Pick<SeriesOptions, 'features' | 'weights'>, tail = MOTION_SPAN_TAIL): number {
+  const cumulative: number[] = [0];
+  for (let i = 1; i < samples.length; i++) {
+    let sq = 0;
+    let n = 0;
+    for (const id of features) {
+      const w = weights[id] ?? 0;
+      const a = samples[i - 1].vector[id];
+      const b = samples[i].vector[id];
+      if (w === 0 || a === undefined || b === undefined || !Number.isFinite(a) || !Number.isFinite(b)) continue;
+      sq += ((b - a) * w) ** 2;
+      n += 1;
+    }
+    cumulative.push(cumulative[i - 1] + (n === 0 ? 0 : Math.sqrt(sq / n)));
+  }
+  const total = cumulative[cumulative.length - 1];
+  if (!(total > 0)) return 0;
+  /** The stamp at which the cumulative path reaches `share` of the total, interpolated. */
+  const when = (share: number): number => {
+    const target = share * total;
+    let k = 1;
+    while (k < cumulative.length - 1 && cumulative[k] < target) k++;
+    const span = cumulative[k] - cumulative[k - 1];
+    const f = span > 0 ? (target - cumulative[k - 1]) / span : 0;
+    return samples[k - 1].t + f * (samples[k].t - samples[k - 1].t);
+  };
+  return when(1 - tail) - when(tail);
 }
