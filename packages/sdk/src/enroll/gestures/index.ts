@@ -6,7 +6,7 @@
  */
 export { createMotionSegmenter, SEGMENTER_DEFAULTS, type MotionSegmenter, type SegmenterOptions } from './segmenter';
 export { dtwDistance, type DtwOptions, type Rows } from './dtw';
-export { toSeries, type Series, type SeriesOptions } from './series';
+export { motionSpanMs, MOTION_SPAN_TAIL, toSeries, type Series, type SeriesOptions } from './series';
 export {
   buildGestureModel,
   byGesture,
