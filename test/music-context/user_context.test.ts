@@ -75,6 +75,8 @@ describe('tap tempo', () => {
   it('counts a missed tap as two beats and drops a bounce', () => {
     expect(tempoFromTaps([0, 0.5, 1, 2, 2.5])!.bpm).toBeCloseTo(120, 6);
     expect(tempoFromTaps([0, 0.5, 0.54, 1, 1.5, 2])!.bpm).toBeCloseTo(120, 6);
+    // A bounce on the second tap, before any beat is known.
+    expect(tempoFromTaps([0, 0.04, 0.5, 1, 1.5, 2])).toMatchObject({ bpm: 120, firstBeatS: 0 });
   });
 });
 

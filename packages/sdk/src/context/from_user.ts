@@ -110,6 +110,9 @@ export function parseChart(text: string): { bars: (Chord | null)[][]; errors: st
 export const TAP_BOUNCE = 0.4;
 /** A gap longer than this many beats is a pause: the count starts again after it. */
 export const TAP_PAUSE = 4;
+/** A second tap closer than this (seconds: 400 beats a minute) is a bounce: no beat is known yet to
+ *  tell it by. */
+export const TAP_MIN_GAP_S = 0.15;
 
 /** A tap with its beat number in the run (the run's first tap is beat 0, the downbeat). */
 export interface NumberedTap {
@@ -148,7 +151,7 @@ export function numberTap(run: readonly NumberedTap[], t: number): { run: Number
   const fit = run.length >= 3 ? fitTaps(run) : null;
   const beat = fit?.period ?? (gaps.length ? median(gaps) : t - last.t);
   const gap = t - last.t;
-  if (gaps.length && gap < TAP_BOUNCE * beat) return { run: [...run], event: 'bounce' };
+  if ((gaps.length && gap < TAP_BOUNCE * beat) || gap < TAP_MIN_GAP_S) return { run: [...run], event: 'bounce' };
   if (gaps.length && gap > TAP_PAUSE * beat) return { run: [{ t, k: 0 }], event: 'restart' };
   return { run: [...run, { t, k: last.k + Math.max(1, Math.round(gap / beat)) }], event: 'added' };
 }
