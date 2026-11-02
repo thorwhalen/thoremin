@@ -10,6 +10,10 @@
  * (PR H, on `followRate`, which replaces `rate` while the song follows the dancer) drive
  * it without a graph rebuild.
  *
+ * A song opened in a provider's embedded player (`SongHandle.player`, a YouTube video) is driven
+ * through that player instead, the same transport, rate, seek and position, so `songTime` is
+ * published for it exactly as for a file; its `rate` output is the rate the provider applied.
+ *
  * Playback is behind the {@link Stretcher} seam: Signalsmith Stretch (an AudioWorklet,
  * `../app/song_stretcher_signalsmith`, #187 PR 7, installed by the slice's app half through
  * `provideStretcherLoader`) by default, loaded the first time a song
@@ -143,6 +147,8 @@ export const songPlayerNode = defineNode<Params>({
   params: Params,
   make(p) {
     let stretcher: Stretcher | null = null;
+    /** What played the song last tick: the shared stretcher, or a song's own player. */
+    let driven: Stretcher | null = null;
     let starting = false;
     let failed = false;
     let loadedId: string | null = null;
@@ -226,7 +232,8 @@ export const songPlayerNode = defineNode<Params>({
         const song = (inputs.song as SongHandle | null | undefined) ?? null;
         const audio = realtimeOutputAllowed(ctx) ? audioOf(ctx) : null;
         if (!song) {
-          if (stretcher && loadedId) stretcher.pause();
+          if (driven && loadedId) driven.pause();
+          driven = null;
           if (faded) stretcher?.fade?.(1, 0);
           fading = null;
           faded = false;
@@ -238,13 +245,16 @@ export const songPlayerNode = defineNode<Params>({
         if (!audio) {
           // Boundary B, like the synth: at any clock speed but real time the song goes
           // silent too, rather than playing on at wall-clock rate under a silent instrument.
-          if (stretcher && loadedId) stretcher.pause();
+          if (driven && loadedId) driven.pause();
           wasPlaying = false;
           return idle(ctx, { phase: 'unavailable', reason: 'no-audio', message: 'Tap to play to start the audio, then play the song' }, song.grid);
         }
         // A new song retries a stretcher that failed to load (a chunk lost to a redeploy).
         if (failed && song.id !== failedFor) failed = false;
-        const s = stretcherFor(ctx, audio, song.id);
+        // A song in a provider's own player is driven there; every other through the stretcher.
+        const s = song.player ?? stretcherFor(ctx, audio, song.id);
+        if (driven && driven !== s && loadedId) driven.pause();
+        driven = s;
         if (!s) {
           return idle(
             ctx,
@@ -394,16 +404,21 @@ export const songPlayerNode = defineNode<Params>({
               : { phase: 'ready', message: `${song.name} is ready` };
         }
         const position = s.position();
+        // What a provider's player really plays at (it rounds to its own rates).
+        const playingRate = s.appliedRate?.() ?? rate;
         return {
           status,
           position,
-          rate,
-          songTime: songTimeAt(song.grid, position, { t: ctx.time, rate, playing: s.playing() }),
+          rate: playingRate,
+          songTime: songTimeAt(song.grid, position, { t: ctx.time, rate: playingRate, playing: s.playing() }),
           seeked: seekedId ?? undefined,
         };
       },
       dispose() {
         disposed = true;
+        // A song's own player is its session's to dispose; pause it, never leave it sounding.
+        if (driven && driven !== stretcher) driven.pause();
+        driven = null;
         if (stretcher) LIVE.delete(stretcher);
         stretcher?.dispose();
         stretcher = null;

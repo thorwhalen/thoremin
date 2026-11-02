@@ -9,14 +9,15 @@
  */
 import { useRef, useState, type FormEvent } from 'react';
 import type { MediaItem, SearchHit } from '@thoremin/sources';
-import { SOURCES, openInput, openMedia, resolveHit } from '../app/sources';
+import { providerKey, removeProviderKey, setProviderKey } from '@thoremin/sdk-ui/keys';
+import { SOURCES, openInput, openMedia, resolveHit, searchReady } from '../app/sources';
 import { formatTime } from './format';
 import type { SongSourceItem } from '../nodes/song_player.schema';
 
 type View =
   | { kind: 'idle' }
-  | { kind: 'searching'; query: string }
-  | { kind: 'results'; query: string; hits: SearchHit[]; failed: string[] }
+  | { kind: 'searching'; query: string; sources: string[] }
+  | { kind: 'results'; query: string; hits: SearchHit[]; failed: { label: string; reason: string }[] }
   | { kind: 'tracks'; item: MediaItem; back: View }
   | { kind: 'opening'; title: string; back: View };
 
@@ -28,6 +29,9 @@ const labelOf = (source: string): string => {
     return source;
   }
 };
+
+/** "A, B and C". */
+export const listWords = (xs: readonly string[]): string => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 /** Whether the box holds a link rather than words to search. */
 export const isLink = (text: string): boolean => /^https?:\/\//i.test(text.trim());
@@ -73,10 +77,11 @@ export default function MediaSearch({ onBusy }: { onBusy?: (busy: boolean) => vo
     }
     const id = ++request.current;
     setError(null);
-    setView({ kind: 'searching', query: q });
-    const { hits, failures } = await SOURCES.search(q, { limit: 12 });
+    const ready = searchReady();
+    setView({ kind: 'searching', query: q, sources: ready.map((a) => a.label) });
+    const { hits, failures } = await SOURCES.search(q, { limit: 12, sources: ready.map((a) => a.id) });
     if (id !== request.current) return;
-    setView({ kind: 'results', query: q, hits, failed: failures.map((f) => labelOf(f.source)) });
+    setView({ kind: 'results', query: q, hits, failed: failures.map((f) => ({ label: labelOf(f.source), reason: f.error.message })) });
   };
 
   const pick = async (hit: SearchHit, back: View) => {
@@ -124,7 +129,7 @@ export default function MediaSearch({ onBusy }: { onBusy?: (busy: boolean) => vo
       )}
       {view.kind === 'searching' && (
         <p className="text-[11px] text-white/60" aria-busy="true" data-testid="media-status">
-          Searching {SOURCES.searchable().map((a) => a.label).join(' and ')} for "{view.query}"...
+          Searching {listWords(view.sources)} for "{view.query}"...
         </p>
       )}
       {view.kind === 'opening' && (
@@ -155,7 +160,74 @@ export default function MediaSearch({ onBusy }: { onBusy?: (busy: boolean) => vo
           </ul>
         </div>
       )}
+      <KeySettings />
     </div>
+  );
+}
+
+/** The keys the adapters' searches need (YouTube's), each the player's own, kept on this device. */
+function KeySettings() {
+  const wanting = SOURCES.list().filter((a) => a.keySetting);
+  if (!wanting.length) return null;
+  return (
+    <>
+      {wanting.map((a) => (
+        <KeySetting key={a.id} setting={a.keySetting!} />
+      ))}
+    </>
+  );
+}
+
+function KeySetting({ setting }: { setting: NonNullable<ReturnType<typeof SOURCES.get>['keySetting']> }) {
+  const [stored, setStored] = useState(() => providerKey(setting.provider) !== null);
+  const [draft, setDraft] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const save = () => {
+    const why = setProviderKey(setting.provider, draft);
+    setProblem(why);
+    if (!why) {
+      setDraft('');
+      setStored(true);
+    }
+  };
+  return (
+    <details className="rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-white/70" data-testid={`key-${setting.provider}`}>
+      <summary className="cursor-pointer select-none">
+        {setting.label}: {stored ? 'set' : 'not set'}
+      </summary>
+      <p className="mt-1 text-white/55">
+        {setting.help}{' '}
+        <a href={setting.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-white/80">
+          Get a key
+        </a>
+      </p>
+      <div className="mt-1.5 flex gap-1.5">
+        <input
+          type="password"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={stored ? 'Paste a new key to replace it' : 'Paste your key'}
+          aria-label={setting.label}
+          autoComplete="off"
+          className="min-w-0 flex-1 rounded border border-white/10 bg-black/30 px-2 py-1 text-white placeholder:text-white/35 focus:outline-none"
+        />
+        <button onClick={save} disabled={!draft.trim()} className="rounded bg-white/10 px-2 py-1 font-semibold text-white hover:bg-white/20 disabled:opacity-40">
+          Save
+        </button>
+        {stored && (
+          <button
+            onClick={() => {
+              removeProviderKey(setting.provider);
+              setStored(false);
+            }}
+            className="rounded px-2 py-1 text-white/60 hover:text-white"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      {problem && <p className="mt-1 text-amber-300/90">{problem}</p>}
+    </details>
   );
 }
 
@@ -163,7 +235,7 @@ function Results({ view, onPick }: { view: Extract<View, { kind: 'results' }>; o
   if (!view.hits.length) {
     return (
       <p className="text-[11px] text-white/60" data-testid="media-status">
-        {view.failed.length ? `${view.failed.join(' and ')} could not be reached.` : `Nothing found for "${view.query}".`}
+        {view.failed.length ? view.failed.map((f) => `${f.label}: ${f.reason}.`).join(' ') : `Nothing found for "${view.query}".`}
       </p>
     );
   }
@@ -189,7 +261,7 @@ function Results({ view, onPick }: { view: Extract<View, { kind: 'results' }>; o
           </ul>
         </section>
       ))}
-      {view.failed.length > 0 && <p className="px-1 text-[10px] text-amber-300/80">{view.failed.join(' and ')} could not be reached.</p>}
+      {view.failed.length > 0 && <p className="px-1 text-[10px] text-amber-300/80">{view.failed.map((f) => `${f.label}: ${f.reason}.`).join(' ')}</p>}
     </div>
   );
 }

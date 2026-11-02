@@ -15,7 +15,20 @@
     "./adapters/internet_archive": "./src/adapters/internet_archive.ts",
     "./adapters/audius": "./src/adapters/audius.ts",
     "./adapters/cors_url": "./src/adapters/cors_url.ts",
-    "./adapters/local_file": "./src/adapters/local_file.ts"
+    "./adapters/local_file": "./src/adapters/local_file.ts",
+    "./adapters/youtube": "./src/adapters/youtube.ts",
+    "./adapters/soundcloud": "./src/adapters/soundcloud.ts",
+    "./adapters/deezer": "./src/adapters/deezer.ts",
+    "./adapters/link_embeds": "./src/adapters/link_embeds.ts",
+    "./adapters/spotify": "./src/adapters/spotify.ts",
+    "./adapters/apple_music": "./src/adapters/apple_music.ts",
+    "./embed": "./src/embed.ts",
+    "./jsonp": "./src/jsonp.ts",
+    "./embeds/youtube_player": "./src/embeds/youtube_player.ts",
+    "./embeds/soundcloud_player": "./src/embeds/soundcloud_player.ts",
+    "./embeds/spotify_player": "./src/embeds/spotify_player.ts",
+    "./embeds/iframe_player": "./src/embeds/iframe_player.ts",
+    "./provider_transports": "./src/provider_transports.ts"
   },
   "dependencies": {
     "zod": "*"

@@ -8,6 +8,7 @@
     { "id": "midi-output", "module": "@/slices/midi", "ui": "@/slices/midi/ui" },
     { "id": "generative-layer", "module": "@/slices/generative", "ui": "@/slices/generative/ui" },
     { "id": "song-tool", "module": "@/slices/song", "ui": "@/slices/song/ui" },
+    { "id": "streaming-embeds", "module": "@/slices/streaming", "ui": "@/slices/streaming/ui" },
     { "id": "body-tracking", "module": "@/slices/body", "ui": "@/slices/body/ui" },
     { "id": "trainer-tool", "module": "@/slices/trainer", "ui": "@/slices/trainer/ui" },
     { "id": "conductor-tool", "module": "@/slices/conductor", "ui": "@/slices/conductor/ui" },

@@ -14,6 +14,8 @@ export function describeInput(status: HubStatus | null): string | null {
       return 'This browser cannot listen to a microphone here.';
     case 'failed':
       return `The microphone could not start: ${status.error ?? 'unknown error'}`;
+    case 'refused':
+      return status.error ?? 'Listening is off while a streaming player plays.';
     case 'live':
       return status.source === 'microphone' ? `Listening${status.device ? ` (${status.device})` : ''}.` : `Listening to the ${status.source} sound.`;
     default:

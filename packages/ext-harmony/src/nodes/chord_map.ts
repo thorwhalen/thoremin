@@ -288,7 +288,7 @@ export interface ChordMapStatus {
   /** With MIDI: whether a keyboard can be heard, and the chord it holds (null: none yet). */
   midi: 'off' | 'waiting' | 'denied' | 'unavailable' | 'no-input' | 'listening';
   /** With the microphone: whether it can be heard, and whether anything is sounding. */
-  audio: 'off' | 'waiting' | 'denied' | 'unavailable' | 'quiet' | 'listening';
+  audio: 'off' | 'waiting' | 'denied' | 'refused' | 'unavailable' | 'quiet' | 'listening';
   /** With signs: whether a hand is read, and the sign it makes (null: none). */
   signs: 'off' | 'waiting' | 'reading';
   sign: string | null;
@@ -617,7 +617,7 @@ export const chordMapNode = defineNode<Params>({
         const midiStatus: ChordMapStatus['midi'] =
           c.follow !== 'midi' ? 'off' : !midi || midi.reason === 'pending' ? 'waiting' : midi.reason === 'denied' ? 'denied' : !midi.available ? 'unavailable' : midi.inputs === 0 ? 'no-input' : 'listening';
         const audioStatus: ChordMapStatus['audio'] =
-          c.follow !== 'audio' ? 'off' : !audio || audio.reason === 'pending' ? 'waiting' : audio.reason === 'denied' ? 'denied' : !audio.available ? 'unavailable' : audio.sounding ? 'listening' : 'quiet';
+          c.follow !== 'audio' ? 'off' : !audio || audio.reason === 'pending' ? 'waiting' : audio.reason === 'denied' ? 'denied' : audio.reason === 'refused' ? 'refused' : !audio.available ? 'unavailable' : audio.sounding ? 'listening' : 'quiet';
         // A heard chord outside the key: no cell, but its own tones in the map's register.
         const outsideTones = heard && choice.active === null ? heardChordTones(heard, spec) : null;
         const heardName = heard ? chordName(heard, keyOf(spec)) : null;

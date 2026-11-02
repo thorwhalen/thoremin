@@ -1,0 +1,43 @@
+{
+ "kind": "youtube#searchListResponse",
+ "items": [
+  {
+   "kind": "youtube#searchResult",
+   "id": {
+    "kind": "youtube#video",
+    "videoId": "AAAAAAAAAAA"
+   },
+   "snippet": {
+    "title": "Bach &amp; friends: Air on the G String",
+    "channelTitle": "A channel &#39;s name",
+    "thumbnails": {
+     "default": {
+      "url": "https://i.ytimg.com/vi/AAAAAAAAAAA/default.jpg"
+     }
+    }
+   }
+  },
+  {
+   "kind": "youtube#searchResult",
+   "id": {
+    "kind": "youtube#channel",
+    "channelId": "UC000"
+   },
+   "snippet": {
+    "title": "A channel",
+    "channelTitle": "A channel"
+   }
+  },
+  {
+   "kind": "youtube#searchResult",
+   "id": {
+    "kind": "youtube#video",
+    "videoId": "BBBBBBBBBBB"
+   },
+   "snippet": {
+    "title": "Toccata",
+    "channelTitle": "Organ"
+   }
+  }
+ ]
+}

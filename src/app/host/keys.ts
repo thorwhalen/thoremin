@@ -3,6 +3,6 @@
  * reads a key through `@thoremin/sdk-ui/keys`, never `src/keys` (V12 of the architecture review).
  */
 import { provideProviderKeys } from '@thoremin/sdk-ui/keys';
-import { getStoredKey } from '@/keys/providerKeys';
+import { getStoredKey, removeStoredKey, trySetStoredKey } from '@/keys/providerKeys';
 
-provideProviderKeys({ get: getStoredKey });
+provideProviderKeys({ get: getStoredKey, set: trySetStoredKey, remove: removeStoredKey });

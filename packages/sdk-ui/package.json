@@ -40,7 +40,9 @@
     "./recording/config": "./src/recording/config.ts",
     "./enroll/speakable": "./src/enroll/speakable.ts",
     "./enroll/voice": "./src/enroll/voice.ts",
-    "./enroll/voiceRuntime": "./src/enroll/voiceRuntime.ts"
+    "./enroll/voiceRuntime": "./src/enroll/voiceRuntime.ts",
+    "./listening": "./src/listening.ts",
+    "./sources": "./src/sources.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",
@@ -52,7 +54,8 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.14",
     "acture": "^1.3.0",
-    "@thoremin/lazy": "*"
+    "@thoremin/lazy": "*",
+    "@thoremin/sources": "*"
   },
   "peerDependencies": {
     "react": "*"

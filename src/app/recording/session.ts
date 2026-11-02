@@ -11,6 +11,7 @@
  * does the browser capture + wiring, so it is intentionally kept thin and is
  * covered by the app's build (not the Node strict typecheck), like `useEngine`.
  */
+import { listeningRefusal, ListeningRefused } from '@thoremin/sdk-ui/listening';
 import type { Engine } from '@thoremin/dag';
 import { recordingFormat, convertAudioFormats, type ConvertedFormat } from './formats';
 import { recordingStem, prefillName } from '@thoremin/sdk-ui/recording/naming';
@@ -285,6 +286,9 @@ export class SessionRecorder {
     // recording a "real versus air" take with no real.
     let micStream: MediaStream | null = null;
     if (s.microphone) {
+      // A streaming player's sound must not be recorded through the microphone.
+      const refused = listeningRefusal();
+      if (refused) throw new ListeningRefused(`The microphone is not recorded: ${refused}. Close the player, or record without the microphone.`);
       micStream = await (this.deps.openMicrophone ?? openRawMicrophone)();
       this.ownedStreams.push(micStream);
       const latency = (micStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number } | undefined)?.latency;

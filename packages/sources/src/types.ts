@@ -61,6 +61,9 @@ export interface SearchHit {
 export interface MediaItem extends SearchHit {
   rights: Rights;
   media: MediaRef;
+  /** A provider's own player, when the media is an embed: its capabilities may be narrower than
+   *  the adapter's (a provider that plays this item with no remote control). */
+  embedTransport?: TransportCapabilities;
   /** The other playable parts of the same release (an archive item's other tracks), each
    *  resolvable by its id with the same adapter. */
   parts?: { id: string; title: string }[];
@@ -82,6 +85,10 @@ export interface TimingFigure {
 
 /** What a session's transport can do, honestly: null where it cannot or nobody knows. */
 export interface TransportCapabilities {
+  /** `play` and `pause` reach the player (false for a player only its own buttons control). */
+  play: boolean;
+  /** `position()` is known (false for a player that reports nothing). */
+  position: boolean;
   seek: boolean;
   rate: RateSupport | null;
   volume: boolean;
@@ -128,7 +135,37 @@ export interface SourceHost {
   /** Play decodable audio (the bytes, already fetched under the item's rights) through the
    *  instrument's own song player. */
   openOwned(item: MediaItem, bytes: Blob): Promise<PlaybackSession>;
+  /** Play an item in its provider's own player, mounted visibly by the host. Absent in a host that
+   *  shows no embeds. */
+  openEmbed?(item: MediaItem, player: EmbedPlayerFactory): Promise<PlaybackSession>;
 }
+
+export type EmbedEvent = 'state' | 'ended' | 'buffering' | 'error';
+
+/** A provider's player in an element the host shows: the provider's SDK behind one shape. The
+ *  optional verbs exist exactly when `capabilities` says so. */
+export interface EmbedPlayer {
+  readonly capabilities: TransportCapabilities;
+  /** Resolves when the player can be controlled; rejects (with a reason in words) when the item
+   *  cannot be embedded. */
+  ready: Promise<void>;
+  play(): void;
+  pause(): void;
+  seek?(positionS: number): void;
+  /** Asks for a rate; returns the rate the player applied (a provider rounds to its steps). */
+  setRate?(rate: number): number;
+  setVolume?(volume: number): void;
+  /** Seconds into the item, extrapolated between the provider's reports while it plays. */
+  position(): number;
+  durationS(): number;
+  playing(): boolean;
+  ended(): boolean;
+  on(event: EmbedEvent, listener: () => void): () => void;
+  dispose(): void;
+}
+
+/** Makes a provider's player inside `container` for `item`. */
+export type EmbedPlayerFactory = (container: HTMLElement, item: MediaItem) => EmbedPlayer;
 
 export interface SearchOptions {
   /** At most this many hits from this adapter. */
@@ -139,6 +176,17 @@ export interface SearchOptions {
 /** The input an adapter resolves: a pasted link or an id (string), or a file the player chose. */
 export type SourceInput = string | Blob;
 
+/** A key the player supplies for an adapter, described for the settings that ask for it. */
+export interface KeySetting {
+  /** Where the key is stored (the app's key store's provider id). */
+  provider: string;
+  label: string;
+  /** What the key does and where it stays, in words. */
+  help: string;
+  /** Where to get one. */
+  url: string;
+}
+
 /** One provider. Registered as data; the registry is the only caller. */
 export interface SourceAdapter {
   id: string;
@@ -146,15 +194,20 @@ export interface SourceAdapter {
   /** The widest rights any item of this adapter may carry. */
   rights: Rights;
   capabilities: SourceCapabilities;
+  /** The player's own key this adapter's search needs (stored on the device by the app, read
+   *  back through the adapter's `getKey`): the setting the adapter owns. */
+  keySetting?: KeySetting;
   /** Whether a pasted link (or a file) is this adapter's to resolve. */
   matches?(input: SourceInput): boolean;
   search?(query: string, opts?: SearchOptions): Promise<SearchHit[]>;
-  resolve(input: SourceInput, opts?: { signal?: AbortSignal }): Promise<MediaItem>;
+  /** `hit` is the search hit being resolved, when it is one (its title and artist, for an adapter
+   *  whose items carry no metadata of their own). */
+  resolve(input: SourceInput, opts?: { signal?: AbortSignal; hit?: SearchHit }): Promise<MediaItem>;
   open(item: MediaItem, host: SourceHost): Promise<PlaybackSession>;
 }
 
 /** Why a source call failed, so the panel can say it in words. */
-export type SourceErrorReason = 'network' | 'cors' | 'not-found' | 'unsupported' | 'rights' | 'bad-response' | 'unknown-source';
+export type SourceErrorReason = 'network' | 'cors' | 'not-found' | 'unsupported' | 'rights' | 'bad-response' | 'unknown-source' | 'needs-key';
 
 export class SourceError extends Error {
   readonly reason: SourceErrorReason;

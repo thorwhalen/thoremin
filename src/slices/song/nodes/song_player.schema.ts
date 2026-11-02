@@ -21,6 +21,10 @@ export interface SongHandle {
    *  shape: the node's contract stays free of that package): its provider, rights, licence and
    *  page. Absent for a song set directly (a test). */
   item?: SongSourceItem;
+  /** The song's own player, when it plays in a provider's embedded player rather than through the
+   *  song player's stretcher. The session that opened it owns it (and disposes it); the node only
+   *  drives it, and reads its position for `songTime`. */
+  player?: Stretcher;
 }
 
 /** What the song knows of the source item it came from. */
@@ -53,6 +57,9 @@ export interface Stretcher {
   /** Ramp the fader (separate from the volume) to `level` (0..1) over `seconds`; 0 seconds
    *  is immediate (#366: the conductor's hold fades the song). Absent = cuts only. */
   fade?(level: number, seconds: number): void;
+  /** The rate actually playing, when the player rounds what it is asked (a provider's own
+   *  rates); absent = the rate asked. */
+  appliedRate?(): number;
   /** Position on the SONG's timeline, seconds: the audio leaving the stretcher now. */
   position(): number;
   /** Move to a position on the song's timeline, seconds (#187 PR 7: the conductor's cue). */

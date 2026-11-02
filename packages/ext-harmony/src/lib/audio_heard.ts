@@ -12,6 +12,6 @@ export interface AudioHeard {
   /** Something is sounding: clearly above the room's own noise floor. */
   sounding: boolean;
   /** Why nothing can be heard: no microphone API, the player refused it, the browser is still
-   *  asking, or it opened and then failed. */
-  reason?: 'unsupported' | 'denied' | 'pending' | 'failed';
+   *  asking, it opened and then failed, or the page may not listen now (a streaming player plays). */
+  reason?: 'unsupported' | 'denied' | 'pending' | 'failed' | 'refused';
 }
