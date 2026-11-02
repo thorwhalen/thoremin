@@ -111,6 +111,7 @@
     "./nodes/pluck_out": "./src/nodes/pluck_out.ts",
     "./nodes/player_hands": "./src/nodes/player_hands.ts",
     "./music/guitar": "./src/music/guitar.ts",
+    "./gesture/pinch": "./src/gesture/pinch.ts",
     "./gesture/strum": "./src/gesture/strum.ts",
     "./score/prepare": "./src/score/prepare.ts",
     "./score/schema": "./src/score/schema.ts",
