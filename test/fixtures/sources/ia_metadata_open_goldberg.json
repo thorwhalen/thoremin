@@ -1,0 +1,687 @@
+{
+ "metadata": {
+  "identifier": "The_Open_Goldberg_Variations-11823",
+  "title": "The Open Goldberg Variations",
+  "creator": "Kimiko Ishizaka",
+  "licenseurl": "http://creativecommons.org/publicdomain/zero/1.0/",
+  "mediatype": "audio"
+ },
+ "files": [
+  {
+   "name": "Kimiko_Ishizaka_-_01_-_Aria.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "299.54",
+   "title": "Aria"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_01_-_Aria.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "293.96",
+   "original": "Kimiko_Ishizaka_-_01_-_Aria.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_01_-_Aria.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_01_-_Aria.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "115.51",
+   "title": "Variatio 1 a 1 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "110.35",
+   "original": "Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_02_-_Variatio_1_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_03_-_Variatio_2_a_1_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "123.79",
+   "title": "Variatio 2 a 1 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_03_-_Variatio_2_a_1_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "118.01",
+   "original": "Kimiko_Ishizaka_-_03_-_Variatio_2_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_03_-_Variatio_2_a_1_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_03_-_Variatio_2_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_04_-_Variatio_3_a_1_Clav_Canone_allUnisuono.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "116.81",
+   "title": "Variatio 3 a 1 Clav. Canone all'Unisuono"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_04_-_Variatio_3_a_1_Clav_Canone_allUnisuono.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "111",
+   "original": "Kimiko_Ishizaka_-_04_-_Variatio_3_a_1_Clav_Canone_allUnisuono.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_04_-_Variatio_3_a_1_Clav_Canone_allUnisuono.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_04_-_Variatio_3_a_1_Clav_Canone_allUnisuono.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "68.62",
+   "title": "Variatio 4 a 1 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "63.54",
+   "original": "Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_06_-_Variatio_5_a_1_ovvero_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "94.24",
+   "title": "Variatio 5 a 1 ovvero 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_06_-_Variatio_5_a_1_ovvero_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "88.55",
+   "original": "Kimiko_Ishizaka_-_06_-_Variatio_5_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_06_-_Variatio_5_a_1_ovvero_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_06_-_Variatio_5_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_07_-_Variatio_6_a_1_Clav_Canone_alla_Seconda.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "98.14",
+   "title": "Variatio 6 a 1 Clav. Canone alla Seconda"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_07_-_Variatio_6_a_1_Clav_Canone_alla_Seconda.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "92.37",
+   "original": "Kimiko_Ishizaka_-_07_-_Variatio_6_a_1_Clav_Canone_alla_Seconda.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_07_-_Variatio_6_a_1_Clav_Canone_alla_Seconda.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_07_-_Variatio_6_a_1_Clav_Canone_alla_Seconda.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_08_-_Variatio_7_a_1_ovvero_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "132.28",
+   "title": "Variatio 7 a 1 ovvero 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_08_-_Variatio_7_a_1_ovvero_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "126.46",
+   "original": "Kimiko_Ishizaka_-_08_-_Variatio_7_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_08_-_Variatio_7_a_1_ovvero_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_08_-_Variatio_7_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_09_-_Variatio_8_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "116.55",
+   "title": "Variatio 8 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_09_-_Variatio_8_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "111.04",
+   "original": "Kimiko_Ishizaka_-_09_-_Variatio_8_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_09_-_Variatio_8_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_09_-_Variatio_8_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_10_-_Variatio_9_a_1_Clav_Canone_alla_Terza.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "126.27",
+   "title": "Variatio 9 a 1 Clav. Canone alla Terza"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_10_-_Variatio_9_a_1_Clav_Canone_alla_Terza.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "120.41",
+   "original": "Kimiko_Ishizaka_-_10_-_Variatio_9_a_1_Clav_Canone_alla_Terza.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_10_-_Variatio_9_a_1_Clav_Canone_alla_Terza.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_10_-_Variatio_9_a_1_Clav_Canone_alla_Terza.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_11_-_Variatio_10_a_1_Clav_Fughetta.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "105.79",
+   "title": "Variatio 10 a 1 Clav. Fughetta"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_11_-_Variatio_10_a_1_Clav_Fughetta.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "100.27",
+   "original": "Kimiko_Ishizaka_-_11_-_Variatio_10_a_1_Clav_Fughetta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_11_-_Variatio_10_a_1_Clav_Fughetta.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_11_-_Variatio_10_a_1_Clav_Fughetta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_12_-_Variatio_11_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "129.12",
+   "title": "Variatio 11 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_12_-_Variatio_11_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "123.25",
+   "original": "Kimiko_Ishizaka_-_12_-_Variatio_11_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_12_-_Variatio_11_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_12_-_Variatio_11_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_13_-_Variatio_12_Canone_alla_Quarta.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "135.94",
+   "title": "Variatio 12 Canone alla Quarta"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_13_-_Variatio_12_Canone_alla_Quarta.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "130.34",
+   "original": "Kimiko_Ishizaka_-_13_-_Variatio_12_Canone_alla_Quarta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_13_-_Variatio_12_Canone_alla_Quarta.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_13_-_Variatio_12_Canone_alla_Quarta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "254.48",
+   "title": "Variatio 13 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "248.71",
+   "original": "Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_14_-_Variatio_13_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_15_-_Variatio_14_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "136.77",
+   "title": "Variatio 14 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_15_-_Variatio_14_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "131.35",
+   "original": "Kimiko_Ishizaka_-_15_-_Variatio_14_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_15_-_Variatio_14_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_15_-_Variatio_14_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_16_-_Variatio_15_a_1_Clav_Canone_alla_Quinta.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "272.53",
+   "title": "Variatio 15 a 1 Clav. Canone alla Quinta"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_16_-_Variatio_15_a_1_Clav_Canone_alla_Quinta.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "266.64",
+   "original": "Kimiko_Ishizaka_-_16_-_Variatio_15_a_1_Clav_Canone_alla_Quinta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_16_-_Variatio_15_a_1_Clav_Canone_alla_Quinta.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_16_-_Variatio_15_a_1_Clav_Canone_alla_Quinta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_17_-_Variatio_16_a_1_Clav_Ouverture.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "188.7",
+   "title": "Variatio 16 a 1 Clav. Ouverture"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_17_-_Variatio_16_a_1_Clav_Ouverture.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "183.02",
+   "original": "Kimiko_Ishizaka_-_17_-_Variatio_16_a_1_Clav_Ouverture.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_17_-_Variatio_16_a_1_Clav_Ouverture.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_17_-_Variatio_16_a_1_Clav_Ouverture.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_18_-_Variatio_17_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "104.38",
+   "title": "Variatio 17 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_18_-_Variatio_17_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "98.56",
+   "original": "Kimiko_Ishizaka_-_18_-_Variatio_17_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_18_-_Variatio_17_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_18_-_Variatio_17_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_19_-_Variatio_18_a_1_Clav_Canone_alla_Sexta.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "109.32",
+   "title": "Variatio 18 a 1 Clav. Canone alla Sexta"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_19_-_Variatio_18_a_1_Clav_Canone_alla_Sexta.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "103.45",
+   "original": "Kimiko_Ishizaka_-_19_-_Variatio_18_a_1_Clav_Canone_alla_Sexta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_19_-_Variatio_18_a_1_Clav_Canone_alla_Sexta.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_19_-_Variatio_18_a_1_Clav_Canone_alla_Sexta.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_20_-_Variatio_19_a_1_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "85.05",
+   "title": "Variatio 19 a 1 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_20_-_Variatio_19_a_1_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "79.19",
+   "original": "Kimiko_Ishizaka_-_20_-_Variatio_19_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_20_-_Variatio_19_a_1_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_20_-_Variatio_19_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_21_-_Variatio_20_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "125.28",
+   "title": "Variatio 20 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_21_-_Variatio_20_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "119.66",
+   "original": "Kimiko_Ishizaka_-_21_-_Variatio_20_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_21_-_Variatio_20_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_21_-_Variatio_20_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_22_-_Variatio_21_Canone_alla_Settima.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "234.55",
+   "title": "Variatio 21 Canone alla Settima"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_22_-_Variatio_21_Canone_alla_Settima.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "228.73",
+   "original": "Kimiko_Ishizaka_-_22_-_Variatio_21_Canone_alla_Settima.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_22_-_Variatio_21_Canone_alla_Settima.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_22_-_Variatio_21_Canone_alla_Settima.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_23_-_Variatio_22_a_1_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "92.68",
+   "title": "Variatio 22 a 1 Clav"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_23_-_Variatio_22_a_1_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "86.86",
+   "original": "Kimiko_Ishizaka_-_23_-_Variatio_22_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_23_-_Variatio_22_a_1_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_23_-_Variatio_22_a_1_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_24_-_Variatio_23_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "139.7",
+   "title": "Variatio 23 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_24_-_Variatio_23_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "134.36",
+   "original": "Kimiko_Ishizaka_-_24_-_Variatio_23_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_24_-_Variatio_23_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_24_-_Variatio_23_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "165.51",
+   "title": "Variatio 24 a 1 Clav. Canone all'Ottava"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "159.69",
+   "original": "Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_25_-_Variatio_24_a_1_Clav_Canone_allOttava.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_26_-_Variatio_25_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "558.34",
+   "title": "Variatio 25 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_26_-_Variatio_25_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "552.59",
+   "original": "Kimiko_Ishizaka_-_26_-_Variatio_25_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_26_-_Variatio_25_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_26_-_Variatio_25_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_27_-_Variatio_26_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "122.8",
+   "title": "Variatio 26 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_27_-_Variatio_26_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "117.03",
+   "original": "Kimiko_Ishizaka_-_27_-_Variatio_26_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_27_-_Variatio_26_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_27_-_Variatio_26_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_28_-_Variatio_27_a_2_Clav_Canone_alla_Nona.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "111.43",
+   "title": "Variatio 27 a 2 Clav. Canone alla Nona"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_28_-_Variatio_27_a_2_Clav_Canone_alla_Nona.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "105.81",
+   "original": "Kimiko_Ishizaka_-_28_-_Variatio_27_a_2_Clav_Canone_alla_Nona.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_28_-_Variatio_27_a_2_Clav_Canone_alla_Nona.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_28_-_Variatio_27_a_2_Clav_Canone_alla_Nona.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_29_-_Variatio_28_a_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "146.1",
+   "title": "Variatio 28 a 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_29_-_Variatio_28_a_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "140.42",
+   "original": "Kimiko_Ishizaka_-_29_-_Variatio_28_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_29_-_Variatio_28_a_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_29_-_Variatio_28_a_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_30_-_Variatio_29_a_1_ovvero_2_Clav.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "129.09",
+   "title": "Variatio 29 a 1 ovvero 2 Clav."
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_30_-_Variatio_29_a_1_ovvero_2_Clav.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "123.52",
+   "original": "Kimiko_Ishizaka_-_30_-_Variatio_29_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_30_-_Variatio_29_a_1_ovvero_2_Clav.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_30_-_Variatio_29_a_1_ovvero_2_Clav.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_31_-_Variatio_30_a_1_Clav_Quodlibet.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "121.26",
+   "title": "Variatio 30 a 1 Clav. Quodlibet"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_31_-_Variatio_30_a_1_Clav_Quodlibet.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "115.82",
+   "original": "Kimiko_Ishizaka_-_31_-_Variatio_30_a_1_Clav_Quodlibet.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_31_-_Variatio_30_a_1_Clav_Quodlibet.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_31_-_Variatio_30_a_1_Clav_Quodlibet.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_32_-_Aria_da_Capo__Fine.mp3",
+   "source": "original",
+   "format": "VBR MP3",
+   "length": "170.16",
+   "title": "Aria da Capo \u00e8 Fine"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_32_-_Aria_da_Capo__Fine.ogg",
+   "source": "derivative",
+   "format": "Ogg Vorbis",
+   "length": "164.52",
+   "original": "Kimiko_Ishizaka_-_32_-_Aria_da_Capo__Fine.mp3"
+  },
+  {
+   "name": "Kimiko_Ishizaka_-_32_-_Aria_da_Capo__Fine.png",
+   "source": "derivative",
+   "format": "PNG",
+   "original": "Kimiko_Ishizaka_-_32_-_Aria_da_Capo__Fine.mp3"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823.jpg",
+   "source": "original",
+   "format": "JPEG"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823_archive.torrent",
+   "source": "metadata",
+   "format": "Archive BitTorrent"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823_files.xml",
+   "source": "metadata",
+   "format": "Metadata"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823_meta.xml",
+   "source": "metadata",
+   "format": "Metadata"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823_reviews.xml",
+   "source": "original",
+   "format": "Metadata"
+  },
+  {
+   "name": "The_Open_Goldberg_Variations-11823_thumb.jpg",
+   "source": "derivative",
+   "format": "JPEG Thumb",
+   "original": "The_Open_Goldberg_Variations-11823.jpg"
+  },
+  {
+   "name": "__ia_thumb.jpg",
+   "source": "original",
+   "format": "Item Tile"
+  }
+ ]
+}

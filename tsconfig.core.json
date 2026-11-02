@@ -15,6 +15,7 @@
     "packages/games/src",
     "packages/music-formats/src",
     "packages/sound-mapper/src",
+    "packages/sources/src",
     "src/keys",
     "src/nodes",
     "src/music",

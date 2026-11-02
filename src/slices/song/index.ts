@@ -16,7 +16,7 @@ import { defineExtension, transientPort } from '@thoremin/sdk/instruments/extens
 import type { NodeDef } from '@thoremin/dag';
 import { songPlayerNode } from './nodes/song_player';
 import { paceControllerNode } from './nodes/pace_controller';
-import type { SongHandle } from './nodes/song_player.schema';
+import type { SongHandle, SongSeek } from './nodes/song_player.schema';
 import { SONG_PACE, SONG_PLAYBACK } from './branches';
 import { deriveSongBranches, SONG_PLAYBACK_BRANCH } from './derive';
 import { SongSettingsSchema, DEFAULT_SONG, SONG_PREFS, type SongSettings } from './schema';
@@ -51,6 +51,8 @@ export const SONG_EXTENSION = defineExtension({
     transientPort<boolean>()('songPlaying', 'boolean', false),
     transientPort<number>()('songPlays', 'number', 0),
     transientPort<number>()('songStartBeat', 'number', 0),
+    // A playback session's seek (`./app/sources.ts`), by id.
+    transientPort<SongSeek | null>()('songSeek', 'song-seek', null),
   ] as const,
   derive: () => [],
   // The player joins the trunk, as it was before the slice: every instrument has it, idle until a

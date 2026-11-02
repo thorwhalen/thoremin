@@ -31,6 +31,8 @@ export interface AnalyzeOptions {
   decode?: (bytes: ArrayBuffer) => Promise<DecodedAudio>;
   /** Make the URL the stretcher streams (injectable for the same reason). */
   makeUrl?: (file: Blob) => string;
+  /** The song's name (the source item's title); the file's own name by default. */
+  name?: string;
 }
 
 let nextId = 1;
@@ -41,7 +43,7 @@ export async function analyzeSong(file: Blob & { name?: string }, opts: AnalyzeO
   const { channels, durationS } = await decode(await file.arrayBuffer());
   const grid = trackSongGrid(toMono(channels), { sampleRate: ANALYSIS_SAMPLE_RATE });
   const url = (opts.makeUrl ?? ((b: Blob) => URL.createObjectURL(b)))(file);
-  return { id: `song-${nextId++}`, name: file.name || 'song', url, durationS, grid };
+  return { id: `song-${nextId++}`, name: opts.name || file.name || 'song', url, durationS, grid };
 }
 
 async function decodeOffline(bytes: ArrayBuffer): Promise<DecodedAudio> {

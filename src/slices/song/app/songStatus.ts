@@ -75,6 +75,16 @@ export const useSongStatus = create<SongStatusState>((set) => ({
   reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null, servo: null }),
 }));
 
+/** The engine the reporter reads, so a playback session reads the player's position at the tick
+ *  it was computed (the readout's `positionS` moves in whole seconds). */
+let liveReader: OutputReader | null = null;
+
+/** Seconds into the song as the player computed them this tick (0 with no engine). */
+export function songPosition(): number {
+  const p = liveReader?.getOutput(SONG_NODE_ID, 'position');
+  return typeof p === 'number' && Number.isFinite(p) ? p : useSongStatus.getState().live.positionS;
+}
+
 /** The servo's reading, while a conductor leads the song; null otherwise. */
 export function servoReadout(raw: unknown): ServoReadout | null {
   if (!raw || typeof raw !== 'object' || !('mode' in raw)) return null;
@@ -99,6 +109,7 @@ export function makeSongReporter(
 ): () => void {
   let lastKey = '';
   let lastStop: string | null = null;
+  liveReader = engine;
   return () => {
     const s = engine.getOutput(SONG_NODE_ID, 'status') as LoadStatus | undefined;
     if (!s) return;

@@ -1,0 +1,23 @@
+{
+  "name": "@thoremin/sources",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "thoremin's media sources, framework-free: one SourceAdapter per provider (registered as data: search, resolve a link or an id, open a playback session), the rights profile each item carries and the core enforces, the PlaybackSession transport seam, and the first adapters: a local file, a CORS URL, Audius and the Internet Archive (TypeScript source, consumed through the workspace).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./rights": "./src/rights.ts",
+    "./licence": "./src/licence.ts",
+    "./registry": "./src/registry.ts",
+    "./owned": "./src/owned.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./adapters/internet_archive": "./src/adapters/internet_archive.ts",
+    "./adapters/audius": "./src/adapters/audius.ts",
+    "./adapters/cors_url": "./src/adapters/cors_url.ts",
+    "./adapters/local_file": "./src/adapters/local_file.ts"
+  },
+  "dependencies": {
+    "zod": "*"
+  }
+}

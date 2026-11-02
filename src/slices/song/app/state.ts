@@ -6,7 +6,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { controls } from '@thoremin/sdk-ui/host';
-import type { SongHandle } from '../nodes/song_player.schema';
+import type { SongHandle, SongSeek } from '../nodes/song_player.schema';
 import { DEFAULT_SONG, SONG_PREFS, SongSettingsSchema, type SongSettings } from '../schema';
 
 const field = <T>(key: string, fallback: T): T => (controls().get()[key] as T | undefined) ?? fallback;
@@ -32,7 +32,18 @@ export function setSongHandle(song: SongHandle | null): void {
   const c = controls();
   c.setTransient('songPlaying', false);
   c.setTransient('songStartBeat', 0);
+  c.setTransient('songSeek', null);
   c.setTransient('songHandle', song);
+}
+
+let seekId = 0;
+
+/** Move the loaded song to `positionS` seconds (the player acts on it once the song is playable);
+ *  a non-finite position is ignored. */
+export function requestSongSeek(positionS: number): void {
+  if (!Number.isFinite(positionS)) return;
+  const seek: SongSeek = { id: ++seekId, positionS: Math.max(0, positionS) };
+  controls().setTransient('songSeek', seek);
 }
 
 /** Start or stop the transport; a start also counts a press (#344), so the player reads a Play

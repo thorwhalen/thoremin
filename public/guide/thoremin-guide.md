@@ -1261,7 +1261,7 @@ What you use ON an instrument: measuring, teaching it your own faces, recording,
 - [Your poses](#tools-poses): Open Tools, then Your poses, then Record my poses.
 - [Record](#tools-record): Press **Tap to play**, then **Record** at the bottom right.
 - [Replay](#tools-replay): Record a take with **Record**, ticking *Feature stream (JSONL)*.
-- [Song](#tools-song): Open Tools, then Song, and load a song file.
+- [Song](#tools-song): Open Tools, then Song, and load a song file, or search for one (try "bach") and choose a track.
 - [Trainer](#tools-trainer): Open Tools, then Trainer.
 
 
@@ -1568,11 +1568,15 @@ Add `?replay=` and the address of a recording to the app's address to open it st
 
 ### What to do
 
-1. Open Tools, then Song, and load a song file.
+1. Open Tools, then Song, and load a song file, or search for one (try "bach") and choose a track.
 2. Press Play.
 3. Tick Follow the dancer to make the song follow your pulse.
 
 Dance or play along to a song. Its beat is tracked in your browser and it plays at any tempo without changing pitch.
+
+**Find a song**
+
+Type in the search box to look through the Internet Archive and Audius, two catalogues of freely streamable music, or paste a link to a track on either, or to any audio file on the web. An album lists its tracks; choose one and it loads like a file of your own. Each song shows where it came from, the licence its page states and a link to that page. Some web addresses cannot be opened: their site does not let other pages read its audio, and the Song tool says so.
 
 **Follow the dancer**
 

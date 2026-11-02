@@ -1,0 +1,94 @@
+{
+ "data": [
+  {
+   "id": "aWPkE",
+   "title": "Emotional/Bach",
+   "duration": 222,
+   "permalink": "/kitaurasyuji1/emotionalbach-276349",
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_available": true,
+   "license": "All rights reserved",
+   "genre": "Classical",
+   "user": {
+    "name": "Jijikita",
+    "handle": "kitaurasyuji1"
+   },
+   "artwork": {
+    "150x150": "https://audius-figment-1-validator-19.figment.io/content/Qme5Srrt2Jfwfpg7RQhaCjszDoYZRDcEgzZtCh5LLTgzPP/150x150.jpg"
+   }
+  },
+  {
+   "id": "WkZNay9",
+   "title": "Enjoy Bach casually",
+   "duration": 360,
+   "permalink": "/kitaurasyuji1/enjoy-bach-casually",
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_available": true,
+   "license": null,
+   "genre": "Classical",
+   "user": {
+    "name": "Jijikita",
+    "handle": "kitaurasyuji1"
+   },
+   "artwork": {
+    "150x150": "https://audius-01.staked.cloud/content/01JRM9403NK3ECG9K4WV415C1T/150x150.jpg"
+   }
+  },
+  {
+   "id": "vj9oKR8",
+   "title": "Suite No. 2 Complete (Bach) - Violin and Synth Chorus -",
+   "duration": 1122,
+   "permalink": "/kitaurasyuji1/suite-no-2-complete-bach-violin-and-synth-chorus-",
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_available": true,
+   "license": null,
+   "genre": "Classical",
+   "user": {
+    "name": "Jijikita",
+    "handle": "kitaurasyuji1"
+   },
+   "artwork": {
+    "150x150": "https://audius-creator-2.theblueprint.xyz/content/01JZA5HV1P38WMKWKNTKW7G8E4/150x150.jpg"
+   }
+  },
+  {
+   "id": "JNPlp",
+   "title": "Mysterious Bach",
+   "duration": 373,
+   "permalink": "/kitaurasyuji1/mysterious-bach",
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_available": true,
+   "license": "All rights reserved",
+   "genre": "Classical",
+   "user": {
+    "name": "Jijikita",
+    "handle": "kitaurasyuji1"
+   },
+   "artwork": {
+    "150x150": "https://audius-creator-1.theblueprint.xyz/content/Qmbh5udr44KPd386RPapvvYVBKhLYMrpTHhLFPcFqgZPB4/150x150.jpg"
+   }
+  },
+  {
+   "id": "Q7aq9",
+   "title": "Air  Bach  (With Bassoon)",
+   "duration": 176,
+   "permalink": "/kitaurasyuji1/air-bach-with-bassoon",
+   "is_streamable": true,
+   "is_stream_gated": false,
+   "is_available": true,
+   "license": "All rights reserved",
+   "genre": "Classical",
+   "user": {
+    "name": "Jijikita",
+    "handle": "kitaurasyuji1"
+   },
+   "artwork": {
+    "150x150": "https://audius-content-5.figment.io/content/QmPXgg4QSLSpLnSSveFc3CQ7wzq4S8ymZv4tAuE1JDqUxh/150x150.jpg"
+   }
+  }
+ ]
+}
