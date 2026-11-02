@@ -16,6 +16,7 @@
  * the seconds.
  */
 import { z } from 'zod';
+import { ChordSchema } from '../harmony/chord';
 
 export const ScoreNoteSchema = z.object({
   /** MIDI note number. */
@@ -66,6 +67,30 @@ export const DynamicMarkSchema = z.object({
 });
 export type DynamicMark = z.infer<typeof DynamicMarkSchema>;
 
+/** The modes a key signature may name (MusicXML's `<mode>`; a MIDI key-signature event is
+ *  `major` or `minor`). */
+export const KEY_MODES = ['major', 'minor', 'ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian'] as const;
+export type KeyMode = (typeof KEY_MODES)[number];
+
+/** A written key signature, from the beat it takes effect. In concert pitch: a transposing
+ *  part's written signature is not the music's key. */
+export const KeySignatureSchema = z.object({
+  beat: z.number().min(0),
+  /** Sharps (positive) or flats (negative), -7..7. */
+  fifths: z.number().int().min(-7).max(7),
+  mode: z.enum(KEY_MODES).default('major'),
+});
+export type KeySignature = z.infer<typeof KeySignatureSchema>;
+
+/** A written chord symbol (MusicXML `<harmony>`), from the beat it is written on. */
+export const HarmonySymbolSchema = z.object({
+  beat: z.number().min(0),
+  chord: ChordSchema,
+  /** The symbol as written, for display, when the source says it. */
+  text: z.string().optional(),
+});
+export type HarmonySymbol = z.infer<typeof HarmonySymbolSchema>;
+
 export const ScoreDocSchema = z.object({
   /** Schema version, for the persisted collection. */
   v: z.literal(1).default(1),
@@ -85,6 +110,12 @@ export const ScoreDocSchema = z.object({
    *  starts on a downbeat. Additive and optional: a stored document without it reads 0
    *  (#438). */
   pickup: z.number().min(0).optional(),
+  /** Key signatures in order; empty = the source wrote none. Additive: a stored document
+   *  without them reads none. */
+  keys: z.array(KeySignatureSchema).default([]),
+  /** Chord symbols in order; empty = the source wrote none (the chords are then derived
+   *  from the notes, `@thoremin/sdk/context/from_score`). */
+  harmony: z.array(HarmonySymbolSchema).default([]),
   /** Total length in beats (the last note-off). */
   lengthBeats: z.number().min(0),
 });
@@ -112,6 +143,42 @@ export const DYNAMIC_VALUES: Record<string, number> = {
 export function dynamicValue(text: string): number | null {
   const v = DYNAMIC_VALUES[text.trim().toLowerCase()];
   return typeof v === 'number' ? v : null;
+}
+
+/** The major key's tonic for a signature of `fifths` (C = 0, G = 7, F = 5). */
+const majorTonicOf = (fifths: number) => (((fifths * 7) % 12) + 12) % 12;
+
+/** How far above the major tonic each mode's tonic sits, in semitones. */
+const MODE_OFFSET: Record<KeyMode, number> = { major: 0, ionian: 0, dorian: 2, phrygian: 4, lydian: 5, mixolydian: 7, minor: 9, aeolian: 9, locrian: 11 };
+
+/** The tonic pitch class a key signature names (A minor = 9, D dorian = 2). */
+export function tonicOf(key: Pick<KeySignature, 'fifths' | 'mode'>): number {
+  return (majorTonicOf(key.fifths) + MODE_OFFSET[key.mode]) % 12;
+}
+
+/** The seven pitch classes of a key signature's scale, from its tonic (the major scale's,
+ *  rotated to the mode). */
+export function keyPitchClasses(key: Pick<KeySignature, 'fifths' | 'mode'>): number[] {
+  const major = [0, 2, 4, 5, 7, 9, 11].map((i) => (majorTonicOf(key.fifths) + i) % 12);
+  const start = [0, 2, 4, 5, 7, 9, 11].indexOf(MODE_OFFSET[key.mode]);
+  return [...major.slice(start), ...major.slice(0, start)];
+}
+
+/** A signature's fifths brought into -6..6 (a transposition can push it past 7). The
+ *  enharmonic choice at the tritone is the sharps'. */
+export function normalizeFifths(fifths: number): number {
+  const f = (((Math.round(fifths) % 12) + 12) % 12);
+  return f > 6 ? f - 12 : f;
+}
+
+/** The key signature in force at `beat` (null when the document states none). */
+export function keySignatureAt(doc: Pick<ScoreDoc, 'keys'>, beat: number): KeySignature | null {
+  let current: KeySignature | null = null;
+  for (const k of doc.keys) {
+    if (k.beat <= beat + 1e-9) current = k;
+    else break;
+  }
+  return current ?? doc.keys[0] ?? null;
 }
 
 /** The length of a document from its notes (the last note-off), in beats. */

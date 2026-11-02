@@ -7,11 +7,12 @@
  * reading that explains the most notes); a step that spells no chord (a unison, a rest, a bare
  * fifth) keeps the chord before it. Consecutive steps on the same chord are one segment.
  *
- * Pure: no DAG, no audio.
+ * Shared by the chord chart instrument and the musical context's score producer
+ * (`../context/from_score`). Pure: no DAG, no audio.
  */
-import { chordOfPitchClasses } from '@thoremin/sdk/harmony/chord_in';
-import type { Chord } from '@thoremin/sdk/harmony/chord';
-import type { ScoreDoc } from '@thoremin/sdk/score/schema';
+import { chordOfPitchClasses } from '../harmony/chord_in';
+import type { Chord } from '../harmony/chord';
+import type { ScoreDoc } from './schema';
 
 export interface ChartSegment {
   /** The beat it starts on (quarter notes from the start of the piece). */

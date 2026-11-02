@@ -9,11 +9,18 @@
  * out as a one-track MIDI file (`songToMidi`). Beats are `ticks / ppq`: quarter notes, the document's unit.
  * A percussion track (channel 10, or the instrument flag) is kept as a part but marked,
  * so the orchestra can route it to the drum section rather than to a pitched one.
+ * Key-signature meta events become the document's keys (`major` or `minor`: what the event can say),
+ * and a score's keys are written back as such events (`withKeySignatures`).
  */
 import { Midi } from '@tonejs/midi';
-import { notesLength, partId, ScoreDocSchema, type ScoreDoc, type ScorePart } from '@thoremin/sdk/score/schema';
+import { parseMidi, writeMidi, type MidiEvent } from 'midi-file';
+import { notesLength, partId, ScoreDocSchema, type KeySignature, type ScoreDoc, type ScorePart } from '@thoremin/sdk/score/schema';
 import type { Song } from '@thoremin/sdk/score/song';
 import { scoreFromSong } from './song_score';
+
+/** The keys a MIDI key-signature event names, from seven flats to seven sharps (`@tonejs/midi`'s
+ *  spelling of the event's signed count, which it does not export). */
+const KEY_NAMES: readonly string[] = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
 /** GM channel 10 (0-based 9) is percussion by convention. */
 const PERCUSSION_CHANNEL = 9;
@@ -45,6 +52,16 @@ export function midiToScoreDoc(bytes: Uint8Array | ArrayBuffer, title?: string):
   const timeSignatures = midi.header.timeSignatures
     .map((ts) => ({ beat: toBeats(ts.ticks), numerator: ts.timeSignature[0] ?? 4, denominator: ts.timeSignature[1] ?? 4 }))
     .filter((ts) => ts.numerator > 0 && ts.denominator > 0);
+  const keys: KeySignature[] = [];
+  for (const k of [...midi.header.keySignatures].sort((a, b) => a.ticks - b.ticks)) {
+    const fifths = KEY_NAMES.indexOf(k.key) - 7;
+    if (fifths < -7 || fifths > 7) continue;
+    const key: KeySignature = { beat: toBeats(k.ticks), fifths, mode: k.scale === 'minor' ? 'minor' : 'major' };
+    const last = keys[keys.length - 1];
+    if (last && last.fifths === key.fifths && last.mode === key.mode) continue;
+    if (last && Math.abs(last.beat - key.beat) < 1e-9) keys.pop();
+    keys.push(key);
+  }
   return ScoreDocSchema.parse({
     v: 1,
     title: title?.trim() || midi.name?.trim() || 'Untitled',
@@ -54,8 +71,40 @@ export function midiToScoreDoc(bytes: Uint8Array | ArrayBuffer, title?: string):
     timeSignatures,
     dynamics: [],
     fermatas: [],
+    keys,
     lengthBeats: notesLength(parts),
   });
+}
+
+/**
+ * A file with these key signatures on its first track. `@tonejs/midi` reads key-signature events
+ * but writes their key byte wrongly, so they are added below it, with `midi-file`. A MIDI event says
+ * only major or minor: the other modes are written as the major key of their signature.
+ */
+function withKeySignatures(bytes: Uint8Array, keys: readonly KeySignature[], ppq: number): Uint8Array {
+  if (!keys.length) return bytes;
+  const data = parseMidi(bytes);
+  const track = data.tracks[0];
+  if (!track) return bytes;
+  // Absolute ticks, the new events merged in before anything else at their tick, back to deltas.
+  let at = 0;
+  const timed: { tick: number; event: MidiEvent; order: number }[] = track.map((event, i) => ({ tick: (at += event.deltaTime), event, order: i + keys.length }));
+  keys.forEach((k, i) => {
+    const event = { deltaTime: 0, meta: true, type: 'keySignature', key: k.fifths, scale: k.mode === 'minor' || k.mode === 'aeolian' ? 1 : 0 } as MidiEvent;
+    timed.push({ tick: Math.round(k.beat * ppq), event, order: i });
+  });
+  // The end of the track stays last, at or after every event.
+  const end = timed.filter((e) => e.event.type === 'endOfTrack');
+  const rest = timed.filter((e) => e.event.type !== 'endOfTrack').sort((a, b) => a.tick - b.tick || a.order - b.order);
+  const last = rest.length ? rest[rest.length - 1].tick : 0;
+  const ordered = [...rest, ...end.map((e) => ({ ...e, tick: Math.max(e.tick, last) }))];
+  let prev = 0;
+  data.tracks[0] = ordered.map(({ tick, event }) => {
+    const out = { ...event, deltaTime: tick - prev };
+    prev = tick;
+    return out;
+  });
+  return new Uint8Array(writeMidi(data));
 }
 
 /**
@@ -77,7 +126,7 @@ export function scoreToMidi(doc: ScoreDoc): Uint8Array {
     if (part.percussion) track.channel = PERCUSSION_CHANNEL;
     for (const n of part.notes) track.addNote({ midi: n.midi, ticks: Math.round(n.start * ppq), durationTicks: Math.max(1, Math.round(n.duration * ppq)), velocity: n.velocity });
   }
-  return midi.toArray();
+  return withKeySignatures(midi.toArray(), doc.keys, ppq);
 }
 
 /** A song as a one-track MIDI file (a rhythm as hand claps on the percussion channel: `scoreFromSong`). */

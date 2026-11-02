@@ -48,6 +48,13 @@ export const DEMO_SCORES: readonly DemoScore[] = [
     licence: 'CC0 (OpenScore String Quartets)',
     blurb: 'Four string parts from MusicXML, with written dynamics.',
   },
+  {
+    id: 'modulation-study',
+    title: 'Modulation study',
+    file: 'scores/modulation-study.musicxml',
+    licence: 'CC0 (generated for thoremin)',
+    blurb: 'Twelve bars that change key twice (C, then G, then F), with chord symbols: an instrument whose scale follows the music changes with it.',
+  },
 ];
 
 export const demoById = (id: string): DemoScore | undefined => DEMO_SCORES.find((d) => d.id === id);

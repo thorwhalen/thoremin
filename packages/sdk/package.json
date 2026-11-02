@@ -151,7 +151,13 @@
     "./nodes/slot_contract": "./src/nodes/slot_contract.ts",
     "./music/effects": "./src/music/effects.ts",
     "./features/feature_gate": "./src/features/feature_gate.ts",
-    "./score/demo": "./src/score/demo.ts"
+    "./score/demo": "./src/score/demo.ts",
+    "./score/chord_chart": "./src/score/chord_chart.ts",
+    "./context/schema": "./src/context/schema.ts",
+    "./context/from_score": "./src/context/from_score.ts",
+    "./context/cursor": "./src/context/cursor.ts",
+    "./context/producer": "./src/context/producer.ts",
+    "./context/cache": "./src/context/cache.ts"
   },
   "dependencies": {
     "@thoremin/dag": "*",

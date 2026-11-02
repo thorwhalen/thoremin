@@ -154,6 +154,8 @@ describe.runIf(CONDUCTOR)('orchestra node: playing the piece', () => {
       timeSignatures: [],
       dynamics: [],
       fermatas: [],
+      keys: [],
+      harmony: [],
       lengthBeats: 1,
     } as ScoreDoc);
     // Violins share channel 0; the horn (GM 60, in the cut bank since #334) has its own; the
@@ -185,7 +187,7 @@ describe.runIf(CONDUCTOR)('orchestra node: playing the piece', () => {
         { id: 'v', name: 'Violin', program: 40, percussion: false, notes: [{ midi: 67, start: 0, duration: 1, velocity: 0.8 }] },
         { id: 'd', name: 'Drums', program: 0, percussion: true, notes: [{ midi: 36, start: 0, duration: 0.1, velocity: 0.8 }] },
       ],
-      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 1,
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], keys: [], harmony: [], lengthBeats: 1,
     };
     step({ config: ON, doc });
     await flush();
@@ -254,7 +256,7 @@ describe.runIf(CONDUCTOR)('orchestra node: stopping on the context clock', () =>
     const doc = {
       v: 1, title: 'repeated', source: 'midi',
       parts: [{ id: 'a', name: 'a', program: 40, percussion: false, notes: Array.from({ length: 16 }, (_, i) => ({ midi: 60, start: i * 0.5, duration: 0.5, velocity: 0.8 })) }],
-      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 8,
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], keys: [], harmony: [], lengthBeats: 8,
     } as ScoreDoc;
     const { step, synth } = harness();
     step({ config: ON });
@@ -278,7 +280,7 @@ describe.runIf(CONDUCTOR)('orchestra node: stopping on the context clock', () =>
         { id: 'v', name: 'Violin', program: 40, percussion: false, notes: [{ midi: 67, start: 0, duration: 1, velocity: 0.8 }] },
         { id: 'd', name: 'Drums', program: 0, percussion: true, notes: [{ midi: 36, start: 0, duration: 0.1, velocity: 0.8 }] },
       ],
-      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], lengthBeats: 1,
+      tempoMap: [], timeSignatures: [], dynamics: [], fermatas: [], keys: [], harmony: [], lengthBeats: 1,
     } as ScoreDoc);
     expect(plan.events.map((e) => e.key)).toEqual([67]);
     expect(plan.channels.map((c) => c.channel)).toEqual([0]);
