@@ -11,7 +11,7 @@
  *   written into the entry once there are enough of them.
  */
 import { controls } from '@thoremin/sdk-ui/host';
-import { contextFromUser, EMPTY_USER_ENTRY, hasUserEntry, tempoFromTaps, UserEntrySchema, type UserEntry } from '@thoremin/sdk/context/from_user';
+import { contextFromUser, EMPTY_USER_ENTRY, hasUserEntry, numberTap, tempoOfRun, UserEntrySchema, type NumberedTap, type UserEntry } from '@thoremin/sdk/context/from_user';
 import type { MusicalTime } from '@thoremin/ictus';
 import { DEFAULT_MUSIC_USER, MAX_USER_ENTRIES, MUSIC_USER_PREF, MusicUserPrefSchema, type MusicUserPref } from '../schema';
 import { setLayer } from './active';
@@ -105,12 +105,17 @@ export function songPositionAt(now: number, time: MusicalTime | null = lastSongT
   return Math.max(0, time.position + (Math.max(0, now - time.t) - outputStageS) * rate);
 }
 
-/** The taps of the run: song positions with the engine times they were made at. */
-let taps: { at: number; now: number }[] = [];
-/** How many taps a run keeps (its first, the downbeat, always among them). */
+/** The run: each tap's song position numbered by its beat (the first is beat 0, the downbeat),
+ *  and the engine time of the last one (to tell a seek). */
+let taps: NumberedTap[] = [];
+let lastTapNow = 0;
+/** How many taps a run keeps: its first (the downbeat) and the latest; their beat numbers are kept
+ *  with them, so dropping the middle moves nothing. */
 const MAX_TAPS = 128;
-/** A song that moved this much more or less than the clock between two taps was sought. */
+/** A song that moved this much more or less than the clock between two taps was sought (plus a
+ *  share of the gap, for a rate that changed in between). */
 const SEEK_TOLERANCE_S = 0.15;
+const SEEK_RATE_SLACK = 0.12;
 
 /** One tap at engine time `now`: the tempo once there are enough taps (only the count before), or
  *  'no-song'. A seek between taps (the song moved otherwise than the clock) starts the run again. */
@@ -119,11 +124,13 @@ export function tap(now: number): { bpm: number; taps: number } | { taps: number
   if (at === null) return 'no-song';
   const last = taps[taps.length - 1];
   const rate = lastSongTime?.rate && lastSongTime.rate > 0 ? lastSongTime.rate : 1;
-  if (last && Math.abs(at - last.at - (now - last.now) * rate) > SEEK_TOLERANCE_S) taps = [];
-  taps.push({ at, now });
+  const dt = now - lastTapNow;
+  if (last && Math.abs(at - last.t - dt * rate) > SEEK_TOLERANCE_S + SEEK_RATE_SLACK * dt * rate) taps = [];
+  lastTapNow = now;
+  taps = numberTap(taps, at).run;
   if (taps.length > MAX_TAPS) taps = [taps[0], ...taps.slice(taps.length - MAX_TAPS + 1)];
   const beatsPerBar = currentEntry().tempo?.beatsPerBar ?? 4;
-  const tempo = tempoFromTaps(taps.map((t) => t.at), { beatsPerBar });
+  const tempo = tempoOfRun(taps, { beatsPerBar });
   if (!tempo) return { taps: taps.length };
   writeEntry((e) => ({ ...e, tempo }));
   return { bpm: tempo.bpm, taps: taps.length };
@@ -136,12 +143,12 @@ export function clearTaps({ tempo = false }: { tempo?: boolean } = {}): void {
 }
 
 /** Whether a chart written now would be placed: a tapped tempo, a song with a beat grid, or a
- *  conducted score (the chart then goes on the score's bars). */
+ *  loaded score (the chart then goes on the score's bars: `combineLayers`). */
 export function chartPlaceable(): boolean {
   if (currentEntry().tempo) return true;
   const h = song();
   if (h?.grid?.beats && h.grid.beats.length >= 2) return true;
-  return !h && !!controls().get()[SCORE_DOC_FIELD];
+  return !!controls().get()[SCORE_DOC_FIELD];
 }
 
 // ---- the producer -------------------------------------------------------------------------------

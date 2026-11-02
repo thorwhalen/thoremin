@@ -79,6 +79,18 @@ describe.runIf(MUSIC)('the Music tool commands', () => {
     expect(tap(52.05)).toEqual({ taps: 1 });
   });
 
+  it('keeps the downbeat past the cap on taps', () => {
+    fakeControls({ songHandle: SONG });
+    // 200 taps at 120 bpm from song position 10 (song time = engine time - 40).
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 10, { t: 50, rate: 1, playing: true }));
+    let last: ReturnType<typeof tap> = { taps: 0 };
+    for (let k = 0; k < 200; k++) last = tap(50 + k * 0.5);
+    expect(last).toMatchObject({ taps: 128 });
+    const tempo = userPref().entries['internet-archive:tune'].tempo!;
+    expect(tempo.firstBeatS).toBeCloseTo(10, 6);
+    expect(tempo.bpm).toBeCloseTo(120, 6);
+  });
+
   it('reads the entries one by one: one it cannot read is skipped and kept', async () => {
     const host = fakeControls({ songHandle: SONG, musicUser: { entries: { 'x:new': { key: { tonic: 2, mode: 'hypophrygian' } }, 'x:old': { key: { tonic: 4, mode: 'minor' } } } } });
     expect(Object.keys(userPref().entries)).toEqual(['x:old']);

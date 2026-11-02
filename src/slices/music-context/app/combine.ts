@@ -6,11 +6,12 @@
  *   placed (on the song's own beat grid). It plays on the song's clock.
  * - Otherwise, over a score: the score's bars, clock and melody stay; the player's key, when they
  *   gave one, replaces the score's keys, and the player's chart, when they wrote one, goes on the
- *   score's bars in place of its chords.
+ *   score's bar lines (bar 1 on its first full bar, each bar as long as the score's) in place of its
+ *   chords.
  * - Otherwise the player's (a key alone, or a chart waiting for a tempo), else the score's, else none.
  */
 import type { ActiveContext } from '@thoremin/sdk/context/reading';
-import { contextFromUser, USER_ANALYZER, type UserEntry } from '@thoremin/sdk/context/from_user';
+import { chartOnBars, USER_ANALYZER, type UserEntry } from '@thoremin/sdk/context/from_user';
 
 export interface Layers {
   /** The player's timeline, and what they said (to tell a key alone from a chart). */
@@ -25,7 +26,8 @@ export function combineLayers({ user, score }: Layers): ActiveContext | null {
   if (!score) return active;
   const base = score.context;
   const key = active.context.keys[0];
-  const chart = entry.chart.trim() ? contextFromUser({ ...entry, tempo: null }, { ruler: base.beats.map((b) => b.t), durationS: base.durationS }) : null;
+  // The chart on the score's own bar lines (its pickup and its meter), bar 1 on the first full bar.
+  const chords = entry.chart.trim() ? chartOnBars(entry.chart, base.downbeats, base.durationS) : null;
   return {
     clock: score.clock,
     context: {
@@ -33,7 +35,7 @@ export function combineLayers({ user, score }: Layers): ActiveContext | null {
       source: 'user',
       analyzers: [...base.analyzers, USER_ANALYZER],
       keys: key ? [{ ...key, start: 0, end: Math.max(base.durationS, key.end) }] : base.keys,
-      chords: chart ? chart.chords : base.chords,
+      chords: chords ?? base.chords,
     },
   };
 }

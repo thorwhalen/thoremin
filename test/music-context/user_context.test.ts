@@ -15,6 +15,7 @@ import { contextFromScore } from '@thoremin/sdk/context/from_score';
 import { musicxmlToScoreDoc } from '@thoremin/music-formats/musicxml';
 import type { MusicChordReading, MusicContextStatus } from '@thoremin/sdk/context/reading';
 import type { ScaleOverride } from '@thoremin/sdk/context/scale';
+import { ScoreDocSchema } from '@thoremin/sdk/score/schema';
 
 describe('lead-sheet chords and charts', () => {
   it('reads the common symbols, a slash bass, and refuses what is not a chord', () => {
@@ -54,6 +55,21 @@ describe('tap tempo', () => {
   it('keeps the first tap as the downbeat however long the player taps', () => {
     const taps = Array.from({ length: 60 }, (_, k) => 2 + k * 0.5);
     expect(tempoFromTaps(taps)).toMatchObject({ bpm: 120, firstBeatS: 2 });
+  });
+
+  it('keeps the tempo through long runs of jittered taps', () => {
+    // Alternating 20 ms early and late, 48 taps at 120 bpm from 2 s.
+    const alternating = Array.from({ length: 48 }, (_, k) => 2 + k * 0.5 + (k % 2 ? 0.02 : -0.02));
+    const a = tempoFromTaps(alternating)!;
+    expect(a.bpm).toBeCloseTo(120, 0);
+    expect(Math.abs(a.firstBeatS - 2)).toBeLessThan(0.03);
+    // A seeded random jitter, sigma about 25 ms.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 0.087;
+    const random = Array.from({ length: 48 }, (_, k) => 2 + k * 0.5 + rand());
+    const r = tempoFromTaps(random)!;
+    expect(Math.abs(r.bpm - 120)).toBeLessThan(0.5);
+    expect(Math.abs(r.firstBeatS - 2)).toBeLessThan(0.03);
   });
 
   it('counts a missed tap as two beats and drops a bounce', () => {
@@ -103,6 +119,19 @@ describe('which timeline is in force', () => {
     expect(out.context.keys).toHaveLength(1);
     expect(keyAt(out.context, 25)).toMatchObject({ tonic: 2, mode: 'minor' });
     expect(out.context.analyzers.map((a) => a.name)).toEqual([...score.context.analyzers.map((a) => a.name), 'user']);
+  });
+
+  it("puts a chart on the score's own bar lines: after its pickup, as long as its bars", () => {
+    // 3/4 at 60 bpm with a one-beat pickup: bar lines at 1, 4 and 7 s.
+    const doc = ScoreDocSchema.parse({ title: 'waltz', source: 'musicxml', parts: [], tempoMap: [{ beat: 0, bpm: 60 }], timeSignatures: [{ beat: 0, numerator: 3, denominator: 4 }], pickup: 1, lengthBeats: 10 });
+    const waltz = { context: contextFromScore(doc), clock: 'conductor' as const };
+    expect(waltz.context.downbeats).toEqual([1, 4, 7]);
+    const out = combineLayers({ user: userOf(UserEntrySchema.parse({ chart: 'C | G | F' })), score: waltz })!;
+    expect(out.context.chords.map((c) => [c.start, c.end, c.chord.root])).toEqual([
+      [1, 4, 0],
+      [4, 7, 7],
+      [7, 10, 5],
+    ]);
   });
 
   it("a chart with no tempo goes on the conducted score's bars; a tapped tempo is a timeline of its own", () => {

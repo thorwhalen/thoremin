@@ -24,10 +24,9 @@ export function MusicTool() {
   const [chart, setChart] = useState(entry.chart);
   const [message, setMessage] = useState<string | null>(null);
   // Another piece, or the chart written from elsewhere (the palette, the assistant): the box shows it.
-  useEffect(() => {
-    setChart(entry.chart);
-    setMessage(null);
-  }, [piece, entry.chart]);
+  useEffect(() => setChart(entry.chart), [piece, entry.chart]);
+  // A message is about the piece it was said for.
+  useEffect(() => setMessage(null), [piece]);
   const report = async (id: string, params: Record<string, unknown> = {}, done?: (value: unknown) => string) => {
     const r = await dispatchCommand(id, params);
     setMessage(r.ok ? (done ? done(r.value) : null) : r.error.message);
