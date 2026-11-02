@@ -88,7 +88,7 @@ export const CARRY_SWING_FRACTION = 0.25;
 
 /**
  * The stroke's fall so far: the samples up to `tEnd`, walked back from the latest while
- * the point was still descending (y grows, down positive), tolerating `eps` of jitter, at
+ * the point was still descending (y grows, down positive), within `eps` of the fall's highest point, at
  * most {@link APPROACH_WINDOW} long, starting at the departure from the top. The top of
  * the swing, where the stick turns or waits, is not part of it, so a quadratic through
  * it is the stroke's own approach.
