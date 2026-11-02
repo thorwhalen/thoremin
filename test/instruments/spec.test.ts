@@ -74,6 +74,8 @@ describe('assembleSpec', () => {
     expect(classCacheIsStale(undefined, 'field')).toBe(true);
     expect(classCacheIsStale('theremin', 'field')).toBe(false);
     expect(classCacheIsStale('field', 'air')).toBe(true);
+    // A chord instrument cached under `air` before #705 is re-derived to its own class.
+    expect(classCacheIsStale('air', 'harmony')).toBe(true);
   });
 });
 

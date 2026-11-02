@@ -61,7 +61,7 @@ export const HARMONY_EXTENSION = defineExtension({
   // A class of its own (#705): the chord map, wheel and chart are harmony instruments a player picks
   // between, not mimed air instruments (they follow MIDI, the microphone, the conductor). Declared
   // here, so the slice no longer needs the air extension to load.
-  classes: [{ id: 'harmony', label: 'Chord instruments', emoji: '🎼', colour: 'hsl(140 50% 40%)', showEmpty: true }],
+  classes: [{ id: 'harmony', label: 'Chord instruments', emoji: '🎶', colour: 'hsl(340 55% 55%)', showEmpty: true }],
   // Its rows of the Instruments view's catalog.
   catalog: [
     // The chord map plays the chords of the chord-source scale, the key the Sound section sets.

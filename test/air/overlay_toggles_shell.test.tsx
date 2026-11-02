@@ -27,9 +27,10 @@ afterEach(() => {
   resetDial('chordMap');
 });
 
-async function editRow(name: string) {
+/** The chord instruments have a class of their own (#705); the others are air instruments. */
+async function editRow(name: string, group = 'Air instruments') {
   render(<InstrumentsPanel />);
-  const edit = await waitFor(() => within(screen.getByRole('group', { name: 'Air instruments' })).getByLabelText(`Edit ${name}`));
+  const edit = await waitFor(() => within(screen.getByRole('group', { name: group })).getByLabelText(`Edit ${name}`));
   fireEvent.click(edit);
 }
 
@@ -71,7 +72,7 @@ describe.runIf(AIR)('the air overlay toggles, in the air sections (#600 S10)', (
   });
 
   it('Edit Chord Map shows "Draw the map on the video", which writes chordMap.gridOnVideo.show (#610 item 4)', async () => {
-    await editRow('Chord Map');
+    await editRow('Chord Map', 'Chord instruments');
     const toggle = (await screen.findByLabelText('Draw the map on the video')) as HTMLInputElement;
     expect(toggle.checked).toBe(true);
     fireEvent.click(toggle);

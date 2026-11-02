@@ -27,7 +27,7 @@ const settingsOf = (name: string) => {
 };
 
 describe('instrument categories', () => {
-  it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; every other seed is a theremin', () => {
+  it.runIf(AIR)('ships one instrument per air instrument, each playing only its own; the chord instruments are their own class', () => {
     const air = SEED_INSTRUMENTS.filter((s) => categoryOf(settingsFromLayer(s.layer)) === 'air').map((s) => s.name);
     expect(air).toEqual(['Air Drum', 'Air Bass', 'Air Guitar', 'Air Flute']);
     // The chord instruments have a class of their own (#705), the harmony slice's.

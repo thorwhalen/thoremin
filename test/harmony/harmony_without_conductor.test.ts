@@ -47,5 +47,8 @@ describe.runIf(AIR && HARMONY)('the chord instruments without the conductor slic
   it('the harmony slice declares its own catalog class (#705): listed alone, without the air extension, it loads', () => {
     const folded = foldContributions([HARMONY_EXTENSION] as unknown as Extension[]);
     expect(folded.classes.map((c) => c.id)).toContain('harmony');
+    // Its rows are filed under it (the Sign Wheel and Sign Map play these rows first, so they group
+    // here too, while their guide pages stay in the sign area).
+    expect(folded.catalog.map((r) => [r.id, r.class])).toEqual([['chords', 'harmony'], ['wheel', 'harmony']]); // the chart needs the conductor (#697)
   });
 });
