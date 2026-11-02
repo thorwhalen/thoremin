@@ -90,6 +90,7 @@
 import { median, median3 } from '@thoremin/stats';
 import type { Anchor, Sample } from './types';
 import { fitQuadratic } from './impact_fit';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** What is done to the samples before the turning point is looked for. */
 export type Prefilter =
@@ -310,7 +311,7 @@ export interface IctusDetector {
 }
 
 export function createIctusDetector(options: DetectorOptions = {}): IctusDetector {
-  const o = { ...DEFAULTS, ...options, prefilter: resolvePrefilter(options) };
+  const o = { ...DEFAULTS, ...definedOnly(options), prefilter: resolvePrefilter(options) };
   const sign = o.yDown ? 1 : -1;
   const xSign = o.mirrorX ? -1 : 1;
 

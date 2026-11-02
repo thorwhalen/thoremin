@@ -42,6 +42,7 @@ import type { Anchor } from '@thoremin/ictus/types';
 import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { BLM, LM } from '@thoremin/sdk/nodes/domain';
 import { anchorPoint, type DrumAnchorPoint } from '@thoremin/sdk/nodes/music/drum_anchor';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The player's side: which arm a track (a wrist, or a point on that arm's hand) belongs to. */
 export type Wrist = 'left' | 'right';
@@ -215,7 +216,7 @@ export interface StrokeOptions extends DetectorOptions {
 /** Strokes on one wrist track: the ictus detector fed the visible, shoulder-normalised samples in order. */
 export function detectStrokes(track: readonly WristSample[], wrist: Wrist, o: StrokeOptions = {}): Stroke[] {
   const { minStrength = 0.3, ...detOpts } = o;
-  const det = createIctusDetector({ ...DRUM_DETECTOR_DEFAULTS, ...detOpts });
+  const det = createIctusDetector({ ...DRUM_DETECTOR_DEFAULTS, ...definedOnly(detOpts) });
   const strokes: Stroke[] = [];
   const recent: WristSample[] = [];
   for (const s of track) {

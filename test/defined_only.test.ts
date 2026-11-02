@@ -8,7 +8,8 @@
 import { describe, it, expect } from 'vitest';
 import { createOneEuro, definedOnly } from '@thoremin/stats';
 import { definedOnly as sdkDefinedOnly } from '@thoremin/sdk/util/options';
-import { createRangeNormalizer } from '@thoremin/ictus';
+import { createPulseFollower, createRangeNormalizer } from '@thoremin/ictus';
+import { createOnsetDetector } from '@thoremin/sdk/audio/onset';
 import { createLoudnessScale } from '@thoremin/games/loudness';
 
 describe('definedOnly', () => {
@@ -16,6 +17,11 @@ describe('definedOnly', () => {
     expect(definedOnly({ a: 1, b: undefined, c: 0, d: false, e: null })).toEqual({ a: 1, c: 0, d: false, e: null });
     expect(definedOnly(undefined)).toEqual({});
     expect(sdkDefinedOnly).toBe(definedOnly);
+  });
+
+  it('returns its argument untouched when nothing is undefined, so a per-hop call allocates nothing', () => {
+    const o = { a: 1, b: 2 };
+    expect(definedOnly(o)).toBe(o);
   });
 });
 
@@ -40,11 +46,29 @@ describe('an explicit undefined keeps the default', () => {
     expect(run({ lo: undefined }).every(Number.isFinite)).toBe(true);
   });
 
-  it('the loudness scale (games)', () => {
+  it('the loudness scale (games), past its warm-up so lo, hi and the window are read', () => {
     const run = (o: Record<string, unknown>) => {
       const s = createLoudnessScale(o);
-      return [0.01, 0.1, 0.3, 0.05, 0.2].map((r, i) => s.push(i * 0.5, r));
+      return Array.from({ length: 60 }, (_, i) => s.push(i * 0.1, 0.02 + 0.3 * Math.abs(Math.sin(i / 4))));
     };
-    same(run, { windowS: undefined, lo: undefined, hi: undefined });
+    same(run, { windowS: undefined, lo: undefined, hi: undefined, warmupS: undefined });
+    expect(run({ lo: undefined, hi: undefined }).every(Number.isFinite)).toBe(true);
+  });
+
+  it('the pulse follower (ictus, a rest spread): an undefined period bound no longer throws', () => {
+    expect(() => createPulseFollower({ maxPeriodS: undefined, minPeriodS: undefined })).not.toThrow();
+  });
+
+  it('the onset detector (SDK audio)', () => {
+    const run = (o: Record<string, unknown>) => {
+      const d = createOnsetDetector({ sampleRate: 48000, ...o } as never);
+      const onsets: number[] = [];
+      const buf = new Float32Array(4800);
+      for (let i = 2400; i < 2600; i++) buf[i] = Math.sin(i) * 0.8;
+      d.push(buf, 0, (x) => onsets.push(x.frame));
+      return onsets;
+    };
+    same(run, { hop: undefined, thresholdRatio: undefined, refractoryMs: undefined });
+    expect(run({ hop: undefined }).length).toBeGreaterThan(0);
   });
 });

@@ -36,6 +36,6 @@ export function createRhythmPrior(kind: RhythmPriorKind = DEFAULT_RHYTHM_PRIOR, 
     case 'trend':
       return createTrendPrior({ ...TREND_DEFAULTS, ...definedOnly(options.trend) });
     case 'blend':
-      return createBlendPrior({ ...options.blend, oscillator: { ...options.blend?.oscillator, ...options.oscillator }, trend: { ...options.blend?.trend, ...options.trend } });
+      return createBlendPrior({ ...options.blend, oscillator: { ...definedOnly(options.blend?.oscillator), ...definedOnly(options.oscillator) }, trend: { ...definedOnly(options.blend?.trend), ...definedOnly(options.trend) } });
   }
 }
