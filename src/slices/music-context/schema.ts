@@ -6,6 +6,7 @@
  */
 import { z } from 'zod';
 import { SCALE_FITS } from '@thoremin/sdk/context/scale';
+import { UserEntrySchema } from '@thoremin/sdk/context/from_user';
 
 export const SCALE_OWNERS = ['dials', 'music'] as const;
 export type ScaleOwner = (typeof SCALE_OWNERS)[number];
@@ -29,3 +30,13 @@ export const DEFAULT_MUSIC_CONTEXT: MusicContextSettings = MusicContextSettingsS
 /** The dial's key and the transient field holding the timeline in force. */
 export const MUSIC_CONTEXT_DIAL = 'musicContext' as const;
 export const MUSIC_CONTEXT_ACTIVE = 'musicContextActive';
+
+/** The per-device pref holding what the player said about each piece: a key, a tapped tempo, a
+ *  chord chart, by the piece they said it about (`pieceKey`), most recent last. Never an instrument
+ *  setting: it is about the music, and holds under any instrument. */
+export const MUSIC_USER_PREF = 'musicUser';
+/** How many pieces' entries are kept (the oldest goes first). */
+export const MAX_USER_ENTRIES = 200;
+export const MusicUserPrefSchema = z.object({ entries: z.record(z.string(), UserEntrySchema).default({}) });
+export type MusicUserPref = z.infer<typeof MusicUserPrefSchema>;
+export const DEFAULT_MUSIC_USER: MusicUserPref = { entries: {} };

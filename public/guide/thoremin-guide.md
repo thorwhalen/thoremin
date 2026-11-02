@@ -60,6 +60,7 @@ Thoremin turns your camera into a musical instrument. This is its player guide i
   - [Gestures](#tools-gestures)
   - [Your hand shapes](#tools-hand-shapes)
   - [Feature Lab](#tools-lab)
+  - [Music](#tools-music)
   - [Patcher](#tools-patcher)
   - [Your poses](#tools-poses)
   - [Record](#tools-record)
@@ -1257,6 +1258,7 @@ What you use ON an instrument: measuring, teaching it your own faces, recording,
 - [Gestures](#tools-gestures): Open Tools, then Gestures.
 - [Your hand shapes](#tools-hand-shapes): Open Tools, then Your hand shapes, then Record my hand shapes.
 - [Feature Lab](#tools-lab): Open Tools, then Feature Lab, and press **Start measuring**.
+- [Music](#tools-music): Load something to play along to: a song in the Song tool, or a piece in the Conductor.
 - [Patcher](#tools-patcher): Open Tools, then Patcher.
 - [Your poses](#tools-poses): Open Tools, then Your poses, then Record my poses.
 - [Record](#tools-record): Press **Tap to play**, then **Record** at the bottom right.
@@ -1462,6 +1464,35 @@ A measuring instrument, not a sound: what can you actually control? A live grid 
 **How it works**
 
 Every feature is normalized as you move, so a blendshape (0 to 1), a finger curl and a head angle all read as comparable levels. Each feature has a hint: *easy*, *moderate* or *involuntary*. You can write your own formula over any features and it becomes another meter. Save named views and load them back.
+
+
+<a id="tools-music"></a>
+
+[Tools](#tools)
+
+## Music
+
+![Music, open in the app](https://apps.thorwhalen.com/thoremin/guide/pics/tool-music.jpg)
+
+### What to do
+
+1. Load something to play along to: a song in the Song tool, or a piece in the Conductor.
+2. Open Tools, then Music, and choose its key, or tap Tap along with its beat from the first beat of a bar.
+3. Write its chords bar by bar, like C | F G | Am | G7, and press Save chart.
+
+Tell the instrument what the music playing is doing when it cannot tell by itself: its key, its tempo and its chords. What you say is kept on this device for that piece, and comes back when you load it again.
+
+**Make the instrument follow it**
+
+In the instrument's settings, set **Scale from** to the music in the [Music](#settings--music) section: the instrument then plays in the key you chose, and changes key where your chart or the score does. In the [Chord map](#settings--chord-map), choose the music playing under *Chords from* to light up each chord of your chart on its beat.
+
+**Tap the tempo**
+
+Play the song, then tap Tap on its beats, starting on the first beat of a bar: after four taps the tempo is set, and that first tap is where bar 1 of your chart starts. Tap again to correct it; Forget goes back to the song's own beat.
+
+**Write the chords**
+
+Bars go between `|`, the chords in a bar share it equally: `C | F G | Am7 | G7/B`. `%` repeats the bar before, `N.C.` means no chord. A chord the tool cannot read is named under the box, and the chart is not saved until it reads.
 
 
 <a id="tools-patcher"></a>

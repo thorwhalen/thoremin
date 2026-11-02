@@ -226,6 +226,8 @@ export const MusicalTimeSchema = z.object({
   anchors: z.number(),
   lastAnchorAt: z.number().optional(),
   leadOffset: z.number().optional(),
+  position: z.number().optional(),
+  rate: z.number().optional(),
 });
 
 /** Whether the conductor reads two hands at once (#457): a hand conductor whose named
