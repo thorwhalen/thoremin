@@ -14,6 +14,7 @@
  */
 import type { FeatureVector, FeatureWeights } from './types';
 import type { Point2 } from './projection';
+import { definedOnly } from '@thoremin/stats/options';
 
 export const LDA_DEFAULTS = {
   /** The ridge on the within-class scatter, as a share of its mean variance. */
@@ -147,7 +148,7 @@ export function ldaProjection(
   weights: FeatureWeights,
   options: Partial<typeof LDA_DEFAULTS> = {},
 ): LdaMap | null {
-  const o = { ...LDA_DEFAULTS, ...options };
+  const o = { ...LDA_DEFAULTS, ...definedOnly(options) };
   const d = features.length;
   const n = vectors.length;
   if (n < 2 || d === 0) return null;

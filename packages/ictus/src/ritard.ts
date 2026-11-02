@@ -17,6 +17,7 @@
  * Pure: a curve and a function of the beat. The caller supplies the tempo it started from and
  * where the piece ends.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 export const TEMPO_PRIORS = ['none', 'kth-final-ritard'] as const;
 export type TempoPriorKind = (typeof TEMPO_PRIORS)[number];
@@ -55,7 +56,7 @@ export interface FinalRitard {
 }
 
 export function createFinalRitard(options: KthRitardOptions = {}): FinalRitard {
-  const o = { ...KTH_RITARD_DEFAULTS, ...options };
+  const o = { ...KTH_RITARD_DEFAULTS, ...definedOnly(options) };
   const progress = (beat: number, endBeat: number): number | null => {
     if (!Number.isFinite(beat) || !Number.isFinite(endBeat) || !(o.beats > 0)) return null;
     // A piece shorter than the ritard is one ritard from its first beat, not one that starts

@@ -45,6 +45,7 @@
 import { ALL_FEATURES, FEATURE_BY_ID } from '../features/catalog';
 import type { Invariance } from '../features/types';
 import type { FeatureVector, FeatureWeights, NuisanceProfile } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** What a declared-invariance selection concluded, split three ways on purpose. */
 export interface InvarianceSelection {
@@ -151,7 +152,7 @@ export function weightsFromNuisance(
   profile: NuisanceProfile,
   options: WeightOptions = {},
 ): FeatureWeights {
-  const o = { ...WEIGHT_DEFAULTS, ...options };
+  const o = { ...WEIGHT_DEFAULTS, ...definedOnly(options) };
   const weights: FeatureWeights = {};
   if (profile.samples < o.minSamples) {
     for (const k of Object.keys(profile.spread)) weights[k] = 1;

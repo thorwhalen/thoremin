@@ -84,6 +84,7 @@ import { wrapPhase } from './types';
 import { createAdaptiveOscillator, type AdaptiveOscillator, type OscillatorOptions } from './oscillator';
 import { createTrendPrior, type TrendPriorOptions } from './trend_prior';
 import { nearestExpectedBeat } from './magnet';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface BlendPriorOptions {
   /** Options for the oscillator half (`initialTempo` and `beatsPerBar` here override
@@ -139,7 +140,7 @@ export interface BlendPrior extends RhythmPrior {
 }
 
 export function createBlendPrior(options: BlendPriorOptions = {}): BlendPrior {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const oscillator = createAdaptiveOscillator({ initialTempo: o.initialTempo, beatsPerBar: o.beatsPerBar, ...options.oscillator });
   const trend = createTrendPrior({ ...TREND_DEFAULTS, initialTempo: o.initialTempo, beatsPerBar: o.beatsPerBar, ...options.trend });
   /** The trend's weight. */

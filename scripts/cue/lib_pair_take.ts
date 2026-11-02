@@ -65,6 +65,7 @@ import { CueSchema, clickPlan, type Cue } from '@thoremin/sdk/enroll';
 import { cueWindows, edgeEventsFromRows, findStem, sealOpenEnded, type CueWindow } from '../lib_trainer_take';
 import { dataRoot } from '../air/lib_air_paths';
 import { isHeadsetMic } from '@/app/recording/mic';
+import { definedOnly } from '@thoremin/stats/options';
 
 export const PAIRS_VERSION = 1;
 
@@ -191,7 +192,7 @@ export function median(xs: readonly number[]): number {
  * difference (see {@link OnsetOptions.emphasis}), merged.
  */
 export function detectOnsets(signal: Float32Array, sampleRate: number, options: OnsetOptions = {}): number[] {
-  const o = { ...ONSET_DEFAULTS, ...options };
+  const o = { ...ONSET_DEFAULTS, ...definedOnly(options) };
   const found: number[] = [];
   if (o.emphasis !== 'difference') found.push(...riseOnsets(signal, sampleRate, o));
   if (o.emphasis !== 'level') {

@@ -71,6 +71,7 @@
  * cannot dominate every distance.
  */
 import type { FeatureVector, FeatureWeights } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface NoiseOptions {
   /** Time constant of the jitter estimate, in ms. Slow on purpose (see above). */
@@ -151,7 +152,7 @@ export function effectiveSigma(sigma: number, range: number, rangeFloor: number,
 }
 
 export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const stats = new Map<string, Stat>();
   let frames = 0;
 
@@ -249,7 +250,7 @@ const SCALE_DEFAULTS = { rangeFloor: 0.02 };
  * sigma 0) gets weight 0 — there is no unit for it, and it says nothing.
  */
 export function scaleWeights(snapshot: NoiseSnapshot, options: ScaleOptions = {}): FeatureWeights {
-  const o = { ...SCALE_DEFAULTS, ...options };
+  const o = { ...SCALE_DEFAULTS, ...definedOnly(options) };
   const out: FeatureWeights = {};
   for (const id of Object.keys(snapshot.sigma)) {
     const s = effectiveSigma(snapshot.sigma[id], snapshot.range[id] ?? 0, o.rangeFloor, snapshot.step?.[id]);

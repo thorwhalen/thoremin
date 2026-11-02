@@ -66,6 +66,7 @@ import type { TargetVerdict } from '@thoremin/sdk/enroll';
 import { FINGERING_CHARTS, chartById, chartNotes, fingeringKey, type FingerId, type Fingering, type FingeringChart } from './fingerings';
 import { parseNoteName } from './notes';
 import { MIN_SAMPLES_PER_ENTRY, jitterWeights, type Vocabulary, type VocabularyEntry } from './vocabulary';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The per-finger flexion features a chart can have an opinion on, by their id suffix in
  *  the hand catalog. The curl is the sum of the three joint angles. */
@@ -334,7 +335,7 @@ export interface FusedModel extends TrainedModel {
  * is two units from either.
  */
 export function fuseWithPrior(vocab: Vocabulary, options: FingeringPriorOptions): FusedModel | null {
-  const o = { ...PRIOR_DEFAULTS, ...options };
+  const o = { ...PRIOR_DEFAULTS, ...definedOnly(options) };
   const prefix = o.prefix ?? FLUTE_FINGER_PREFIX;
   const { anchors } = calibrateAnchors(vocab, o.chart, { prefix, anchors: o.anchors, range: o.range, preferredOctave: o.preferredOctave });
   const classes = priorClasses(o.chart, o);
@@ -458,7 +459,7 @@ function targetOf(model: TrainedModel, label: string) {
  * `(label, samples) => checkTake(model, label, samples)`.
  */
 export function checkTake(model: TrainedModel | null, label: string, samples: readonly FeatureVector[], options: CheckOptions = {}): TargetVerdict {
-  const o = { ...CHECK_DEFAULTS, ...options };
+  const o = { ...CHECK_DEFAULTS, ...definedOnly(options) };
   if (!model || samples.length === 0) return { kind: 'unknown' };
   const target = targetOf(model, label);
   if (!target || model.categories.length < 2) return { kind: 'unknown' };

@@ -7,6 +7,7 @@
  *
  * Pure: no DOM, no clock, no dependency.
  */
+import { definedOnly } from './options';
 
 /** One step of `prev + gain · (x - prev)`; `x` itself while `prev` is not finite. */
 export function ewUpdate(prev: number, x: number, gain: number): number {
@@ -45,7 +46,7 @@ export interface OneEuro {
  * one for new code.
  */
 export function createOneEuro(options: OneEuroOptions = {}): OneEuro {
-  let { minCutoff, beta, dCutoff } = { ...ONE_EURO_DEFAULTS, ...options };
+  let { minCutoff, beta, dCutoff } = { ...ONE_EURO_DEFAULTS, ...definedOnly(options) };
   const period = options.period;
   const alpha = (cutoff: number, dt: number) => {
     const tau = 1 / (2 * Math.PI * cutoff);

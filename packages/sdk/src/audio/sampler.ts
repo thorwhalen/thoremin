@@ -10,6 +10,7 @@
  * been chosen first. Samples are registered by id and must already be at the context's sample
  * rate (the host resamples on decode).
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface SamplerOptions {
   maxVoices?: number;
@@ -60,7 +61,7 @@ interface Voice {
 }
 
 export function createSampler(options: SamplerOptions = {}): Sampler {
-  const o = { ...SAMPLER_DEFAULTS, ...options };
+  const o = { ...SAMPLER_DEFAULTS, ...definedOnly(options) };
   const samples = new Map<string, Float32Array>();
   const voices: Voice[] = Array.from({ length: o.maxVoices }, () => ({
     data: null,

@@ -9,7 +9,8 @@
     "./clamp": "./src/clamp.ts",
     "./line": "./src/line.ts",
     "./quantile": "./src/quantile.ts",
-    "./smooth": "./src/smooth.ts"
+    "./smooth": "./src/smooth.ts",
+    "./options": "./src/options.ts"
   },
   "dependencies": {}
 }

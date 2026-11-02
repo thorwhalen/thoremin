@@ -15,6 +15,7 @@
  * Pure: fed (time, rms) of voiced frames only.
  */
 import { quantileSorted } from '@thoremin/stats/quantile';
+import { definedOnly } from '@thoremin/stats/options';
 
 export const LOUDNESS_MODES = ['auto', 'soft', 'normal', 'loud'] as const;
 export type LoudnessMode = (typeof LOUDNESS_MODES)[number];
@@ -55,7 +56,7 @@ export interface LoudnessScale {
 export const dbOf = (rms: number): number => 20 * Math.log10(Math.max(rms, 1e-9));
 
 export function createLoudnessScale(options: LoudnessOptions = {}): LoudnessScale {
-  const o = { ...LOUDNESS_DEFAULTS, ...options };
+  const o = { ...LOUDNESS_DEFAULTS, ...definedOnly(options) };
   const fixed = o.mode === 'auto' ? null : LOUDNESS_RANGES[o.mode];
   let current = fixed ?? LOUDNESS_RANGES.normal;
   const bins: { t: number; db: number }[] = [];

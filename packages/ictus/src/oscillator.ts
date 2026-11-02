@@ -70,6 +70,7 @@
 import { clamp01 } from '@thoremin/stats';
 import type { MusicalTime, Prediction, RhythmPrior } from './types';
 import { wrapPhase } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface OscillatorOptions {
   /** Phase coupling strength, 0..1 (1 = full reset onto every anchor). */
@@ -184,7 +185,7 @@ export interface AdaptiveOscillator extends RhythmPrior {
 }
 
 export function createAdaptiveOscillator(options: OscillatorOptions = {}): AdaptiveOscillator {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   let t = 0;
   let phase = 0;
   let period = 60 / o.initialTempo;

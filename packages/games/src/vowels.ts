@@ -20,6 +20,7 @@ import { median } from '@thoremin/stats/quantile';
 import type { CursorState, Point, PointSource } from './field';
 import type { Heard } from './listen';
 import { createLoudnessScale, type LoudnessScale } from './loudness';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface Vowel {
   ipa: string;
@@ -368,7 +369,7 @@ export interface VowelCursor extends PointSource {
 
 /** The voice's vowel as a point on the trapezoid, when it is loud enough to be a vowel. */
 export function createVowelCursor(options: VowelCursorOptions = {}): VowelCursor {
-  const o = { ...VOWEL_CURSOR_DEFAULTS, ...options };
+  const o = { ...VOWEL_CURSOR_DEFAULTS, ...definedOnly(options) };
   const loudness = o.loudness ?? createLoudnessScale();
   // The median's length doubles from smoothing 0.5 to 1 and halves from 0.5 to 0.
   const medianAt = (s: number | undefined) => (s === undefined ? o.medianOf : Math.max(1, Math.round(o.medianOf * 2 ** ((s - SMOOTHING_DEFAULT) * 2))));

@@ -48,6 +48,7 @@
  * clock map, `packages/sdk/src/timing/clock_map.ts`). Pure and causal: no clock, no
  * audio, no DOM.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 /** One note of the score, in beats. */
 export interface ScoreEvent {
@@ -131,7 +132,7 @@ interface Voice {
 }
 
 export function createScheduler(events: readonly ScoreEvent[], options: SchedulerOptions = {}): Scheduler {
-  const o = { ...SCHEDULER_DEFAULTS, ...options };
+  const o = { ...SCHEDULER_DEFAULTS, ...definedOnly(options) };
   const notes = [...events].sort((a, b) => a.start - b.start || a.channel - b.channel || a.key - b.key);
   const n = notes.length;
   const loop = o.loopBeats > 0 ? o.loopBeats : 0;

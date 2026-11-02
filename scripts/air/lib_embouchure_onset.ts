@@ -55,6 +55,7 @@ import { createNoiseEstimator, type NoiseEstimator } from '@thoremin/sdk/enroll/
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { Anchor } from '@thoremin/ictus/types';
 import { EMBOUCHURE_BLENDSHAPES } from './lib_wind_string_features';
+import { definedOnly } from '@thoremin/stats/options';
 
 // ---- The stream ----------------------------------------------------------------------
 
@@ -313,7 +314,7 @@ function lowerBound(ts: readonly number[], time: number): number {
 
 /** The oracle profile of one signal around each audio onset. */
 export function onsetProfile(t: readonly number[], x: readonly number[], onsets: readonly ProfiledOnset[], o: ProfileOptions = {}): OnsetProfile[] {
-  const opt = { ...PROFILE_DEFAULTS, ...o };
+  const opt = { ...PROFILE_DEFAULTS, ...definedOnly(o) };
   const sigma = o.sigma ?? jitterSigma(x);
   const out: OnsetProfile[] = [];
   for (const { t: on, from } of onsets) {
@@ -421,7 +422,7 @@ export interface EmbouchureDetector {
  * at the crossing, noise units per second), `lateral` 0.
  */
 export function createEmbouchureDetector(options: EmbouchureDetectorOptions = {}): EmbouchureDetector {
-  const o = { ...DETECTOR_DEFAULTS, ...options };
+  const o = { ...DETECTOR_DEFAULTS, ...definedOnly(options) };
   const ID = 's';
   let noise: NoiseEstimator = createNoiseEstimator({ tauMs: o.noiseTauMs, warmupFrames: o.warmupFrames });
   let baseline = NaN;

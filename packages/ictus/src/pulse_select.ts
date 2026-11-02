@@ -12,6 +12,7 @@
  * follower's ACF strength while its state is trusted, 0 otherwise, so a channel that
  * only reaches the floor in red noise never scores. Pure and causal.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface PulseSelectorOptions {
   /** How long a challenger must keep leading before it takes over, seconds. */
@@ -31,7 +32,7 @@ export interface PulseSelector<Id extends string = string> {
 }
 
 export function createPulseSelector<Id extends string = string>(options: PulseSelectorOptions = {}): PulseSelector<Id> {
-  const o = { ...PULSE_SELECT_DEFAULTS, ...options };
+  const o = { ...PULSE_SELECT_DEFAULTS, ...definedOnly(options) };
   let leader: Id | null = null;
   let challenger: { id: Id; since: number } | null = null;
   return {

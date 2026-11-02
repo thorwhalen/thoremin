@@ -8,6 +8,7 @@
  * Gated by the `conductor.orchestra.pizzicato` dial (off by default: the rule only changes what is
  * heard when the player turns it on). Whether it sounds right needs ears (#146).
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The GM program (zero-based) of the pizzicato strings. */
 export const PIZZICATO_PROGRAM = 45;
@@ -39,7 +40,7 @@ export interface ArticulationSwitch {
 }
 
 export function createArticulationSwitch(options: Partial<typeof ARTICULATION_SWITCH_DEFAULTS> = {}): ArticulationSwitch {
-  const o = { ...ARTICULATION_SWITCH_DEFAULTS, ...options };
+  const o = { ...ARTICULATION_SWITCH_DEFAULTS, ...definedOnly(options) };
   let pizz = false;
   let since = -Infinity;
   return {

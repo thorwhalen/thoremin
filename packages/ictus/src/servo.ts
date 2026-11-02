@@ -52,6 +52,7 @@
  */
 import { beatAt, type MusicalTime } from './types';
 import { conductorRatios, createLevelHold } from './level';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface ServoOptions {
   /** The convergence horizon, in the conductor's beats. */
@@ -158,7 +159,7 @@ const clampTo = (x: number, lo: number, hi: number): number => Math.max(lo, Math
  * `error` the conductor's beat minus the song's, both at the output timestamp.
  */
 export function servoRate(leadPeriod: number, songOwnPeriod: number, error: number, opts: ServoOptions = {}): number {
-  const o = { ...SERVO_DEFAULTS, ...opts };
+  const o = { ...SERVO_DEFAULTS, ...definedOnly(opts) };
   const r0 = songOwnPeriod / leadPeriod;
   const correction = clampTo(error / o.horizonBeats, -o.maxCorrection, o.maxCorrection);
   return clampTo(r0 * (1 + correction), o.minRate, o.maxRate);
@@ -171,7 +172,7 @@ export function servoRate(leadPeriod: number, songOwnPeriod: number, error: numb
 const running = (m: MusicalTime): boolean => m.state !== 'hold' && m.anchors > 0 && Number.isFinite(m.period) && m.period > 0;
 
 export function createBeatServo(options: ServoOptions = {}): BeatServo {
-  const o = { ...SERVO_DEFAULTS, ...options };
+  const o = { ...SERVO_DEFAULTS, ...definedOnly(options) };
   let cue: ServoCue | null = null;
   let nextId = 1;
   let lastCueT = -Infinity;

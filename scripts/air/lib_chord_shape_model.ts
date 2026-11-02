@@ -27,6 +27,7 @@
  */
 import type { FeatureVector } from '@thoremin/sdk/features/catalog';
 import { classify, trainModel } from '@thoremin/sdk/enroll/classify';
+import { definedOnly } from '@thoremin/stats/options';
 
 // ---- Data shapes -----------------------------------------------------------
 
@@ -127,7 +128,7 @@ export function trainSoftmax(
   features: readonly string[],
   options: SoftmaxTrainOptions = {},
 ): SoftmaxModel {
-  const o = { ...SOFTMAX_DEFAULTS, ...options };
+  const o = { ...SOFTMAX_DEFAULTS, ...definedOnly(options) };
   if (samples.length === 0) throw new Error('trainSoftmax: no samples');
   const classes = o.classes ? [...o.classes] : [...new Set(samples.map((s) => s.label))].sort();
   const classIndex = new Map(classes.map((c, i) => [c, i]));

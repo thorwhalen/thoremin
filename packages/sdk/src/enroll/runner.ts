@@ -40,6 +40,7 @@ import { clickPlan, samplingFor } from './cue';
 import type { Session } from './session';
 import { defaultSufficiency, type SufficiencyEvaluator, type Verdict } from './sufficiency';
 import type { FeatureVector } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** Fixed phrases the runner may say at a cue's end (a finite set, for the clip cache). */
 export const RUNNER_PHRASES = {
@@ -133,7 +134,7 @@ export function cueCoverage(cue: Cue, samples: number, elapsedMs = 0): number {
 }
 
 export function createRunner(options: RunnerOptions): Runner {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const { cues, session } = o;
   const evaluate = o.evaluate ?? defaultSufficiency;
   const listeners = new Set<(e: RunnerEvent) => void>();

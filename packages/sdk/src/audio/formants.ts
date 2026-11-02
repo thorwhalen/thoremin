@@ -13,6 +13,7 @@
  * with the window's rms; nothing allocated per quantum but the events.
  */
 import type { AudioAnalyser, AudioEvent } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface FormantOptions {
   /** The rate the analysis runs at, Hz: the input is decimated by the whole factor nearest to it. */
@@ -119,7 +120,7 @@ function rootsOf(c: Float64Array, p: number, re: Float64Array, im: Float64Array)
 
 /** One window (oldest sample first) at `rate`: its first three formants and its rms. */
 export function formantsOf(x: ArrayLike<number>, rate: number, options: FormantOptions = {}, scratch?: Scratch): FormantEstimate {
-  const o = { ...FORMANT_DEFAULTS, ...options };
+  const o = { ...FORMANT_DEFAULTS, ...definedOnly(options) };
   const n = x.length;
   const p = o.order ?? orderFor(rate);
   const s = scratch ?? scratchFor(n, p);
@@ -192,7 +193,7 @@ function decimationFilter(factor: number): Float64Array {
  * window's centre frame (in the input's frames, the decimation filter's delay included).
  */
 export function createFormantAnalyser(sampleRate: number, options: FormantOptions = {}): AudioAnalyser {
-  const o = { ...FORMANT_DEFAULTS, ...options };
+  const o = { ...FORMANT_DEFAULTS, ...definedOnly(options) };
   const factor = Math.max(1, Math.round(sampleRate / o.analysisRate));
   const rate = sampleRate / factor;
   const window = Math.round((o.windowMs / 1000) * rate);

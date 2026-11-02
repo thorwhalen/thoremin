@@ -7,6 +7,7 @@ import { createAdaptiveOscillator, type OscillatorOptions } from './oscillator';
 import { createTrendPrior, type TrendPriorOptions } from './trend_prior';
 import { createBlendPrior, TREND_DEFAULTS, type BlendPriorOptions } from './blend_prior';
 import type { RhythmPrior } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The priors a consumer selects by name: the adaptive oscillator (the v1 prior,
  *  robust to a stray anchor, 65 to 75 ms late under an accelerando), the trend prior
@@ -33,7 +34,7 @@ export function createRhythmPrior(kind: RhythmPriorKind = DEFAULT_RHYTHM_PRIOR, 
     case 'oscillator':
       return createAdaptiveOscillator(options.oscillator);
     case 'trend':
-      return createTrendPrior({ ...TREND_DEFAULTS, ...options.trend });
+      return createTrendPrior({ ...TREND_DEFAULTS, ...definedOnly(options.trend) });
     case 'blend':
       return createBlendPrior({ ...options.blend, oscillator: { ...options.blend?.oscillator, ...options.oscillator }, trend: { ...options.blend?.trend, ...options.trend } });
   }

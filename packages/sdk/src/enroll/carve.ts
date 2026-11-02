@@ -22,6 +22,7 @@ import { buildHierarchy, cutAt, suggestK, weightedDistance } from './cluster';
 import type { CategorizerMode } from './categorizer';
 import type { Session } from './session';
 import type { FeatureVector, TrainedModel } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export const CARVE_DEFAULTS = {
   /** Multiplier on the rest spread that bounds "neutral" (matches `trainModel`'s rejectScale). */
@@ -103,7 +104,7 @@ export function neutralIndices(
 
 /** A carver over a BUILT session (`session.build()` has run). */
 export function createCarver(session: CarvableSession, options: CarveOptions): Carver {
-  const o = { ...CARVE_DEFAULTS, ...options };
+  const o = { ...CARVE_DEFAULTS, ...definedOnly(options) };
   const vectors = session.points().map((p) => p.vector);
   const features = session.features();
   const weights = session.weights();

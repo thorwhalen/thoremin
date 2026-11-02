@@ -37,6 +37,7 @@
  */
 import { clamp01, quantileSorted } from '@thoremin/stats';
 import type { DynamicsEstimate } from './dynamics';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface RangeNormalizerOptions {
   /** The window the player's range is read over, seconds. */
@@ -74,7 +75,7 @@ export interface RangeNormalizer {
 
 /** A value against its own recent distribution: 0.5 + (x - median) / spread, clamped. */
 export function createRangeNormalizer(options: RangeNormalizerOptions = {}): RangeNormalizer {
-  const o = { ...RANGE_NORMALIZER_DEFAULTS, ...options };
+  const o = { ...RANGE_NORMALIZER_DEFAULTS, ...definedOnly(options) };
   let bins: { t: number; v: number }[] = [];
   let binStart = NaN;
   let binSum = 0;

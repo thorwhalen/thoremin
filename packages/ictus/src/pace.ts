@@ -48,6 +48,7 @@
 import { beatAt, wrapPhase, type MusicalTime } from './types';
 import { PULSE_TRUSTED_CONFIDENCE, type PulseState } from './pulse';
 import { createLevelHold, paceRatios, relateLevel, type LevelMatch } from './level';
+import { definedOnly } from '@thoremin/stats/options';
 
 export { paceRatios };
 
@@ -175,7 +176,7 @@ export function relatePeriods(
 const IDLE = (t: number, base: number): PaceState => ({ t, mode: 'idle', rate: base, ratio: NaN, target: NaN, phaseError: NaN, nudge: 0 });
 
 export function createPaceController(options: PaceOptions = {}): PaceController {
-  const o = { ...PACE_DEFAULTS, ...options };
+  const o = { ...PACE_DEFAULTS, ...definedOnly(options) };
   const level = createLevelHold({ ratios: paceRatios(o.maxRatio), captureRange: o.captureRange, persistS: o.persistS });
   let smoothed = NaN;
   let nudge: -1 | 0 | 1 = 0;

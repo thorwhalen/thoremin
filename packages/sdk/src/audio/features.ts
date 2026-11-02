@@ -30,6 +30,7 @@
  * so the audio thread never allocates.
  */
 import { createFft, nextPow2 } from './fft';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface AttackFeatureOptions {
   sampleRate: number;
@@ -70,7 +71,7 @@ export interface AttackFeatures {
 const EPS = 1e-10;
 
 export function createAttackFeatures(options: AttackFeatureOptions): AttackFeatures {
-  const o = { ...ATTACK_FEATURE_DEFAULTS, ...options };
+  const o = { ...ATTACK_FEATURE_DEFAULTS, ...definedOnly(options) };
   const window = Math.max(16, Math.round(o.window));
   const n = nextPow2(window);
   const fft = createFft(n);

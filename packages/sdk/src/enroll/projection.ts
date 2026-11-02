@@ -42,6 +42,7 @@
  */
 import { UMAP } from 'umap-js';
 import type { FeatureVector, FeatureWeights, StillPoint } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export type Point2 = [number, number];
 
@@ -112,7 +113,7 @@ export function fitProjection(
   weights: FeatureWeights,
   options: ProjectionOptions = {},
 ): Projection {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   if (points.length < MIN_POINTS_FOR_PROJECTION) {
     throw new Error(`projection: need at least ${MIN_POINTS_FOR_PROJECTION} held poses, have ${points.length}`);
   }

@@ -60,6 +60,7 @@
  * Pure and causal: the caller feeds frames in time order with the stroke period it has
  * (`Infinity` before one is known, then `fallbackPeriodS` is used).
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 /** Where the transport is: waiting for a ready pose, ready, past the upbeat waiting for the
  *  downbeat, running, holding. A stop returns it to `idle` (and reports `stopped`). */
@@ -174,7 +175,7 @@ export const TRANSPORT_DEFAULTS: Required<TransportOptions> = {
 /** The options with the thresholds made consistent: a pose cannot be raised and dropped at
  *  once, and the upbeat must move more than still. */
 function normalise(options: TransportOptions): Required<TransportOptions> {
-  const o = { ...TRANSPORT_DEFAULTS, ...options };
+  const o = { ...TRANSPORT_DEFAULTS, ...definedOnly(options) };
   return {
     ...o,
     raisedAbove: Math.max(o.raisedAbove, o.droppedBelow + MIN_HEIGHT_GAP),

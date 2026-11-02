@@ -68,6 +68,7 @@
 import { beatAt, wrapPhase } from './types';
 import { PULSE_TRUSTED_CONFIDENCE, type PulseState } from './pulse';
 import { createLevelHold, paceRatios } from './level';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface DanceLeadOptions {
   /** The clamp around the marked tempo, a fraction (0.1 = within +-10 %). */
@@ -210,7 +211,7 @@ const clampTo = (x: number, lo: number, hi: number): number => Math.max(lo, Math
 const START_EPS = 1e-6;
 
 export function createDanceLead(options: DanceLeadOptions = {}): DanceLead {
-  const o = { ...DANCE_LEAD_DEFAULTS, ...options };
+  const o = { ...DANCE_LEAD_DEFAULTS, ...definedOnly(options) };
   const level = createLevelHold({ ratios: paceRatios(o.maxRatio), captureRange: o.captureRange, persistS: o.persistS });
   let beat = 0;
   let started = false;

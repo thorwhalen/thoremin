@@ -84,6 +84,7 @@ import { clamp01, ewUpdate, median3 } from '@thoremin/stats';
 import { crossingTau, evalQ, fitLine, fitQuadratic, intersectionTau, vertexOf, type Quadratic } from './impact_fit';
 import { GAP_WINDOW, JITTER_WINDOW, JitterEstimator, expectedGap } from './impact_sampling';
 import { DEFAULTS, type ImpactConfirmation, type ImpactEvent, type ImpactPrediction, type ImpactPredictor, type ImpactPredictorOptions } from './impact_types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export { fitQuadratic, fitLine, crossingTau, intersectionTau } from './impact_fit';
 export type { Quadratic } from './impact_fit';
@@ -110,7 +111,7 @@ interface Learning {
 }
 
 export function createImpactPredictor(options: ImpactPredictorOptions = {}): ImpactPredictor {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const sign = o.yDown ? 1 : -1;
   let minLead = o.minLead;
   const levelKnown = typeof options.level === 'number' && Number.isFinite(options.level);
