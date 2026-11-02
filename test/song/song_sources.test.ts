@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import { useControls } from '@/app/store';
-import { activeSession, analysisRefusal, closeMedia, openInput, openMedia, ownedSession, SONG_TRANSPORT, SOURCES, useActiveSession } from '@/slices/song/app/sources';
+import { activeSession, analysisRefusal, closeMedia, openInput, openMedia, ownedSession, songSourceHost, SONG_TRANSPORT, SOURCES, useActiveSession } from '@/slices/song/app/sources';
 import { loadSongFile } from '@/slices/song/app/host';
-import { setSongHandle, songHandle, songPlaying, songPrefs } from '@/slices/song/app/state';
+import { clearAnsweredSeek, setSongHandle, songHandle, songPlaying, songPrefs } from '@/slices/song/app/state';
 import { useSongStatus } from '@/slices/song/app/songStatus';
 import { OWNED_TRANSPORT, type MediaItem } from '@thoremin/sources';
 import { SONG_RATE_MAX, SONG_RATE_MIN } from '@/slices/song/schema';
@@ -67,6 +67,37 @@ describe.runIf(SONG)('the Song tool opens every song through the sources', () =>
   });
 });
 
+describe.runIf(SONG)('overlapping opens', () => {
+  it('the latest request wins, whichever finishes first; the earlier one rejects as superseded', async () => {
+    let release!: () => void;
+    const slow = { ...analyze, decode: async () => {
+      await new Promise<void>((r) => (release = r));
+      return { channels: [clicks], durationS: clicks.length / SR };
+    } };
+    const first = openMedia(await SOURCES.resolveInput(fileOf('slow.wav')), { analyze: slow });
+    const second = await openMedia(await SOURCES.resolveInput(fileOf('quick.wav')), { analyze });
+    release();
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    expect(songHandle()?.name).toBe('quick.wav');
+    expect(activeSession()).toBe(second);
+  });
+
+  it('the file picker returns the song it opened', async () => {
+    const song = await loadSongFile(fileOf('mine.wav'), analyze);
+    expect(song.name).toBe('mine.wav');
+  });
+});
+
+describe.runIf(SONG)('the host checks the rights itself', () => {
+  it('never decodes an embed-only item, whatever the adapter did', async () => {
+    const embed: MediaItem = { source: 'url', id: 'e', title: 'A video', rights: 'embed_only', media: { kind: 'embed', embedUrl: 'https://example.com/e' } };
+    const decode = vi.fn(analyze.decode);
+    await expect(songSourceHost({ ...analyze, decode }).openOwned(embed, new Blob([]))).rejects.toMatchObject({ reason: 'rights' });
+    expect(decode).not.toHaveBeenCalled();
+    expect(songHandle()).toBeNull();
+  });
+});
+
 describe.runIf(SONG)('the owned session', () => {
   it('drives the song\'s transport, rate, volume and seek, and closing unloads the song', async () => {
     const session = await openMedia((await SOURCES.resolveInput(fileOf('a.wav'))), { analyze });
@@ -80,6 +111,13 @@ describe.runIf(SONG)('the owned session', () => {
     expect(songPrefs().volume).toBe(0.25);
     session.seek!(4.5);
     expect(useControls.getState().songSeek).toMatchObject({ positionS: 4.5 });
+    // The player answers it (its `seeked` output): the request is cleared, so it is never replayed.
+    const asked = (useControls.getState().songSeek as { id: number }).id;
+    clearAnsweredSeek(asked - 1);
+    expect(useControls.getState().songSeek).not.toBeNull();
+    clearAnsweredSeek(asked);
+    expect(useControls.getState().songSeek).toBeNull();
+    session.seek!(6);
     // A new song never inherits the request.
     await openMedia(await SOURCES.resolveInput(fileOf('b.wav')), { analyze });
     expect(useControls.getState().songSeek).toBeNull();

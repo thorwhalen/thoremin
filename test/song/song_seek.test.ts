@@ -75,6 +75,19 @@ describe.runIf(SONG)('song-player seek', () => {
     expect(st.seeks).toEqual([5, 7]);
   });
 
+  it('answers every request on `seeked`, and drops one while a leader holds the song', async () => {
+    const st = seekable();
+    const a = song('a');
+    const out = await drive(make(), [
+      { song: a },
+      { song: a, followPlaying: false, seek: { id: 4, positionS: 9 } },
+      { song: a, seek: { id: 5, positionS: 3 } },
+    ], st);
+    expect(st.seeks).toEqual([3]);
+    expect(out[1].seeked).toBe(4);
+    expect(out[2].seeked).toBe(5);
+  });
+
   it('ignores a malformed request', async () => {
     const st = seekable();
     const a = song('a');

@@ -106,6 +106,7 @@ export function makeSongReporter(
   engine: OutputReader,
   store: Pick<SongStatusState, 'report'> = useSongStatus.getState(),
   onEnded: () => void = () => {},
+  onSeeked: (id: number) => void = () => {},
 ): () => void {
   let lastKey = '';
   let lastStop: string | null = null;
@@ -113,6 +114,9 @@ export function makeSongReporter(
   return () => {
     const s = engine.getOutput(SONG_NODE_ID, 'status') as LoadStatus | undefined;
     if (!s) return;
+    // A seek the player answered is cleared, so a re-made player never replays it.
+    const seeked = engine.getOutput(SONG_NODE_ID, 'seeked');
+    if (typeof seeked === 'number') onSeeked(seeked);
     const time = engine.getOutput(SONG_NODE_ID, 'songTime') as MusicalTime | undefined;
     const position = engine.getOutput(SONG_NODE_ID, 'position') as number | undefined;
     const pace = paceReadout(engine.getOutput(PACE_NODE_ID, 'pace') as PaceState | undefined);

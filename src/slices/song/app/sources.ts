@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import {
   allows,
+  assertAllows,
   createSourceRegistry,
   defaultAdapters,
   OWNED_TRANSPORT,
@@ -102,11 +103,35 @@ export function ownedSession(item: MediaItem, song: SongHandle): PlaybackSession
   return session;
 }
 
-/** The host every adapter opens through; `analyze` is injectable (tests: jsdom decodes nothing). */
-export function songSourceHost(analyze: AnalyzeOptions = {}): SourceHost {
+/** The song an owned session plays (null for another kind of session). */
+export function sessionSong(session: PlaybackSession): SongHandle | null {
+  return songOf.get(session) ?? null;
+}
+
+/** Thrown at an open that a later one replaced before it finished. */
+export class SupersededOpen extends Error {
+  constructor(title: string) {
+    super(`${title} was replaced by a later choice`);
+    this.name = 'AbortError';
+  }
+}
+
+/** Counts opens, so only the latest one requested may become the song. */
+let opening = 0;
+
+/** The host every adapter opens through; `analyze` is injectable (tests: jsdom decodes nothing).
+ *  `current` says whether this open is still the latest one requested. */
+export function songSourceHost(analyze: AnalyzeOptions = {}, current: () => boolean = () => true): SourceHost {
   return {
     async openOwned(item, bytes) {
+      // The host decodes and tracks the beat: both need the item's rights, whatever the adapter did.
+      assertAllows(item, 'decode');
+      assertAllows(item, 'analyse');
       const song = await analyzeSong(bytes, { ...analyze, name: item.title });
+      if (!current()) {
+        if (song.url.startsWith('blob:') && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(song.url);
+        throw new SupersededOpen(item.title);
+      }
       const withItem: SongHandle = { ...song, item };
       setSongHandle(withItem);
       return ownedSession(item, withItem);
@@ -115,9 +140,11 @@ export function songSourceHost(analyze: AnalyzeOptions = {}): SourceHost {
 }
 
 /** Open `item` as the active session (closing the previous one). Rejects, leaving the previous
- *  session playing, when it cannot be opened. */
+ *  session playing, when it cannot be opened; rejects with an `AbortError` when a later open
+ *  replaced it first (the latest request wins, whichever finishes first). */
 export async function openMedia(item: MediaItem, opts: { analyze?: AnalyzeOptions } = {}): Promise<PlaybackSession> {
-  const session = await SOURCES.open(item, songSourceHost(opts.analyze));
+  const mine = ++opening;
+  const session = await SOURCES.open(item, songSourceHost(opts.analyze, () => mine === opening));
   const was = useActiveSession.getState().session;
   if (was && was !== session) {
     // Its song was already replaced by the new one; close only releases its listeners.

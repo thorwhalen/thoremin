@@ -14,7 +14,7 @@ import { SONG_TOOL } from './tool';
 import { RecordingSection, recordingStart, recordingStop } from './panels/RecordingSection';
 import { makeSongReporter, SONG_NODE_ID, useSongStatus } from './app/songStatus';
 import { SONG_COMMANDS } from './app/songCommands';
-import { setSongPlaying, songPlaying, useSongField } from './app/state';
+import { clearAnsweredSeek, setSongPlaying, songPlaying, useSongField } from './app/state';
 
 /** The transport goes off, if it is on (a song that ended, an engine that is gone). */
 function stopTransport(): void {
@@ -32,7 +32,13 @@ export const SONG_UI: ExtensionUi = {
     {
       nodeId: SONG_NODE_ID,
       // A song that played to its end, or one the browser refused to start, is not playing.
-      make: (engine) => makeSongReporter(engine, useSongStatus.getState(), stopTransport),
+      make: (engine) => makeSongReporter(engine, useSongStatus.getState(), stopTransport, (id) => {
+        try {
+          clearAnsweredSeek(id);
+        } catch {
+          // No hot store in this host (a headless test).
+        }
+      }),
       onRemoved: () => useSongStatus.getState().reset(),
       // The engine is gone: the new player must not start the song by itself on the next tap.
       reset: () => {

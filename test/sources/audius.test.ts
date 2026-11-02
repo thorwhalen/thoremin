@@ -39,6 +39,14 @@ describe('Audius', () => {
     expect(await a.resolve('https://audius.co/kitaurasyuji1/emotionalbach-276349')).toEqual(byId);
   });
 
+  it('takes track pages only, not playlists or albums', () => {
+    const a = createAudiusAdapter({ fetch: fakeFetch() });
+    expect(a.matches!('https://audius.co/someone/a-track?x=1')).toBe(true);
+    expect(a.matches!('https://audius.co/someone/playlist/my-list')).toBe(false);
+    expect(a.matches!('https://audius.co/someone/album/an-album')).toBe(false);
+    expect(a.matches!('https://audius.co/someone')).toBe(false);
+  });
+
   it('refuses to resolve a gated track', async () => {
     const a = createAudiusAdapter({ fetch: fakeFetch(() => json({ data: { ...search.data[0], is_stream_gated: true } })) });
     await expect(a.resolve('aWPkE')).rejects.toMatchObject({ reason: 'unsupported' });

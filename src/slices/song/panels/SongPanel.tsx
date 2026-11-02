@@ -108,7 +108,8 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
   const dancedByConductor = useSongField(() => songDanced(controls().get()) && !songFollows(controls().get()));
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [searching, setSearching] = useState(false);
+  // Opens in flight from the search box (several may overlap; the latest wins).
+  const [searching, setSearching] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { volume, rate, follow, followRange, holdFadeS, holdSlow, alignStart } = prefs;
 
@@ -118,8 +119,9 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
     setError(null);
     try {
       await loadSongFile(file);
-    } catch {
-      setError(`${file.name} could not be decoded. Try an MP3, M4A, WAV, OGG or FLAC file.`);
+    } catch (e) {
+      // A later choice replaced this one: nothing went wrong.
+      if ((e as { name?: string } | null)?.name !== 'AbortError') setError(`${file.name} could not be decoded. Try an MP3, M4A, WAV, OGG or FLAC file.`);
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -136,10 +138,10 @@ export default function SongPanel(_props: ExtensionToolPanelProps) {
         data-testid="song-file"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
-      <MediaSearch onBusy={setSearching} />
+      <MediaSearch onBusy={(on) => setSearching((n) => Math.max(0, n + (on ? 1 : -1)))} />
       <button
         onClick={() => fileRef.current?.click()}
-        disabled={busy || searching}
+        disabled={busy || searching > 0}
         className="w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
       >
         {busy ? 'Finding the beat...' : song ? 'Choose another song...' : 'Choose a song...'}

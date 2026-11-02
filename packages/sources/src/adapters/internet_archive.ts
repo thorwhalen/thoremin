@@ -60,12 +60,18 @@ export function parseIaLength(v: string | number | undefined): number | undefine
 /** Escape the query language's operators, so a title with a colon or a bracket searches as text. */
 const escapeQuery = (q: string): string => q.replace(/([+\-!(){}[\]^"~*?:\\/]|&&|\|\|)/g, '\\$1');
 
-const LINK = /^https?:\/\/(?:www\.)?archive\.org\/(?:details|download)\/([^/?#]+)(?:\/([^?#]+))?/i;
+const LINK = /^https?:\/\/(?:www\.)?archive\.org\/(details|download)\/([^/?#]+)(?:\/([^?#]+))?/i;
+
+/** A path that names a file (has an extension), not a page of the item (`page/2`). */
+const FILE = /\.[a-z0-9]{2,5}$/i;
 
 /** `{ id, file? }` from a link, an `id`, or an `id/file`. */
 export function parseIaRef(input: string): { id: string; file?: string } | null {
   const m = LINK.exec(input.trim());
-  if (m) return { id: decodeURIComponent(m[1]), file: m[2] ? decodeURIComponent(m[2]) : undefined };
+  if (m) {
+    const file = m[3] ? decodeURIComponent(m[3].replace(/\/$/, '')) : undefined;
+    return { id: decodeURIComponent(m[2]), file: file && (m[1].toLowerCase() === 'download' || FILE.test(file)) ? file : undefined };
+  }
   if (/^https?:/i.test(input)) return null;
   const [id, ...rest] = input.trim().split('/');
   return id ? { id, file: rest.length ? rest.join('/') : undefined } : null;
@@ -132,7 +138,8 @@ export function createInternetArchiveAdapter(opts: InternetArchiveOptions = {}):
       const tracks = iaTracks(body.files);
       if (!tracks.length) throw new SourceError('not-found', `${first(body.metadata.title) ?? ref.id} has no audio file`, INTERNET_ARCHIVE_ID);
       // A named file may be an original or any of its derivatives: play its track's best format.
-      const named = ref.file ? body.files.find((f) => f.name === ref.file) : undefined;
+      // A link may write a space as '+'.
+      const named = ref.file ? (body.files.find((f) => f.name === ref.file) ?? body.files.find((f) => f.name === ref.file!.replace(/\+/g, ' '))) : undefined;
       const key = named ? (named.source === 'derivative' && named.original ? named.original : named.name) : undefined;
       const track = key ? tracks.find((t) => t.name === key || t.original === key) : tracks[0];
       if (!track) throw new SourceError('not-found', `${ref.file} is not an audio file of ${ref.id}`, INTERNET_ARCHIVE_ID);

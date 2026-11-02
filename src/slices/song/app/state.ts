@@ -38,6 +38,13 @@ export function setSongHandle(song: SongHandle | null): void {
 
 let seekId = 0;
 
+/** Clear the seek request once the player answered it (`seeked` = its id). */
+export function clearAnsweredSeek(seeked: number): void {
+  const c = controls();
+  const standing = c.get().songSeek as SongSeek | null | undefined;
+  if (standing && standing.id === seeked) c.setTransient('songSeek', null);
+}
+
 /** Move the loaded song to `positionS` seconds (the player acts on it once the song is playable);
  *  a non-finite position is ignored. */
 export function requestSongSeek(positionS: number): void {

@@ -63,8 +63,10 @@ describe('Internet Archive items', () => {
     expect(item.media).toEqual({ kind: 'url', url: `https://archive.org/download/${GOLDBERG}/Kimiko_Ishizaka_-_01_-_Aria.mp3` });
   });
 
-  it('resolves a named track, from its id or from a download link', async () => {
+  it('resolves a named track, from its id or from a download link (a space written as +)', async () => {
     const { a } = ia();
+    const spaced = createInternetArchiveAdapter({ fetch: fakeFetch(() => json({ metadata: { identifier: 'x' }, files: [{ name: 'a.mp3', source: 'original', format: 'VBR MP3' }, { name: 'b c.mp3', source: 'original', format: 'VBR MP3' }] })) });
+    expect((await spaced.resolve('https://archive.org/download/x/b+c.mp3')).id).toBe('x/b c.mp3');
     const byId = await a.resolve(`${GOLDBERG}/Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.mp3`);
     expect(byId.title).toBe('Variatio 4 a 1 Clav. (The Open Goldberg Variations)');
     const byLink = await a.resolve(`https://archive.org/download/${GOLDBERG}/Kimiko_Ishizaka_-_05_-_Variatio_4_a_1_Clav.mp3`);
@@ -100,6 +102,9 @@ describe('Internet Archive items', () => {
     expect(a().matches!('https://example.com/details/Toccata')).toBe(false);
     expect(parseIaRef('https://archive.org/details/Toccata?tab=about')).toEqual({ id: 'Toccata', file: undefined });
     expect(parseIaRef('https://archive.org/download/a%20b/c%20d.mp3')).toEqual({ id: 'a b', file: 'c d.mp3' });
+    // A details link names a file only when it has one; a page of the item is the item.
+    expect(parseIaRef('https://archive.org/details/Toccata/page/2')).toEqual({ id: 'Toccata', file: undefined });
+    expect(parseIaRef('https://archive.org/details/Toccata/x.mp3')).toEqual({ id: 'Toccata', file: 'x.mp3' });
     expect(parseIaLength('08:33')).toBe(513);
     expect(parseIaLength('1:02:03')).toBe(3723);
     expect(parseIaLength('513.56')).toBeCloseTo(513.56);

@@ -34,7 +34,8 @@ const TrackSchema = z.object({
 }).passthrough();
 type Track = z.infer<typeof TrackSchema>;
 
-const LINK = /^https?:\/\/(?:www\.)?audius\.co\/[^/?#]+\/[^/?#]+/i;
+/** A track page (`/<artist>/<track>`); playlists and albums are not tracks. */
+const LINK = /^https?:\/\/(?:www\.)?audius\.co\/[^/?#]+\/(?!(?:playlist|album)(?:[/?#]|$))[^/?#]+\/?(?:[?#].*)?$/i;
 
 /** Whether a track may be streamed with no account. */
 export const audiusStreamable = (t: Track): boolean => t.is_streamable !== false && t.is_stream_gated !== true && t.is_available !== false;

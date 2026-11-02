@@ -34,6 +34,9 @@ export const isLink = (text: string): boolean => /^https?:\/\//i.test(text.trim(
 /** What went wrong, in words, from whatever was thrown. */
 const reasonOf = (e: unknown): string => (e instanceof Error && e.message ? e.message : 'It could not be opened.');
 
+/** An open a later choice replaced: not an error to show. */
+const superseded = (e: unknown): boolean => (e as { name?: string } | null)?.name === 'AbortError';
+
 export default function MediaSearch({ onBusy }: { onBusy?: (busy: boolean) => void }) {
   const [text, setText] = useState('');
   const [view, setView] = useState<View>({ kind: 'idle' });
@@ -50,7 +53,7 @@ export default function MediaSearch({ onBusy }: { onBusy?: (busy: boolean) => vo
       await run();
       if (id === request.current) setView(back.kind === 'tracks' ? back.back : back);
     } catch (e) {
-      if (id === request.current) {
+      if (id === request.current && !superseded(e)) {
         setError(reasonOf(e));
         setView(back);
       }

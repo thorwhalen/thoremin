@@ -4051,6 +4051,11 @@
         "name": "songTime",
         "kind": "musical-time",
         "description": "The song's beat at the playback position, tempo in engine time"
+      },
+      {
+        "name": "seeked",
+        "kind": "number",
+        "description": "The id of the last seek answered (acted on, or dropped while a leader held the song), so the app clears the request"
       }
     ],
     "params": [

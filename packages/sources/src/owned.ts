@@ -15,8 +15,9 @@ export const OWNED_TRANSPORT: TransportCapabilities = {
   // The transport is hot-store state the song player reads on its next tick.
   pauseLead: { s: 1 / 30, source: 'stated' },
   seekGranularity: { s: 0, source: 'stated' },
-  // `position()` and `songTime` are read from the same stretcher position in the same tick.
-  positionLag: { s: 0, source: 'stated' },
+  // `position()` is the player's last tick (the same reading `songTime` is made from): at most a
+  // frame old, and it moves to a seek's target on the tick after the seek.
+  positionLag: { s: 1 / 30, source: 'stated' },
 };
 
 export interface FetchOptions {

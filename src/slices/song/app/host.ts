@@ -8,7 +8,7 @@
 import { provideSongHost } from './songHost';
 import type { AnalyzeOptions } from './load';
 import { setSongPlaying, setSongPrefs, setSongStartBeat, songHandle } from './state';
-import { closeMedia, openInput } from './sources';
+import { closeMedia, openInput, sessionSong } from './sources';
 import type { SongHandle } from '../nodes/song_player.schema';
 
 provideSongHost({
@@ -26,9 +26,8 @@ provideSongHost({
 
 /** Decode and track `file`, then make it the loaded song (stopping the previous one). */
 export async function loadSongFile(file: Blob & { name?: string }, opts?: AnalyzeOptions): Promise<SongHandle> {
-  await openInput(file, { analyze: opts });
-  const song = songHandle();
-  if (!song) throw new Error('the song was unloaded while it opened');
+  const song = sessionSong(await openInput(file, { analyze: opts }));
+  if (!song) throw new Error(`${file.name ?? 'the file'} did not open as a song`);
   return song;
 }
 
