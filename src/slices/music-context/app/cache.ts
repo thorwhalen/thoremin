@@ -6,6 +6,7 @@
 import { createIdbProvider } from '@thoremin/sdk-ui/idbCollection';
 import { memoryContextCache, type ContextCache } from '@thoremin/sdk/context/cache';
 import type { MusicalContext } from '@thoremin/sdk/context/schema';
+import { MUSIC_CONTEXT_STORES } from '../stores';
 
 interface Entry {
   id: string;
@@ -13,7 +14,7 @@ interface Entry {
 }
 
 /** A cache over IndexedDB, falling back to memory when IndexedDB cannot be used. */
-export function createContextCache({ dbName = 'thoremin.musicContext' }: { dbName?: string } = {}): ContextCache {
+export function createContextCache({ dbName = MUSIC_CONTEXT_STORES.contexts.legacyKey }: { dbName?: string } = {}): ContextCache {
   if (typeof indexedDB === 'undefined') return memoryContextCache();
   const provider = createIdbProvider<Entry>({ dbName, storeName: 'contexts' });
   const memory = memoryContextCache();

@@ -37,12 +37,13 @@ import { LAB_EXTENSION } from '../src/slices/lab';
 import { PHYSICAL_THEREMIN_EXTENSION } from '../src/slices/theremin';
 import { GAMES_EXTENSION } from '../src/slices/games';
 import { TRAINER_EXTENSION } from '../src/slices/trainer';
+import { MUSIC_CONTEXT_EXTENSION } from '../src/slices/music-context';
 import type { Extension } from '@thoremin/sdk/instruments/extension';
 import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, HARMONY_EXTENSION as unknown as Extension, ASL_EXTENSION, DRAWN_EXTENSION as unknown as Extension, FACES_EXTENSION, PATCHER_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension, TRAINER_EXTENSION as unknown as Extension, PHYSICAL_THEREMIN_EXTENSION as unknown as Extension, GAMES_EXTENSION as unknown as Extension];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, HARMONY_EXTENSION as unknown as Extension, ASL_EXTENSION, DRAWN_EXTENSION as unknown as Extension, FACES_EXTENSION, PATCHER_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension, TRAINER_EXTENSION as unknown as Extension, PHYSICAL_THEREMIN_EXTENSION as unknown as Extension, GAMES_EXTENSION as unknown as Extension, MUSIC_CONTEXT_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);

@@ -10,14 +10,16 @@ import { defineExtension, dialSlice, transientPort } from '@thoremin/sdk/instrum
 import type { NodeDef } from '@thoremin/dag';
 import { MUSIC_CONTEXT_BRANCH, type ActiveContext } from '@thoremin/sdk/context/reading';
 import { musicContextNode } from './nodes/music_context';
+import { musicScaleNode } from './nodes/music_scale';
 import { musicContextBranch } from './branches';
+import { MUSIC_CONTEXT_STORES } from './stores';
 import { DEFAULT_MUSIC_CONTEXT, MUSIC_CONTEXT_ACTIVE, MusicContextSettingsSchema, type MusicContextSettings } from './schema';
 
 export const MUSIC_CONTEXT_EXTENSION_ID = 'music-context';
 
 export const MUSIC_CONTEXT_EXTENSION = defineExtension({
   id: MUSIC_CONTEXT_EXTENSION_ID,
-  nodes: [musicContextNode] as unknown as NodeDef<unknown>[],
+  nodes: [musicContextNode, musicScaleNode] as unknown as NodeDef<unknown>[],
   branches: [musicContextBranch],
   dials: [
     dialSlice({
@@ -28,6 +30,7 @@ export const MUSIC_CONTEXT_EXTENSION = defineExtension({
       meta: { facets: ['Music'], title: 'Music', description: "Whether the instrument's scale follows the music playing (its key), and how" },
     }),
   ] as const,
+  stores: Object.values(MUSIC_CONTEXT_STORES),
   // The timeline in force: made by the producers, never persisted.
   transient: [transientPort<ActiveContext | null>()(MUSIC_CONTEXT_ACTIVE, 'music-context', null)] as const,
   derive: (s) => ((s as { musicContext?: Partial<MusicContextSettings> }).musicContext?.scaleFrom === 'music' ? [MUSIC_CONTEXT_BRANCH] : []),

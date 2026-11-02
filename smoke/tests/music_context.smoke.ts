@@ -5,8 +5,8 @@
  * Modulation study, then the Conductor tool's Start conducting with the synthetic hand beating time
  * (`synthetic.conduct=1`, 80 beats a minute). Every animation frame the page records the musical
  * context's position (song seconds, the score at its marked 96 bpm: bar 5 at 10 s, bar 9 at 20 s)
- * and the scale the bridge emits (fitted as the key's own seven notes); before bar 5 it must be C
- * major, after it G major, and after bar 9 F major.
+ * and the scale the instrument plays (the interposer on the bridge's scales, fitted as the key's own
+ * seven notes); before bar 5 it must be C major, after it G major, and after bar 9 F major.
  */
 import { test, expect, type Page } from '@playwright/test';
 
@@ -33,7 +33,7 @@ function record(page: Page, toS: number, timeoutMs: number): Promise<Sample[]> {
         const step = () => {
           const t = window.thoremin!;
           const status = t.getOutput('musicContext', 'status') as { active: boolean; moving: boolean; position: number } | undefined;
-          const scale = t.getOutput('ui', 'scaleRight') as number[] | undefined;
+          const scale = t.getOutput('musicScale', 'scaleRight') as number[] | undefined;
           if (status?.active && status.moving && scale) samples.push({ position: status.position, pcs: [...new Set(scale.map((n) => ((n % 12) + 12) % 12))].sort((a, b) => a - b) });
           if ((samples.length && samples[samples.length - 1].position >= toS) || performance.now() - start > timeoutMs) resolve(samples);
           else requestAnimationFrame(step);

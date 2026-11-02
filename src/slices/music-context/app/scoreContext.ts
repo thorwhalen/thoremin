@@ -1,8 +1,8 @@
 /**
- * The score producer, live: whenever the loaded score changes (the conductor's `scoreDoc`), its
- * timeline is made (or read from the device cache, by the document's content key) and published as
- * the `score` layer, played by the conductor's clock. A score withdrawn withdraws the layer; a load
- * overtaken by a newer one is dropped.
+ * The score producer, live: whenever the loaded score changes (the conductor's `scoreDoc`), the old
+ * score's layer is withdrawn at once, and the new one's timeline is made (or read from the device
+ * cache, by the document's content key) and published as the `score` layer, played by the
+ * conductor's clock. A load overtaken by a newer score is dropped.
  */
 import { controls } from '@thoremin/sdk-ui/host';
 import { contentKey, produceCached, type ContextCache } from '@thoremin/sdk/context/cache';
@@ -24,11 +24,11 @@ export function startScoreContext({ cache = createContextCache() }: { cache?: Co
     if (raw === last) return;
     last = raw;
     const mine = ++generation;
+    // The old score's timeline goes at once: the conductor plays the new score from now, and its
+    // beats must not be read through the old score's keys while the new timeline is made.
+    setLayer('score', null);
     const doc = readScoreDoc(raw);
-    if (!doc) {
-      setLayer('score', null);
-      return;
-    }
+    if (!doc) return;
     void (async () => {
       const key = await contentKey(JSON.stringify(doc));
       const context = await produceCached(producer, doc, key, cache);

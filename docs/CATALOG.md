@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (64)
+## Nodes (65)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -124,8 +124,8 @@ Microphone (or replayed / synthetic sound) analysed on the audio thread: onsets,
 Reads the live UI control store → scale + sound + overlay port values.
 
 - **roles:** source, control
-- **in:** scaleOverride:scale-override
-- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, expressionTargets:expression-targets, handednessDwell:number, faceControls:face-controls-config, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, chordWheel:chord-wheel-config, chordChart:chord-chart-config, asl:asl-config, drawnPieces:drawn-pieces-config, midi:midi-config, steer:steer-settings, body:body-config, bodyMap:body-map, conductor:conductor-config, musicContext:music-context-config, physicalTheremin:physical-theremin-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerVolume:number, steerConfig:steer-config, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songAlignStart:boolean, songFollowRange:number, trainerHudConfig:trainer-hud-config, conductorLeadOffsets:lead-offsets, featureLabConfig:feature-lab-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, chordMapMidi:held-notes, chordMapAudio:audio-chroma, chordMapRatings:move-ratings, steerPlaying:boolean, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, trainerHudSnapshot:trainer-hud-snapshot, scoreDoc:score-doc, musicContextActive:music-context, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
+- **in:** —
+- **out:** scaleRight:number[], scaleLeft:number[], soundRight:sound, soundLeft:sound, octaveShift:number, magnetism:number, mute:boolean, hushVoices:boolean, muteAll:boolean, muteStrikes:boolean, claimed:boolean, overlay:overlay-config, rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[], faceMapping:face-mapping, chordConfig:chord-config, expressionSensitivity:expression-sensitivity, expressionDegrees:expression-degrees, expressionTargets:expression-targets, handednessDwell:number, faceControls:face-controls-config, graphElements:string[], airDrum:air-drum-config, airBass:air-bass-config, airGuitar:air-guitar-config, airFlute:air-flute-config, chordMap:chord-map-config, chordWheel:chord-wheel-config, chordChart:chord-chart-config, asl:asl-config, drawnPieces:drawn-pieces-config, midi:midi-config, steer:steer-settings, body:body-config, bodyMap:body-map, conductor:conductor-config, musicContext:music-context-config, physicalTheremin:physical-theremin-config, faceCategorizer:face-categorizer-config, poseCategorizer:pose-categorizer-config, categorizerChords:categorizer-chords-config, midiEnabled:boolean, midiPort:string, midiMuteFollowsMaster:boolean, steerEnabled:boolean, steerVolume:number, steerConfig:steer-config, songVolume:number, songRate:number, songHoldFade:number, songHoldSlow:number, songAlignStart:boolean, songFollowRange:number, trainerHudConfig:trainer-hud-config, conductorLeadOffsets:lead-offsets, featureLabConfig:feature-lab-config, airGuitarModel:shape-model, airFluteFingerModel:shape-model, airFluteMouthModel:shape-model, airDrumPattern:drum-pattern, chordMapMidi:held-notes, chordMapAudio:audio-chroma, chordMapRatings:move-ratings, steerPlaying:boolean, songHandle:song-handle, songPlaying:boolean, songPlays:number, songStartBeat:number, songSeek:song-seek, trainerHudSnapshot:trainer-hud-snapshot, scoreDoc:score-doc, musicContextActive:music-context, faceCategorizerModel:face-categorizer-model, poseCategorizerModel:pose-categorizer-model, categorizerChordsModel:categorizer-chords-model
 - **params:** —
 
 #### `synthetic-hands` — Synthetic Hands
@@ -393,6 +393,22 @@ Your own hand-shape or pose categorizer (#450), read live: each of your categori
 - **out:** params:synth-params, category:category-scores, triad:number[]
 - **params:** gain (number=0.22), sound (enum(sine | triangle | square | sawtooth | warmPad | glass | bell | organ | voice | softLead | strings | flute | brass | choir)="triangle"), voicing (enum(spread | bassTriad | close | shell | power | voiceLed)="spread"), rendering (enum(sustained | strum | arpUp | arpDown | arpUpDown | pulse | alberti)="sustained"), bpm (number=100)
 
+#### `music-context` — Musical context
+Reads the music's timeline (a score, the player's chart) at the playing position: the key and chord in force, the next ones on their beats, and, while the instrument follows the music, its scale.
+
+- **roles:** music, control
+- **in:** config:music-context-config, context:music-context, time:musical-time, conductorTime:musical-time
+- **out:** scale:scale-override, key:music-key, chord:music-chord, expectations:music-expectations, status:music-context-status
+- **params:** —
+
+#### `music-scale` — Scale from the music
+Stands on the instrument's scales: passes the settings' scales through, or, while the instrument follows the music, the same scales in the music's key.
+
+- **roles:** music, control
+- **in:** override:scale-override, scaleRight:number[], scaleLeft:number[], rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[]
+- **out:** scaleRight:number[], scaleLeft:number[], rightSpec:scale-spec, chordSpec:scale-spec, chordScale:number[]
+- **params:** —
+
 ### Conductor mode
 _Direct a fixed piece with gesture (tempo + dynamics)._
 
@@ -556,8 +572,8 @@ _Play a song to dance or play along to: its beat tracked in the browser, its tem
 Plays the song loaded in the Song tool at a live rate with the pitch preserved, into the master bus, and publishes the song's beat as musical time.
 
 - **roles:** synth
-- **in:** song:song-handle, playing:boolean, play:number, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, volume:number, holdFade:number, holdSlow:number, claimed:boolean
-- **out:** status:load-status, position:number, rate:number, songTime:musical-time
+- **in:** song:song-handle, playing:boolean, play:number, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, seek:song-seek, volume:number, holdFade:number, holdSlow:number, claimed:boolean
+- **out:** status:load-status, position:number, rate:number, songTime:musical-time, seeked:number
 - **params:** minRate (number=0.5), maxRate (number=2), stretcher (enum(signalsmith | element)="signalsmith")
 
 #### `pace-controller` — Pace Controller
@@ -613,15 +629,4 @@ Mirrored video + composable overlay elements (guides, landmarks, markers, cues),
 - **in:** hands:hands-frame, handsStatus:hands-status, features:hand-features, params:synth-params, scale:number[], scaleLeft:number[], chordScale:number[], chord:number[], faceFrame:face-frame, bodyFrame:body-frame, bodyStatus:body-status, expression:face-expression, categoryDegrees:category-degrees, categoryTargets:category-targets, octaveShift:number, overlayConfig:overlay-config, elements:string[], classifier1:category-scores, classifier1Captions:string[], categorizer1:category-scores, categorizer2:category-scores, categorizer3:category-scores, air.drumPads.hits:drum-hits, air.drumPads.hands:hands-frame, air.drumPads.config:air-drum-config, air.mouthCue.status:air-flute-status, air.mouthCue.config:air-flute-config, harmonic-layers.chordWheel.grid:cell-grid, harmonic-layers.chordWheel.config:chord-wheel-config, harmonic-layers.chordMap.grid:cell-grid, harmonic-layers.chordMap.config:chord-map-config, harmonic-layers.chordTorus.status:chord-map-status, harmonic-layers.chordTorus.config:chord-map-config, drawn-pieces.pieces.scene:drawn-scene, drawn-pieces.pieces.contacts:drawn-contacts, drawn-pieces.pieces.config:drawn-pieces-config, trainer-tool.hud.hud:trainer-hud-config, trainer-tool.hud.snapshot:trainer-hud-snapshot, conductor-tool.conductorHud.time:musical-time, conductor-tool.conductorHud.enabled:boolean, conductor-tool.conductorHud.config:conductor-config, feature-lab.meters.lab:feature-lab-config, feature-lab.meters.face:feature-vector, feature-lab.meters.hand:feature-vector, feature-lab.meters.body:feature-vector, physical-theremin.antennas.status:physical-theremin-status, physical-theremin.antennas.config:physical-theremin-config
 - **out:** —
 - **params:** video (object={}), scaleGuide (object={}), chordGuide (object={}), indexGuide (object={}), landmarks (object={}), markers (object={}), fingerLines (object={}), faceLandmarks (object={}), bodySkeleton (object={}), sourceStatus (object={}), cellGrid (object={}), timbreLevels (object={}), faceExpression (object={}), categoryLabel (object={}), categoryBars (object={}), fingerBars (object={}), chordName (object={}), keyboardStrip (object={}), tagHud (object={})
-
-### Other
-
-
-#### `music-context` — Musical context
-Reads the music's timeline (a score, the player's chart) at the playing position: the key and chord in force, the next ones on their beats, and, while the instrument follows the music, its scale.
-
-- **roles:** music, control
-- **in:** config:music-context-config, context:music-context, time:musical-time, conductorTime:musical-time
-- **out:** scale:scale-override, key:music-key, chord:music-chord, expectations:music-expectations, status:music-context-status
-- **params:** —
 
