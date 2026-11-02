@@ -37,6 +37,7 @@
  */
 import { clamp01, quantileSorted } from '@thoremin/stats';
 import type { DynamicsEstimate } from './dynamics';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface RangeNormalizerOptions {
   /** The window the player's range is read over, seconds. */
@@ -74,7 +75,7 @@ export interface RangeNormalizer {
 
 /** A value against its own recent distribution: 0.5 + (x - median) / spread, clamped. */
 export function createRangeNormalizer(options: RangeNormalizerOptions = {}): RangeNormalizer {
-  const o = { ...RANGE_NORMALIZER_DEFAULTS, ...options };
+  const o = { ...RANGE_NORMALIZER_DEFAULTS, ...definedOnly(options) };
   let bins: { t: number; v: number }[] = [];
   let binStart = NaN;
   let binSum = 0;
@@ -182,7 +183,7 @@ export interface ExpressionBlend {
 }
 
 export function createExpressionBlend(options: ExpressionBlendOptions = {}): ExpressionBlend {
-  const weights = { ...EXPRESSION_BLEND_DEFAULTS.weights, ...options.weights };
+  const weights = { ...EXPRESSION_BLEND_DEFAULTS.weights, ...definedOnly(options.weights) };
   const maxSpanS = options.maxSpanS ?? EXPRESSION_BLEND_DEFAULTS.maxSpanS;
   let articulation = options.articulation ?? EXPRESSION_BLEND_DEFAULTS.articulation;
   const names = ['motion', 'extension', 'jerk'] as const;
@@ -332,11 +333,11 @@ export interface HandGesture {
  * the middle. A channel that has not moved yet (a palm that never turns) says nothing.
  */
 export function createHandGesture(options: HandGestureOptions = {}): HandGesture {
-  let weights = { ...HAND_GESTURE_DEFAULTS.weights, ...options.weights };
+  let weights = { ...HAND_GESTURE_DEFAULTS.weights, ...definedOnly(options.weights) };
   const smoothS = options.smoothS ?? HAND_GESTURE_DEFAULTS.smoothS;
   const holdS = options.holdS ?? HAND_GESTURE_DEFAULTS.holdS;
-  const minSpread = { ...HAND_GESTURE_DEFAULTS.minSpread, ...options.minSpread };
-  const minMove = { ...HAND_GESTURE_DEFAULTS.minMove, ...options.minMove };
+  const minSpread = { ...HAND_GESTURE_DEFAULTS.minSpread, ...definedOnly(options.minSpread) };
+  const minMove = { ...HAND_GESTURE_DEFAULTS.minMove, ...definedOnly(options.minMove) };
   const moveWindowS = options.moveWindowS ?? HAND_GESTURE_DEFAULTS.moveWindowS;
   const warmupS = options.range?.warmupS ?? RANGE_NORMALIZER_DEFAULTS.warmupS;
   type Channel = 'torso' | 'image' | 'palm';

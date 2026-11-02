@@ -21,6 +21,7 @@
  * Pure. The prior is read, never updated: confirming the event is the caller's job.
  */
 import type { MusicalTime } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface MagnetResult {
   /** The time to sound: `t` pulled toward `grid`. */
@@ -53,7 +54,7 @@ export function nearestExpectedBeat(state: MusicalTime, t: number): number {
 }
 
 export function magnetise(t: number, state: MusicalTime, magnetism: number, options: MagnetOptions = {}): MagnetResult {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const grid = nearestExpectedBeat(state, t);
   if (!Number.isFinite(grid) || !(magnetism > 0)) return { t, grid, pull: 0, gate: 0 };
   const window = o.windowFraction * state.period;
@@ -111,7 +112,7 @@ export const LAG_MIN_STROKES = 4;
 const LAG_DEFAULTS: Required<LagGateOptions> = { k: 3, minStrokes: LAG_MIN_STROKES };
 
 export function lagGate(lags: readonly number[], options: LagGateOptions = {}): LagGate {
-  const o = { ...LAG_DEFAULTS, ...options };
+  const o = { ...LAG_DEFAULTS, ...definedOnly(options) };
   const xs = lags.filter(Number.isFinite);
   const n = xs.length;
   const lag = n ? xs.reduce((a, b) => a + b, 0) / n : NaN;

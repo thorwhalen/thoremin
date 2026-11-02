@@ -17,6 +17,7 @@
  */
 import { z } from 'zod';
 import type { FeatureVector } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export const QUIZ_DEFAULTS = {
   /** How many times each category is asked. */
@@ -123,7 +124,7 @@ function meanOf(vectors: readonly FeatureVector[]): FeatureVector {
 
 /** A quiz over `order` (see {@link quizOrder}). */
 export function createQuiz(order: readonly string[], options: QuizOptions = {}): Quiz {
-  const o = { ...QUIZ_DEFAULTS, ...options };
+  const o = { ...QUIZ_DEFAULTS, ...definedOnly(options) };
   const trials: QuizTrial[] = [];
   let started = false;
   let index = 0;

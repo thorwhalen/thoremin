@@ -31,6 +31,7 @@
  * the end of that hop, so the detector adds at most `hop` samples of latency (0.67 ms at the
  * default 32 samples and 48 kHz).
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface OnsetOptions {
   sampleRate: number;
@@ -90,7 +91,7 @@ export interface OnsetDetector {
 }
 
 export function createOnsetDetector(options: OnsetOptions): OnsetDetector {
-  const o = { ...ONSET_DEFAULTS, ...options };
+  const o = { ...ONSET_DEFAULTS, ...definedOnly(options) };
   const hop = Math.max(1, Math.round(o.hop));
   const hopS = hop / o.sampleRate;
   const fall = 1 - Math.exp(-hopS / (o.floorFallMs / 1000));

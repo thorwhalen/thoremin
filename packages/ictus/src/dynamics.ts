@@ -22,6 +22,7 @@
  */
 import { clamp01 } from '@thoremin/stats';
 import type { Anchor } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface DynamicsOptions {
   /** Smoothing across strokes, 0..1 (1 = no smoothing). */
@@ -46,7 +47,7 @@ export interface DynamicsEstimator {
 }
 
 export function createDynamicsEstimator(options: DynamicsOptions = {}): DynamicsEstimator {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   let dynamics = 0.5;
   let articulation = 0.5;
   let sharpnessRef = NaN;

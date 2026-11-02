@@ -42,6 +42,7 @@ import { fitGrid } from '@thoremin/ictus/metrics';
 import { PAD_IDS, DRUM_SOUNDS, type DrumSound, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 import { DRUM_NAMES, type DrumName } from './gm_drums';
 import type { DrumPattern, PatternEvent } from './drum_patterns';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** What the fit reads of a hit: the subset of `DrumHit` it needs. */
 export interface HitSample {
@@ -421,7 +422,7 @@ export interface Fit {
  * nothing).
  */
 export function fitPatternFull(hits: readonly HitSample[], pattern: DrumPattern, options: FitOptions = {}): Fit | null {
-  const o = { ...FIT_DEFAULTS, ...options };
+  const o = { ...FIT_DEFAULTS, ...definedOnly(options) };
   const statedBpm = o.statedBpm ?? pattern.bpm;
   const times = hits.map((h) => h.t).sort((a, b) => a - b);
   if (times.length < o.minMatched) return null;

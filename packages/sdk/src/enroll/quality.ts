@@ -33,6 +33,7 @@ import { modelDistance, weightedDistance } from './cluster';
 import { scaledDistance } from './classify';
 import type { FeatureWords } from './modality';
 import type { Category, FeatureVector, TrainedModel } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The neighbour a category or hold can be close to besides another category: the taught Neutral. */
 export const NEUTRAL_TARGET = NEUTRAL_BIN;
@@ -213,7 +214,7 @@ function neutralTargets(model: TrainedModel): Target[] {
  * model's `members` index (a categorizer's samples, in order).
  */
 export function carveQuality(model: TrainedModel, vectors: readonly FeatureVector[], options: QualityOptions = {}): CarveQuality {
-  const o = { ...QUALITY_DEFAULTS, ...options };
+  const o = { ...QUALITY_DEFAULTS, ...definedOnly(options) };
   const { features } = model;
   const cats: Target[] = model.categories.map((c) => ({ id: c.id, centroid: c.centroid }));
   const neutral = neutralTargets(model);

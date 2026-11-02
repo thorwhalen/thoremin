@@ -19,6 +19,7 @@
  * in a script.
  */
 import type { AudioAnalyser, AudioEvent } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface PitchEstimate {
   /** Hz, or null when nothing periodic was heard. */
@@ -50,7 +51,7 @@ export function windowFor(sampleRate: number, minHz = YIN_DEFAULTS.minHz): numbe
 
 /** YIN over one window `x` (its whole length). `scratch` (at least `sampleRate / minHz + 1` long) spares the audio thread an allocation. */
 export function yin(x: ArrayLike<number>, sampleRate: number, opts: YinOptions = {}, scratch?: Float64Array): PitchEstimate {
-  const { threshold, minHz, maxHz, minRms } = { ...YIN_DEFAULTS, ...opts };
+  const { threshold, minHz, maxHz, minRms } = { ...YIN_DEFAULTS, ...definedOnly(opts) };
   const n = x.length;
   let energy = 0;
   for (let i = 0; i < n; i++) energy += x[i] * x[i];

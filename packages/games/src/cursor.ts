@@ -21,6 +21,7 @@ import type { Heard } from './listen';
 import type { LoudnessScale } from './loudness';
 import { nameOf } from './lesson';
 import { smoothedAt, type CursorTuning } from './tuning';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** Semitones in the octave the x axis spans. */
 export const OCTAVE = 12;
@@ -67,7 +68,7 @@ export const PITCH_CURSOR_DEFAULTS = {
 
 /** The voice's pitch class across and its loudness up. */
 export function createPitchCursor(options: PitchCursorOptions = {}): PointSource {
-  const o = { ...PITCH_CURSOR_DEFAULTS, ...options };
+  const o = { ...PITCH_CURSOR_DEFAULTS, ...definedOnly(options) };
   let smoothing = o.smoothing;
   const sx = createOneEuro({ ...smoothedAt(o.smoothX, smoothing), period: OCTAVE });
   const sy = createOneEuro(smoothedAt(o.smoothY, smoothing));

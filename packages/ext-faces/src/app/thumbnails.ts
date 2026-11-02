@@ -19,6 +19,7 @@
 import { meanLuma } from '@thoremin/sdk/enroll/light';
 import type { PixelBox, PixelPoint } from '@thoremin/sdk-ui/enroll/modality';
 import { FACES_STORES } from '../stores';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface ThumbStore {
   get(key: string): Promise<Blob | null>;
@@ -132,7 +133,7 @@ export function clampBox(box: PixelBox, width: number, height: number): PixelBox
 /** The browser opener: a hidden, muted `<video>` playing the stream, drawn into a canvas. */
 export const openLiveFrames: FrameOpener = (stream, options = {}) => {
   if (typeof document === 'undefined') return null;
-  const o = { ...GRAB_DEFAULTS, ...options };
+  const o = { ...GRAB_DEFAULTS, ...definedOnly(options) };
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;

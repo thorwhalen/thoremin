@@ -26,6 +26,7 @@ import type { Heard } from './listen';
 import { NOTHING_HEARD } from './listen';
 import { pitchX, OCTAVE } from './cursor';
 import type { Results } from './view';
+import { definedOnly } from '@thoremin/stats/options';
 
 export type SegmentKind = 'wall' | 'band';
 
@@ -68,7 +69,7 @@ export const BALL_SCREEN_Y = 0.25;
 const REFERENCE_VELOCITY = 0.7;
 
 export function createTrackSession(opts: TrackOptions) {
-  const o = { ...TRACK_DEFAULTS, ...opts };
+  const o = { ...TRACK_DEFAULTS, ...definedOnly(opts) };
   const segs = o.segments.map((s, id) => ({
     ...s,
     id,
@@ -284,7 +285,7 @@ export const MAZE_LEVELS = {
 
 /** A maze of walls only: the track session over `wallsOf` the notes. */
 export function createMazeSession(opts: MazeOptions) {
-  const o = { ...MAZE_DEFAULTS, ...opts };
+  const o = { ...MAZE_DEFAULTS, ...definedOnly(opts) };
   return createTrackSession({
     ...opts,
     speed: o.speed,

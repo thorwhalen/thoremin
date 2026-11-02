@@ -31,6 +31,7 @@
 import { clamp01 } from '@thoremin/stats';
 import { createRhythmPrior, DEFAULT_RHYTHM_PRIOR, type RhythmPriorKind } from './priors';
 import type { Anchor, MusicalTime, RhythmPrior } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** One ACF peak: a period the channel repeats at, and how strongly (normalised r). */
 export interface PulseLevel {
@@ -365,7 +366,7 @@ export function refinePeriod(x: readonly number[], period: number, { t0, hz, ste
 /** Build a pulse follower. See the module header for what it does and why. */
 export function createPulseFollower(options: PulseOptions = {}): PulseFollower {
   const { prior: priorOpt, ...rest } = options;
-  const o = { ...PULSE_DEFAULTS, detrendS: rest.maxPeriodS ?? PULSE_DEFAULTS.maxPeriodS, ...rest };
+  const o = { ...PULSE_DEFAULTS, detrendS: rest.maxPeriodS ?? PULSE_DEFAULTS.maxPeriodS, ...definedOnly(rest) };
   if (!(o.minPeriodS > 0 && o.minPeriodS < o.maxPeriodS)) throw new Error(`pulse: need 0 < minPeriodS < maxPeriodS, got ${o.minPeriodS}..${o.maxPeriodS}`);
   const bounds = { minPeriod: o.minPeriodS, maxPeriod: o.maxPeriodS, beatsPerBar: 1 };
   // A prior built for a known level starts at that period, not at its own default tempo:

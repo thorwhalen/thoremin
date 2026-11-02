@@ -21,6 +21,7 @@
  * is overdue by `holdAfterPeriods`), so a consumer swaps it in without knowing.
  */
 import type { Anchor, MusicalTime, Prediction, RhythmPrior } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface TrendPriorOptions {
   /** Anchors the fit uses (the most recent). */
@@ -100,7 +101,7 @@ function fitTrend(ns: number[], ts: number[], quadratic: boolean): Fit | null {
 }
 
 export function createTrendPrior(options: TrendPriorOptions = {}): RhythmPrior {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const ns: number[] = [];
   const ts: number[] = [];
   let t = 0;

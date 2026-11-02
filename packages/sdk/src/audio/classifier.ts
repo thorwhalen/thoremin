@@ -25,6 +25,7 @@
  * runtime from it.
  */
 import { quantile } from '@thoremin/stats';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface SoundExample {
   label: string;
@@ -77,7 +78,7 @@ function weightedDistance(a: ArrayLike<number>, b: ArrayLike<number>, w: ArrayLi
 }
 
 export function trainSoundModel(examples: readonly SoundExample[], options: TrainSoundOptions = {}): SoundModel {
-  const o = { ...TRAIN_SOUND_DEFAULTS, ...options };
+  const o = { ...TRAIN_SOUND_DEFAULTS, ...definedOnly(options) };
   if (examples.length === 0) throw new Error('trainSoundModel: no examples');
   const dim = examples[0].features.length;
   for (const e of examples) if (e.features.length !== dim) throw new Error(`trainSoundModel: feature length ${e.features.length} != ${dim}`);

@@ -23,6 +23,7 @@ import type { DrumSound, PadId } from '@thoremin/sdk/nodes/music/drum_pads';
 import type { DrumPattern } from './drum_patterns';
 import type { DrumName } from './gm_drums';
 import { playbackOffset, type PatternModel } from './pattern_fit';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** What the air drum is handed to play a pattern: the pattern, its trained model, and
  *  when beat 0 of pass 0 falls (engine seconds; absent: the first hit is the one). */
@@ -78,7 +79,7 @@ export interface PatternFollower {
 const DEFAULTS = { windowSteps: 1, magnetism: 1, countIn: 4, anchorConfidence: 0.8 };
 
 export function createPatternFollower(options: PatternFollowerOptions): PatternFollower {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const { pattern, model } = o;
   const prior = o.prior ?? createTrendPrior({ initialTempo: model.bpm, beatsPerBar: 4 });
   const windowBeats = o.windowSteps / pattern.stepsPerBeat / 2;

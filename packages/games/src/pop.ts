@@ -16,6 +16,7 @@ import { createDwell, type Dwell } from './dwell';
 import { distanceOn, pushTrail, seededRandom, type Backdrop, type FieldGame, type FieldTarget, type FieldView, type Point, type PointSource } from './field';
 import type { Heard } from './listen';
 import { NOTHING_HEARD } from './listen';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** A balloon of the course: where, how big (units of the height), and its name if it has one. */
 export interface PopTarget extends Point {
@@ -61,7 +62,7 @@ export interface PopTuning {
 const POP_CUE = (t: number): Cue => ({ t, midi: CLICK_MIDI, velocity: 0.5, kind: 'click' });
 
 export function createPopSession(opts: PopOptions) {
-  const o = { ...POP_DEFAULTS, ...opts };
+  const o = { ...POP_DEFAULTS, ...definedOnly(opts) };
   const metric = { wrapX: o.wrapX ?? false, aspect: o.aspect };
   const targets: (FieldTarget & { dwell: Dwell })[] = o.targets.map((t, id) => ({ ...t, id, progress: 0, state: 'live', dwell: createDwell({ needS: o.holdS, decay: o.decay }) }));
   const trail: (Point & { t: number })[] = [];

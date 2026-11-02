@@ -51,6 +51,7 @@ import { applyWeights, createNoiseEstimator, scaleWeights, type NoiseEstimator, 
 import { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
 import { createMotionSegmenter, type MotionSegmenter } from './gestures/segmenter';
 import type { FeatureVector, FeatureWeights, StillPoint, Trace, TrainedModel } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface SessionOptions {
   /** Cap on how many features the model uses. See `rankFeatures` for why a cap exists. */
@@ -169,7 +170,7 @@ function meanOf(vectors: readonly FeatureVector[]): FeatureVector | undefined {
 }
 
 export function createSession(options: SessionOptions = {}): Session {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const noise = createNoiseEstimator(o.noise);
   const groupOf = o.groupOf ?? defaultGroupOf;
   const allIds = o.allFeatureIds ?? defaultFeatureIds();

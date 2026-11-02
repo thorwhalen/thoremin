@@ -24,6 +24,7 @@
 import { BODY_IMPACT_JOINTS, type ChannelFrame, type ChannelPoint, type ImpactJoint } from '@thoremin/ictus';
 import { BLM, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { type ConductorBodyPoint } from './conductor_body.schema';
+import { definedOnly } from '@thoremin/stats/options';
 export { CONDUCTOR_BODY_POINTS } from './conductor_body.schema';
 export type { ConductorBodyPoint } from './conductor_body.schema';
 /** The beating side; `auto` lets the detector follow whichever arm has a rhythm. */
@@ -199,7 +200,7 @@ function armRaise(f: BodyFrame, s: 'left' | 'right', minVisibility: number): num
 }
 
 export function createBodyMotionMeter(options: BodyMotionMeterOptions = {}): BodyMotionMeter {
-  const o = { ...BODY_MOTION_DEFAULTS, ...options };
+  const o = { ...BODY_MOTION_DEFAULTS, ...definedOnly(options) };
   let prev: { t: number; f: BodyFrame } | null = null;
   let prev2: BodyFrame | null = null;
   let jitter = NaN;

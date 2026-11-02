@@ -39,6 +39,7 @@ import type {
   FeatureWeights,
   TrainedModel,
 } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** Mean of a set of vectors over `features`, skipping non-finite entries per feature. */
 function meanVector(
@@ -110,7 +111,7 @@ export function trainModel(
   weights: FeatureWeights,
   options: TrainOptions = {},
 ): TrainedModel {
-  const o = { ...TRAIN_DEFAULTS, ...options };
+  const o = { ...TRAIN_DEFAULTS, ...definedOnly(options) };
   const measure = o.renormalize ? presentDistance : weightedDistance;
   const categories: Category[] = [];
   /** A hold's distance from a centre: its still-point's, or the mean of its frames' (#413). */
@@ -312,7 +313,7 @@ export function classify(
   vector: FeatureVector,
   options: ClassifyOptions = {},
 ): Classification {
-  const o = { ...CLASSIFY_DEFAULTS, ...options };
+  const o = { ...CLASSIFY_DEFAULTS, ...definedOnly(options) };
   const memberships: Record<string, number> = {};
   if (model.categories.length === 0) {
     return { categoryId: null, memberships, distance: Infinity, rejected: true };
@@ -402,7 +403,7 @@ export function createCategoryTracker(
   model: TrainedModel,
   options: TrackerOptions = {},
 ): CategoryTracker {
-  const o = { ...TRACKER_DEFAULTS, ...options };
+  const o = { ...TRACKER_DEFAULTS, ...definedOnly(options) };
   let committed: string | null = null;
   // A candidate is a category id, or the taught Neutral class (which commits as null).
   let candidate: string | typeof NEUTRAL_CANDIDATE | null = null;

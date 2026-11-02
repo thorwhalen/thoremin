@@ -33,6 +33,7 @@ import { createAttackFeatures, type AttackFeatures } from './features';
 import { createSoundClassifier, type SoundClassifier, type SoundModel } from './classifier';
 import { createSampler, type Sampler } from './sampler';
 import { SNIPPET } from './examples';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface SoundMapperOptions {
   sampleRate: number;
@@ -115,7 +116,7 @@ interface Pending {
 const POOL = 32;
 
 export function createSoundMapper(options: SoundMapperOptions): SoundMapper {
-  const o = { ...SOUND_MAPPER_DEFAULTS, ...options };
+  const o = { ...SOUND_MAPPER_DEFAULTS, ...definedOnly(options) };
   const sr = o.sampleRate;
   const ms = (x: number) => Math.round((x / 1000) * sr);
   const window = Math.max(16, ms(o.windowMs));

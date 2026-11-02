@@ -24,6 +24,7 @@ import { notesFrom, type LessonNote } from './lesson';
 import { shifted, type Heard } from './listen';
 import type { Results } from './view';
 import { timingVerdict } from './view';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** How the bars are stacked after each was heard alone. */
 export const STACKS = ['end', 'grow'] as const;
@@ -139,7 +140,7 @@ export interface EchoView {
 }
 
 export function createEchoSession(level: EchoLevel, opts: EchoOptions) {
-  const o = { ...ECHO_DEFAULTS, ...opts };
+  const o = { ...ECHO_DEFAULTS, ...definedOnly(opts) };
   const windows = o.windows ?? AUDIO_ONSET_WINDOWS;
   const offset = o.offset ?? 0;
   const beat = 60 / level.bpm;

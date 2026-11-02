@@ -54,6 +54,7 @@
 import { createWindowMotion, meanAbsDistance, MOTION_DEFAULTS, noiseDistance } from './motion';
 import type { NoiseEstimator } from './noise';
 import type { FeatureVector, StillPoint } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface SamplerOptions {
   /**
@@ -161,7 +162,7 @@ export interface StillPointSampler {
  * tests drive it deterministically. The motion it judges "held" by is `motion.ts`'s.
  */
 export function createStillPointSampler(options: SamplerOptions = {}): StillPointSampler {
-  const o = { ...DEFAULTS, ...options };
+  const o = { ...DEFAULTS, ...definedOnly(options) };
   const minSeparation = options.minSeparation ?? SEPARATION_DEFAULT[o.metric];
   const meter = createWindowMotion({
     metric: o.metric,

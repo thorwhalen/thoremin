@@ -9,6 +9,7 @@
  * its band before it changes its mind (a passing hand or a cloud is not a dark room) and the
  * bands do not overlap (no flicker around the line). Pure and modality-free.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The band and the patience, as data. */
 export const LIGHT_DEFAULTS = {
@@ -38,7 +39,7 @@ export interface LightJudge {
 }
 
 export function createLightJudge(options: Partial<typeof LIGHT_DEFAULTS> = {}): LightJudge {
-  const o = { ...LIGHT_DEFAULTS, ...options };
+  const o = { ...LIGHT_DEFAULTS, ...definedOnly(options) };
   let dark = false;
   let streak = 0;
   return {

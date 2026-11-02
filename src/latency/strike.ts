@@ -13,6 +13,7 @@
  * increasing y and velocities are in image heights per second. Pure: fed one
  * sample per camera frame.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface StrikeTriggerOptions {
   /** The downward speed the previous step must have had, image heights per second. */
@@ -34,7 +35,7 @@ export interface StrikeTrigger {
 }
 
 export function createStrikeTrigger(options: StrikeTriggerOptions = {}): StrikeTrigger {
-  const o = { ...STRIKE_DEFAULTS, ...options };
+  const o = { ...STRIKE_DEFAULTS, ...definedOnly(options) };
   let prevT = NaN;
   let prevY = NaN;
   /** The fastest downward speed of the motion in progress (0 when at rest). The frame

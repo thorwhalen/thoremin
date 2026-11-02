@@ -15,6 +15,7 @@ import type { Backdrop, FieldView, Point } from './field';
 import type { Heard, HeardFormants } from './listen';
 import { NOTHING_HEARD } from './listen';
 import { CALIBRATION_VOWELS, fitVoice, voiceSampleOf, type VoiceMap, type VoiceSample } from './vowels';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface CalibrationStep {
   ipa: string;
@@ -47,7 +48,7 @@ export const CALIBRATION_DEFAULTS = { holdS: 2, gate: 0.25, minRms: 0.004, r: 0.
 const DONE_CUE = (t: number): Cue => ({ t, midi: CLICK_MIDI, velocity: 0.5, kind: 'click' });
 
 export function createVowelCalibration(opts: CalibrationOptions) {
-  const o = { ...CALIBRATION_DEFAULTS, ...opts };
+  const o = { ...CALIBRATION_DEFAULTS, ...definedOnly(opts) };
   const steps = o.steps ?? CALIBRATION_VOWELS;
   const taken: VoiceSample[] = [];
   let frames: HeardFormants[] = [];

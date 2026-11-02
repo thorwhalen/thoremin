@@ -19,6 +19,7 @@
  * little energy. Then each answer is paired with the latest strike before it.
  */
 import { median } from '@thoremin/stats';
+import { definedOnly } from '@thoremin/stats/options';
 
 export interface OnsetOptions {
   /** Hop for the envelopes, ms. */
@@ -71,7 +72,7 @@ export function toneAmplitude(pcm: Float32Array, sampleRate: number, start: numb
 /** Strike onsets (ms from the buffer start): rising edges of the broadband envelope,
  *  placed at the first sample above the threshold. */
 export function strikeOnsets(pcm: Float32Array, sampleRate: number, options: OnsetOptions = {}): number[] {
-  const o = { ...ONSET_DEFAULTS, ...options };
+  const o = { ...ONSET_DEFAULTS, ...definedOnly(options) };
   const hop = Math.max(1, Math.round((o.hopMs / 1000) * sampleRate));
   const peaks: number[] = [];
   for (let i = 0; i < pcm.length; i += hop) {
@@ -144,7 +145,7 @@ function meanSquare(pcm: Float32Array, start: number, len: number): number {
  * that is where the onset is placed.
  */
 export function toneOnsets(pcm: Float32Array, sampleRate: number, options: ToneOnsetOptions = {}): number[] {
-  const o = { ...TONE_DEFAULTS, ...options };
+  const o = { ...TONE_DEFAULTS, ...definedOnly(options) };
   const win = Math.max(4, Math.round((o.windowMs / 1000) * sampleRate));
   const hop = Math.max(1, Math.round((o.hopMs / 1000) * sampleRate));
   const amps: number[] = [];
@@ -202,7 +203,7 @@ export const PAIR_DEFAULTS: Required<PairOptions> = { minLatencyMs: 10, maxLaten
 
 /** The strikes proper: broadband onsets that are not answers, one per cluster (its first). */
 export function strikeClusters(strikesMs: readonly number[], answersMs: readonly number[], options: PairOptions = {}): number[] {
-  const o = { ...PAIR_DEFAULTS, ...options };
+  const o = { ...PAIR_DEFAULTS, ...definedOnly(options) };
   const own = [...strikesMs]
     .filter((s) => !answersMs.some((a) => Math.abs(a - s) <= o.answerGuardMs))
     .sort((a, b) => a - b);
@@ -222,7 +223,7 @@ export function strikeClusters(strikesMs: readonly number[], answersMs: readonly
  * counts.
  */
 export function pairStrikes(strikesMs: readonly number[], answersMs: readonly number[], options: PairOptions = {}): StrikePair[] {
-  const o = { ...PAIR_DEFAULTS, ...options };
+  const o = { ...PAIR_DEFAULTS, ...definedOnly(options) };
   const strikes = strikeClusters(strikesMs, answersMs, o);
   const used = new Set<number>();
   const pairs: StrikePair[] = [];

@@ -37,6 +37,7 @@
  */
 import { clamp01 } from '@thoremin/stats';
 import type { MusicalTime } from './types';
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The song's ruler (the paces `Grid`): a line, the beats it was fitted to, and how
  *  sure the tracker was. Times are seconds on the SONG's own timeline. */
@@ -183,7 +184,7 @@ export function toMono(channels: readonly Float32Array[]): Float32Array {
  * no usable periodicity (silence, under two seconds, an empty buffer).
  */
 export function trackSongGrid(x: Float32Array, opts: SongGridOptions): SongGrid {
-  const o = { ...SONG_GRID_DEFAULTS, ...opts };
+  const o = { ...SONG_GRID_DEFAULTS, ...definedOnly(opts) };
   const fps = o.sampleRate / o.hop;
   const lowAlpha = 1 - Math.exp((-2 * Math.PI * o.lowCutHz) / o.sampleRate);
   const { env, low } = onsetEnvelopes(x, o.hop, o.win, lowAlpha);

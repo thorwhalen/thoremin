@@ -27,6 +27,7 @@
  *
  * Pure, causal and clock-free like the rest of ictus: the caller passes the time.
  */
+import { definedOnly } from '@thoremin/stats/options';
 
 /** The instantaneous relation: the ratio, and the rate that matches the two periods. */
 export interface LevelMatch {
@@ -141,7 +142,7 @@ export interface LevelHold {
 export const LEVEL_HOLD_DEFAULTS = { persistS: 3, persistFirst: true, sticky: false } as const;
 
 export function createLevelHold(options: LevelHoldOptions): LevelHold {
-  const o = { ...LEVEL_HOLD_DEFAULTS, ...options };
+  const o = { ...LEVEL_HOLD_DEFAULTS, ...definedOnly(options) };
   let followed: number | null = null;
   let candidate: { ratio: number; since: number } | null = null;
 
