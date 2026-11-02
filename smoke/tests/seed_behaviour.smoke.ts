@@ -24,15 +24,31 @@ import { skipWhenStarved } from '../helpers/load';
 
 type Seed = { name: string; body: boolean; silent?: string };
 
-/** What a struck instrument and the audio graph say, for a failure message (#890): the drum's
- *  own count of hits and its last hit's standing, the context state and the master level. */
+/**
+ * What a struck instrument and the audio graph say, for a failure message (#890). The drum's status
+ * splits "it never hit" (no camera frame reached it: `frameAspect` 0; frames but no stroke passed the
+ * gates: `ready`, `hits` 0) from "it hit" (`hits`, `predicted`, the last hit's `lastLead`, `lastOnTime`,
+ * `lastLateBy`). Downstream, `drum-out` drops a hit silently when strikes are muted (`muteStrikes`,
+ * read here), when the context is not running (`audio().state`), or when the clock is not at speed 1
+ * (not readable from the debug handle: the one remaining blind spot). A failed read never hides the
+ * test's own message.
+ */
 async function strikeDiagnosis(page: Page): Promise<string> {
-  const read = await page.evaluate(() => {
-    const t = window.thoremin!;
-    const s = t.getOutput('airDrum', 'status') as { hits?: number; predicted?: number; lastOnTime?: string; lastLateBy?: number } | undefined;
-    return { drum: s ? { hits: s.hits, predicted: s.predicted, lastOnTime: s.lastOnTime, lastLateBy: s.lastLateBy } : null, audio: t.audio(), level: t.level() };
-  });
-  return `; ${JSON.stringify(read)}`;
+  try {
+    const read = await page.evaluate(() => {
+      const t = window.thoremin!;
+      const s = t.getOutput('airDrum', 'status') as Record<string, unknown> | undefined;
+      const pick = (k: string) => s?.[k];
+      return {
+        drum: s ? { enabled: pick('enabled'), frameAspect: pick('frameAspect'), ready: pick('ready'), hits: pick('hits'), predicted: pick('predicted'), lastLead: pick('lastLead'), lastOnTime: pick('lastOnTime'), lastLateBy: pick('lastLateBy') } : null,
+        muteStrikes: t.getOutput('ui', 'muteStrikes'),
+        audio: t.audio(),
+      };
+    });
+    return `; ${JSON.stringify(read)}`;
+  } catch (err) {
+    return `; diagnosis failed: ${String(err)}`;
+  }
 }
 const seeds = (manifest.seeds as Seed[]).filter((s) => !s.silent);
 
