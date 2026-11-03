@@ -26,11 +26,22 @@ import { secondsOfBeat } from './cursor';
 export const UserKeySchema = z.object({ tonic: z.number().int().min(0).max(11), mode: z.enum(KEY_MODES).default('major') });
 export type UserKey = z.infer<typeof UserKeySchema>;
 
+/** A tapped beat on the ruler: its beat number from the downbeat, and its song second. */
+export const RulerPointSchema = z.object({ k: z.number().int().min(0), t: z.number().min(0) });
+export type RulerPoint = z.infer<typeof RulerPointSchema>;
+
 export const UserTempoSchema = z.object({
+  /** The tempo now (at the last tapped beat): the ruler goes on at it past its last point. */
   bpm: z.number().min(20).max(400),
   /** The song second of a downbeat (bar 1 of the chart). */
   firstBeatS: z.number().min(0),
   beatsPerBar: z.number().int().min(1).max(16).default(4),
+  /**
+   * The tapped ruler (#945): where the taps put their beats, smoothed, beat 0 first. Between two
+   * points the beats are spaced evenly; past the last, every `60 / bpm`. Absent (an entry from
+   * before it): a beat every `60 / bpm` from `firstBeatS`.
+   */
+  ruler: z.array(RulerPointSchema).optional(),
 });
 export type UserTempo = z.infer<typeof UserTempoSchema>;
 
@@ -122,20 +133,66 @@ export interface NumberedTap {
 
 const median = (xs: readonly number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
-/** The least-squares line t = t0 + period k through numbered taps (null when it is not a tempo). */
-export function fitTaps(taps: readonly NumberedTap[]): { t0: number; period: number } | null {
-  const n = taps.length;
-  if (n < 2) return null;
-  const mk = taps.reduce((s, x) => s + x.k, 0) / n;
-  const mt = taps.reduce((s, x) => s + x.t, 0) / n;
+/**
+ * The least-squares line t = t0 + period k through numbered taps (null when it is not a tempo).
+ * `weight` (default 1 for every tap) makes it a weighted fit: {@link tapRuler} centres one on each
+ * tap, so a tempo that changes is followed.
+ */
+export function fitTaps(taps: readonly NumberedTap[], weight: (tap: NumberedTap) => number = () => 1): { t0: number; period: number } | null {
+  if (taps.length < 2) return null;
+  let w = 0;
+  let mk = 0;
+  let mt = 0;
+  for (const x of taps) {
+    const wi = weight(x);
+    w += wi;
+    mk += wi * x.k;
+    mt += wi * x.t;
+  }
+  if (!(w > 0)) return null;
+  mk /= w;
+  mt /= w;
   let num = 0;
   let den = 0;
   for (const x of taps) {
-    num += (x.k - mk) * (x.t - mt);
-    den += (x.k - mk) ** 2;
+    const wi = weight(x);
+    num += wi * (x.k - mk) * (x.t - mt);
+    den += wi * (x.k - mk) ** 2;
   }
   const period = den > 0 ? num / den : NaN;
   return period > 0 ? { t0: mt - period * mk, period } : null;
+}
+
+/** How fast the ruler forgets: a tap this many beats away weighs half (#945). Eight beats follow
+ *  an accelerando within a bar or two and still average a tap's jitter over a dozen taps. */
+export const RULER_HALF_LIFE_BEATS = 8;
+
+/** The weighted fit centred on beat `k`: taps weigh half every `halfLifeBeats` beats away. */
+const localFit = (run: readonly NumberedTap[], k: number, halfLifeBeats: number) => fitTaps(run, (x) => 0.5 ** (Math.abs(x.k - k) / halfLifeBeats));
+
+const round3 = (x: number) => Math.round(x * 1000) / 1000;
+
+/**
+ * The ruler a run makes (#945): at each tap's beat number, where a line fitted to the taps around
+ * it (weights halving every `halfLifeBeats` beats) puts that beat, so an accelerando or a
+ * ritardando is followed beat by beat while the run's first tap stays beat 0; and the period now,
+ * the fit's at the last tap. A tap is only a point of the ruler, never a beat that moves the
+ * numbering. Null with fewer than two taps.
+ */
+export function tapRuler(run: readonly NumberedTap[], { halfLifeBeats = RULER_HALF_LIFE_BEATS }: { halfLifeBeats?: number } = {}): { ruler: RulerPoint[]; period: number } | null {
+  const last = run[run.length - 1];
+  const now = last ? localFit(run, last.k, halfLifeBeats) : null;
+  if (!now) return null;
+  const ruler: RulerPoint[] = [];
+  for (const x of run) {
+    const fit = localFit(run, x.k, halfLifeBeats);
+    if (!fit) return null;
+    const t = round3(Math.max(0, fit.t0 + fit.period * x.k));
+    // Strictly later than the point before (a ruler never goes back).
+    if (ruler.length && t <= ruler[ruler.length - 1].t) continue;
+    ruler.push({ k: x.k, t });
+  }
+  return ruler.length >= 2 ? { ruler, period: now.period } : null;
 }
 
 /**
@@ -156,12 +213,32 @@ export function numberTap(run: readonly NumberedTap[], t: number): { run: Number
   return { run: [...run, { t, k: last.k + Math.max(1, Math.round(gap / beat)) }], event: 'added' };
 }
 
-/** A run's tempo, its downbeat at beat 0 (null with fewer than `minTaps` taps or no tempo). */
-export function tempoOfRun(run: readonly NumberedTap[], { minTaps = 4, beatsPerBar = 4 }: { minTaps?: number; beatsPerBar?: number } = {}): UserTempo | null {
+/** A run's tempo, its downbeat at beat 0 and its ruler ({@link tapRuler}; null with fewer than
+ *  `minTaps` taps or no tempo). */
+export function tempoOfRun(
+  run: readonly NumberedTap[],
+  { minTaps = 4, beatsPerBar = 4, halfLifeBeats = RULER_HALF_LIFE_BEATS }: { minTaps?: number; beatsPerBar?: number; halfLifeBeats?: number } = {},
+): UserTempo | null {
   if (run.length < minTaps) return null;
-  const fit = fitTaps(run);
-  if (!fit) return null;
-  return UserTempoSchema.parse({ bpm: Math.min(400, Math.max(20, 60 / fit.period)), firstBeatS: Math.max(0, fit.t0), beatsPerBar });
+  const made = tapRuler(run, { halfLifeBeats });
+  if (!made) return null;
+  const ruler = made.ruler[0].k === 0 ? made.ruler : [{ k: 0, t: made.ruler[0].t }, ...made.ruler.slice(1)];
+  return UserTempoSchema.parse({ bpm: Math.min(400, Math.max(20, 60 / made.period)), firstBeatS: ruler[0].t, beatsPerBar, ruler });
+}
+
+/** Beat `k`'s song second on a tempo: between ruler points evenly, past the last at `bpm`, and on a
+ *  tempo with no ruler a beat every `60 / bpm` from `firstBeatS`. */
+export function beatOnTempo(tempo: UserTempo, k: number): number {
+  const period = 60 / tempo.bpm;
+  const r = tempo.ruler;
+  if (!r || r.length < 2) return tempo.firstBeatS + k * period;
+  const lastPoint = r[r.length - 1];
+  if (k >= lastPoint.k) return lastPoint.t + (k - lastPoint.k) * period;
+  let i = 0;
+  while (r[i + 1].k <= k) i++;
+  const a = r[i];
+  const b = r[i + 1];
+  return a.t + ((b.t - a.t) * (k - a.k)) / (b.k - a.k);
 }
 
 /**
@@ -217,7 +294,8 @@ export function contextFromUser(entry: UserEntry, { ruler, durationS = 0, conten
   if (entry.tempo) {
     const period = 60 / entry.tempo.bpm;
     const count = Math.max(2, chartBeats + RULER_PAD_BEATS, Math.ceil(durationS / period) + 1);
-    beats = Array.from({ length: count }, (_, k) => ({ t: entry.tempo!.firstBeatS + k * period, confidence: 1 }));
+    const lastRuled = entry.tempo.ruler?.[entry.tempo.ruler.length - 1]?.k ?? 0;
+    beats = Array.from({ length: Math.max(count, lastRuled + 1 + RULER_PAD_BEATS) }, (_, k) => ({ t: beatOnTempo(entry.tempo!, k), confidence: 1 }));
   } else if (ruler && ruler.length >= 2) beats = ruler.map((t) => ({ t, confidence: 1 }));
   const ruled = beats.length >= 2;
   const at = (beat: number) => secondsOfBeat({ beats }, beat);

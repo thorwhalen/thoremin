@@ -41,7 +41,8 @@ export const MUSIC_CONTEXT_UI: ExtensionUi = {
     // The song's position, for the Music tool's taps.
     {
       nodeId: SONG_PLAYER,
-      make: (engine, resources) => () => mirrorSongTime(engine.getOutput(SONG_PLAYER, 'songTime') as MusicalTime | undefined, timingFrom(resources()).outputStage.value),
+      make: (engine, resources) => () =>
+        mirrorSongTime(engine.getOutput(SONG_PLAYER, 'songTime') as MusicalTime | undefined, timingFrom(resources()).outputStage.value, engine.getOutput(SONG_PLAYER, 'jumps') as number | undefined),
       onRemoved: () => mirrorSongTime(null),
       reset: () => mirrorSongTime(null),
     },

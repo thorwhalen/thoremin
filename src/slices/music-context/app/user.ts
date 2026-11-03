@@ -85,11 +85,14 @@ export function writeEntry(update: (e: UserEntry) => UserEntry): boolean {
 let lastSongTime: MusicalTime | null = null;
 /** The output stage (seconds from the song's position to the speaker), from the timing resource. */
 let outputStageS = 0;
+/** The song player's count of the position moves it made (its `jumps`, #945); null when unknown. */
+let songJumps: number | null = null;
 
-/** The status hook's sink: the song player's latest reading, and the output stage. */
-export const mirrorSongTime = (time: MusicalTime | null | undefined, stageS = 0): void => {
+/** The status hook's sink: the song player's latest reading, the output stage, and its jumps. */
+export const mirrorSongTime = (time: MusicalTime | null | undefined, stageS = 0, jumps?: number): void => {
   lastSongTime = time ?? null;
   outputStageS = Number.isFinite(stageS) && stageS > 0 ? stageS : 0;
+  songJumps = typeof jumps === 'number' ? jumps : null;
 };
 
 /**
@@ -109,24 +112,31 @@ export function songPositionAt(now: number, time: MusicalTime | null = lastSongT
  *  and the engine time of the last one (to tell a seek). */
 let taps: NumberedTap[] = [];
 let lastTapNow = 0;
+/** The song player's jumps at the last tap: a different count is a seek since (#945). */
+let jumpsAtLastTap: number | null = null;
 /** How many taps a run keeps: its first (the downbeat) and the latest; their beat numbers are kept
  *  with them, so dropping the middle moves nothing. */
 const MAX_TAPS = 128;
 /** A song that moved this much more or less than the clock between two taps was sought (plus a
- *  share of the gap, for a rate that changed in between). */
+ *  share of the gap, for a rate that changed in between): the backstop for a move the song player
+ *  did not make itself (a scrub in a provider's own player), since a short one escapes it. The
+ *  player's own moves are counted exactly (`jumps`). */
 const SEEK_TOLERANCE_S = 0.15;
 const SEEK_RATE_SLACK = 0.12;
 
 /** One tap at engine time `now`: the tempo once there are enough taps (only the count before), or
- *  'no-song'. A seek between taps (the song moved otherwise than the clock) starts the run again. */
+ *  'no-song'. A seek between taps starts the run again: one the song player made (its `jumps`
+ *  changed, #945), or the song having moved otherwise than the clock. */
 export function tap(now: number): { bpm: number; taps: number } | { taps: number } | 'no-song' {
   const at = songPositionAt(now);
   if (at === null) return 'no-song';
   const last = taps[taps.length - 1];
   const rate = lastSongTime?.rate && lastSongTime.rate > 0 ? lastSongTime.rate : 1;
   const dt = now - lastTapNow;
-  if (last && Math.abs(at - last.t - dt * rate) > SEEK_TOLERANCE_S + SEEK_RATE_SLACK * dt * rate) taps = [];
+  const jumped = songJumps !== null && jumpsAtLastTap !== null && songJumps !== jumpsAtLastTap;
+  if (last && (jumped || Math.abs(at - last.t - dt * rate) > SEEK_TOLERANCE_S + SEEK_RATE_SLACK * dt * rate)) taps = [];
   lastTapNow = now;
+  jumpsAtLastTap = songJumps;
   taps = numberTap(taps, at).run;
   if (taps.length > MAX_TAPS) taps = [taps[0], ...taps.slice(taps.length - MAX_TAPS + 1)];
   const beatsPerBar = currentEntry().tempo?.beatsPerBar ?? 4;
@@ -139,6 +149,7 @@ export function tap(now: number): { bpm: number; taps: number } | { taps: number
 /** Forget the taps (and, with `tempo`, the tempo they made). */
 export function clearTaps({ tempo = false }: { tempo?: boolean } = {}): void {
   taps = [];
+  jumpsAtLastTap = null;
   if (tempo) writeEntry((e) => ({ ...e, tempo: null }));
 }
 

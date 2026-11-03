@@ -79,6 +79,19 @@ describe.runIf(MUSIC)('the Music tool commands', () => {
     expect(tap(52.05)).toEqual({ taps: 1 });
   });
 
+  it("starts again on the song player's own seek, however short (#945)", () => {
+    fakeControls({ songHandle: SONG });
+    // Slow tapping (2 s apart, 30 bpm): a 0.3 s seek is inside the position test's slack.
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 2, { t: 50, rate: 1, playing: true }), 0, 0);
+    for (const t of [50, 52, 54]) tap(t);
+    expect((tap(56) as { taps: number }).taps).toBe(4);
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 8.3, { t: 56, rate: 1, playing: true }), 0, 0);
+    expect((tap(58) as { taps: number }).taps).toBe(5);
+    // The same 0.3 s seek made by the player: its count moved, so the run starts again.
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 10.6, { t: 58, rate: 1, playing: true }), 0, 1);
+    expect(tap(60)).toEqual({ taps: 1 });
+  });
+
   it('keeps the downbeat past the cap on taps', () => {
     fakeControls({ songHandle: SONG });
     // 200 taps at 120 bpm from song position 10 (song time = engine time - 40).

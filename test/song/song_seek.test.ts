@@ -88,6 +88,18 @@ describe.runIf(SONG)('song-player seek', () => {
     expect(out[2].seeked).toBe(5);
   });
 
+  it('counts every position move it makes on `jumps` (#945), and not a dropped request', async () => {
+    const st = seekable();
+    const a = song('a');
+    const out = await drive(make(), [
+      { song: a },
+      { song: a, followPlaying: false, seek: { id: 4, positionS: 9 } },
+      { song: a, seek: { id: 5, positionS: 3 } },
+      { song: a, seek: { id: 5, positionS: 3 } },
+    ], st);
+    expect(out.map((o) => o.jumps)).toEqual([0, 0, 1, 1]);
+  });
+
   it('ignores a malformed request', async () => {
     const st = seekable();
     const a = song('a');
