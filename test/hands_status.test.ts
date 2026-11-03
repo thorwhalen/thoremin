@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import { createHandRunner, MAIN_REPLACEMENT_RETRIES, type FromWorker, type LandmarkerOptions, type ToWorker, type WorkerLike, type WorkerRunnerDeps } from '@/nodes/sources/hand_runner';
-import { handsStatus, HANDS_STATUS } from '@/nodes/sources/webcam_hands';
+import { handsLoadStatus, handsStatus, HANDS_STATUS } from '@/nodes/sources/webcam_hands';
 import { syntheticHandsNode } from '@/nodes/sources/synthetic_hands';
 import { replayHandsNode } from '@/nodes/sources/replay_hands';
 import { SCRIPTED_HANDS_STATUS } from '@/nodes/sources/source_contract';
@@ -78,8 +78,21 @@ describe('handsStatus', () => {
     expect(HANDS_STATUS.failed.phase).toBe('error');
     // Waiting to try again is not "moving to the main thread".
     expect(HANDS_STATUS.retrying.message).not.toContain('main thread');
-    // No "loading" or "could not load": init awaits the runner, so process() never runs before it.
-    expect(Object.keys(HANDS_STATUS).sort()).toEqual(['active', 'failed', 'ready', 'replacing', 'retrying']);
+    // Since #922 the model loads without holding the graph: `loading` until it lands, `unavailable`
+    // when it cannot be made.
+    expect(Object.keys(HANDS_STATUS).sort()).toEqual(['active', 'failed', 'loading', 'ready', 'replacing', 'retrying', 'unavailable']);
+    expect(HANDS_STATUS.loading.phase).toBe('loading');
+    expect(HANDS_STATUS.unavailable.phase).toBe('error');
+  });
+});
+
+describe('handsLoadStatus (#922)', () => {
+  it('reads the load\'s status in the hand source\'s words: loading, trying again, out of tries', () => {
+    expect(handsLoadStatus({ phase: 'off', message: 'off' })).toBe(HANDS_STATUS.loading);
+    expect(handsLoadStatus({ phase: 'loading', message: 'x' })).toBe(HANDS_STATUS.loading);
+    expect(handsLoadStatus({ phase: 'unavailable', reason: 'retrying', message: 'x' })).toBe(HANDS_STATUS.retrying);
+    expect(handsLoadStatus({ phase: 'unavailable', reason: 'error', message: 'x' })).toBe(HANDS_STATUS.unavailable);
+    expect(handsLoadStatus({ phase: 'error', reason: 'error', message: 'x' })).toBe(HANDS_STATUS.unavailable);
   });
 });
 

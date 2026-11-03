@@ -147,7 +147,8 @@ export function extensionStatusHooks(): readonly StatusHook[] {
 const NO_SINK = (): void => undefined;
 
 /**
- * One engine sink that runs every status hook in hand, building each hook's sink the first
+ * One engine sink that runs every status hook in hand (`hooks`: the extensions' by default; the
+ * shell's fold point adds core's own, `statusHooks` in `src/app/host/contributions.ts`), building each hook's sink the first
  * time it sees it, so a lazy extension that loads while the engine runs gets its readout. Every
  * hook runs even when one throws; the first error is rethrown for the Applier to report.
  *
@@ -155,11 +156,15 @@ const NO_SINK = (): void => undefined;
  * tick only, and the hook keeps a no-op sink afterwards, instead of being rebuilt and rethrown
  * at the frame rate.
  */
-export function makeExtensionSinks(engine: OutputReader, resources: () => Readonly<Record<string, unknown>> = () => ({})): (nowMs?: number) => void {
+export function makeExtensionSinks(
+  engine: OutputReader,
+  resources: () => Readonly<Record<string, unknown>> = () => ({}),
+  hooks: () => readonly StatusHook[] = extensionStatusHooks,
+): (nowMs?: number) => void {
   const made = new Map<StatusHook, (nowMs: number) => void>();
   return (nowMs = 0) => {
     let failure: unknown = null;
-    for (const hook of extensionStatusHooks()) {
+    for (const hook of hooks()) {
       try {
         let sink = made.get(hook);
         if (!sink) {

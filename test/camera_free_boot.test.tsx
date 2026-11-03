@@ -23,6 +23,8 @@ import { DEFAULT_SOURCE } from '@/app/engine/sourceSpec';
 import { sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '@/app/graph';
 import { createAppRegistry } from '@/nodes/browser';
 import { readLiveVector } from '@/app/enroll/liveVector';
+import { useHandsStatus } from '@/app/hands/handsStatus';
+import { SCRIPTED_HANDS_STATUS } from '@/nodes/sources/source_contract';
 
 /**
  * Engine time, in ms, as seen by the live feature tap — 0 before the first tick.
@@ -136,6 +138,19 @@ describe('booting with a finished-frame source', () => {
     const settled = scheduled;
     await new Promise((r) => setTimeout(r, 150));
     expect(scheduled).toBe(settled);
+  });
+
+  it('the hand source\'s status reaches the shell\'s store while the engine runs, and is cleared on teardown (#922)', async () => {
+    // The wiring, not the reporter: the hands' status hook must be among the hooks the engine host
+    // runs as sinks (`statusHooks`) and reset when the engine goes. A hook left out leaves the store
+    // null; a reset left out leaves the last engine's status on screen after it is gone.
+    stubMissingCamera();
+    useHandsStatus.getState().reset();
+    const seen: { status?: string; error?: string | null } = {};
+    const { unmount } = render(<Harness slots={{ source: 'synthetic-hands' }} seen={seen} />);
+    await waitFor(() => expect(useHandsStatus.getState().status).toEqual(SCRIPTED_HANDS_STATUS), { timeout: 4000 });
+    unmount();
+    expect(useHandsStatus.getState().status).toBeNull();
   });
 
   it('the DEFAULT source still asks — and honestly reports the failure', async () => {

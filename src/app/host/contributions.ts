@@ -12,7 +12,7 @@
  * label) declared twice is refused with both extensions named. Core's own tools are checked
  * against the extensions' where both are known (`src/app/tools/shellTools.ts`).
  */
-import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, ExtensionToolSection, KeybindingDecl, StillSounding, ToolDetached, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
+import type { ExtensionCommand, ExtensionPanel, ExtensionToolDecl, ExtensionToolSection, KeybindingDecl, OutputReader, StatusHook, StillSounding, ToolDetached, ToolEntryPointDecl } from '@thoremin/sdk-ui/types';
 import { defineCommand, err, type Registry } from 'acture';
 // The SDK hosts an extension's React half writes and reads the dials through (the write path, the
 // dials form): installed before any extension half loads, so a shell surface that renders one (the
@@ -41,8 +41,24 @@ import {
 import { checkUiDecls, CONTRIBUTIONS } from '@/host/contributions';
 import { registry } from '@/app/commands/registry';
 import { declareDialWritingCommands } from '@/app/commands/confirmation';
+import { handsStatusHook } from '@/app/hands/handsStatus';
 
 export { extensionStatusHooks, loadExtensionUi, makeExtensionSinks };
+
+/** Core's own status hooks (#922): a shell store that mirrors a core node rides the same generic
+ *  sink as an extension's, rather than a reporter the engine host wires by name. */
+const CORE_STATUS_HOOKS: readonly StatusHook[] = [handsStatusHook];
+
+/** Every status hook in hand now: core's, then each extension's (a lazy one's once it loaded). */
+export function statusHooks(): readonly StatusHook[] {
+  return [...CORE_STATUS_HOOKS, ...extensionStatusHooks()];
+}
+
+/** The one engine sink over {@link statusHooks} (`makeExtensionSinks`' rules: every hook runs,
+ *  a hook whose `make` throws is tried once per engine). */
+export function makeStatusSinks(engine: OutputReader, resources: () => Readonly<Record<string, unknown>> = () => ({})): (nowMs?: number) => void {
+  return makeExtensionSinks(engine, resources, statusHooks);
+}
 
 /** The UI contributions, folded once and checked. */
 export interface UiContributions {

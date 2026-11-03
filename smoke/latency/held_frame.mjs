@@ -29,7 +29,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-import { DEFAULT_CLIP, fakeCameraFlags } from './lib/harness.mjs';
+import { DEFAULT_CLIP, fakeCameraFlags, waitForHandModel } from './lib/harness.mjs';
 import { startPreview } from '../lib/preview.mjs';
 /** The barcode: this many bits, each a square of BIT_PX luma pixels, in the top-left corner. */
 const BITS = 16;
@@ -109,6 +109,7 @@ async function run(browser, url, runner, hold, args, frames) {
   await page.goto(`${url}?hands.runner=${runner}${hold ? '&overlay.hold=hands' : ''}`);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 90_000 });
   await page.waitForFunction(() => window.thoremin?.audio().state === 'running', null, { timeout: 30_000 });
+  await waitForHandModel(page);
   await page.waitForTimeout(3000);
   // The hit counts run from page load: take the baseline where the draws are cleared, report the difference.
   const before = await page.evaluate(() => {

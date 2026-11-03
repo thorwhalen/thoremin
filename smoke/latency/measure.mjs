@@ -54,7 +54,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
-import { fakeCameraFlags } from './lib/harness.mjs';
+import { fakeCameraFlags, waitForHandModel } from './lib/harness.mjs';
 import { startPreview } from '../lib/preview.mjs';
 
 /** Must match `src/nodes/sources/tasks_vision.ts` and the hand node's model path. */
@@ -95,6 +95,7 @@ async function measureApp(page, url, args) {
   await page.goto(url + query);
   await page.getByRole('button', { name: /tap to play/i }).click({ timeout: 90_000 });
   await page.waitForFunction(() => window.thoreminLatency && window.thoremin?.audio().state === 'running', null, { timeout: 30_000 });
+  await waitForHandModel(page);
   // Mute (the `m` shortcut) unless asked not to: it ramps the host master gain to 0 and
   // changes nothing the probe measures (scheduling, output timestamps, the tick).
   if (!args.audible) await page.keyboard.press('m');

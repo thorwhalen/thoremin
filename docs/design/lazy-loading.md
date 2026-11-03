@@ -12,7 +12,7 @@ Three sites already do this by hand, and each invented its own state machine and
 
 | Site | Heavy thing | Loader | Status words |
 |---|---|---|---|
-| `src/nodes/sources/webcam_face.ts` (and `webcam_hands.ts`, which loads the same way in `init` but reports no status) | MediaPipe tasks-vision (137 kB gzip + wasm + model) | `import('@mediapipe/tasks-vision')` behind the face gate | `idle`, `loading`, `ready`, `error` |
+| `src/nodes/sources/webcam_face.ts` (and `webcam_hands.ts`, which loaded the same way in `init` until #922 adopted the pattern) | MediaPipe tasks-vision (137 kB gzip + wasm + model) | `import('@mediapipe/tasks-vision')` behind the face gate | `idle`, `loading`, `ready`, `error` |
 | `src/app/recording/formats.ts` → `flac.ts` | libflacjs (352 kB raw, 108 kB gzip) | `load()` per format entry, two lazy hops | a null blob plus an error |
 | `src/slices/midi/nodes/midi_out.ts` → `app/midi_engine.ts` | WEBMIDI.js (17 kB gzip) + the MIDI permission | `ctx.resources.createMidiSink`, or the factory the MIDI slice's React half provides (`provideMidiSinkFactory`: an extension's node is its pure side and imports no browser library, #600 S13), which is `import('./app/midi_engine')` | `off`, `unsupported`, `connecting`, `ready`, `no-ports`, `denied`, `error` |
 
@@ -92,7 +92,8 @@ Three idioms the existing sites need, stated so they are not re-derived:
 | `lyria` (`src/slices/generative/nodes/lyria.ts`, the generative slice's since #600 S14) | **adopts in #188 PR 3** | `createGenerativeEngine` seam; the browser factory is installed by the slice's React half (`provideGenerativeEngineFactory`: the node, the slice's pure side, imports no browser library), which lazily imports `app/lyria_engine.ts`; the BYO key is read through `@thoremin/sdk-ui/keys`. `LyriaEngine` leaves `browser.ts`'s static exports. |
 | `midi-out` | reference site, not migrated | Mutation-verified as is; migrate when a change touches it. Its `MidiPhase` maps to `LoadStatus` as `connecting → loading`, `unsupported/no-ports/denied → unavailable + reason`. |
 | `webcam-body` (`src/nodes/sources/webcam_body.ts`) | **adopted (#186 PR B)** | `createBodyLandmarker` seam on `ctx.resources`; default lazily imports tasks-vision. Keyed by the `body.model` dial (release on change); `gate` reports `unavailable` / `no-camera` until the shared `<video>` has frames, and the node releases-and-retries when they arrive. `active` while a body is detected. |
-| `webcam-face`, `webcam-hands` | reference site, not migrated | Same family as `webcam-body`; migrate when a change touches them. |
+| `webcam-hands` (`src/nodes/sources/webcam_hands.ts`) | **adopted (#922)** | The `HandRunner` (main thread or worker, #326) is the resource, requested from `process()`; no gate (always wanted while in the graph). A failed load is a transient `unavailable` (`retry`), paced and capped by the runner's own replacement policy, then latched; the node speaks its own `HANDS_STATUS` words over the resource's status (`handsLoadStatus`). |
+| `webcam-face` | reference site, not migrated | Same family as `webcam-body`; migrate when a change touches it. |
 | recording formats | reference site | Already a registry of `load()` thunks; the status here is per conversion, not per node. |
 | `orchestra` (`src/nodes/output/orchestra.ts`, #187 PR 5) | **adopted** | `createOrchestraEngine` seam; default lazily imports `orchestra_engine.ts` (`spessasynth_lib`, its AudioWorklet processor, the self-hosted 6.0 MB SF3, with download progress). `unavailable` / `no-audio` (retrying) until the audio graph exists. |
 | conductor assets (#187) | asked to adopt | Any other score / model / sample fetched on first use. |
