@@ -5,7 +5,7 @@
  * per-frame runtime state on the `airDrumStatus` pattern: the DAG produces it, React
  * only displays it.
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_AIR_BASS_STATUS, type AirBassStatus } from '../nodes/air_bass';
 import { midiToName } from '@thoremin/sdk/music/theory';
 
@@ -15,17 +15,7 @@ export const ABSENT_AIR_BASS_LIVE: AirBassLive = IDLE_AIR_BASS_STATUS;
 /** The node id the reporter reads — the `airBass` node in `graph.ts`. */
 export const AIR_BASS_NODE_ID = 'airBass';
 
-export interface AirBassStatusState {
-  live: AirBassLive;
-  report(live: AirBassLive): void;
-  reset(): void;
-}
-
-export const useAirBassStatus = create<AirBassStatusState>((set) => ({
-  live: ABSENT_AIR_BASS_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_AIR_BASS_LIVE }),
-}));
+export type AirBassStatusState = StatusState<AirBassLive, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeBassLive(live: AirBassLive): string {
@@ -38,27 +28,15 @@ export function describeBassLive(live: AirBassLive): string {
   return live.lastLead >= 0 ? `${midiToName(live.lastMidi)}: predicted ${ms} ms before the pluck.` : `${midiToName(live.lastMidi)}: sounded ${ms} ms after the pluck.`;
 }
 
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
-
 /** Quantise what the view shows. */
 export function airBassLiveKey(l: AirBassLive): string {
   return `${l.enabled ? 1 : 0}|${l.fretting ? 1 : 0}|${l.fretMidi ?? '-'}|${l.notes}|${l.predicted}|${l.lastMidi ?? '-'}|${Math.round(l.lastLead * 1000)}|${l.ready ? 1 : 0}`;
 }
 
-export function makeAirBassReporter(
-  engine: OutputReader,
-  store: Pick<AirBassStatusState, 'report'> = useAirBassStatus.getState(),
-  nodeId: string = AIR_BASS_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as AirBassLive | undefined;
-    if (!status) return;
-    const key = airBassLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The air bass's readout store, reporter and status hook (the shared readout store, #969). */
+export const AIR_BASS_STATUS = createStatusStore(AIR_BASS_NODE_ID, { absent: ABSENT_AIR_BASS_LIVE, keyOf: airBassLiveKey, field: 'live' });
+
+export const useAirBassStatus = AIR_BASS_STATUS.useStatus;
+
+/** The per-frame sink over the air bass node (to this store by default). */
+export const makeAirBassReporter = AIR_BASS_STATUS.makeReporter;

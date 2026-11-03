@@ -6,7 +6,7 @@
  */
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { MidiControls } from './panels/midi';
-import { makeMidiReporter, useMidiStatus, ABSENT_MIDI_STATUS } from './app/midiStatus';
+import { MIDI_STATUS } from './app/midiStatus';
 import type { MidiSettings } from './schema';
 import { provideMidiSinkFactory } from './nodes/midi_out';
 
@@ -20,14 +20,13 @@ export const MIDI_UI: ExtensionUi = {
   id: 'midi-output',
   panels: [{ instrumentId: 'midi', section: 'MIDI', Controls: MidiControls, Readout: () => null, readoutOn: () => false }],
   statusHooks: [
+    // The store's hook, its throttle paced on the page clock rather than the engine's tick time.
     {
-      nodeId: 'midiOut',
-      make: (engine) => {
-        const report = makeMidiReporter(engine);
+      ...MIDI_STATUS.statusHook,
+      make: (engine, resources) => {
+        const report = MIDI_STATUS.statusHook.make(engine, resources);
         return () => report(nowMs());
       },
-      onRemoved: () => useMidiStatus.getState().report(ABSENT_MIDI_STATUS),
-      reset: () => useMidiStatus.getState().reset(),
     },
   ],
   onMount: [],

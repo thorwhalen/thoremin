@@ -3,22 +3,12 @@
  * (the chord in force, the next one, whether the conductor's beat runs). The `chordWheelStatus`
  * pattern: the DAG produces it, React only displays it.
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_CHORD_CHART_STATUS, type ChordChartStatus } from '../nodes/chord_chart';
 
 export const CHORD_CHART_NODE_ID = 'chordChart';
 
-export interface ChordChartStatusState {
-  live: ChordChartStatus;
-  report(live: ChordChartStatus): void;
-  reset(): void;
-}
-
-export const useChordChartStatus = create<ChordChartStatusState>((set) => ({
-  live: IDLE_CHORD_CHART_STATUS,
-  report: (live) => set({ live }),
-  reset: () => set({ live: IDLE_CHORD_CHART_STATUS }),
-}));
+export type ChordChartStatusState = StatusState<ChordChartStatus, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeChordChartLive(live: ChordChartStatus): string {
@@ -34,14 +24,10 @@ export function chordChartLiveKey(l: ChordChartStatus): string {
   return [l.enabled ? 1 : 0, l.hasChart ? 1 : 0, l.changes, l.running ? 1 : 0, l.conducting ? 1 : 0, l.chord ?? '-', l.next ?? '-'].join('|');
 }
 
-export function makeChordChartReporter(engine: { getOutput(nodeId: string, port: string): unknown }, store: Pick<ChordChartStatusState, 'report'> = useChordChartStatus.getState()): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(CHORD_CHART_NODE_ID, 'status') as ChordChartStatus | undefined;
-    if (!status) return;
-    const key = chordChartLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The chord chart's readout store, reporter and status hook (the shared readout store, #969). */
+export const CHORD_CHART_STATUS = createStatusStore(CHORD_CHART_NODE_ID, { absent: IDLE_CHORD_CHART_STATUS, keyOf: chordChartLiveKey, field: 'live' });
+
+export const useChordChartStatus = CHORD_CHART_STATUS.useStatus;
+
+/** The per-frame sink over the chord chart node (to this store by default). */
+export const makeChordChartReporter = CHORD_CHART_STATUS.makeReporter;

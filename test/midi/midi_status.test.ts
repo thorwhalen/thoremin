@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { MidiStatus } from '@/slices/midi/nodes/midi_out';
-import { ABSENT_MIDI_STATUS, makeMidiReporter, type MidiStatusState } from '@/slices/midi/app/midiStatus';
+import { ABSENT_MIDI_STATUS, MIDI_STATUS, type MidiStatusState } from '@/slices/midi/app/midiStatus';
 import { MIDI } from '../helpers/extensions';
 import { MIDI_UI } from '@/slices/midi/ui';
 import { useMidiStatus } from '@/slices/midi/app/midiStatus';
@@ -17,11 +17,11 @@ function stubEngine() {
   return { outputs, getOutput: (node: string, port: string) => outputs[`${node}.${port}`] };
 }
 
-describe.runIf(MIDI)('makeMidiReporter', () => {
+describe.runIf(MIDI)('the MIDI reporter', () => {
   it('reports a port or phase change at once, and paces the active-note counter to 250 ms', () => {
     const engine = stubEngine();
     const state: Pick<MidiStatusState, 'status' | 'report'> = { status: ABSENT_MIDI_STATUS, report: vi.fn((s: MidiStatus) => (state.status = s)) };
-    const sink = makeMidiReporter(engine, { getState: () => state });
+    const sink = MIDI_STATUS.makeReporter(engine, state);
     const on: MidiStatus = { ...ABSENT_MIDI_STATUS, phase: 'ready', supported: true, ports: ['IAC'], portName: 'IAC' };
     engine.outputs['midiOut.status'] = on;
     sink(0);

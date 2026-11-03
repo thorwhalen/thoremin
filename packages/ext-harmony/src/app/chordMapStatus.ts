@@ -2,9 +2,9 @@
  * chordMapStatus — the live chord-map state the engine loop reports, for its settings section
  * and the Instruments view: the key, whether the chord hand is seen, the chord in force, the
  * melody note, and the strums (how many, how many predicted ahead). Ephemeral per-frame runtime
- * state on the `airBassStatus` pattern: the DAG produces it, React only displays it.
+ * state in the shared readout store (#969): the DAG produces it, React only displays it.
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_CHORD_MAP_STATUS, type ChordMapStatus } from '../nodes/chord_map';
 
 export type ChordMapLive = ChordMapStatus;
@@ -13,17 +13,7 @@ export const ABSENT_CHORD_MAP_LIVE: ChordMapLive = IDLE_CHORD_MAP_STATUS;
 /** The node id the reporter reads: the `chordMap` node of the `chord-map` branch. */
 export const CHORD_MAP_NODE_ID = 'chordMap';
 
-export interface ChordMapStatusState {
-  live: ChordMapLive;
-  report(live: ChordMapLive): void;
-  reset(): void;
-}
-
-export const useChordMapStatus = create<ChordMapStatusState>((set) => ({
-  live: ABSENT_CHORD_MAP_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_CHORD_MAP_LIVE }),
-}));
+export type ChordMapStatusState = StatusState<ChordMapLive, 'live'>;
 
 /** What to tell the player, per state, and where they are on the idiom the trail draws (#713). */
 export function describeChordMapLive(live: ChordMapLive): string {
@@ -61,27 +51,15 @@ function describeState(live: ChordMapLive): string {
   return live.lastLead >= 0 ? `${chord}: strummed ${ms} ms before the strum.` : `${chord}: strummed ${ms} ms after the strum.`;
 }
 
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
-
 /** Quantise what the view shows. */
 export function chordMapLiveKey(l: ChordMapLive): string {
   return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0, l.signs, l.sign ?? '-', l.inputChord ?? '-', l.idiom ? `${l.idiom.step}${l.idiom.onPath ? '' : '!'}` : '-'].join('|');
 }
 
-export function makeChordMapReporter(
-  engine: OutputReader,
-  store: Pick<ChordMapStatusState, 'report'> = useChordMapStatus.getState(),
-  nodeId: string = CHORD_MAP_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as ChordMapLive | undefined;
-    if (!status) return;
-    const key = chordMapLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The chord map's readout store, reporter and status hook (the shared readout store, #969). */
+export const CHORD_MAP_STATUS = createStatusStore(CHORD_MAP_NODE_ID, { absent: ABSENT_CHORD_MAP_LIVE, keyOf: chordMapLiveKey, field: 'live' });
+
+export const useChordMapStatus = CHORD_MAP_STATUS.useStatus;
+
+/** The per-frame sink over the chord map node (to this store by default). */
+export const makeChordMapReporter = CHORD_MAP_STATUS.makeReporter;

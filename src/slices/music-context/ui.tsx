@@ -9,9 +9,8 @@ import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { SONG_PLAYER } from '@thoremin/sdk/instruments/trunk';
 import type { MusicalTime } from '@thoremin/ictus';
 import { timingFrom } from '@thoremin/sdk/timing/tracker';
-import { MUSIC_CONTEXT_NODE_ID } from '@thoremin/sdk/context/reading';
 import { MusicContextControls, MusicContextReadout } from './panels/MusicContextSection';
-import { makeMusicContextReporter, useMusicContextStatus } from './app/status';
+import { MUSIC_CONTEXT_STATUS } from './app/status';
 import { startScoreContext } from './app/scoreContext';
 import { mirrorSongTime, startUserContext } from './app/user';
 import { MUSIC_COMMANDS } from './app/commands';
@@ -32,12 +31,7 @@ export const MUSIC_CONTEXT_UI: ExtensionUi = {
     },
   ],
   statusHooks: [
-    {
-      nodeId: MUSIC_CONTEXT_NODE_ID,
-      make: (engine) => makeMusicContextReporter(engine),
-      onRemoved: () => useMusicContextStatus.getState().reset(),
-      reset: () => useMusicContextStatus.getState().reset(),
-    },
+    MUSIC_CONTEXT_STATUS.statusHook,
     // The song's position, for the Music tool's taps.
     {
       nodeId: SONG_PLAYER,
