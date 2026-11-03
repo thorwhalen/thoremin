@@ -7,7 +7,7 @@
 import type { ExtensionUi } from '@thoremin/sdk-ui/types';
 import { providerKey } from '@thoremin/sdk-ui/keys';
 import { GenerativeControls } from './panels/generative';
-import { ABSENT_GENERATIVE_STATUS, GENERATIVE_NODE_ID, makeGenerativeReporter, useGenerativeStatus } from './app/generativeStatus';
+import { GENERATIVE_STATUS } from './app/generativeStatus';
 import { STEER_COMMANDS } from './app/steerCommands';
 import { PLAYING_FIELD, pauseWhenDisabled, togglePlaying } from './app/transport';
 import { controls } from '@thoremin/sdk-ui/host';
@@ -33,12 +33,10 @@ export const GENERATIVE_UI: ExtensionUi = {
   panels: [{ instrumentId: 'generative', section: 'Generative', Controls: GenerativeControls, Readout: () => null, readoutOn: () => false }],
   statusHooks: [
     {
-      nodeId: GENERATIVE_NODE_ID,
-      make: (engine) => makeGenerativeReporter(engine),
-      onRemoved: () => useGenerativeStatus.getState().report(ABSENT_GENERATIVE_STATUS),
+      ...GENERATIVE_STATUS.statusHook,
       // The engine is gone: a rebuilt one must not auto-start a paid stream from a stale transport.
       reset: () => {
-        useGenerativeStatus.getState().reset();
+        GENERATIVE_STATUS.statusHook.reset();
         try {
           if (controls().get()[PLAYING_FIELD] === true) controls().setTransient(PLAYING_FIELD, false);
         } catch {

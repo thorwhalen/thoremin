@@ -35,6 +35,7 @@
     "./types": "./src/types.ts",
     "./keys": "./src/keys.ts",
     "./loadStatus": "./src/LoadStatusReadout.tsx",
+    "./loadStatusStore": "./src/loadStatusStore.ts",
     "./recording/schema": "./src/recording/schema.ts",
     "./recording/naming": "./src/recording/naming.ts",
     "./recording/tagStream": "./src/recording/tagStream.ts",
