@@ -4168,6 +4168,11 @@
         "name": "seeked",
         "kind": "number",
         "description": "The id of the last seek answered (acted on, or dropped while a leader held the song), so the app clears the request"
+      },
+      {
+        "name": "jumps",
+        "kind": "number",
+        "description": "How many times the player moved the song's position (a session's seek, a conductor's cue, a replay from the start after the end): a reader of `songTime` that counts beats (tap tempo, #945) starts over when it changes"
       }
     ],
     "params": [

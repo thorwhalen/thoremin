@@ -9,6 +9,7 @@ import { songTimeAt, EMPTY_SONG_GRID } from '@thoremin/ictus';
 import type { ActiveContext } from '@thoremin/sdk/context/reading';
 import { clearMusicKeyCmd, setChartCmd, setMusicKeyCmd, tapTempoCmd } from '@/slices/music-context/app/commands';
 import { clearTaps, mirrorSongTime, pieceKey, startUserContext, tap, userPref } from '@/slices/music-context/app/user';
+import { beatOnTempo } from '@thoremin/sdk/context/from_user';
 import { MUSIC } from '../helpers/extensions';
 
 function fakeControls(initial: Record<string, unknown> = {}) {
@@ -79,16 +80,41 @@ describe.runIf(MUSIC)('the Music tool commands', () => {
     expect(tap(52.05)).toEqual({ taps: 1 });
   });
 
+  it("starts again on the song player's own seek, however short (#945)", () => {
+    fakeControls({ songHandle: SONG });
+    // Slow tapping (2 s apart, 30 bpm): a 0.3 s seek is inside the position test's slack.
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 2, { t: 50, rate: 1, playing: true }), 0, 0);
+    for (const t of [50, 52, 54]) tap(t);
+    expect((tap(56) as { taps: number }).taps).toBe(4);
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 8.3, { t: 56, rate: 1, playing: true }), 0, 0);
+    expect((tap(58) as { taps: number }).taps).toBe(5);
+    // The same 0.3 s seek made by the player: its count moved, so the run starts again.
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 10.6, { t: 58, rate: 1, playing: true }), 0, 1);
+    expect(tap(60)).toEqual({ taps: 1 });
+  });
+
   it('keeps the downbeat past the cap on taps', () => {
     fakeControls({ songHandle: SONG });
     // 200 taps at 120 bpm from song position 10 (song time = engine time - 40).
     mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 10, { t: 50, rate: 1, playing: true }));
     let last: ReturnType<typeof tap> = { taps: 0 };
     for (let k = 0; k < 200; k++) last = tap(50 + k * 0.5);
-    expect(last).toMatchObject({ taps: 128 });
+    expect(last).toMatchObject({ taps: 200 });
     const tempo = userPref().entries['internet-archive:tune'].tempo!;
     expect(tempo.firstBeatS).toBeCloseTo(10, 6);
     expect(tempo.bpm).toBeCloseTo(120, 6);
+  });
+
+  it('the ruler keeps every beat of a long changing tempo, within the stored bound (#945)', () => {
+    fakeControls({ songHandle: SONG });
+    mirrorSongTime(songTimeAt(EMPTY_SONG_GRID, 0, { t: 0, rate: 1, playing: true }));
+    // 300 taps from 100 to 130 bpm, the period shrinking evenly.
+    const truth: number[] = [0];
+    for (let k = 1; k < 300; k++) truth.push(truth[k - 1] + 60 / (100 + (30 * (k - 1)) / 299));
+    for (const t of truth) tap(t);
+    const tempo = userPref().entries['internet-archive:tune'].tempo!;
+    for (const k of [0, 50, 100, 200, 299]) expect(Math.abs(beatOnTempo(tempo, k) - truth[k])).toBeLessThan(0.1 * (60 / 100));
+    expect(tempo.ruler!.length).toBeLessThanOrEqual(128);
   });
 
   it('reads the entries one by one: one it cannot read is skipped and kept', async () => {

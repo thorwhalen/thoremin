@@ -573,7 +573,7 @@ Plays the song loaded in the Song tool at a live rate with the pitch preserved, 
 
 - **roles:** synth
 - **in:** song:song-handle, playing:boolean, play:number, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, seek:song-seek, volume:number, holdFade:number, holdSlow:number, silent:boolean
-- **out:** status:load-status, position:number, rate:number, songTime:musical-time, seeked:number
+- **out:** status:load-status, position:number, rate:number, songTime:musical-time, seeked:number, jumps:number
 - **params:** minRate (number=0.5), maxRate (number=2), stretcher (enum(signalsmith | element)="signalsmith")
 
 #### `pace-controller` — Pace Controller

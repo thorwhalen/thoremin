@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { contextFromUser, parseChart, parseChordSymbol, tempoFromTaps, UserEntrySchema } from '@thoremin/sdk/context/from_user';
+import { beatOnTempo, contextFromUser, fitTaps, parseChart, parseChordSymbol, tempoFromTaps, UserEntrySchema } from '@thoremin/sdk/context/from_user';
 import { chordAt, keyAt } from '@thoremin/sdk/context/cursor';
 import { EMPTY_SONG_GRID, songTimeAt } from '@thoremin/ictus';
 import { combineLayers } from '@/slices/music-context/app/combine';
@@ -76,7 +76,95 @@ describe('tap tempo', () => {
     expect(tempoFromTaps([0, 0.5, 1, 2, 2.5])!.bpm).toBeCloseTo(120, 6);
     expect(tempoFromTaps([0, 0.5, 0.54, 1, 1.5, 2])!.bpm).toBeCloseTo(120, 6);
     // A bounce on the second tap, before any beat is known.
-    expect(tempoFromTaps([0, 0.04, 0.5, 1, 1.5, 2])).toMatchObject({ bpm: 120, firstBeatS: 0 });
+    const bounced = tempoFromTaps([0, 0.04, 0.5, 1, 1.5, 2])!;
+    expect(bounced.bpm).toBeCloseTo(120, 9);
+    expect(bounced.firstBeatS).toBe(0);
+  });
+});
+
+describe('tap tempo follows a changing tempo (#945)', () => {
+  // 100 taps from 120 to 126 bpm (the period shrinking evenly), with a tap's jitter of +-10 ms.
+  const N = 100;
+  const jitter = (k: number) => 0.01 * Math.sin(k * 2.39);
+  const periodAt = (k: number) => 60 / (120 + (6 * k) / (N - 1));
+  const truth: number[] = [0];
+  for (let k = 1; k < N; k++) truth.push(truth[k - 1] + periodAt(k - 1));
+  const taps = truth.map((t, k) => t + 0.5 + jitter(k));
+
+  it('keeps the recent beats on the taps where one straight line drifts', () => {
+    const tempo = tempoFromTaps(taps)!;
+    const errorAt = (k: number) => Math.abs(beatOnTempo(tempo, k) - (truth[k] + 0.5)) / periodAt(k);
+    // The last bar's beats and the downbeat, within a tenth of a beat (a tap's jitter is a fiftieth).
+    for (const k of [0, N - 4, N - 3, N - 2, N - 1]) expect(errorAt(k)).toBeLessThan(0.1);
+    // One line through every tap (the old fit) puts the last beat far off, and reads the middle tempo.
+    const line = fitTaps(taps.map((t, k) => ({ t, k })))!;
+    // The tempo now: the fit's over the last bars (one-sided, so a little behind the 126 reached).
+    expect(tempo.bpm).toBeGreaterThan(124);
+    expect(tempo.bpm).toBeGreaterThan(60 / line.period + 1);
+    expect(Math.abs(line.t0 + line.period * (N - 1) - (truth[N - 1] + 0.5)) / periodAt(N - 1)).toBeGreaterThan(0.2);
+  });
+
+  it('a steady tempo still reads steady, and the ruler goes on at it past the last tap', () => {
+    const steady = Array.from({ length: 32 }, (_, k) => 1 + 0.5 * k + jitter(k));
+    const tempo = tempoFromTaps(steady)!;
+    expect(tempo.bpm).toBeCloseTo(120, 0);
+    expect(beatOnTempo(tempo, 40) - beatOnTempo(tempo, 39)).toBeCloseTo(60 / tempo.bpm, 9);
+    const ctx = contextFromUser(UserEntrySchema.parse({ tempo, chart: 'C | F | G | C' }));
+    expect(ctx.beats[0].t).toBeCloseTo(1, 1);
+    expect(ctx.downbeats[1]).toBeCloseTo(beatOnTempo(tempo, 4), 9);
+  });
+
+  // Probes from the review: a tempo step and a final ritardando, with +-15 ms of jitter.
+  const jit = (k: number) => 0.015 * Math.sin(k * 2.39);
+  const runOf = (periods: number[]) => {
+    const t: number[] = [1];
+    for (const p of periods) t.push(t[t.length - 1] + p);
+    return t;
+  };
+  const errorOf = (tempo: NonNullable<ReturnType<typeof tempoFromTaps>>, truth: number[], k: number) =>
+    Math.abs(beatOnTempo(tempo, k) - truth[k]) / (truth[Math.min(k + 1, truth.length - 1)] - truth[Math.max(0, k - 1)]) * 2;
+
+  it('follows a step from 100 to 130 bpm within a bar', () => {
+    const truth = runOf([...Array(32).fill(0.6), ...Array(32).fill(60 / 130)]);
+    const tempo = tempoFromTaps(truth.map((t, k) => t + jit(k)))!;
+    for (const k of [40, 50, truth.length - 1]) expect(errorOf(tempo, truth, k)).toBeLessThan(0.15);
+    expect(tempo.bpm).toBeGreaterThan(126);
+  });
+
+  it('follows a final ritardando from 120 to 90 over two bars', () => {
+    const slowing = Array.from({ length: 8 }, (_, i) => 60 / (120 - (30 * (i + 1)) / 8));
+    const truth = runOf([...Array(32).fill(0.5), ...slowing]);
+    const taps = truth.map((t, k) => t + jit(k));
+    const tempo = tempoFromTaps(taps)!;
+    // Under half a beat at the last beat (a one-sided fit lags a tempo still falling), where one
+    // line through every tap is three quarters of a beat off.
+    expect(errorOf(tempo, truth, truth.length - 1)).toBeLessThan(0.45);
+    const line = fitTaps(taps.map((t, k) => ({ t, k })))!;
+    const last = truth.length - 1;
+    expect(Math.abs(line.t0 + line.period * last - truth[last]) / (truth[last] - truth[last - 1])).toBeGreaterThan(0.6);
+    // The tempo now has come most of the way down (from 120; the one-line fit reads about 116).
+    expect(tempo.bpm).toBeLessThan(110);
+  });
+
+  it('a steady tempo is stored as two ruler points', () => {
+    const tempo = tempoFromTaps(Array.from({ length: 40 }, (_, k) => 2 + 0.5 * k))!;
+    expect(tempo.ruler).toEqual([{ k: 0, t: 2 }, { k: 39, t: 21.5 }]);
+  });
+
+  it('a ruler that goes back is refused by the schema', () => {
+    expect(UserEntrySchema.safeParse({ tempo: { bpm: 120, firstBeatS: 0, ruler: [{ k: 0, t: 1 }, { k: 4, t: 0.5 }] } }).success).toBe(false);
+  });
+
+  it('counts the beats to the end of the piece from the ruler, through a ritardando', () => {
+    const truth = runOf([...Array(16).fill(60 / 140), ...Array.from({ length: 16 }, (_, i) => 60 / (140 - (20 * (i + 1)) / 16))]);
+    const tempo = tempoFromTaps(truth)!;
+    const ctx = contextFromUser(UserEntrySchema.parse({ tempo }), { durationS: 60 });
+    expect(ctx.beats[ctx.beats.length - 1].t).toBeGreaterThanOrEqual(60);
+  });
+
+  it('an entry saved before the ruler reads as it did', () => {
+    const old = UserEntrySchema.parse({ tempo: { bpm: 120, firstBeatS: 2, beatsPerBar: 4 }, chart: 'C' });
+    expect(beatOnTempo(old.tempo!, 3)).toBe(3.5);
   });
 });
 

@@ -155,6 +155,12 @@ export const songPlayerNode = defineNode<Params>({
     { name: 'rate', kind: 'number', description: 'The rate the song is played at, after the clamp (what the pace controller reads back)' },
     { name: 'songTime', kind: 'musical-time', description: 'The song\'s beat at the playback position, tempo in engine time' },
     { name: 'seeked', kind: 'number', description: 'The id of the last seek answered (acted on, or dropped while a leader held the song), so the app clears the request' },
+    {
+      name: 'jumps',
+      kind: 'number',
+      description:
+        "How many times the player moved the song's position (a session's seek, a conductor's cue, a replay from the start after the end): a reader of `songTime` that counts beats (tap tempo, #945) starts over when it changes",
+    },
   ],
   params: Params,
   make(p) {
@@ -184,6 +190,13 @@ export const songPlayerNode = defineNode<Params>({
      *  the request with the song (`setSongHandle`) and once the player answers it (the status
      *  reporter reads `seeked`), so one on the port then is a request about this song. */
     let seekedId: number | null = null;
+    /** The `jumps` count (#945): every position move this node makes. */
+    let jumps = 0;
+    /** Move the song, counted. */
+    const seekTo = (s: Stretcher, positionS: number): void => {
+      s.seek?.(positionS);
+      jumps += 1;
+    };
     /** Whether a leader held the transport last tick. */
     let wasLed = false;
     /** The press counter last honoured (#344): a change is a press even while the
@@ -237,6 +250,7 @@ export const songPlayerNode = defineNode<Params>({
       rate: 1,
       songTime: songTimeAt(grid, 0, { t: ctx.time, playing: false }) as MusicalTime,
       seeked: seekedId ?? undefined,
+      jumps,
     });
 
     return {
@@ -355,7 +369,7 @@ export const songPlayerNode = defineNode<Params>({
         const fadingOut = fading !== null || (fadeS > 0 && !playing && s.playing());
         if (playable && !fadingOut && cue && typeof cue.id === 'number' && cue.id !== cuedId && typeof cue.beat === 'number' && s.seek) {
           const at = songTimeOfBeat(song.grid, cue.beat);
-          if (Number.isFinite(at)) s.seek(Math.max(0, Math.min(lengthOf(song, s), at)));
+          if (Number.isFinite(at)) seekTo(s, Math.max(0, Math.min(lengthOf(song, s), at)));
           cuedId = cue.id;
         }
         // A session's seek, by position; like a cue it waits out a fade-out and a load. While a
@@ -363,7 +377,7 @@ export const songPlayerNode = defineNode<Params>({
         // not acted on), or the servo would undo it.
         const seek = inputs.seek as { id?: unknown; positionS?: unknown } | undefined;
         if (playable && !fadingOut && seek && typeof seek.id === 'number' && seek.id !== seekedId) {
-          if (!led && typeof seek.positionS === 'number' && Number.isFinite(seek.positionS) && s.seek) s.seek(Math.max(0, Math.min(lengthOf(song, s), seek.positionS)));
+          if (!led && typeof seek.positionS === 'number' && Number.isFinite(seek.positionS) && s.seek) seekTo(s, Math.max(0, Math.min(lengthOf(song, s), seek.positionS)));
           seekedId = seek.id;
         }
         if (playable) {
@@ -385,6 +399,8 @@ export const songPlayerNode = defineNode<Params>({
           } else if ((playing && !wasPlaying && !(led && s.ended())) || press) {
             if (faded) s.fade?.(1, fadeS);
             faded = false;
+            // A song that had ended plays from the start: a jump.
+            if (s.ended()) jumps += 1;
             s.play();
           } else if (!playing && s.playing()) {
             if (fadeS > 0) {
@@ -424,6 +440,7 @@ export const songPlayerNode = defineNode<Params>({
           rate: playingRate,
           songTime: songTimeAt(song.grid, position, { t: ctx.time, rate: playingRate, playing: s.playing() }),
           seeked: seekedId ?? undefined,
+          jumps,
         };
       },
       dispose() {
