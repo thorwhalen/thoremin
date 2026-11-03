@@ -4,9 +4,9 @@
  * the live device list, the connection phase, and "unsupported here" instead of
  * a dead toggle. Ephemeral per-frame runtime state, exactly like `faceStatus` —
  * the DAG produces it; React only displays it. {@link makeMidiReporter} is the
- * per-frame sink this slice's status hook (`../ui.tsx`) gives the host loop.
+ * per-frame sink; the slice's status hook (`../ui.tsx`) is this store's, run on the page clock.
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import type { OutputReader } from '@thoremin/sdk-ui/types';
 import type { MidiStatus } from '../nodes/midi_out';
 
@@ -20,17 +20,7 @@ export const ABSENT_MIDI_STATUS: MidiStatus = {
   message: 'MIDI output off',
 };
 
-export interface MidiStatusState {
-  status: MidiStatus;
-  report(status: MidiStatus): void;
-  reset(): void;
-}
-
-export const useMidiStatus = create<MidiStatusState>((set) => ({
-  status: ABSENT_MIDI_STATUS,
-  report: (status) => set({ status }),
-  reset: () => set({ status: ABSENT_MIDI_STATUS }),
-}));
+export type MidiStatusState = StatusState<MidiStatus>;
 
 /** Min interval (ms) between MIDI-status reports while notes are moving (#137).
  *  Phase / port-list changes always report immediately; this only paces the
@@ -39,6 +29,19 @@ const MIDI_REPORT_MS = 250;
 
 /** The `midi-out` node's id in `graph.ts`. */
 const MIDI_NODE_ID = 'midiOut';
+
+/** The transitions, reported at once: the phase, the resolved port, the device list, the words. */
+const midiKey = (ms: MidiStatus): string => `${ms.phase}|${ms.portName ?? ''}|${ms.ports.join(',')}|${ms.message}`;
+
+/** MIDI's readout store, reporter and status hook (the shared readout store, #969), the
+ *  `activeNotes` counter paced to {@link MIDI_REPORT_MS}. */
+export const MIDI_STATUS = createStatusStore(MIDI_NODE_ID, {
+  absent: ABSENT_MIDI_STATUS,
+  keyOf: midiKey,
+  throttle: { ms: MIDI_REPORT_MS, keyOf: (ms) => String(ms.activeNotes) },
+});
+
+export const useMidiStatus = MIDI_STATUS.useStatus;
 
 /**
  * Build the per-frame sink that bridges the midi-out node's status to React (#137): the
@@ -51,18 +54,7 @@ const MIDI_NODE_ID = 'midiOut';
  */
 export function makeMidiReporter(
   engine: OutputReader,
-  store: { getState(): Pick<MidiStatusState, 'status' | 'report'> } = useMidiStatus,
+  store: { getState(): Pick<MidiStatusState, 'report'> } = useMidiStatus,
 ): (now: number) => void {
-  let lastMidiReport = 0;
-  let lastMidiKey = '';
-  return (now) => {
-    const ms = engine.getOutput(MIDI_NODE_ID, 'status') as MidiStatus | undefined;
-    if (!ms) return;
-    const key = `${ms.phase}|${ms.portName ?? ''}|${ms.ports.join(',')}|${ms.message}`;
-    const notesChanged = ms.activeNotes !== store.getState().status.activeNotes;
-    if (key === lastMidiKey && (!notesChanged || now - lastMidiReport < MIDI_REPORT_MS)) return;
-    store.getState().report(ms);
-    lastMidiReport = now;
-    lastMidiKey = key;
-  };
+  return MIDI_STATUS.makeReporter(engine, { report: (status) => store.getState().report(status) });
 }
