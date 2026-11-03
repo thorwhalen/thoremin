@@ -4,7 +4,7 @@
  * view. Human-rate, change-gated, a zustand store. (The fingers' and the mouth's
  * per-frame vectors, for enrolment, go through `air/shapeTap.ts`.)
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_AIR_FLUTE_STATUS, type AirFluteStatus } from '../nodes/air_flute';
 
 export type AirFluteLive = AirFluteStatus;
@@ -13,17 +13,7 @@ export const ABSENT_AIR_FLUTE_LIVE: AirFluteLive = IDLE_AIR_FLUTE_STATUS;
 /** The node id the reporter reads — the `airFlute` node in `graph.ts`. */
 export const AIR_FLUTE_NODE_ID = 'airFlute';
 
-export interface AirFluteStatusState {
-  live: AirFluteLive;
-  report(live: AirFluteLive): void;
-  reset(): void;
-}
-
-export const useAirFluteStatus = create<AirFluteStatusState>((set) => ({
-  live: ABSENT_AIR_FLUTE_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_AIR_FLUTE_LIVE }),
-}));
+export type AirFluteStatusState = StatusState<AirFluteLive, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeFluteLive(live: AirFluteLive): string {
@@ -37,26 +27,16 @@ export function describeFluteLive(live: AirFluteLive): string {
   return live.sounding ? `${live.note}, sounding.` : `${live.note}. ${live.breath === 'mouth' ? 'Blow to play it.' : ''}`.trim();
 }
 
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
+export type { OutputReader } from '@thoremin/sdk-ui/types';
 
 export function airFluteLiveKey(l: AirFluteLive): string {
   return `${l.enabled ? 1 : 0}|${l.breath}|${l.knownFingers}|${l.mouthReady ? 1 : 0}|${l.hands ? 1 : 0}|${l.face ? 1 : 0}|${l.note ?? '-'}|${l.playable ? 1 : 0}|${l.sounding ? 1 : 0}`;
 }
 
-export function makeAirFluteReporter(
-  engine: OutputReader,
-  store: Pick<AirFluteStatusState, 'report'> = useAirFluteStatus.getState(),
-  nodeId: string = AIR_FLUTE_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as AirFluteLive | undefined;
-    if (!status) return;
-    const key = airFluteLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The air flute's readout store, reporter and status hook (the shared readout store, #969). */
+export const AIR_FLUTE_STATUS = createStatusStore(AIR_FLUTE_NODE_ID, { absent: ABSENT_AIR_FLUTE_LIVE, keyOf: airFluteLiveKey, field: 'live' });
+
+export const useAirFluteStatus = AIR_FLUTE_STATUS.useStatus;
+
+/** The per-frame sink over the air flute node (to this store by default). */
+export const makeAirFluteReporter = AIR_FLUTE_STATUS.makeReporter;

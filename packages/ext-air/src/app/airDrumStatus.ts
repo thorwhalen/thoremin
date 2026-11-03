@@ -6,11 +6,11 @@
  * the strike and by how much. Ephemeral per-frame runtime state,
  * exactly like `conductorStatus`: the DAG produces it; React only displays it.
  *
- * {@link makeAirDrumReporter} is the per-frame sink the host loop registers beside
- * the other bridges in `useEngine.ts`: it reads the `air-drum` node's `status`
- * output and reports only when something a player can see changed.
+ * {@link AIR_DRUM_STATUS} is the shared readout store over it (#969): its status hook
+ * reads the `air-drum` node's `status` output each frame and reports only when
+ * something a player can see changed ({@link airDrumLiveKey}).
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_STATUS, type AirDrumStatus } from '../nodes/air_drum';
 
 export type AirDrumLive = AirDrumStatus;
@@ -19,21 +19,9 @@ export const ABSENT_AIR_DRUM_LIVE: AirDrumLive = IDLE_STATUS;
 /** The node id the reporter reads — the `airDrum` node in `graph.ts`. */
 export const AIR_DRUM_NODE_ID = 'airDrum';
 
-export interface AirDrumStatusState {
-  live: AirDrumLive;
-  report(live: AirDrumLive): void;
-  reset(): void;
-}
+export type AirDrumStatusState = StatusState<AirDrumLive, 'live'>;
 
-export const useAirDrumStatus = create<AirDrumStatusState>((set) => ({
-  live: ABSENT_AIR_DRUM_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_AIR_DRUM_LIVE }),
-}));
-
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
+export type { OutputReader } from '@thoremin/sdk-ui/types';
 
 /** What to tell the player, per state. */
 export function describeLive(live: AirDrumLive): string {
@@ -87,18 +75,10 @@ export function airDrumLiveKey(l: AirDrumLive): string {
   return `${l.enabled ? 1 : 0}|${l.hits}|${l.predicted}|${l.lastHand ?? '-'}|${l.lastPad ?? '-'}|${Math.round((l.frameAspect ?? 0) * 100)}|${Math.round(l.lastLead * 1000)}|${Math.round(l.lastPull * 1000)}|${l.lastOnTime ?? 'yes'}|${Math.round((l.lastLateBy ?? 0) * 1000)}|${l.magnet ?? 'off'}|${Number.isFinite(l.magnetLag) ? Math.round(l.magnetLag * 1000) : '-'}|${l.ready.right ? 1 : 0}${l.ready.left ? 1 : 0}|${l.subframe ?? 'on'}|${Number.isFinite(l.stampNoise) ? Math.round(l.stampNoise * 1000) : '-'}`;
 }
 
-export function makeAirDrumReporter(
-  engine: OutputReader,
-  store: Pick<AirDrumStatusState, 'report'> = useAirDrumStatus.getState(),
-  nodeId: string = AIR_DRUM_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as AirDrumLive | undefined;
-    if (!status) return;
-    const key = airDrumLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The air drum's readout store, reporter and status hook (the shared readout store, #969). */
+export const AIR_DRUM_STATUS = createStatusStore(AIR_DRUM_NODE_ID, { absent: ABSENT_AIR_DRUM_LIVE, keyOf: airDrumLiveKey, field: 'live' });
+
+export const useAirDrumStatus = AIR_DRUM_STATUS.useStatus;
+
+/** The per-frame sink over the air drum node (to this store by default). */
+export const makeAirDrumReporter = AIR_DRUM_STATUS.makeReporter;

@@ -3,7 +3,7 @@
  * chord, strums, the last strum's lead. Human-rate, change-gated, a zustand store. (The
  * chord hand's per-frame shape vector, for enrolment, goes through `air/shapeTap.ts`.)
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_AIR_GUITAR_STATUS, type AirGuitarStatus } from '../nodes/air_guitar';
 
 export type AirGuitarLive = AirGuitarStatus;
@@ -12,17 +12,7 @@ export const ABSENT_AIR_GUITAR_LIVE: AirGuitarLive = IDLE_AIR_GUITAR_STATUS;
 /** The node id the reporters read — the `airGuitar` node in `graph.ts`. */
 export const AIR_GUITAR_NODE_ID = 'airGuitar';
 
-export interface AirGuitarStatusState {
-  live: AirGuitarLive;
-  report(live: AirGuitarLive): void;
-  reset(): void;
-}
-
-export const useAirGuitarStatus = create<AirGuitarStatusState>((set) => ({
-  live: ABSENT_AIR_GUITAR_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_AIR_GUITAR_LIVE }),
-}));
+export type AirGuitarStatusState = StatusState<AirGuitarLive, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeGuitarLive(live: AirGuitarLive): string {
@@ -38,27 +28,17 @@ export function describeGuitarLive(live: AirGuitarLive): string {
   return live.lastLead >= 0 ? `${live.chord}. Last strum (${live.lastChord}) predicted ${ms} ms ahead.` : `${live.chord}. Last strum (${live.lastChord}) sounded ${ms} ms late.`;
 }
 
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
+export type { OutputReader } from '@thoremin/sdk-ui/types';
 
 /** Quantise what the view shows. */
 export function airGuitarLiveKey(l: AirGuitarLive): string {
   return `${l.enabled ? 1 : 0}|${l.known}|${l.fretting ? 1 : 0}|${l.chord ?? '-'}|${l.playable ? 1 : 0}|${l.strums}|${l.predicted}|${l.lastChord ?? '-'}|${Math.round(l.lastLead * 1000)}|${l.ready ? 1 : 0}`;
 }
 
-export function makeAirGuitarReporter(
-  engine: OutputReader,
-  store: Pick<AirGuitarStatusState, 'report'> = useAirGuitarStatus.getState(),
-  nodeId: string = AIR_GUITAR_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as AirGuitarLive | undefined;
-    if (!status) return;
-    const key = airGuitarLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The air guitar's readout store, reporter and status hook (the shared readout store, #969). */
+export const AIR_GUITAR_STATUS = createStatusStore(AIR_GUITAR_NODE_ID, { absent: ABSENT_AIR_GUITAR_LIVE, keyOf: airGuitarLiveKey, field: 'live' });
+
+export const useAirGuitarStatus = AIR_GUITAR_STATUS.useStatus;
+
+/** The per-frame sink over the air guitar node (to this store by default). */
+export const makeAirGuitarReporter = AIR_GUITAR_STATUS.makeReporter;

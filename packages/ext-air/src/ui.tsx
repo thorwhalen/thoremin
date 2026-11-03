@@ -10,10 +10,10 @@ import { AirDrumControls, AirDrumReadout } from './panels/airDrum';
 import { AirBassControls, AirBassReadout } from './panels/airBass';
 import { AirGuitarControls, AirGuitarReadout } from './panels/airGuitar';
 import { AirFluteControls, AirFluteReadout } from './panels/airFlute';
-import { useAirDrumStatus, makeAirDrumReporter, ABSENT_AIR_DRUM_LIVE, AIR_DRUM_NODE_ID } from './app/airDrumStatus';
-import { useAirBassStatus, makeAirBassReporter, ABSENT_AIR_BASS_LIVE, AIR_BASS_NODE_ID } from './app/airBassStatus';
-import { useAirGuitarStatus, makeAirGuitarReporter, ABSENT_AIR_GUITAR_LIVE, AIR_GUITAR_NODE_ID } from './app/airGuitarStatus';
-import { useAirFluteStatus, makeAirFluteReporter, ABSENT_AIR_FLUTE_LIVE, AIR_FLUTE_NODE_ID } from './app/airFluteStatus';
+import { AIR_DRUM_STATUS, AIR_DRUM_NODE_ID } from './app/airDrumStatus';
+import { AIR_BASS_STATUS } from './app/airBassStatus';
+import { AIR_GUITAR_STATUS, AIR_GUITAR_NODE_ID } from './app/airGuitarStatus';
+import { AIR_FLUTE_STATUS, AIR_FLUTE_NODE_ID } from './app/airFluteStatus';
 import { makeShapeTap, clearShapes, setShape } from './app/shapeTap';
 import { loadAirVocabularies, startFlutePriorSync } from './app/vocabularyStore';
 import { startAirFluteDemand } from './app/airFluteDemand';
@@ -41,33 +41,13 @@ export const AIR_UI: ExtensionUi = {
     { instrumentId: 'flute', section: 'Air flute', Controls: AirFluteControls, Readout: AirFluteReadout },
   ],
   statusHooks: [
-    {
-      nodeId: AIR_DRUM_NODE_ID,
-      make: (engine) => makeAirDrumReporter(engine),
-      onRemoved: () => useAirDrumStatus.getState().report(ABSENT_AIR_DRUM_LIVE),
-      reset: () => useAirDrumStatus.getState().reset(),
-    },
-    {
-      nodeId: AIR_BASS_NODE_ID,
-      make: (engine) => makeAirBassReporter(engine),
-      onRemoved: () => useAirBassStatus.getState().report(ABSENT_AIR_BASS_LIVE),
-      reset: () => useAirBassStatus.getState().reset(),
-    },
-    {
-      nodeId: AIR_GUITAR_NODE_ID,
-      make: (engine) => makeAirGuitarReporter(engine),
-      onRemoved: () => useAirGuitarStatus.getState().report(ABSENT_AIR_GUITAR_LIVE),
-      reset: () => useAirGuitarStatus.getState().reset(),
-    },
+    AIR_DRUM_STATUS.statusHook,
+    AIR_BASS_STATUS.statusHook,
+    AIR_GUITAR_STATUS.statusHook,
     // #269: every hit the air drum decides, for a pattern take to read.
     { nodeId: AIR_DRUM_NODE_ID, make: (engine) => makeHitsTap(engine, AIR_DRUM_NODE_ID), onRemoved: () => {}, reset: () => clearHits() },
     shapeHook(AIR_GUITAR_NODE_ID),
-    {
-      nodeId: AIR_FLUTE_NODE_ID,
-      make: (engine) => makeAirFluteReporter(engine),
-      onRemoved: () => useAirFluteStatus.getState().report(ABSENT_AIR_FLUTE_LIVE),
-      reset: () => useAirFluteStatus.getState().reset(),
-    },
+    AIR_FLUTE_STATUS.statusHook,
     shapeHook(AIR_FLUTE_NODE_ID, 'shape'),
     shapeHook(AIR_FLUTE_NODE_ID, 'mouth'),
   ],
