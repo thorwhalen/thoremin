@@ -12,7 +12,7 @@ import { kp, LM, BLM, type BodyFrame, type Hand, type HandsFrame, type FaceFrame
 import { dist3, type Vec3 } from './math';
 import { iod as iodOf, type FaceLandmarks } from './landmarks';
 import { FACE_FEATURES } from './face_catalog';
-import { HAND_PAIR_FEATURES, HAND_SIDE_FEATURES } from './hand_catalog';
+import { HAND_PAIR_FEATURES, HAND_SIDE_FEATURES, handExtent } from './hand_catalog';
 import { BODY_FEATURES } from './body_catalog';
 import type { BodyCtx, BodyHistorySample, BodyPulseReading, Controllability, FaceCtx, FeatureSource, HandCtx, Invariance } from './types';
 
@@ -39,6 +39,8 @@ export interface FlatFeature {
   invariantTo?: readonly Invariance[];
   /** The part of `invariantTo` that holds only on world landmarks (see FeatureDef.worldOnly). */
   worldOnly?: readonly Invariance[];
+  /** See FeatureDef.restJitter (#913): as a fraction of the part's extent. */
+  restJitter?: number;
   controllability?: Controllability;
   description?: string;
 }
@@ -162,7 +164,7 @@ function buildAllFeatures(): FlatFeature[] {
   }
   for (const side of HAND_SIDES) {
     for (const f of HAND_SIDE_FEATURES) {
-      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
+      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, restJitter: f.restJitter, controllability: f.controllability, description: f.description });
     }
   }
   for (const f of HAND_PAIR_FEATURES) {
@@ -172,6 +174,20 @@ function buildAllFeatures(): FlatFeature[] {
     out.push({ id: f.id, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, worldOnly: f.worldOnly, controllability: f.controllability, description: f.description });
   }
   return out;
+}
+
+/**
+ * A feature's rest-jitter ceiling in its own units for this vector (#913; the noise estimator's
+ * `restCeiling`): its `restJitter` times its part's extent in the frame. Only a hand's features
+ * declare one (`hand.<side>.` positions, scaled by that hand's extent); undefined for the rest, or
+ * when the extent cannot be read from the vector.
+ */
+export function restCeilingOf(id: string, vector: Readonly<Record<string, number>>): number | undefined {
+  const f = FEATURE_BY_ID[id];
+  if (f?.restJitter === undefined || f.source !== 'hand') return undefined;
+  const side = /^hand\.(left|right)\./.exec(id);
+  const extent = side ? handExtent(vector, side[0]) : NaN;
+  return Number.isFinite(extent) ? f.restJitter * extent : undefined;
 }
 
 /** Fast lookup: feature id → its flat entry. */

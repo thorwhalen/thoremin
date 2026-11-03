@@ -168,10 +168,51 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'hand.palm.orientation': ['scale', 'position'],
 };
 
-/** Fill a group-default invariance where the feature doesn't label itself. */
-function withGroupInvariance<T extends { group: string; invariantTo?: readonly Invariance[] }>(f: T): T {
-  if (f.invariantTo !== undefined || GROUP_INVARIANCE[f.group] === undefined) return f;
-  return { ...f, invariantTo: GROUP_INVARIANCE[f.group] };
+/**
+ * Group-level rest-jitter ceilings (#913; `FeatureDef.restJitter`), per frame as a fraction of the
+ * hand's extent in the frame ({@link handExtent}). Image positions, measured on the real fixtures:
+ * the stillest windows of the conductor's small hand (`real_hands_choir`, about 3% of the frame)
+ * jitter 0.45 % of its extent per frame, the largest rest seen; the scripted hand's rest 0.4 %, a
+ * wave it learned its unit from 1.8 %. 1 % is twice the largest real rest. A slow real sweep moves
+ * only 0.35 % (`video_hand_sweep`), as little as a small hand jitters: no magnitude separates slow
+ * motion from rest, so the ceiling catches a vigorous gesture only, and the estimator's re-warm cap
+ * bounds a false alarm. The extent mixes x (a fraction of the width) and y (of the height), and a 60 fps
+ * camera doubles the per-33-ms jitter: either can make the ceiling strict enough to redo a rest
+ * warm-up; the cap keeps that to two seconds and the lowest warm-up, a rest one, stands. Joint angles
+ * are not listed (no geometry scale to judge them by).
+ */
+const GROUP_REST_JITTER: Record<string, number> = {
+  'hand.position.raw': 0.01,
+};
+
+/** The image keypoints a hand's extent is read from (their `.x` / `.y` position features). */
+const EXTENT_POINTS = ['wrist', 'palm', ...FINGERS.map((f) => `${f}.tip`)] as const;
+
+/**
+ * A hand's extent in the frame (fractions of it) from its position features in `vector`: the
+ * larger of the x and y spans of its wrist, palm centre and fingertips. NaN with under two points.
+ * `prefix` is the side's (`hand.right.`).
+ */
+export function handExtent(vector: Readonly<Record<string, number>>, prefix: string): number {
+  let loX = Infinity, hiX = -Infinity, loY = Infinity, hiY = -Infinity, n = 0;
+  for (const p of EXTENT_POINTS) {
+    const x = vector[`${prefix}${p}.x`];
+    const y = vector[`${prefix}${p}.y`];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    n += 1;
+    loX = Math.min(loX, x);
+    hiX = Math.max(hiX, x);
+    loY = Math.min(loY, y);
+    hiY = Math.max(hiY, y);
+  }
+  return n < 2 ? NaN : Math.max(hiX - loX, hiY - loY);
+}
+
+/** Fill the group defaults (invariance, rest jitter) where the feature doesn't label itself. */
+function withGroupDefaults<T extends { group: string; invariantTo?: readonly Invariance[]; restJitter?: number }>(f: T): T {
+  const invariantTo = f.invariantTo ?? GROUP_INVARIANCE[f.group];
+  const restJitter = f.restJitter ?? GROUP_REST_JITTER[f.group];
+  return { ...f, ...(invariantTo !== undefined ? { invariantTo } : {}), ...(restJitter !== undefined ? { restJitter } : {}) };
 }
 
 function positionFeatures(): HandFeature[] {
@@ -522,7 +563,7 @@ export const HAND_SIDE_FEATURES: readonly HandFeature[] = [
   ...orientationFeatures(),
   ...wholeFeatures(),
   ...distanceFeatures(),
-].map(withGroupInvariance);
+].map(withGroupDefaults);
 
 /** Two-hand relational feature templates (keyed `hand.pair.*`). */
 export const HAND_PAIR_FEATURES: readonly PairFeature[] = pairFeatures();
