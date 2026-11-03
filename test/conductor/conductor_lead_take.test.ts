@@ -13,6 +13,7 @@ import { conductorLeadHost } from '@/slices/conductor/app/conductorLeadCommandHo
 import '@/app/store';
 import { conductorPrefs, setLeadOffsets } from '@/slices/conductor/app/conductorLeadHost';
 import { conduct } from '../helpers/body_conduct';
+import { perTickLines, stampFrames } from '../helpers/per_tick';
 import { CONDUCTOR } from '../helpers/extensions';
 
 const FPS = 30;
@@ -62,6 +63,26 @@ describe.runIf(CONDUCTOR)('the take', () => {
     expect(useLeadCalibration.getState().phase).toBe('idle');
     conductorLeadHost().clear();
     expect(conductorPrefs().leadOffsets).toEqual({});
+  });
+
+  it('a per-tick recording of the take (each frame on two lines, two objects) learns the lag the camera frames give (#973)', () => {
+    /** The take at 60 ms late, its frames stamped and repeated `copies` times at `copies` x 30 Hz. */
+    const learn = (copies: number) => {
+      setClickPlayer({ play: vi.fn(), stop: vi.fn() });
+      startLeadTake({ bpm: 80, point: 'wrist', side: 'right', nowMs: 0 });
+      const take = useLeadCalibration.getState().take!;
+      const sc = conduct([{ kind: 'rest', s: 1 }, { kind: 'ready', s: take.beats[0] + LATE - 1.6 }, { kind: 'upbeat', s: 0.6 }, { kind: 'beat', bpm: 80, beats: LEAD_TAKE.beats + 1 }], { fps: FPS });
+      const frames = perTickLines(stampFrames(sc.frames, FPS), copies);
+      let i = 0;
+      const sink = makeLeadCalibrationSink({ getOutput: (node: string, port: string) => (node === 'camBody' && port === 'body' ? frames[i] : undefined) });
+      for (; i < frames.length && useLeadCalibration.getState().phase === 'listening'; i++) sink((i / (FPS * copies)) * 1000);
+      const { phase, result } = useLeadCalibration.getState();
+      cancelLeadTake();
+      expect(phase).toBe('done');
+      return result!.offsets.wrist;
+    };
+    // Counted per copy, the still copy inside every stroke moved the lag by 4.5 ms.
+    expect(learn(2)).toBe(learn(1));
   });
 
   it('nothing is learned while no take runs, and a cancelled take leaves nothing to keep', () => {

@@ -15,8 +15,9 @@
  *
  * Two guards the synthetic tests cannot see but a live camera needs: the SAME
  * frame object arriving again (the engine ticking faster than inference — the
- * source returns its cache until the next video frame) is not a new sample, so it
- * re-emits the last vector and touches no history (otherwise every speed would
+ * source returns its cache until the next video frame), or a parsed copy carrying its
+ * capture stamp (a recording written on every tick, #973: `isFreshFrame`), is not a
+ * new sample, so it re-emits the last vector and touches no history (otherwise every speed would
  * alternate between 0 and double); and the window is capped by COUNT as well as
  * by time, so a stalled engine clock (dt = 0) cannot grow it without bound.
  *
@@ -27,7 +28,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { BODY_FEATURES, buildBodyCtx, type BodyHistorySample, type BodyPulseReading, type FeatureVector } from '@thoremin/sdk/features/catalog';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { resolveFeatureGate } from '@thoremin/sdk/features/feature_gate';
@@ -99,8 +100,10 @@ export const bodyFeatureVectorNode = defineNode<Params>({
           lastVector = {};
           return { vector };
         }
-        // The same frame again (no new inference since last tick): not a new sample.
-        if (frame === lastFrame) return { vector: lastVector };
+        // The same frame again (no new inference since last tick), or a parsed copy with
+        // its capture stamp (a per-tick recording, #973): not a new sample, or every
+        // velocity would divide a frame's motion by a tick and read zero on the copy.
+        if (!isFreshFrame(lastFrame, frame)) return { vector: lastVector };
         const dtS = lastTime === null ? NaN : ctx.time - lastTime;
         if (history.length) history[history.length - 1] = { ...history[history.length - 1], dtS };
         const bctx = buildBodyCtx(frame, { mirrorX: p.mirrorX, dtS, history, minVisibility: p.minVisibility, pulse: inputs.pulse as BodyPulseReading | undefined });

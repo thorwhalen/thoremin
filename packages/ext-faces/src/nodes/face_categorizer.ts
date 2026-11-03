@@ -21,7 +21,7 @@
  */
 import { z } from 'zod';
 import { defineNode, type NodeContext } from '@thoremin/dag';
-import type { FaceFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type FaceFrame } from '@thoremin/sdk/nodes/domain';
 import { buildFaceCtx } from '@thoremin/sdk/features/catalog';
 import { FACE_FEATURES } from '@thoremin/sdk/features/face_catalog';
 import { createCategoryTracker, type CategoryTracker } from '@thoremin/sdk/enroll/classify';
@@ -79,8 +79,10 @@ export const faceCategorizerNode = defineNode<Params>({
     let current: FaceCategorizerPlay | null = null;
     let tracker: CategoryTracker | null = null;
     let features: ReturnType<typeof featuresFor> = [];
-    // The engine ticks faster than the camera: a face frame seen already is not a new reading
-    // (the tracker's hysteresis counts camera frames, as the tool's test readout does).
+    // The engine ticks faster than the camera: a face frame seen already, as the same object or
+    // as a parsed copy with its capture stamp (a recording written on every tick, #973), is not
+    // a new reading (the tracker's hysteresis counts camera frames, as the tool's test readout
+    // does; counted per copy, a category entered and let go early).
     let lastFrame: FaceFrame | undefined;
     let lastExpression: ExpressionScores = ABSENT_EXPRESSION;
 
@@ -127,7 +129,7 @@ export const faceCategorizerNode = defineNode<Params>({
           return { expression: general, degrees, targets };
         }
         const frame = inputs.face as FaceFrame | undefined;
-        if (!frame || frame !== lastFrame) {
+        if (!frame || isFreshFrame(lastFrame, frame)) {
           lastFrame = frame;
           lastExpression = read(frame);
         }
