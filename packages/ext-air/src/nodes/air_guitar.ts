@@ -33,7 +33,7 @@ import { createStrumDetector, LATE_VELOCITY, strumNotes, type StrumDetector } fr
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
 import { parseChordName } from '@thoremin/sdk/music/guitar';
-import { LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
@@ -186,8 +186,7 @@ export const airGuitarNode = defineNode<Params>({
         const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
         const notes: NoteEvent[] = [];
         const frame = inputs.hands as HandsFrame | undefined;
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        const fresh = frame !== lastFrame && !sameStamp;
+        const fresh = isFreshFrame(lastFrame, frame);
         lastFrame = frame;
         if (frame && fresh && frame.height > 0) {
           const t = captureTime(frame, ctx);

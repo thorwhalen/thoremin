@@ -17,7 +17,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import type { Hand, HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor } from '@thoremin/sdk/nodes/player_hands';
 import { DEFAULT_PHYSICAL_THEREMIN, PhysicalThereminSchema, type PhysicalThereminSettings } from '../schema';
 import {
@@ -193,8 +193,7 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
           return { params: { voices: [silentVoice(s.sound)] } satisfies SynthParams, status };
         }
         const frame = inputs.hands as HandsFrame | undefined;
-        const repeated = !frame || frame === lastFrame || (frame.t !== undefined && lastFrame?.t !== undefined && frame.t === lastFrame.t);
-        if (!repeated) {
+        if (frame && isFreshFrame(lastFrame, frame)) {
           const t = typeof frame.t === 'number' ? frame.t : ctx.time;
           const dt = lastT === null ? 1 / 30 : t - lastT;
           lastT = t;

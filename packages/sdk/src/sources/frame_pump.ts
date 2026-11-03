@@ -84,7 +84,7 @@
  * a replayed recording. The sources put all of it on the frame, so the recorder
  * keeps it. A capture time in the future, or more than a second old, is not trusted.
  */
-import { isClockDerived, type FrameTiming } from '../nodes/domain';
+import { DEFAULT_FRAME_PERIOD_S, isClockDerived, type FrameTiming } from '../nodes/domain';
 import { createStampDejitter } from '../timing/stamp_dejitter';
 
 /** The subset of `VideoFrameCallbackMetadata` this module reads. */
@@ -154,7 +154,7 @@ export const VFC_SILENCE_PERIODS = 2;
  *  WebKit would mean duplicates. */
 export const MIN_VFC_SILENCE_MS = 100;
 /** The callback period assumed before one is measured, ms (a 30 fps camera). */
-export const DEFAULT_FRAME_PERIOD_MS = 1000 / 30;
+export const DEFAULT_FRAME_PERIOD_MS = 1000 * DEFAULT_FRAME_PERIOD_S;
 /** Gain of the exponentially weighted callback period. */
 export const VFC_PERIOD_EW_GAIN = 0.2;
 /** Callbacks in a row reporting the SAME `presentedFrames` after which the counter is

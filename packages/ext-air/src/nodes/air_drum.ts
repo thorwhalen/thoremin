@@ -95,7 +95,7 @@ import { clamp01 } from '@thoremin/stats';
 import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, lagGate, magnetise, nearestExpectedBeat, type ImpactConfirmation, type ImpactEvent, type ImpactPrediction, type ImpactPredictor, type LagGate, type MusicalTime } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
-import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { MIN_FLOOR_PADS, learnPadFloor, padFloorFor, type PadFloors } from '../lib/pad_floors';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
@@ -425,8 +425,7 @@ export const airDrumNode = defineNode<Params>({
     /** The frame to play this tick, or null: a frame already seen (by reference or by its
      *  stamp) or with no height is not played again. */
     const freshFrame = (frame: HandsFrame | undefined): HandsFrame | null => {
-      const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-      const fresh = frame !== lastFrame && !sameStamp;
+      const fresh = isFreshFrame(lastFrame, frame);
       lastFrame = frame;
       return frame && fresh && frame.height > 0 ? frame : null;
     };

@@ -11,10 +11,10 @@
  */
 import type { NodeContext } from '@thoremin/dag';
 import { beatAt, conductorRatios, createIctus, createImpactDetector, createLeadCorrector, createFinalRitard, createLevelHold, wrapPhase, UNKNOWN_PULSE, type Ictus, type IctusState, type LevelHold, type MusicalTime, type PulseState } from '@thoremin/ictus';
-import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type BodyFrame, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clamp01 } from '@thoremin/sdk/features/math';
-import { handPoint, isFresh, MIN_SAMPLE_SPACING, pickHand } from './conductor_hands';
+import { handPoint, MIN_SAMPLE_SPACING, pickHand } from './conductor_hands';
 import { createExpressionShaper } from './conductor_shaping';
 import { createDocContext } from './conductor_doc';
 import { createDanceState } from './conductor_dance';
@@ -345,7 +345,7 @@ export function createConductorFollower(p: ConductorDialParams) {
   //    (#226), else the tick time.
   const feedBody = (inputs: Record<string, unknown>, ctx: NodeContext, c: ConductorDialParams, ic: Ictus): Fed => {
     const body = inputs.body as BodyFrame | undefined;
-    const fresh = isFresh(body, lastBodyFrame);
+    const fresh = isFreshFrame(lastBodyFrame, body);
     lastBodyFrame = body;
     const t = captureTime(body, ctx);
     if (!(body && fresh && !(lastBody && t < lastBody.t + MIN_SAMPLE_SPACING))) return { s: ic.advance(ctx.time), stopped: false, started: false, released: false };
@@ -378,7 +378,7 @@ export function createConductorFollower(p: ConductorDialParams) {
 
   const feedHands = (inputs: Record<string, unknown>, ctx: NodeContext, c: ConductorDialParams, ic: Ictus): Fed => {
     const frame = inputs.hands as HandsFrame | undefined;
-    const fresh = isFresh(frame, lastFrame);
+    const fresh = isFreshFrame(lastFrame, frame);
     lastFrame = frame;
     const hand = frame && fresh ? pickHand(frame, c) : undefined;
     // The sample time: the frame's capture stamp in real time at speed 1, else the

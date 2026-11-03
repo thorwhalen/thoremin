@@ -33,7 +33,7 @@ import { createCategoryTracker, type CategoryTracker, type FeatureVector, type T
 import { chordShapeVector } from '../lib/hand_shape';
 import { parseNoteName } from '../lib/notes';
 import { midiToFreq } from '@thoremin/sdk/music/theory';
-import type { HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type FrameTiming, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor, type PlayerHand } from './air_bass';
 import { definedOnly } from '@thoremin/sdk/util/options';
 
@@ -167,7 +167,7 @@ export const airFluteNode = defineNode<Params>({
     let mouthFor: TrainedModel | null = null;
     let trackersKey = '';
     let lastFrame: HandsFrame | undefined;
-    let lastFace: unknown = undefined;
+    let lastFace: FrameTiming | undefined;
     let lastFaceSeen = -Infinity;
     let shape: FeatureVector | null = null;
     let mouthVec: FeatureVector | null = null;
@@ -235,8 +235,7 @@ export const airFluteNode = defineNode<Params>({
           trackersKey = key;
         }
         const frame = inputs.hands as HandsFrame | undefined;
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        if (frame && frame !== lastFrame && !sameStamp) {
+        if (frame && isFreshFrame(lastFrame, frame)) {
           shape = fingeringVector(frame, c.mirrorHandedness);
           if (shape && fingers) note = labelOf(fingerModel, fingers.push(shape).categoryId);
           // No fingering in view: no note (a flute put down does not keep playing).
@@ -246,7 +245,8 @@ export const airFluteNode = defineNode<Params>({
         // The mouth, once per NEW face frame (see the faceFrame input). The vector object
         // is kept between frames, so enrolment takes each face frame once.
         const faceFrame = inputs.faceFrame as { t?: number; present?: boolean } | undefined;
-        const newFace = faceFrame !== undefined ? faceFrame !== lastFace && !(faceFrame?.t !== undefined && faceFrame.t === (lastFace as { t?: number } | undefined)?.t) : true;
+        // No face-frame input at all: the mouth vector is read every tick.
+        const newFace = faceFrame === undefined || isFreshFrame(lastFace, faceFrame);
         if (newFace) {
           lastFace = faceFrame;
           const v = faceFrame?.present === false ? null : mouthVector(inputs.face as FeatureVector | null | undefined);

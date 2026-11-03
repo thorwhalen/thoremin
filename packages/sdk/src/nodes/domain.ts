@@ -5,7 +5,7 @@
  * lives in `domain/` (`frame_timing`, `hands`, `face`, `body`, `synth`, `category`), and
  * this module re-exports all of it, so importers name `@thoremin/sdk/nodes/domain` only.
  */
-export { FRAME_TIME_SOURCES, CLOCK_DERIVED_SOURCES, isClockDerived, frameTime, FrameTimingSchema } from './domain/frame_timing';
+export { FRAME_TIME_SOURCES, CLOCK_DERIVED_SOURCES, DEFAULT_FRAME_PERIOD_S, isClockDerived, frameTime, isFreshFrame, stampInterval, FrameTimingSchema } from './domain/frame_timing';
 export type { FrameTiming } from './domain/frame_timing';
 export { KeypointSchema, HandSchema, HandsFrameSchema, FINGER_NAMES, ABSENT_HAND, LM, kp, dist2d, dist3d, makeHandKeypoints } from './domain/hands';
 export type { Keypoint, Handedness, Hand, HandsFrame, FingerName, FingerCloseness, SingleHandFeatures, HandFeatures, SyntheticHandSpec } from './domain/hands';

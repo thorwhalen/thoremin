@@ -1,7 +1,14 @@
 /**
  * When a frame was captured (#226): the stamp a live source puts on a frame, its sources,
- * and `frameTime`, the one reader of it. Part of the domain types (`../domain.ts`
- * re-exports it); a leaf every frame kind extends.
+ * and the stamp rules every consumer shares: `frameTime` (the time to sample a frame at),
+ * `isFreshFrame` (whether a frame is a new observation) and `stampInterval` (the seconds
+ * between two frames). Part of the domain types (`../domain.ts` re-exports it); a leaf
+ * every frame kind extends.
+ *
+ * Why the freshness rule lives here (#964): the engine ticks at the display rate over a
+ * slower camera, and a replayed recording stores every tick, so a node sees the same
+ * camera frame again, as the same object or as a parsed copy with the same stamp. About
+ * ten nodes had each written that test by hand; one predicate keeps them agreeing.
  */
 import { z } from 'zod';
 
@@ -66,6 +73,37 @@ export function frameTime(frame: FrameTiming | undefined, ctx: { time: number; r
   )
     return t;
   return ctx.time;
+}
+
+/** The camera frame period assumed where none is measured, seconds: a 30 fps camera. */
+export const DEFAULT_FRAME_PERIOD_S = 1 / 30;
+
+/** Whether two frames carry the same capture stamp in the same time base (both stamped). */
+const sameStamp = (a: FrameTiming, b: FrameTiming): boolean => a.t !== undefined && a.t === b.t && a.tOrigin === b.tOrigin;
+
+/**
+ * Whether `next` is a new observation after `prev` (#964): a frame is, unless it is absent,
+ * the very object seen last, or a copy carrying the same capture stamp and origin (a
+ * replayed recording parses each tick's copy of a camera frame anew). An unstamped frame
+ * is new whenever it is another object.
+ */
+export function isFreshFrame(prev: FrameTiming | undefined, next: FrameTiming | undefined): boolean {
+  if (!next || next === prev) return false;
+  return !(prev && sameStamp(prev, next));
+}
+
+/**
+ * The seconds from `prev` to `next` by their capture stamps, when both are stamped in the
+ * same time base (`tOrigin`) and `next` is later; else undefined, for the caller to assume
+ * a period ({@link DEFAULT_FRAME_PERIOD_S}). Only the interval is read, so a recording
+ * replayed from another session measures its own frame rate.
+ */
+export function stampInterval(prev: FrameTiming | undefined, next: FrameTiming | undefined): number | undefined {
+  const a = prev?.t;
+  const b = next?.t;
+  if (typeof a !== 'number' || typeof b !== 'number' || prev?.tOrigin !== next?.tOrigin) return undefined;
+  const dt = b - a;
+  return Number.isFinite(dt) && dt > 0 ? dt : undefined;
 }
 
 /** Runtime shape of {@link FrameTiming}, spread into each frame schema. */

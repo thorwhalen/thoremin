@@ -59,7 +59,7 @@ import { arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenc
 import { letterChordSpec, letterDegree, midiToFreq, midiToName, keyName, NOTE_LETTERS, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import { LM, type CategoryScores, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, LM, type CategoryScores, type FaceFeatures, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import {
@@ -639,8 +639,7 @@ export const chordMapNode = defineNode<Params>({
         const heardName = heard ? chordName(heard, keyOf(spec)) : null;
 
         // One camera frame: choose the chord, then hear the other hand.
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        const fresh = frame !== lastFrame && !sameStamp;
+        const fresh = isFreshFrame(lastFrame, frame);
         lastFrame = frame;
         if (frame && fresh && aspect > 0) {
           const t = captureTime(frame, ctx);

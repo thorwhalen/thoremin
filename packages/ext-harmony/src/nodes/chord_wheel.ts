@@ -48,7 +48,7 @@ import { applyIntents, initialState, type HarmonicState } from '@thoremin/sdk/ha
 import { letterChordSpec, letterDegree, NOTE_LETTERS, scalePitchClasses, type NoteLetter, type ScaleSpec } from '@thoremin/sdk/music/theory';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { RENDERINGS, VOICINGS, type RenderingId, type VoicingId } from '@thoremin/sdk/music/voicing';
-import type { CategoryScores, FaceFeatures, HandsFrame, SynthParams, VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type CategoryScores, type FaceFeatures, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { EMPTY_CELL_GRID, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
@@ -421,7 +421,7 @@ export const chordWheelNode = defineNode<Params>({
         const aspect = frame && frame.height > 0 && frame.width > 0 ? frame.width / frame.height : 0;
         const region = wheelRegion(c.hand);
         const cells = aspect > 0 ? radial(region, moves.length, { aspect, radius: c.radius }) : [];
-        const fresh = !!frame && frame !== lastFrame && !(lastFrame && frame.t !== undefined && frame.t === lastFrame.t);
+        const fresh = isFreshFrame(lastFrame, frame);
         lastFrame = frame;
         let committed: number | null = null;
         if (frame && fresh && aspect > 0 && cells.length) {

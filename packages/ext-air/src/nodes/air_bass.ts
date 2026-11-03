@@ -27,7 +27,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createImpactPredictor, type ImpactPredictor } from '@thoremin/ictus';
 import { clamp01 } from '@thoremin/stats';
-import { LM, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, LM, type Hand, type HandsFrame, type Keypoint } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { definedOnly } from '@thoremin/sdk/util/options';
@@ -256,8 +256,7 @@ export const airBassNode = defineNode<Params>({
         const scale = (Array.isArray(inputs.scale) ? (inputs.scale as number[]) : []).map((m) => m + 12 * shift);
         const notes: NoteEvent[] = [];
         const frame = inputs.hands as HandsFrame | undefined;
-        const sameStamp = !!frame && !!lastFrame && frame.t !== undefined && frame.t === lastFrame.t;
-        const fresh = frame !== lastFrame && !sameStamp;
+        const fresh = isFreshFrame(lastFrame, frame);
         lastFrame = frame;
         if (frame && fresh && frame.height > 0) {
           const t = captureTime(frame, ctx);
