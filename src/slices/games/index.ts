@@ -65,10 +65,11 @@ export const listeningGames = defineBranch({
 const on = (s: Readonly<Record<string, unknown>>): boolean => (s[GAMES_DIAL] as { enabled?: boolean } | undefined)?.enabled === true;
 
 /** What every game seed hides: the video (the game owns the picture), the theremin voices and
- *  the guides over the hands. */
+ *  the guides and skeleton over the hands. With nothing left that reads the camera, a game seed
+ *  never opens it (#869). */
 const STAGE_PATCH = {
   handMap: { maxGain: 0 },
-  overlay: { video: { show: false }, scaleGuide: { show: false }, markers: { showNotes: false } },
+  overlay: { video: { show: false }, landmarks: { show: false }, scaleGuide: { show: false }, markers: { showNotes: false } },
 };
 
 export const GAMES_EXTENSION = defineExtension({

@@ -59,7 +59,7 @@ Pitch frames are stamped at their window's centre (the pitch describes the windo
 
 A game node's `view` output is plain data: the phase, the engine time now, the visible span, the targets in it with their state (pending, hit with tier, missed), the recent pitch trail, the last few judgments, the running score and, in results, the summary. The overlay element draws only from it, so a test asserts what the player would see without a canvas, and the drawing is swapped without touching the game.
 
-The stage owns the canvas: the seed hides the video (`overlay.video.show: false`) and the element paints its own background first. The camera still opens today, because whether the camera opens is decided by the source slot, not by the instrument. **Gap filed for the shell** ([#869](https://github.com/thorwhalen/thoremin/issues/869)): an instrument that needs no camera should be able to say so (an audio-only instrument then never asks for camera permission). Until then the games run with the camera open and unseen.
+The stage owns the canvas: the seed hides the video (`overlay.video.show: false`) and the element paints its own background first. The seed also hides the hand skeleton and silences the hand voices, so nothing it composes or draws reads the camera, and the camera never opens: whether it opens is derived from the composed branches and the shell's readers ([#869](https://github.com/thorwhalen/thoremin/issues/869), `src/instruments/camera.ts`), and switching to an instrument that reads it opens it then.
 
 ## Standalone pages
 
