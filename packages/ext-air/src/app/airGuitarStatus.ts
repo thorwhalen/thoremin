@@ -28,8 +28,6 @@ export function describeGuitarLive(live: AirGuitarLive): string {
   return live.lastLead >= 0 ? `${live.chord}. Last strum (${live.lastChord}) predicted ${ms} ms ahead.` : `${live.chord}. Last strum (${live.lastChord}) sounded ${ms} ms late.`;
 }
 
-export type { OutputReader } from '@thoremin/sdk-ui/types';
-
 /** Quantise what the view shows. */
 export function airGuitarLiveKey(l: AirGuitarLive): string {
   return `${l.enabled ? 1 : 0}|${l.known}|${l.fretting ? 1 : 0}|${l.chord ?? '-'}|${l.playable ? 1 : 0}|${l.strums}|${l.predicted}|${l.lastChord ?? '-'}|${Math.round(l.lastLead * 1000)}|${l.ready ? 1 : 0}`;

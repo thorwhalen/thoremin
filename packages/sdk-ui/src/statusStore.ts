@@ -21,7 +21,7 @@
  * its own) composes over what this returns: spread `statusHook` and replace the member.
  */
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import { makeStatusReporter, type StatusReporterOptions } from '@thoremin/lazy/status';
+import { makeStatusReporter, type StatusGateOptions, type StatusSink, type StatusThrottle } from '@thoremin/lazy/status';
 import type { OutputReader, StatusHook } from './types';
 
 /** The store's state: the node's latest status under `field` (`status` by default), or `absent`
@@ -35,12 +35,12 @@ export interface StatusActions<T> {
 }
 
 /** What {@link createStatusStore} returns. */
-export interface StatusStore<T, F extends string = 'status'> {
+export interface StatusStore<T, F extends string = 'status', Timed extends boolean = false> {
   /** The zustand store (a React hook; `getState()` outside React). */
   useStatus: UseBoundStore<StoreApi<StatusState<T, F>>>;
   /** The per-frame sink: the node's status, reported to `store` (this store by default) when the
-   *  gate lets it through. `nowMs` is read only by a throttle. */
-  makeReporter(engine: OutputReader, store?: Pick<StatusActions<T>, 'report'>): (nowMs?: number) => void;
+   *  gate lets it through. A throttled store's sink requires the tick's time, in ms. */
+  makeReporter(engine: OutputReader, store?: Pick<StatusActions<T>, 'report'>): StatusSink<Timed>;
   /** The status hook the engine host runs: the reporter, and back to absent when the node leaves
    *  the graph or the engine goes. Its sink starts afresh after every reset, so a node that comes
    *  back with the status it left with is reported again. Spread it to add to a member. */
@@ -48,30 +48,39 @@ export interface StatusStore<T, F extends string = 'status'> {
 }
 
 /** How {@link createStatusStore} reads, gates and holds a status. */
-export interface StatusStoreOptions<T, F extends string = 'status'> extends StatusReporterOptions<NonNullable<T>> {
+export interface StatusStoreOptions<T> extends StatusGateOptions<NonNullable<T>> {
   /** The status before the engine has reported, after the node leaves and after teardown. */
   absent: T;
-  /** The state's field the status is kept under. `status` by default. */
-  field?: F;
+  /** The state's field the status is kept under: `status` when omitted. */
+  field?: string;
 }
+
+/** The options without a throttle, and with one (whose reporter's sink is timed). */
+type Untimed<T> = StatusStoreOptions<T> & { throttle?: undefined };
+type Timed<T> = StatusStoreOptions<T> & { throttle: StatusThrottle<NonNullable<T>> };
 
 /**
  * The store, reporter and status hook for one node's readout.
  *
- * @param nodeId - the node whose status output is mirrored.
+ * @param nodeId - the node whose `status` output is mirrored.
  * @param options.absent - what the store holds before any report.
  * @param options.keyOf - what the readout shows, as a string: a status with an unchanged key is not
  *   reported again (quantise here what the view rounds).
  * @param options.throttle - for a counter that moves at frame rate: a change in its own key alone
- *   reports at most once per `ms`.
- * @param options.port - the output port, `status` by default.
- * @param options.field - the state's field name, `status` by default (`live` for the instruments).
+ *   reports at most once per `ms`. The reporter's sink then requires the tick's time (by type).
+ * @param options.field - the state's field name: omitted, `status`; any other name (`live` for the
+ *   instruments) must be passed (by overload), so the state's type and where it is kept agree.
  */
-export function createStatusStore<T, F extends string = 'status'>(nodeId: string, options: StatusStoreOptions<T, F>): StatusStore<T, F> {
-  const { absent, field = 'status' as F, ...reporting } = options;
+export function createStatusStore<T>(nodeId: string, options: Untimed<T> & { field?: 'status' }): StatusStore<T>;
+export function createStatusStore<T, F extends string>(nodeId: string, options: Untimed<T> & { field: F }): StatusStore<T, F>;
+export function createStatusStore<T>(nodeId: string, options: Timed<T> & { field?: 'status' }): StatusStore<T, 'status', true>;
+export function createStatusStore<T, F extends string>(nodeId: string, options: Timed<T> & { field: F }): StatusStore<T, F, true>;
+export function createStatusStore<T>(nodeId: string, options: StatusStoreOptions<T>): StatusStore<T, string, boolean> {
+  const { absent, field = 'status', ...gate } = options;
+  type State = StatusState<T, string>;
   let resets = 0;
-  const holding = (status: T) => ({ [field]: status }) as Partial<StatusState<T, F>>;
-  const useStatus = create<StatusState<T, F>>(
+  const holding = (status: T) => ({ [field]: status }) as Partial<State>;
+  const useStatus = create<State>(
     (set) =>
       ({
         ...holding(absent),
@@ -80,11 +89,11 @@ export function createStatusStore<T, F extends string = 'status'>(nodeId: string
           resets += 1;
           set(holding(absent));
         },
-      }) as StatusState<T, F>,
+      }) as State,
   );
   const reset = () => useStatus.getState().reset();
   const makeReporter = (engine: OutputReader, store: Pick<StatusActions<T>, 'report'> = useStatus.getState()) =>
-    makeStatusReporter<NonNullable<T>>(engine, store, nodeId, reporting);
+    makeStatusReporter<NonNullable<T>>(engine, store, nodeId, gate);
   /** The hook's sink: this store's reporter, rebuilt (its change gate cleared) after a reset. */
   const makeResettingReporter = (engine: OutputReader) => {
     let seen = resets;

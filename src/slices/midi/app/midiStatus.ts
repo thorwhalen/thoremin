@@ -3,11 +3,10 @@
  * (throttled), so the settings panel can render an honest MIDI control (#137):
  * the live device list, the connection phase, and "unsupported here" instead of
  * a dead toggle. Ephemeral per-frame runtime state, exactly like `faceStatus` —
- * the DAG produces it; React only displays it. {@link makeMidiReporter} is the
- * per-frame sink; the slice's status hook (`../ui.tsx`) is this store's, run on the page clock.
+ * the DAG produces it; React only displays it. {@link MIDI_STATUS} is the store, its per-frame
+ * reporter and its status hook; the slice (`../ui.tsx`) runs the hook on the page clock.
  */
 import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
-import type { OutputReader } from '@thoremin/sdk-ui/types';
 import type { MidiStatus } from '../nodes/midi_out';
 
 /** The status before the engine has reported anything (or after teardown). */
@@ -42,19 +41,3 @@ export const MIDI_STATUS = createStatusStore(MIDI_NODE_ID, {
 });
 
 export const useMidiStatus = MIDI_STATUS.useStatus;
-
-/**
- * Build the per-frame sink that bridges the midi-out node's status to React (#137): the
- * settings panel renders the live device list and connection phase from it. Transitions
- * (phase / resolved port / device list) report immediately; the `activeNotes` counter is paced
- * so it can't re-render the panel 60×/s. Pure over the reader and the store, so it is testable
- * with a stub engine.
- *
- * @param now - the frame time in MILLISECONDS (the host converts the clock's seconds).
- */
-export function makeMidiReporter(
-  engine: OutputReader,
-  store: { getState(): Pick<MidiStatusState, 'report'> } = useMidiStatus,
-): (now: number) => void {
-  return MIDI_STATUS.makeReporter(engine, { report: (status) => store.getState().report(status) });
-}

@@ -28,8 +28,6 @@ export function describeBassLive(live: AirBassLive): string {
   return live.lastLead >= 0 ? `${midiToName(live.lastMidi)}: predicted ${ms} ms before the pluck.` : `${midiToName(live.lastMidi)}: sounded ${ms} ms after the pluck.`;
 }
 
-export type { OutputReader } from '@thoremin/sdk-ui/types';
-
 /** Quantise what the view shows. */
 export function airBassLiveKey(l: AirBassLive): string {
   return `${l.enabled ? 1 : 0}|${l.fretting ? 1 : 0}|${l.fretMidi ?? '-'}|${l.notes}|${l.predicted}|${l.lastMidi ?? '-'}|${Math.round(l.lastLead * 1000)}|${l.ready ? 1 : 0}`;

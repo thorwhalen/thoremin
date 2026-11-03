@@ -27,8 +27,6 @@ export function describeFluteLive(live: AirFluteLive): string {
   return live.sounding ? `${live.note}, sounding.` : `${live.note}. ${live.breath === 'mouth' ? 'Blow to play it.' : ''}`.trim();
 }
 
-export type { OutputReader } from '@thoremin/sdk-ui/types';
-
 export function airFluteLiveKey(l: AirFluteLive): string {
   return `${l.enabled ? 1 : 0}|${l.breath}|${l.knownFingers}|${l.mouthReady ? 1 : 0}|${l.hands ? 1 : 0}|${l.face ? 1 : 0}|${l.note ?? '-'}|${l.playable ? 1 : 0}|${l.sounding ? 1 : 0}`;
 }

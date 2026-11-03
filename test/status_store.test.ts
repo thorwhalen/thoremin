@@ -56,10 +56,10 @@ describe('createStatusStore', () => {
     expect(useStatus.getState().status).toBe(IDLE);
   });
 
-  it('the reporter reads the node on its port and writes only what the readout would change', () => {
+  it('the reporter reads the node and writes only what the readout would change', () => {
     let current: Reading | undefined;
-    const store = createStatusStore('reader', { absent: IDLE, keyOf, port: 'readout' });
-    const engine = engineSaying('reader', 'readout', () => current);
+    const store = createStatusStore('reader', { absent: IDLE, keyOf });
+    const engine = engineSaying('reader', 'status', () => current);
     const writes: Reading[] = [];
     const report = store.makeReporter(engine, { report: (r) => writes.push(r) });
     report();
@@ -68,7 +68,16 @@ describe('createStatusStore', () => {
     current = { ...current, count: 3 };
     report();
     expect(writes).toEqual([{ on: true, level: 0.5, count: 0 }]);
-    expect(engine.getOutput).toHaveBeenCalledWith('reader', 'readout');
+    expect(engine.getOutput).toHaveBeenCalledWith('reader', 'status');
+  });
+
+  it('types away the two misuses: a throttled sink without a time, a field named only in the type', () => {
+    const paced = createStatusStore('n', { absent: IDLE, keyOf, throttle: { ms: 250, keyOf: (r) => String(r.count) } });
+    const sink = paced.makeReporter(engineSaying('n', 'status', () => IDLE));
+    // @ts-expect-error a throttled reporter needs the tick's time
+    expect(() => sink()).not.toThrow();
+    // @ts-expect-error a field other than `status` must be passed, not only typed
+    expect(createStatusStore<Reading, 'live'>('n', { absent: IDLE, keyOf }).useStatus.getState().status).toBe(IDLE);
   });
 
   it('the hook shows the node absent when it leaves, and reports it again when it returns unchanged', () => {

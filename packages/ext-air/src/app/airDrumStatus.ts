@@ -21,8 +21,6 @@ export const AIR_DRUM_NODE_ID = 'airDrum';
 
 export type AirDrumStatusState = StatusState<AirDrumLive, 'live'>;
 
-export type { OutputReader } from '@thoremin/sdk-ui/types';
-
 /** What to tell the player, per state. */
 export function describeLive(live: AirDrumLive): string {
   if (!live.enabled) return 'Off. Tick "Drum in the air" (the Air Drum instrument has it on), then strike down with a hand.';

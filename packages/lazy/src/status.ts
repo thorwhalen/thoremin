@@ -66,8 +66,18 @@ export interface OutputReader {
  */
 export interface StatusGateOptions<T> {
   keyOf: (status: T) => string;
-  throttle?: { ms: number; keyOf: (status: T) => string };
+  throttle?: StatusThrottle<T>;
 }
+
+/** A throttle on a counter that moves at frame rate: its own key, and how often it may report. */
+export interface StatusThrottle<T> {
+  ms: number;
+  keyOf: (status: T) => string;
+}
+
+/** A reporter's per-frame sink. A throttled one is timed: it needs the tick's time, in ms, since
+ *  pacing on a missing time would hold every paced change forever. */
+export type StatusSink<Timed extends boolean> = Timed extends true ? (nowMs: number) => void : (nowMs?: number) => void;
 
 /** The change gate of {@link StatusGateOptions}: true when `status`, seen at `nowMs`, should be
  *  reported. Stateful (it remembers the last report); pure over its arguments otherwise. */
@@ -86,27 +96,30 @@ export function makeStatusGate<T>({ keyOf, throttle }: StatusGateOptions<T>): (s
   };
 }
 
-/** What {@link makeStatusReporter} reads and how it gates. */
-export interface StatusReporterOptions<T> extends StatusGateOptions<T> {
-  /** The node's output port the status is read from. `status` by default. */
-  port?: string;
-}
-
 /**
- * The per-frame sink that mirrors one node's status port into a store (#969, generalised from
+ * The per-frame sink that mirrors one node's `status` port into a store (#969, generalised from
  * {@link makeLoadStatusReporter}): it reads the port, skips an absent output, and reports only what
  * the gate lets through, so a readout never re-renders at frame rate for a status it already shows.
- * Pure over the reader and the store. `nowMs` is read only by a throttle.
+ * Pure over the reader and the store. A throttled reporter's sink takes the tick's time (by type).
  */
 export function makeStatusReporter<T>(
   engine: OutputReader,
   store: { report(status: T): void },
   nodeId: string,
-  { port = 'status', ...gate }: StatusReporterOptions<T>,
-): (nowMs?: number) => void {
+  gate: StatusGateOptions<T> & { throttle: StatusThrottle<T> },
+): StatusSink<true>;
+export function makeStatusReporter<T>(
+  engine: OutputReader,
+  store: { report(status: T): void },
+  nodeId: string,
+  gate: StatusGateOptions<T> & { throttle?: undefined },
+): StatusSink<false>;
+/** A gate known only at run time (a store's options): the sink takes the time when it has one. */
+export function makeStatusReporter<T>(engine: OutputReader, store: { report(status: T): void }, nodeId: string, gate: StatusGateOptions<T>): StatusSink<boolean>;
+export function makeStatusReporter<T>(engine: OutputReader, store: { report(status: T): void }, nodeId: string, gate: StatusGateOptions<T>): StatusSink<boolean> {
   const changed = makeStatusGate(gate);
   return (nowMs = 0) => {
-    const status = engine.getOutput(nodeId, port) as T | undefined;
+    const status = engine.getOutput(nodeId, 'status') as T | undefined;
     if (!status) return;
     if (changed(status, nowMs)) store.report(status);
   };

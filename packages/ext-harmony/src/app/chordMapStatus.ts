@@ -51,8 +51,6 @@ function describeState(live: ChordMapLive): string {
   return live.lastLead >= 0 ? `${chord}: strummed ${ms} ms before the strum.` : `${chord}: strummed ${ms} ms after the strum.`;
 }
 
-export type { OutputReader } from '@thoremin/sdk-ui/types';
-
 /** Quantise what the view shows. */
 export function chordMapLiveKey(l: ChordMapLive): string {
   return [l.enabled ? 1 : 0, l.play, l.key, l.pointing ? 1 : 0, l.chord ?? '-', l.melody ?? '-', l.melodySet, l.strums, l.predicted, Math.round(l.lastLead * 1000), l.ready ? 1 : 0, l.signs, l.sign ?? '-', l.inputChord ?? '-', l.idiom ? `${l.idiom.step}${l.idiom.onPath ? '' : '!'}` : '-'].join('|');
