@@ -55,6 +55,8 @@ const ctx = { tick: 0, time: 0, dt: 0, resources: {} } as unknown as NodeContext
  *  deadline, not a count of turns: 500 turns pass in about a millisecond. `performance` is real
  *  (only `setTimeout` / `clearTimeout` are faked). */
 const SETTLE_MS = 5_000;
+/** How long, in real ms, nothing may load after the runner has failed for good. */
+const QUIET_AFTER_FAILED_MS = 200;
 /** Let promises, the module loader and zero-delay timers run until `reached()` (the loader's dynamic
  *  import settles on a real turn of the event loop, hence `setImmediate`); throws when the deadline
  *  passes, so a slow runner fails here, saying what it waited for, never later on an assertion about
@@ -100,7 +102,9 @@ afterEach(() => {
 });
 
 describe('webcam-hands when its hand model stops', () => {
-  it('says replacing, retrying, then failed, and emits no hand in any of them', async () => {
+  // Several waits of up to SETTLE_MS each: the test's own timeout is well above one, so a slow runner
+  // fails on the labelled wait that never arrived, not on vitest's generic timeout.
+  it('says replacing, retrying, then failed, and emits no hand in any of them', { timeout: 30_000 }, async () => {
     const quiet = [vi.spyOn(console, 'warn').mockImplementation(() => {}), vi.spyOn(console, 'error').mockImplementation(() => {}), vi.spyOn(console, 'info').mockImplementation(() => {})];
     try {
       type Out = { hands: { hands: unknown[] }; status: unknown };
@@ -150,7 +154,10 @@ describe('webcam-hands when its hand model stops', () => {
       // Failed is for good: no load is asked for after it.
       const loadsAtFailure = createFromOptions.mock.calls.length;
       await vi.advanceTimersByTimeAsync(2 * MAIN_REPLACEMENT_RETRY_MS);
-      await settleUntil(() => true);
+      // A wrongly scheduled load would reach createFromOptions only after a real turn (the dynamic
+      // import), so drain for real time before counting.
+      const quietUntil = performance.now() + QUIET_AFTER_FAILED_MS;
+      await settleUntil(() => performance.now() > quietUntil, 'a quiet spell after failed');
       expect(createFromOptions).toHaveBeenCalledTimes(loadsAtFailure);
       node.dispose!();
     } finally {
