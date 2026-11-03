@@ -20,10 +20,10 @@ import { handsFrameVector } from '@thoremin/sdk/features/modalities/hand';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 
-// The scripted paths live with the app's scripted gesture (#754), so the synthetic source the
-// Gestures section records and these tests make the very same motions.
-export { GESTURE_PATHS, type GesturePath } from '@thoremin/ext-faces/lib/synthetic_gesture';
-import { GESTURE_PATHS, type GesturePath } from '@thoremin/ext-faces/lib/synthetic_gesture';
+// The scripted paths are the SDK's (#754), shared with the extension's scripted source, so the
+// synthetic hand the Gestures section records and these tests make the very same motions.
+export { GESTURE_PATHS, type GesturePath } from '@thoremin/sdk/enroll/gestures/paths';
+import { GESTURE_PATHS, type GesturePath } from '@thoremin/sdk/enroll/gestures/paths';
 
 export interface WaveScript {
   /** What each repetition traces (default the wave). */

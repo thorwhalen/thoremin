@@ -34,6 +34,7 @@
     "./enroll/gestures/everyday": "./src/enroll/gestures/everyday.ts",
     "./enroll/gestures/edit": "./src/enroll/gestures/edit.ts",
     "./enroll/gestures/listen": "./src/enroll/gestures/listen.ts",
+    "./enroll/gestures/paths": "./src/enroll/gestures/paths.ts",
     "./enroll/noise": "./src/enroll/noise.ts",
     "./enroll/projection": "./src/enroll/projection.ts",
     "./enroll/runner": "./src/enroll/runner.ts",

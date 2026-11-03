@@ -9,39 +9,16 @@
  * sideways drift keeps the resting hand from being unnaturally still (a real hand wanders, and so
  * does the tracker).
  *
- * The paths ({@link GESTURE_PATHS}) are the scripted gestures the matcher's goldens were measured
- * on (`test/helpers/wave_take.ts` re-exports them): each starts and ends at rest with no jump.
+ * The paths are the SDK's (`@thoremin/sdk/enroll/gestures/paths`, re-exported here): the scripted
+ * gestures the matcher's goldens were measured on, each starting and ending at rest with no jump.
  */
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
+import type { GesturePath } from '@thoremin/sdk/enroll/gestures/paths';
 import { handsFrameVector } from '@thoremin/sdk/features/modalities/hand';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SYNTHETIC_HAND_FRAME, SYNTHETIC_HAND_SHAPES, syntheticHandKeypoints } from './synthetic_hand';
 
-/**
- * A gesture's path: the hand's displacement at `tau` (0..1 through one repetition) in units of the
- * amplitude, `[sideways, down]`, starting and ending at rest. `cycles` swings per repetition.
- */
-export type GesturePath = (tau: number, cycles: number) => readonly [number, number];
-
-const hann = (tau: number) => Math.sin(Math.PI * tau) ** 2;
-const swing = (tau: number, cycles: number) => hann(tau) * Math.sin(2 * Math.PI * cycles * tau);
-
-/** Out to the side over `[0, a]`, held there until `1 - a`, back over `[1 - a, 1]`; eased (the
- *  Hann window's halves), so it starts and ends at rest with no jump. */
-const outHoldBack = (tau: number, a: number) => (tau < a ? hann(tau / (2 * a)) : tau > 1 - a ? hann((1 - tau) / (2 * a)) : 1);
-
-/** The scripted gestures: a wave is a side-to-side swing, a nod the same swing up and down, a
- *  circle a loop, a push one swing out and back, a diagonal the swing at 45 degrees, a reach a
- *  push that pauses at its far end for a fifth of the repetition (#753: a gesture passing through
- *  a held pose). */
-export const GESTURE_PATHS = {
-  wave: (tau, cycles) => [swing(tau, cycles), 0],
-  nod: (tau, cycles) => [0, swing(tau, cycles)],
-  circle: (tau, cycles) => [hann(tau) * Math.sin(2 * Math.PI * cycles * tau), hann(tau) * (1 - Math.cos(2 * Math.PI * cycles * tau))],
-  push: (tau) => [hann(tau), 0],
-  diagonal: (tau, cycles) => [swing(tau, cycles) / Math.SQRT2, swing(tau, cycles) / Math.SQRT2],
-  reach: (tau) => [outHoldBack(tau, 0.4), 0],
-} satisfies Record<string, GesturePath>;
+export { GESTURE_PATHS, type GesturePath } from '@thoremin/sdk/enroll/gestures/paths';
 
 /** The script's timing and size (the matcher's goldens' wave: `test/helpers/wave_take.ts`). */
 export const SYNTHETIC_GESTURE = {
