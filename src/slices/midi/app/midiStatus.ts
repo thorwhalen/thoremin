@@ -4,7 +4,8 @@
  * the live device list, the connection phase, and "unsupported here" instead of
  * a dead toggle. Ephemeral per-frame runtime state, exactly like `faceStatus` —
  * the DAG produces it; React only displays it. {@link MIDI_STATUS} is the store, its per-frame
- * reporter and its status hook; the slice (`../ui.tsx`) runs the hook on the page clock.
+ * reporter and its status hook, which the slice (`../ui.tsx`) contributes as is: the host passes
+ * it the tick's time in ms, which paces the counter (#983).
  */
 import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import type { MidiStatus } from '../nodes/midi_out';

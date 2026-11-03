@@ -19,9 +19,10 @@
  * A readout of several ports of its one node (the conductor's) passes `read`. A readout with
  * something besides one node's status (the face's label and scores, read from three nodes, with a
  * toast; the song's player and pace controller, with its transport's edges) is its own store, and
- * takes the reset count alone ({@link createResetCount}). A readout with one more step (a custom
- * reset, a clock of its own) composes over what this returns: spread `statusHook` and replace the
- * member.
+ * takes the reset count alone ({@link createResetCount}). A readout with one more step on reset
+ * (the generative layer pauses its transport) composes over what this returns: spread `statusHook`
+ * and replace the member. Its sink needs no clock of its own: the host passes it the tick's time
+ * in ms, which paces a throttled readout (MIDI's).
  */
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { makeStatusReporter, type StatusReporterOptions, type StatusSink, type StatusThrottle } from '@thoremin/sdk/status/gate';
