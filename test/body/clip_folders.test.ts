@@ -28,3 +28,30 @@ describe('body clip folders outside the fixtures', () => {
     }
   });
 });
+
+describe('the clips a script runs on (#861)', () => {
+  it('a root lists its folders; named clips win over the defaults; flags are declared and strict', async () => {
+    const { parseClipArgs } = await import('../../scripts/body/lib_clips');
+    const root = mkdtempSync(join(tmpdir(), 'clip-args-'));
+    const empty = mkdtempSync(join(tmpdir(), 'clip-args-empty-'));
+    try {
+      cpSync(join(FIXTURES, 'video_body_budots'), join(root, 'a'), { recursive: true });
+      const speed = { speed: { type: 'string' as const } };
+      const summary = { summary: { type: 'boolean' as const } };
+      expect(parseClipArgs(['--', '--root', root], { defaults: ['x'] }).clips).toEqual([join(root, 'a')]);
+      expect(parseClipArgs([`--root=${root}/`], { defaults: ['x'] }).clips).toEqual([join(root, 'a')]);
+      expect(parseClipArgs(['--speed', '1.5', 'video_body_budots'], { defaults: ['x'], options: speed })).toMatchObject({ clips: ['video_body_budots'], values: { speed: '1.5' } });
+      // A flag that takes no value never swallows the clip after it.
+      expect(parseClipArgs(['--summary', 'video_body_budots'], { defaults: ['x'], options: summary }).clips).toEqual(['video_body_budots']);
+      expect(parseClipArgs([], { defaults: ['x', 'y'] }).clips).toEqual(['x', 'y']);
+      // Refused, never measuring nothing or the wrong thing.
+      expect(() => parseClipArgs(['--root', empty], { defaults: [] })).toThrow(/no clip folder/);
+      expect(() => parseClipArgs(['--root', root, 'video_body_budots'], { defaults: [] })).toThrow(/one or the other/);
+      expect(() => parseClipArgs(['--root', '--speed', '2'], { defaults: [], options: speed })).toThrow();
+      expect(() => parseClipArgs(['--unknown'], { defaults: [] })).toThrow();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
