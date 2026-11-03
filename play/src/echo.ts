@@ -8,7 +8,7 @@ import { createEchoSession, ECHO_LEVELS, type EchoView } from '@thoremin/games/e
 import { drawEcho } from '@thoremin/games/echo_stage';
 import { ONSET_ANALYSERS } from '@thoremin/games/listen';
 import { BG, DIM, text } from '@thoremin/games/paint';
-import { offsetLine, readOffset } from './offset';
+import { offsetFor, offsetLine, readOffset } from './offset';
 import { mountGamePage } from './page';
 import { mountSpecBar } from './spec_bar';
 import { echoLevelFromSong } from '@thoremin/games/spec';
@@ -33,7 +33,7 @@ mountGamePage<EchoView>({
   canvas: $<HTMLCanvasElement>('stage'),
   startButton: $<HTMLButtonElement>('start'),
   analysers: ONSET_ANALYSERS,
-  session: (start) => {
+  session: (start, _ctx, inputStage) => {
     // An opened song is the rhythm; a spec's settings (tempo, stacking, pass mark) apply to either.
     const s = spec.settings();
     const song = spec.song();
@@ -41,7 +41,7 @@ mountGamePage<EchoView>({
     return createEchoSession(level, {
       start,
       windows: ONSET_WINDOWS[difficultySel.value as Difficulty],
-      offset: readOffset()?.offset ?? 0,
+      offset: offsetFor(readOffset(), inputStage.seconds),
       clickWhileAnswering: clickAnswer.checked,
       ...(s.passAt !== undefined ? { passAt: s.passAt } : {}),
       ...(s.retries !== undefined ? { retries: s.retries } : {}),

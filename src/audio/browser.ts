@@ -3,8 +3,9 @@
  * loaded once per context, the three sources (`microphone` with processing off unless every
  * lease asks, `replay` a decoded file looped, `synthetic` seeded modal taps looped) and the
  * `?audio.source=` override. It knows nothing of the app shell: the page says which
- * AudioContext and which destination (`BrowserAudioOutput`), and where a measured input stage
- * is kept, if anywhere.
+ * AudioContext and which destination (`BrowserAudioOutput`). The measured input stage is this
+ * device's record (`@thoremin/sdk-ui/audio/inputStage`, #881), the same for the app and every
+ * page on the origin, unless the page says otherwise.
  *
  * The app installs one over its engine's context (`src/app/audio/index.ts`); a standalone game
  * page makes its own over a context of its own (`play/`), and so pulls in this, the hub
@@ -13,6 +14,7 @@
 import workletUrl from './audio_in.worklet.ts?worker&url';
 import { synthTake } from '@thoremin/sdk/audio/synthetic_taps';
 import { AUDIO_SOURCES, createAudioInputHub, type AudioInputHub, type AudioSourceKind, type HubDeps, type OpenedInput, type WorkletNodeLike } from '@thoremin/sdk-ui/audio/hub';
+import { storedInputStage } from '@thoremin/sdk-ui/audio/inputStage';
 import type { InputStage } from '@thoremin/sdk/timing/input_stage';
 
 export interface BrowserAudioOutput {
@@ -23,7 +25,8 @@ export interface BrowserAudioOutput {
 }
 
 export interface BrowserAudioInputOptions {
-  /** A measured input stage kept by the page, or null (the hub falls back to the prior). */
+  /** The measured input stage, or null (the hub falls back to the reported one, then the prior).
+   *  Default: this device's stored record. */
   storedInputStage?: () => InputStage | null;
 }
 
@@ -119,7 +122,7 @@ export function browserHubDeps(output: BrowserAudioOutput, options: BrowserAudio
       const v = new URLSearchParams(window.location.search).get('audio.source');
       return v && (AUDIO_SOURCES as readonly string[]).includes(v) ? (v as AudioSourceKind) : null;
     },
-    storedInputStage: options.storedInputStage ?? (() => null),
+    storedInputStage: options.storedInputStage ?? storedInputStage,
   };
 }
 

@@ -3,11 +3,11 @@
  * over the app's one AudioContext, which `useEngine` creates on the first gesture and announces
  * here through {@link provideAudioOutput}; until then a lease waits. Its output goes to the
  * master gain, so the instrument's volume and mute apply to a triggered sample. The measured
- * input stage is the app's persisted record (`./inputStage.ts`). `?audio.source=` forces a source.
+ * input stage is the device's persisted record (`./inputStage.ts`, the browser hub's default, which
+ * the standalone pages share). `?audio.source=` forces a source.
  */
 import { createBrowserAudioInput } from '@/audio/browser';
 import { provideAudioInput, type ContextLike } from '@thoremin/sdk-ui/audio/hub';
-import { storedInputStage } from './inputStage';
 
 export type { AudioInputHub, AudioInputLease, AudioSourceKind, HubStatus, LeaseEvent } from '@thoremin/sdk-ui/audio/hub';
 
@@ -17,7 +17,7 @@ export const AUDIO_INPUT_RESOURCE_KEY = 'audioInput';
 let output: { audio(): AudioContext | undefined; destination(): AudioNode | undefined } = { audio: () => undefined, destination: () => undefined };
 
 /** The page's one hub, installed for the extensions (`audioInput()` in `@thoremin/sdk-ui/audio/hub`). */
-export const audioInput = createBrowserAudioInput({ audio: () => output.audio(), destination: () => output.destination() }, { storedInputStage });
+export const audioInput = createBrowserAudioInput({ audio: () => output.audio(), destination: () => output.destination() });
 provideAudioInput(audioInput);
 
 /** Called by the engine host once its AudioContext and master gain exist. */

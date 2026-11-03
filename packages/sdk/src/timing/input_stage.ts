@@ -14,6 +14,10 @@
  *   rhythm literature's negative mean asynchrony, so it is the least trusted measurement);
  * - `reported`: the track's own `latency` setting;
  * - `prior`: a stated default, flagged, never 0 (a 0 would claim a precision nobody measured).
+ *
+ * A loopback take (#881) measures the stage it CORRECTS: its heard times were already moved back
+ * by the stage in force, so what it finds is a residual, and {@link inputStageFromLoopback} adds
+ * that residual to the stage in force after taking out the output stage the browser reports.
  */
 
 export type InputStageSource = 'measured' | 'loopback' | 'tap' | 'reported' | 'prior';
@@ -22,6 +26,10 @@ export interface InputStage {
   seconds: number;
   source: InputStageSource;
 }
+
+/** The largest input stage a device may keep, seconds: the stored record's bound (longer is a fault
+ *  in the take, never a microphone). */
+export const MAX_INPUT_STAGE_S = 1;
 
 /** Trust order, most trusted first. */
 export const INPUT_STAGE_TRUST: readonly InputStageSource[] = ['measured', 'loopback', 'tap', 'reported', 'prior'];
@@ -49,4 +57,39 @@ export function chooseInputStage(candidates: readonly (InputStage | null | undef
  */
 export function heardAtContextTime(frame: number, sampleRate: number, stage: InputStage): number {
   return frame / sampleRate - stage.seconds;
+}
+
+export interface LoopbackStageInputs {
+  /** The take's median of heard minus scheduled, seconds, its heard times already moved back by `current`. */
+  residual: number;
+  /** The input stage in force during the take (what the heard times were corrected by). */
+  current: InputStage;
+  /** The output stage the browser reports, seconds (scheduled to speaker), or null when it reports
+   *  none: then the take is refused, since the round trip cannot be split into its two halves (a
+   *  stage carrying the output stage would outrank `reported` and misalign the microphone with the
+   *  camera in every graph that reads both). */
+  outputStage: number | null;
+}
+
+/** What a loopback take sets: a stage, or why it sets none (the stage in force is kept). */
+export type LoopbackStage = { stage: InputStage; refusal: null } | { stage: null; refusal: string };
+
+/**
+ * The input stage a loopback take measured. A click scheduled at `t` leaves the speaker at
+ * `t + output`, reaches the input stamped at `t + output + input`, and was read at that stamp
+ * minus `current`; so `input = current + residual - output`. Refused when the browser reports no
+ * output stage, when the round trip heard (`current + residual`) is negative (each click was paired
+ * with the next one's echo: an output slower than the take can tell, a Bluetooth speaker), when the
+ * reported output stage is longer than that round trip, or past {@link MAX_INPUT_STAGE_S}.
+ */
+export function inputStageFromLoopback({ residual, current, outputStage }: LoopbackStageInputs): LoopbackStage {
+  if (!Number.isFinite(residual)) return { stage: null, refusal: 'no residual was measured' };
+  const ms = (x: number) => `${Math.round(x * 1000)} ms`;
+  const roundTrip = current.seconds + residual;
+  if (roundTrip < 0) return { stage: null, refusal: 'the output is too slow to measure (Bluetooth?): each click was heard nearer the next one' };
+  if (outputStage === null) return { stage: null, refusal: `the browser reports no output stage, so the round trip heard (${ms(roundTrip)}) cannot be split into the speaker's and the microphone's shares` };
+  const seconds = roundTrip - outputStage;
+  if (seconds < 0) return { stage: null, refusal: `the round trip heard (${ms(roundTrip)}) is shorter than the output stage reported (${ms(outputStage)})` };
+  if (seconds > MAX_INPUT_STAGE_S) return { stage: null, refusal: `an input stage of ${ms(seconds)} is past the ${ms(MAX_INPUT_STAGE_S)} a device may keep` };
+  return { stage: { seconds, source: 'loopback' }, refusal: null };
 }

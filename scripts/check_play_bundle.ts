@@ -5,6 +5,7 @@
  * from the bundle, and fails unless every module a page loads up front (its entry chunk and the
  * chunks that imports statically) is under one of {@link ALLOWED}: the games, the judge and its
  * statistics, the SDK's pure audio and timing modules, the audio-input hub and its browser half,
+ * this device's input-stage record (a vanilla store; its persistence loads on demand),
  * and the page's own code (no Zod: the shipped lessons are built without it). So a page that reached the graph engine, React, the hot store, a
  * camera model or an extension fails here, by name, with the import chain that pulled it in.
  * It also prints each page's minified-by-the-build size, and fails past {@link BUDGET_BYTES}.
@@ -30,11 +31,17 @@ export const ALLOWED: readonly string[] = [
   'packages/stats/src/',
   'packages/sdk/src/audio/',
   'packages/sdk/src/timing/input_stage.ts',
+  // The output stage the browser reports (pure; the Audio timing page's loopback take subtracts it).
+  'packages/sdk/src/timing/output_stage.ts',
   // The song model and its note text (pure: arithmetic and a type import of the score schema).
   'packages/sdk/src/score/song.ts',
   'packages/sdk-ui/src/audio/',
   // The listening gate the hub asks (a dozen lines, no imports).
   'packages/sdk-ui/src/listening.ts',
+  // This device's input stage, the record the camera app shares (#881): a vanilla zustand store and a
+  // hand-checked record. Its persistence (the host's storage seam, the zodal providers) is a dynamic
+  // import from its hydration, so it is not part of a page's entry.
+  'node_modules/zustand/',
 ];
 
 /**
@@ -51,7 +58,6 @@ export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; 
       'packages/sdk-ui/src/storage.ts',
       'packages/sdk/src/util/ids.ts',
       'node_modules/zod/',
-      'node_modules/zustand/',
       'node_modules/@zodal/store/',
       'node_modules/@zodal/store-localstorage/',
     ],
@@ -66,7 +72,9 @@ export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; 
  * stages and its game, 40 to 65 kB; what this guards against is the app (megabytes) leaking in.
  * Raised again to 90 kB when every page gained the import and export bar (`play/src/spec_bar.ts`,
  * its spec helpers and Vite's dynamic-import helper: about 11 kB rendered; formatcast, Zod and
- * the parsers stay behind its dynamic import). Vowels, the largest, is 82 kB.
+ * the parsers stay behind its dynamic import). Vowels, the largest, is 82 kB. Every page also reads
+ * this device's input stage (#881): the store and vanilla zustand are in the entry (about 4 kB), its
+ * persistence (the storage seam and the zodal providers, about 14 kB) a chunk loaded on hydration.
  */
 export const BUDGET_BYTES = 90_000;
 

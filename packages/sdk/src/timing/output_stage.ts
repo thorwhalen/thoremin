@@ -125,3 +125,13 @@ export function readOutputStage(ac: OutputStageAudioLike, nowMs: number, options
     ...options,
   });
 }
+
+/**
+ * The output stage the browser REPORTS for one context, seconds, or null when it reports nothing
+ * (the rule fell back to its prior). For a take that subtracts the output stage from a measured
+ * round trip (the loopback timing take, #881): a stated prior must not pass for a measurement there.
+ */
+export function reportedOutputStage(ac: OutputStageAudioLike, nowMs: number): number | null {
+  const o = readOutputStage(ac, nowMs);
+  return o.source === 'prior' ? null : o.value;
+}

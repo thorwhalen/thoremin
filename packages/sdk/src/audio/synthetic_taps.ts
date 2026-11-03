@@ -165,3 +165,58 @@ export function synthTake(options: TakeOptions): Take {
   for (let i = 0; i < pcm.length; i++) pcm[i] += o.noise * (2 * rand() - 1) + o.hum * Math.sin((2 * Math.PI * 50 * i) / sr);
   return { sampleRate: sr, pcm, taps };
 }
+
+export interface LoopbackOptions {
+  sampleRate: number;
+  /** Seconds from a sound's scheduled context time to its first sample at the input: the output
+   *  stage plus the input stage, the round trip a loopback take measures. */
+  delayS: number;
+  /** What the speaker plays for each sound (default: a bright, short surface, a click's attack). */
+  surface?: Surface;
+  /** Peak level of each sound at the input. */
+  level?: number;
+  /** The room: white noise, peak level. */
+  noise?: number;
+  seed?: number;
+}
+
+export interface SyntheticLoopback {
+  /** A sound the page scheduled at context time `t` (s); the input hears it `delayS` later. */
+  schedule(t: number): void;
+  /** The input from context frame `from` (inclusive) to `to` (exclusive). */
+  read(from: number, to: number): Float32Array;
+}
+
+/** The surface a loopback click is heard as by default: the mug's, short and bright. */
+const LOOPBACK_SURFACE = SURFACES[3];
+const LOOPBACK_LEVEL = 0.4;
+const LOOPBACK_NOISE = 0.001;
+
+/**
+ * A microphone hearing the page's own speaker, with a KNOWN round trip (#881): the ground truth
+ * for the loopback timing take. Each scheduled sound reaches the input exactly `delayS` after
+ * its context time, in a quiet room. Read in order, block by block, as the audio thread would.
+ */
+export function createSyntheticLoopback(options: LoopbackOptions): SyntheticLoopback {
+  const sr = options.sampleRate;
+  const rand = seededRandom(options.seed ?? 1);
+  const surface = options.surface ?? LOOPBACK_SURFACE;
+  const level = options.level ?? LOOPBACK_LEVEL;
+  const noise = options.noise ?? LOOPBACK_NOISE;
+  const sounds: { frame: number; pcm: Float32Array }[] = [];
+  return {
+    schedule(t) {
+      sounds.push({ frame: Math.round((t + options.delayS) * sr), pcm: synthTap(surface, rand, { sampleRate: sr, level }) });
+    },
+    read(from, to) {
+      const out = new Float32Array(Math.max(0, to - from));
+      for (let i = 0; i < out.length; i++) out[i] = noise * (2 * rand() - 1);
+      for (const s of sounds) {
+        const lo = Math.max(from, s.frame);
+        const hi = Math.min(to, s.frame + s.pcm.length);
+        for (let f = lo; f < hi; f++) out[f - from] += s.pcm[f - s.frame];
+      }
+      return out;
+    },
+  };
+}
