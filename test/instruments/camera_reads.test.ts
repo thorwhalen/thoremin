@@ -51,6 +51,7 @@ describe('branchReadsCamera', () => {
 
   it('the camera models declare that they read the video; the finished-frame sources do not', () => {
     const reads = (t: string) => readsResource(registry, t, VIDEO_RESOURCE_KEY);
+    expect(reads('not-a-node')).toBe(false);
     expect(reads('webcam-hands')).toBe(true);
     expect(reads('webcam-face')).toBe(true);
     for (const t of ['synthetic-hands', 'replay-hands', 'no-hands', 'canvas-overlay']) expect(reads(t), t).toBe(false);
@@ -137,17 +138,17 @@ describe('liveReadsCamera (the host\'s reading of the hot store)', () => {
   };
 
   it('the default instrument reads it', () => {
-    expect(liveReadsCamera(useControls.getState(), new Set())).toBe(true);
+    expect(liveReadsCamera(useControls.getState(), NODES, new Set())).toBe(true);
   });
 
   it('an instrument that only listens does not', () => {
-    expect(liveReadsCamera(listening(), new Set())).toBe(false);
+    expect(liveReadsCamera(listening(), NODES, new Set())).toBe(false);
   });
 
   it('the hand voices read it with the video and the skeleton hidden: they are a branch, never the trunk', () => {
     // The review's scenario: a hand theremin with nothing drawn from the camera still plays from it.
     const s = listening();
-    expect(liveReadsCamera({ ...s, handMap: { ...s.handMap, maxGain: initial.handMap.maxGain } }, new Set())).toBe(true);
+    expect(liveReadsCamera({ ...s, handMap: { ...s.handMap, maxGain: initial.handMap.maxGain } }, NODES, new Set())).toBe(true);
   });
 
   it('every seed this build ships that plays from a camera reads it with the video and skeleton hidden', () => {
@@ -163,24 +164,24 @@ describe('liveReadsCamera (the host\'s reading of the hot store)', () => {
       // A seed whose voices the camera drives: a hand voice, a face mapping, or any composed
       // branch that reads it. The listening games (lab build) compose none, and are the exception.
       if ((st as unknown as Record<string, { enabled?: boolean }>).games?.enabled) continue;
-      expect(liveReadsCamera(silent(st), new Set()), seed.name).toBe(true);
+      expect(liveReadsCamera(silent(st), NODES, new Set()), seed.name).toBe(true);
     }
   });
 
   it.runIf(BODY)('body tracking reads it through the webcam, and not through a synthetic body (`?slot.body=`, #960)', () => {
     const base = listening() as unknown as Record<string, unknown>;
     const s = { ...base, body: { ...(base.body as object), enabled: true } } as unknown as ReturnType<typeof useControls.getState>;
-    expect(liveReadsCamera(s, new Set())).toBe(true);
-    expect(liveReadsCamera(s, new Set(), { nodes: cameraNodes({ body: 'synthetic-body' }, registry) })).toBe(false);
+    expect(liveReadsCamera(s, NODES, new Set())).toBe(true);
+    expect(liveReadsCamera(s, cameraNodes({ body: 'synthetic-body' }, registry), new Set())).toBe(false);
   });
 
   it('a face mapping, the video, the skeleton, gestures or a tool\'s claim each make it read', () => {
     const s = listening();
-    expect(liveReadsCamera({ ...s, faceMapping: 'chord' }, new Set())).toBe(true);
-    expect(liveReadsCamera({ ...s, overlay: { ...s.overlay, video: { ...s.overlay.video, show: true } } }, new Set())).toBe(true);
-    expect(liveReadsCamera({ ...s, overlay: { ...s.overlay, landmarks: { show: true } } }, new Set())).toBe(true);
-    expect(liveReadsCamera({ ...s, gestures: { ...s.gestures, enabled: true } }, new Set())).toBe(true);
-    expect(liveReadsCamera(s, new Set([HAND_GROUP_IDS[0]]))).toBe(true);
+    expect(liveReadsCamera({ ...s, faceMapping: 'chord' }, NODES, new Set())).toBe(true);
+    expect(liveReadsCamera({ ...s, overlay: { ...s.overlay, video: { ...s.overlay.video, show: true } } }, NODES, new Set())).toBe(true);
+    expect(liveReadsCamera({ ...s, overlay: { ...s.overlay, landmarks: { show: true } } }, NODES, new Set())).toBe(true);
+    expect(liveReadsCamera({ ...s, gestures: { ...s.gestures, enabled: true } }, NODES, new Set())).toBe(true);
+    expect(liveReadsCamera(s, NODES, new Set([HAND_GROUP_IDS[0]]))).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * When a refused camera is asked for again (#960, `watchCameraRetry`): on the permission turning
- * `granted` and on the page shown again, never while the permission is known to be denied, never
+ * `granted`, and once on the page shown again, never while the permission is known to be denied, never
  * on a timer, and never after the watch is uninstalled. The page and the Permissions API are
  * fakes, so the events are the test's own.
  */
@@ -24,7 +24,7 @@ function fakePermissions(initial: PermissionState) {
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('watchCameraRetry', () => {
-  it('asks again when the page is shown, not when it is hidden', () => {
+  it('asks again when the page is shown, not when it is hidden, and only once (a request that could prompt)', () => {
     const retry = vi.fn();
     const { page, show } = fakePage();
     watchCameraRetry(retry, { page, permissions: undefined });
@@ -32,6 +32,23 @@ describe('watchCameraRetry', () => {
     expect(retry).not.toHaveBeenCalled();
     show('visible');
     expect(retry).toHaveBeenCalledTimes(1);
+    show('hidden');
+    show('visible');
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('the permission granted asks again every time, also after the page show was spent (it cannot prompt)', async () => {
+    const retry = vi.fn();
+    const { page, show } = fakePage();
+    const { permissions, set } = fakePermissions('prompt');
+    watchCameraRetry(retry, { page, permissions });
+    await settle();
+    show();
+    expect(retry).toHaveBeenCalledTimes(1);
+    set('granted');
+    set('prompt');
+    set('granted');
+    expect(retry).toHaveBeenCalledTimes(3);
   });
 
   it('asks again when the permission is granted, and not on the page while it is denied', async () => {

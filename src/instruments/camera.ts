@@ -43,6 +43,7 @@ import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { demandWantsBody, demandWantsFace } from '@thoremin/sdk/features/sources';
 import { branchHands, shellReadsHands, type HandCountContext } from './hands';
 import { branchNodeType } from './compose';
+import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 
 /** What the shell reads of the camera, beside the instrument's branches: the hand count's
  *  readers, plus the video backdrop. */
@@ -60,15 +61,17 @@ export interface CameraNodes {
   /** The type each slot holds, as the host composes it while the camera is closed: the hand
    *  source idled, every other slot as selected (or its default). A slot not listed reads nothing. */
   slots: Readonly<Record<string, string>>;
-  /** Whether a node of this type reads the camera's video. */
-  readsVideo: (type: string) => boolean;
+  /** Whether a node of this type reads the host resource `key` (its `reads` declaration). Asked
+   *  here for the video; the same facts answer for any resource (the microphone's), so another
+   *  derivation reuses them unchanged. */
+  reads: (type: string, key: string) => boolean;
 }
 
 /** Whether one branch places a node that reads the camera's video (a camera model). */
 export function branchRunsCameraModel(branch: GraphBranch, nodes: CameraNodes): boolean {
   return branch.nodes.some((n) => {
     const type = branchNodeType(n, nodes.slots);
-    return !!type && nodes.readsVideo(type);
+    return !!type && nodes.reads(type, VIDEO_RESOURCE_KEY);
   });
 }
 

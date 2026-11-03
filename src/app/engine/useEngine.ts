@@ -174,7 +174,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // camera model counts by its node's own declaration, a slot node as THIS selection fills it
   // (#960: `?slot.body=synthetic-body` reads no camera).
   const nodes = useMemo(() => cameraNodes(slots, declaredAppRegistry()), [slotsKey]);
-  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, demanded, { nodes })));
+  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, nodes, { demanded })));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
   const readsCameraRef = useRef(readsCamera);
@@ -187,8 +187,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // stream; null before it runs and after teardown. `cameraOpeningRef` holds a request in flight.
   const openCameraRef = useRef<(() => Promise<boolean>) | null>(null);
   const cameraOpeningRef = useRef<Promise<void> | null>(null);
-  // Armed while a late open was refused (#960): the uninstall of the watch that asks again when
-  // the permission is granted or the page is shown again (`./cameraRetry`); null otherwise.
+  // Armed by the refusal of a request the player caused (#960): the uninstall of the watch that
+  // asks again when the permission is granted, or once when the page is shown again
+  // (`./cameraRetry`); null otherwise.
   const cameraRetryRef = useRef<(() => void) | null>(null);
   const disarmCameraRetry = () => {
     cameraRetryRef.current?.();
@@ -214,10 +215,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
    * Open the camera when something reads it, the source slot is the camera's and it is not open
    * yet, then re-wire so the hand source swaps in (#869). The engine keeps playing throughout; a
    * camera that cannot open (refused, absent) is said in a toast and the instrument plays on
-   * without it. It is asked for again (#960) the next time a reader appears, when the reader set
-   * changes, and on the events after which a refusal may have turned (`watchCameraRetry`); those
-   * retries are `quiet`: the toast was said once, for the request the player caused. Reads only
-   * refs, so a closure from any render does the same.
+   * without it. It is asked for again (#960) the next time a reader appears, and on the events
+   * after which a refusal may have turned (`watchCameraRetry`: the permission granted, the page
+   * shown once). Those retries are `quiet`: the toast was said once, and only the refusal of a
+   * request the player caused arms a fresh watch, so a retry's own refusal never re-arms one and
+   * nothing prompts in a loop. Reads only refs, so a closure from any render does the same.
    */
   const requestCamera = ({ quiet = false }: { quiet?: boolean } = {}) => {
     const open = openCameraRef.current;
@@ -238,8 +240,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .catch((e: unknown) => {
         if (engineRef.current !== engine) return;
         console.error('[thoremin] could not open the camera', e);
-        cameraRetryRef.current ??= watchCameraRetry(() => requestCamera({ quiet: true }));
         if (quiet) return;
+        disarmCameraRetry();
+        cameraRetryRef.current = watchCameraRetry(() => requestCamera({ quiet: true }));
         const why = e instanceof Error ? e.message : String(e);
         useToasts.getState().push(`Could not open the camera (${why}). This instrument reads it; it plays on without it.`, CAMERA_FAILURE_TOAST_MS, 'error');
       })
@@ -610,8 +613,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const registry = registryRef.current;
     if (!engine || !registry) return;
     rewire(engine, registry);
-    // A reader that changed while a refused camera is still wanted asks for it again (#960).
-    if (cameraRetryRef.current) requestCamera({ quiet: true });
   }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.

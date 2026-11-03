@@ -26,6 +26,9 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   useControls.setState(initial, true);
+  // The page's visibility and the Permissions API a test stubbed on the instances: back to jsdom's.
+  delete (document as { visibilityState?: unknown }).visibilityState;
+  delete (navigator as { permissions?: unknown }).permissions;
 });
 
 /** Make the hot store an instrument that only listens: nothing composed or drawn reads the camera. */
@@ -106,13 +109,17 @@ describe('an instrument that reads no camera', () => {
     await waitFor(() => expect(getUserMedia).toHaveBeenCalled(), { timeout: 4000 });
   });
 
-  it('asks again when the page is shown after a refusal, quietly, and the hand source goes live once granted (#960)', async () => {
+  it('asks once more when the page is shown after a refusal, quietly, never again on a later show or a branch change, and goes live once granted (#960)', async () => {
     listenOnly();
     const getUserMedia = stubMissingCamera() as Mock<(c?: MediaStreamConstraints) => Promise<MediaStream>>;
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    // The Permissions API, whose camera status the player turns to granted (a request then cannot prompt).
+    const permission = Object.assign(new EventTarget(), { state: 'prompt' as PermissionState, name: 'camera', onchange: null });
+    Object.defineProperty(navigator, 'permissions', { value: { query: async () => permission }, configurable: true });
     const showPage = () => act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    const settle = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
     const cameraToasts = () => useToasts.getState().toasts.filter((t) => /camera/i.test(t.message)).length;
     useToasts.setState({ toasts: [] });
     const seen: Seen = {};
@@ -124,21 +131,33 @@ describe('an instrument that reads no camera', () => {
     await waitFor(() => expect(cameraToasts()).toBe(1), { timeout: 4000 });
     expect(getUserMedia).toHaveBeenCalledTimes(1);
 
-    // The page shown while still refused: one more request, no toast, and no loop after it.
+    // Two page-shows while still refused: ONE more request (it could prompt), no toast, no loop.
     showPage();
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2), { timeout: 4000 });
-    await new Promise((r) => setTimeout(r, 200));
+    await settle(100);
+    showPage();
+    await settle(200);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
     expect(cameraToasts()).toBe(1);
-    expect(handsStatus()?.phase).toBe('off');
 
-    // The player grants it in the browser and comes back: the camera opens, the source goes live.
+    // A branch change while the camera is still wanted (the hand voices off, the video still
+    // shown) asks for nothing.
+    act(() => useControls.setState((st) => ({ handMap: { ...st.handMap, maxGain: 0 } })));
+    await settle(200);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(handsStatus()?.phase).toBe('off');
+    act(() => useControls.setState((st) => ({ handMap: { ...st.handMap, maxGain: initial.handMap.maxGain } })));
+
+    // The player grants it in the browser: the camera opens, the source goes live, no new toast.
     const video = container.querySelector('video')!;
     getUserMedia.mockImplementation(async () => {
       setTimeout(() => video.onloadedmetadata?.(new Event('loadedmetadata')), 0);
       return { getTracks: () => [], getVideoTracks: () => [] } as unknown as MediaStream;
     });
-    showPage();
+    act(() => {
+      permission.state = 'granted';
+      permission.dispatchEvent(new Event('change'));
+    });
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(3), { timeout: 4000 });
     await waitFor(() => expect(handsStatus()?.phase).toBeDefined(), { timeout: 4000 });
     await waitFor(() => expect(handsStatus()?.phase).not.toBe('off'), { timeout: 4000 });
@@ -147,7 +166,7 @@ describe('an instrument that reads no camera', () => {
 
     // Open now: the page shown again asks for nothing.
     showPage();
-    await new Promise((r) => setTimeout(r, 100));
+    await settle(100);
     expect(getUserMedia).toHaveBeenCalledTimes(3);
   });
 });

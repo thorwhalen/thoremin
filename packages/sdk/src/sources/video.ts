@@ -14,4 +14,4 @@
 export const VIDEO_RESOURCE_KEY = 'video';
 
 /** What a camera model declares: `defineNode({ ..., reads: READS_VIDEO })`. */
-export const READS_VIDEO: readonly string[] = Object.freeze([VIDEO_RESOURCE_KEY]);
+export const READS_VIDEO = Object.freeze([VIDEO_RESOURCE_KEY] as const);

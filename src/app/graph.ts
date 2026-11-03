@@ -27,7 +27,6 @@
  * single input port is disallowed, which is why every voice goes through `synth-merge`.
  */
 import { readsResource, type GraphSpec, type NodeRegistry, type Role } from '@thoremin/dag';
-import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import type { CameraNodes } from '@/instruments/camera';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
@@ -204,7 +203,9 @@ export function sourceSelectionFor(selection: SlotSelection, { video }: { video:
 export function cameraNodes(selection: SlotSelection, registry: NodeRegistry): CameraNodes {
   return {
     slots: resolveSlots(sourceSelectionFor(selection, { video: false }), registry),
-    readsVideo: (type) => readsResource(registry, type, VIDEO_RESOURCE_KEY),
+    // A lazy type not loaded yet (`undefined`) reads as nothing: no camera model may be lazy
+    // (`test/instruments/camera_reads.test.ts`), so for the video that answer is exact.
+    reads: (type, key) => readsResource(registry, type, key) === true,
   };
 }
 

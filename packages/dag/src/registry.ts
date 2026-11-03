@@ -170,13 +170,16 @@ export class NodeRegistry {
 
 /**
  * Whether the node type `type` declares that it reads the host resource `key`
- * ({@link NodeDef.reads}). False for a type the registry does not know, and for a lazily
- * declared type whose code is not loaded yet: its definition, and so its declaration, is not
- * there until {@link NodeRegistry.ensure} loads it. Ask the registry the graph is built against,
- * which has loaded every type the graph names.
+ * ({@link NodeDef.reads}): `true` or `false` for a loaded type, `false` for a type the registry
+ * does not know (no such node reads anything), and `undefined` for a lazily declared type whose
+ * code is not loaded yet: its definition, and so its declaration, is not there until
+ * {@link NodeRegistry.ensure} loads it, and "not known yet" must not read as "does not read".
+ * The caller decides what an unknown answer means; the registry a graph is built against has
+ * loaded every type the graph names, so it never answers `undefined` for one.
  */
-export function readsResource(registry: Pick<NodeRegistry, 'has' | 'pending' | 'get'>, type: string, key: string): boolean {
-  if (!registry.has(type) || registry.pending([type]).length > 0) return false;
+export function readsResource(registry: Pick<NodeRegistry, 'has' | 'pending' | 'get'>, type: string, key: string): boolean | undefined {
+  if (!registry.has(type)) return false;
+  if (registry.pending([type]).length > 0) return undefined;
   return registry.get(type).reads?.includes(key) === true;
 }
 

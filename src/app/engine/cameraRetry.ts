@@ -7,18 +7,21 @@
  * permission in the browser had to switch instruments to get the camera; the request was never
  * repeated on its own.
  *
- * When. Only on an event that can change the answer, never on a timer, so a camera that stays
- * refused is never asked for in a loop:
+ * When. Only on an event that can change the answer, never on a timer:
  *
  *  - the camera permission turning `granted` (the Permissions API, where the browser has it: the
- *    player allowed it from the address bar, which does not hide the page);
+ *    player allowed it from the address bar, which does not hide the page). A request then cannot
+ *    prompt, so this trigger stays armed for the watch's life;
  *  - the page shown again (`visibilitychange` to visible: the player went to the browser's
  *    settings, or another tab, and came back), skipped while the permission is known to be
- *    `denied`, since asking then can only fail again.
+ *    `denied`. This one CAN prompt (where the permission is `prompt`, or unknown: Firefox rejects
+ *    the query), and a prompt dismissed again and again gets the camera embargoed by the browser
+ *    (Chrome blocks it for days after a few dismissals). So it fires ONCE per watch, then drops:
+ *    at most one prompt-capable retry per refusal.
  *
- * The host's "next reader change" retry is the third trigger; it lives where readers are known
- * (`useEngine`). The toast is not repeated by these retries: it was said once, for the request the
- * player caused.
+ * The host arms a fresh watch only on the refusal of a request the player caused (a reader
+ * appearing), never on a retry's own refusal, so nothing here can turn into a loop of prompts. The
+ * toast is not repeated by these retries: it was said once, for the request the player caused.
  *
  * Pure of React and of the engine: the page and the Permissions API are seams with the browser's
  * own as defaults, so a test drives the events itself.
@@ -54,7 +57,10 @@ export function watchCameraRetry(
     if (status?.state === 'granted') retry();
   };
   const onVisibility = () => {
-    if (page?.visibilityState === 'visible' && status?.state !== 'denied') retry();
+    if (page?.visibilityState !== 'visible' || status?.state === 'denied') return;
+    // The one prompt-capable retry: spent.
+    page.removeEventListener('visibilitychange', onVisibility);
+    retry();
   };
   page?.addEventListener('visibilitychange', onVisibility);
   // A browser that does not know the camera's permission name rejects the query: the page's
