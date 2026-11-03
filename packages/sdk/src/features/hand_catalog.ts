@@ -176,7 +176,10 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
  * wave it learned its unit from 1.8 %. 1 % is twice the largest real rest. A slow real sweep moves
  * only 0.35 % (`video_hand_sweep`), as little as a small hand jitters: no magnitude separates slow
  * motion from rest, so the ceiling catches a vigorous gesture only, and the estimator's re-warm cap
- * bounds a false alarm. Joint angles are not listed (no geometry scale to judge them by).
+ * bounds a false alarm. The extent mixes x (a fraction of the width) and y (of the height), and a 60 fps
+ * camera doubles the per-33-ms jitter: either can make the ceiling strict enough to redo a rest
+ * warm-up; the cap keeps that to two seconds and the lowest warm-up, a rest one, stands. Joint angles
+ * are not listed (no geometry scale to judge them by).
  */
 const GROUP_REST_JITTER: Record<string, number> = {
   'hand.position.raw': 0.01,

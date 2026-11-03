@@ -61,7 +61,8 @@ export interface SessionOptions {
   /** Passed through to every still-point sampler (dwell, held threshold, …). */
   sampler?: Omit<SamplerOptions, 'cue' | 'features' | 'noise'>;
   /** The noise estimator's options. Its `restCeiling` defaults to the catalog's (`restCeilingOf`,
-   *  #913: a hand's image positions); pass one that returns undefined to judge no warm-up. */
+   *  #913: a hand's image positions), also when passed as undefined; pass one that returns
+   *  undefined to judge no warm-up. */
   noise?: NoiseOptions;
   /**
    * Nuisance weighting scale, in noise units: the demonstrated spread at which a
@@ -176,7 +177,7 @@ function meanOf(vectors: readonly FeatureVector[]): FeatureVector | undefined {
 
 export function createSession(options: SessionOptions = {}): Session {
   const o = { ...DEFAULTS, ...definedOnly(options) };
-  const noise = createNoiseEstimator({ restCeiling: restCeilingOf, ...o.noise });
+  const noise = createNoiseEstimator({ ...o.noise, restCeiling: o.noise?.restCeiling ?? restCeilingOf });
   const groupOf = o.groupOf ?? defaultGroupOf;
   const allIds = o.allFeatureIds ?? defaultFeatureIds();
 
