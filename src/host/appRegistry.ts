@@ -54,18 +54,20 @@ export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIO
   return registry;
 }
 
-let declared: NodeRegistry | undefined;
+let page: NodeRegistry | undefined;
 
 /**
- * One app registry, built on first use, for reading what node types DECLARE (ports, roles, the
- * host resources they read) without an engine: what the host asks before it has built one, such
- * as whether the composed instrument reads the camera (#960). A declaration is static, the same in
- * every registry built from this extension list; a lazy extension's types read as declaring
- * nothing until loaded here, which is why a camera model may not be lazy
- * (`test/instruments/camera_reads.test.ts`).
+ * The page's one app registry, built on first use (#974): the live engine is built and re-wired
+ * against it, and the host reads what node types DECLARE from it (ports, roles, the host resources
+ * they read) before an engine exists, such as whether the composed instrument reads the camera
+ * (#960). One registry, not one per reader: a declaration is static, but a lazy extension's types
+ * declare nothing until loaded INTO a registry, so a second registry would keep reading them as
+ * unloaded after the engine's had loaded them (which is also why a camera model may not be lazy,
+ * `test/instruments/camera_reads.test.ts`). Built from {@link CONTRIBUTIONS}, this build's list;
+ * a caller with another list builds its own with {@link createAppRegistry}.
  */
-export function declaredAppRegistry(): NodeRegistry {
-  return (declared ??= createAppRegistry());
+export function pageAppRegistry(): NodeRegistry {
+  return (page ??= createAppRegistry());
 }
 
 /** {@link createAppRegistry} with every lazy extension's nodes loaded: for the scripts and tests

@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
-import { createAppRegistry, declaredAppRegistry } from '@/host/appRegistry';
+import { pageAppRegistry } from '@/host/appRegistry';
 import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
 import { cameraNodes, slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
@@ -136,7 +136,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // The registry the live engine was built against — `applyGraph` must resolve
   // node types against the SAME one, or a swap would compare against a different
   // set of definitions than the running graph was validated with.
-  const registryRef = useRef<ReturnType<typeof createAppRegistry> | null>(null);
+  const registryRef = useRef<NodeRegistry | null>(null);
 
   const [status, setStatus] = useState<EngineStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +173,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders. A
   // camera model counts by its node's own declaration, a slot node as THIS selection fills it
   // (#960: `?slot.body=synthetic-body` reads no camera).
-  const nodes = useMemo(() => cameraNodes(slots, declaredAppRegistry()), [slotsKey]);
+  const nodes = useMemo(() => cameraNodes(slots, pageAppRegistry()), [slotsKey]);
   const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, nodes, { demanded })));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
@@ -268,13 +268,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       try {
         setStatus('loading');
         const video = videoRef.current!;
-        // The registry is built first because the SOURCE SLOT decides whether the
+        // The registry comes first because the SOURCE SLOT decides whether the
         // host has anything to acquire at all. A finished-frame source (replay /
         // synthetic) produces its own frames and reads no video, so asking for a
         // camera would be asking for hardware the run does not use — and on a
         // machine without one it would fail the whole boot before the engine was
-        // ever constructed.
-        const registry = createAppRegistry();
+        // ever constructed. It is the page's one registry (#974): the camera
+        // derivation above reads the same one, so a lazy type this engine loads is
+        // loaded for it too, and a rebuild never builds another.
+        const registry = pageAppRegistry();
         registryRef.current = registry;
         // A restored instrument that plays a lazy extension: start fetching its code now, beside
         // the camera and the hand model; the build below awaits the same (shared) load.
