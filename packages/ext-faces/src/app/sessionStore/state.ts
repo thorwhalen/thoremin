@@ -22,7 +22,6 @@ import type { FaceSource } from '../sources';
 import type { FrameOpener, ThumbStore } from '../thumbnails';
 import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import { MAX_CATEGORY_SLOTS } from '../../schema';
-import { GESTURE_TAKE_DEFAULTS } from '../../lib/gestureTake';
 
 export type FacePhase =
   /** Nothing recorded; the saved list and Record. */
@@ -391,8 +390,6 @@ export const FACE_SESSION_DEFAULTS = {
   burstStillAfter: 3,
   /** The rest ring (#403) moves in steps of this much (0..1). */
   restProgressStep: 0.05,
-  /** The repetitions a gesture take asks for (#754; `GESTURE_TAKE_DEFAULTS`). */
-  gestureRepetitions: GESTURE_TAKE_DEFAULTS.repetitions,
   /** During the rest, a frame this far from the rest so far (`FaceTake.restMotion`: noise units,
    *  its largest feature off the rest frames' median) is movement: "stay relaxed". The recorded
    *  face's still rest reaches about 12, its smile 100 (the range floor's ceiling). */

@@ -124,7 +124,10 @@ function GestureRow({ g, others, s }: { key?: string; g: GestureCard; others: re
 export function GesturesSection({ s }: { s: FaceSessionState }) {
   const [name, setName] = useState('');
   const working = s.working;
-  const cards = useMemo(() => (working ? gestureCards(working) : []), [working]);
+  // Keyed on the gestures alone (all `gestureCards` reads): a hold dragged in the grid makes a new
+  // working categorizer, and must not rerun the gestures' leave-one-out quality.
+  const gestures = working?.gestures;
+  const cards = useMemo(() => gestureCards({ gestures }), [gestures]);
   if (!working || !recordsGestures(s.modality)) return null;
   const { part } = s.modality.words;
   const start = () => {

@@ -56,7 +56,7 @@ export interface GestureCard {
 }
 
 /** Every gesture's sketches and chip (none without a `gestures` section). */
-export function gestureCards(c: PersonalCategorizer, { sketchPoints = GESTURE_VIEW_DEFAULTS.sketchPoints }: { sketchPoints?: number } = {}): GestureCard[] {
+export function gestureCards(c: Pick<PersonalCategorizer, 'gestures'>, { sketchPoints = GESTURE_VIEW_DEFAULTS.sketchPoints }: { sketchPoints?: number } = {}): GestureCard[] {
   const items = c.gestures?.items ?? [];
   if (items.length === 0) return [];
   const quality = qualityOf(c);
@@ -79,7 +79,7 @@ export function gestureCards(c: PersonalCategorizer, { sketchPoints = GESTURE_VI
 }
 
 /** The quality of every stored gesture, in each one's own space; null when it cannot be read. */
-function qualityOf(c: PersonalCategorizer): GestureSetQuality | null {
+function qualityOf(c: Pick<PersonalCategorizer, 'gestures'>): GestureSetQuality | null {
   const space = gestureSpace(c);
   try {
     return gestureQuality(gestureTraces(c), { features: space.features, weights: space.weights, featuresOf: space.featuresOf, shapes: space.shapes });

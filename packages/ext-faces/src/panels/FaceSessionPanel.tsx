@@ -60,8 +60,6 @@ const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11p
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
 const hint = 'text-[11px] leading-relaxed text-white/60';
 
-export { STRANGERS_TEXT, strangersSummary, strangersText } from './Strangers';
-
 function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const view = s.view!;
   const words = s.modality.words;

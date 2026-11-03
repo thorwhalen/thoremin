@@ -32,6 +32,7 @@ import { PersonalCategorizerSchema, type CategorizerGesture, type CategorizerGes
 import type { FeatureWeights, Trace } from '../types';
 import { fromStoredTrace, gestureSection, toStoredTrace } from './file';
 import type { GestureShape } from './matcher';
+import { GESTURE_QUALITY_DEFAULTS } from './quality';
 
 /** What every verb returns (the sorting verbs' shape). */
 export type GestureEdit = { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string };
@@ -150,13 +151,27 @@ export function dropGestureTrace(c: PersonalCategorizer, id: string, traceId: st
 /**
  * Merge gesture `from` into `into`: every trace of both, under `into`'s id, name, features and
  * shape (a `from` trace re-projected onto them: a feature it never measured reads null). `from`
- * goes; a binding of it is not carried (it named `from`).
+ * goes; a binding of it is not carried (it named `from`). Refused when `from` measured under
+ * `minShared` of `into`'s features (the share the quality compares a pair on), so a merge never
+ * pools rows that are mostly holes.
  */
-export function mergeGestures(c: PersonalCategorizer, from: string, into: string): GestureEdit {
+export function mergeGestures(
+  c: PersonalCategorizer,
+  from: string,
+  into: string,
+  { minShared = GESTURE_QUALITY_DEFAULTS.minShared }: { minShared?: number } = {},
+): GestureEdit {
   const a = gestureOf(c, from);
   const b = gestureOf(c, into);
   if (!a || !b) return fail(`there is no gesture "${!a ? from : into}"`);
   if (a === b) return fail('a gesture cannot be merged into itself');
+  // The moved traces are re-projected onto the target's features: below the share the quality
+  // compares a pair on, their rows would be mostly (or all) holes, a repetition of nothing.
+  const own = new Set(a.features);
+  const shared = b.features.filter((f) => own.has(f)).length;
+  if (b.features.length === 0 || shared / b.features.length < minShared) {
+    return fail(`"${a.label}" and "${b.label}" are not measured on the same features, so their repetitions cannot be pooled; record more of one instead`);
+  }
   const moved = a.traces.map((t) => ({ ...toStoredTrace(fromStoredTrace(t, a.id, a.features), b.features), id: t.id }));
   return withGestures(c, {
     ...c.gestures!,
