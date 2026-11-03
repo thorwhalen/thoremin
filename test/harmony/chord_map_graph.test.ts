@@ -20,6 +20,7 @@ import { freqToMidi } from '@thoremin/sdk/music/theory';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
 import { chordMapTake, W, H } from './synthetic_chord_map';
 import { HARMONY, MUSIC } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 const VOICE = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
 const tonic = () => layoutCells('harmonic', chordMapRegions('left', 0.65).chords, { aspect: W / H, cellSize: 0.2 }).find((c) => c.q === 0 && c.r === 0)!;
@@ -94,6 +95,7 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     g.nodes.find((n) => n.id === 'cam')!.params = { frames };
     const played: number[] = [];
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
       resources: {
@@ -121,6 +123,7 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     const g = defaultGraph({ source: 'replay-hands' }, registry);
     g.nodes.find((n) => n.id === 'cam')!.params = { frames };
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
       resources: { controls: () => ({ right: VOICE, left: VOICE, chordMap: { ...DEFAULT_CHORD_MAP, enabled: true, mirrorHandedness: false } }) },

@@ -41,6 +41,7 @@ import { TRUE_STICK_LENGTH } from '../air/lib_synthetic_grip';
 import { bassTake } from '../../test/air/synthetic_bass';
 import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, starterKitPads } from '../../test/air/synthetic_drums';
 import { enrolSamples, guitarTake } from '../../test/air/synthetic_guitar';
+import { DEFAULT_GRAPH_READS } from '../../test/helpers/headless';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -62,6 +63,7 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames };
   const { recorder } = await runHeadless(g, registry, {
+    checkReads: DEFAULT_GRAPH_READS,
     ticks: frames.length,
     nominalDt: 1 / FPS,
     resources: {

@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import { FIXTURES } from '../helpers/fixtures';
 import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, scoreTake, starterKitPads, type DrumStroke, type DrumTakeOptions } from '../air/synthetic_drums';
 import { AIR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
 
@@ -37,6 +38,7 @@ async function playTake(pads: Pads, options: DrumTakeOptions = {}) {
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames: take.frames };
   const { recorder } = await runHeadless(g, registry, {
+    checkReads: DEFAULT_GRAPH_READS,
     ticks: take.frames.length,
     nominalDt: 1 / DRUM_TAKE_FPS,
     resources: {

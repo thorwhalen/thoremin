@@ -23,6 +23,7 @@ import { createAppRegistry } from '@/nodes/browser';
 import { defaultGraph } from '@/app/graph';
 import { loadStream } from '../helpers/fixtures';
 import { CONDUCTOR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 const FPS = 30;
 const frames = loadStream('conducting_44', 'src.hands') as HandsFrame[];
@@ -191,6 +192,7 @@ describe.runIf(CONDUCTOR)('conductor mode in the real default graph (replayed ha
   it('the score sounds on most ticks and its voices reach the merge', async () => {
     const { g, controls } = spec(true);
     const { recorder } = await runHeadless(g, createAppRegistry(), {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
       resources: { controls },
@@ -215,6 +217,7 @@ describe.runIf(CONDUCTOR)('conductor mode in the real default graph (replayed ha
   it('with the dial off, not one score voice sounds', async () => {
     const { g, controls } = spec(false);
     const { recorder } = await runHeadless(g, createAppRegistry(), {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
       resources: { controls },

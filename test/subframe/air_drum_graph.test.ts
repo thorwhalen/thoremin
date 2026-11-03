@@ -18,6 +18,7 @@ import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import { loadStream } from '../helpers/fixtures';
 import { AIR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air drum in the default graph', () => {
   it('wires the dial, the hands, the conductor time and the hits — the #233 guard', () => {
@@ -54,6 +55,7 @@ describe.runIf(AIR)('air drum in the default graph', () => {
       const played: string[] = [];
       const controls = () => ({ ...baseControls(), airDrum: { ...DEFAULT_AIR_DRUM, enabled, mirrorHandedness: false } });
       const { recorder } = await runHeadless(g, registry, {
+        checkReads: DEFAULT_GRAPH_READS,
         ticks,
         nominalDt: 1 / FPS,
         // No WebAudio in Node: the injected sink needs none (the synth stays silent).

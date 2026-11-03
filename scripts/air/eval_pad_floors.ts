@@ -22,6 +22,7 @@ import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import type { PadId, Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { TRUE_STICK_LENGTH } from './lib_synthetic_grip';
 import { DRUM_SCRIPT, DRUM_TAKE_FPS, drumTake, scoreTake, starterKitPads, type DrumStroke, type DrumTakeOptions } from '../../test/air/synthetic_drums';
+import { DEFAULT_GRAPH_READS } from '../../test/helpers/headless';
 
 const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
 
@@ -31,6 +32,7 @@ async function play(pads: Pads, options: DrumTakeOptions) {
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames: take.frames };
   const { recorder } = await runHeadless(g, registry, {
+    checkReads: DEFAULT_GRAPH_READS,
     ticks: take.frames.length,
     nominalDt: 1 / DRUM_TAKE_FPS,
     resources: {

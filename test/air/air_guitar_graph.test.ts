@@ -16,6 +16,7 @@ import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
 import { AIR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air guitar in the default graph', () => {
   it('wires the dial, the model, the octave shift, the hands and the strums — the #249 guard', () => {
@@ -48,6 +49,7 @@ describe.runIf(AIR)('air guitar in the default graph', () => {
     const played: number[] = [];
     const voice = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
     await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
       resources: {

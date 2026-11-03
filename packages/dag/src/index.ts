@@ -44,6 +44,11 @@ import type { GraphSpec } from './types';
  * this is the batch path the check was designed for, and a fixture recorded
  * from a node that emitted a malformed frame is worse than a failing run. Pass
  * `validatePorts: false` to opt out.
+ *
+ * Declared reads ({@link EngineOptions.checkReads}) default **on** too, for the same reason: a
+ * run whose host forgot a resource a node declares (the camera's video, the audio input) would
+ * otherwise record a source that silently emitted nothing. Pass `checkReads: { omit: [key] }` for
+ * a host that omits one on purpose (or `false` to skip the check).
  */
 export async function runHeadless(
   spec: GraphSpec,
@@ -55,10 +60,11 @@ export async function runHeadless(
   // an optional flag (`validatePorts: cfg.validate` where cfg.validate is unset)
   // passes the KEY with value undefined, and a spread would let that overwrite
   // the default with undefined — which Engine then reads as false, silently
-  // turning the gate off in exactly the batch runs it exists for.
+  // turning the gate off in exactly the batch runs it exists for. Both gates.
   const engine = new Engine(spec, registry, {
     ...opts,
     validatePorts: opts.validatePorts ?? true,
+    checkReads: opts.checkReads ?? true,
     taps: [recorder],
   });
   await engine.init();

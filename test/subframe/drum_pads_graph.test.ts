@@ -20,6 +20,7 @@ import { DEFAULT_PADS_SET, type Pads } from '@thoremin/sdk/nodes/music/drum_pads
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import { loadStream } from '../helpers/fixtures';
 import { AIR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('drum pads in the default graph', () => {
   it('wires the dial and the hits to the overlay, and the hits to the scheduler (the #245 guard)', () => {
@@ -51,6 +52,7 @@ describe.runIf(AIR)('drum pads in the default graph', () => {
     const controls = () => ({ right: voice, left: { ...voice, sound: 'triangle' as const }, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, mirrorHandedness: false, pads, offPad: 'nearest' as const } });
     const played: { sound: string; radial: number }[] = [];
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
       resources: {

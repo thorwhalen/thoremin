@@ -17,6 +17,7 @@ import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/l
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { fingeringSamples, fluteTake } from './synthetic_flute';
 import { AIR } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air flute in the default graph', () => {
   it('wires the dial, both models, the octave shift, the hands, the face and the voice — the #249 guard', () => {
@@ -47,6 +48,7 @@ describe.runIf(AIR)('air flute in the default graph', () => {
     g.nodes.find((n) => n.id === 'cam')!.params = { frames: take.map((x) => x.frame) };
     const voice = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: take.length,
       nominalDt: 1 / 30,
       resources: {

@@ -14,6 +14,7 @@ import { DEFAULT_AIR_BASS } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { bassTake } from './synthetic_bass';
 import { AIR, hasExtension } from '../helpers/extensions';
+import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air bass in the default graph', () => {
   it('wires the dial, the hands, the scale and the notes — the #249 guard', () => {
@@ -45,6 +46,7 @@ describe.runIf(AIR)('air bass in the default graph', () => {
       const played: number[] = [];
       const controls = () => ({ right: voice, left: voice, airBass: { ...DEFAULT_AIR_BASS, enabled, mirrorHandedness: false } });
       const { recorder } = await runHeadless(g, registry, {
+        checkReads: DEFAULT_GRAPH_READS,
         ticks: frames.length,
         nominalDt: 1 / FPS,
         resources: {
