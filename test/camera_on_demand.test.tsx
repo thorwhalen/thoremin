@@ -7,7 +7,9 @@
  * boots, plays and never asks for the camera: the hand source is `no-hands`, so no hand model
  * loads either (in jsdom a hand model could not load at all, so reaching `ready` proves it was
  * never composed). Switching to an instrument that reads the camera asks for it then; a camera
- * that cannot open is said in a toast and the engine plays on, never the boot's full-screen error.
+ * that cannot open is said in a toast and the engine plays on, never the boot's full-screen error;
+ * once the player grants it, the page shown again asks once more and the hand source goes live
+ * (#960), with no second toast and no request in a loop.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor, act } from '@testing-library/react';
@@ -16,6 +18,7 @@ import { useControls } from '@/app/store';
 import { useToasts } from '@/app/shell/toasts';
 import { DEBUG_HANDLE_KEY } from '@/app/engine/debugHandle';
 import { Harness, stubMissingCamera, type Seen } from './helpers/engine_boot';
+import type { Mock } from 'vitest';
 
 const initial = useControls.getState();
 
@@ -101,5 +104,50 @@ describe('an instrument that reads no camera', () => {
 
     act(() => useControls.setState((s) => ({ gestures: { ...s.gestures, enabled: true } })));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalled(), { timeout: 4000 });
+  });
+
+  it('asks again when the page is shown after a refusal, quietly, and the hand source goes live once granted (#960)', async () => {
+    listenOnly();
+    const getUserMedia = stubMissingCamera() as Mock<(c?: MediaStreamConstraints) => Promise<MediaStream>>;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    const showPage = () => act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    const cameraToasts = () => useToasts.getState().toasts.filter((t) => /camera/i.test(t.message)).length;
+    useToasts.setState({ toasts: [] });
+    const seen: Seen = {};
+    const { container } = render(<Harness slots={NO_SLOTS} seen={seen} />);
+    await waitFor(() => expect(seen.status).toBe('ready'), { timeout: 4000 });
+
+    // A switch to a hand instrument: refused, said once.
+    act(() => useControls.setState({ ...initial }));
+    await waitFor(() => expect(cameraToasts()).toBe(1), { timeout: 4000 });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+
+    // The page shown while still refused: one more request, no toast, and no loop after it.
+    showPage();
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2), { timeout: 4000 });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(cameraToasts()).toBe(1);
+    expect(handsStatus()?.phase).toBe('off');
+
+    // The player grants it in the browser and comes back: the camera opens, the source goes live.
+    const video = container.querySelector('video')!;
+    getUserMedia.mockImplementation(async () => {
+      setTimeout(() => video.onloadedmetadata?.(new Event('loadedmetadata')), 0);
+      return { getTracks: () => [], getVideoTracks: () => [] } as unknown as MediaStream;
+    });
+    showPage();
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(3), { timeout: 4000 });
+    await waitFor(() => expect(handsStatus()?.phase).toBeDefined(), { timeout: 4000 });
+    await waitFor(() => expect(handsStatus()?.phase).not.toBe('off'), { timeout: 4000 });
+    expect(cameraToasts()).toBe(1);
+    expect(seen.error).toBeNull();
+
+    // Open now: the page shown again asks for nothing.
+    showPage();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(getUserMedia).toHaveBeenCalledTimes(3);
   });
 });

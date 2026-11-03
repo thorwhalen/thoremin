@@ -52,6 +52,7 @@ import { createGestureDispatcher } from '../gestures/gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBinding';
 import { cameraConstraints } from './camera';
+import { watchCameraRetry } from './cameraRetry';
 import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { HAND_REPLAY_RESOURCE_KEY, useReplay } from '../replay/replayStore';
 import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
@@ -186,6 +187,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // stream; null before it runs and after teardown. `cameraOpeningRef` holds a request in flight.
   const openCameraRef = useRef<(() => Promise<boolean>) | null>(null);
   const cameraOpeningRef = useRef<Promise<void> | null>(null);
+  // Armed while a late open was refused (#960): the uninstall of the watch that asks again when
+  // the permission is granted or the page is shown again (`./cameraRetry`); null otherwise.
+  const cameraRetryRef = useRef<(() => void) | null>(null);
+  const disarmCameraRetry = () => {
+    cameraRetryRef.current?.();
+    cameraRetryRef.current = null;
+  };
   // Whether the hand source has been live (its model loaded) since the camera opened: it then
   // stays live, so browsing instruments never reloads the model.
   const handsLiveRef = useRef(false);
@@ -206,9 +214,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
    * Open the camera when something reads it, the source slot is the camera's and it is not open
    * yet, then re-wire so the hand source swaps in (#869). The engine keeps playing throughout; a
    * camera that cannot open (refused, absent) is said in a toast and the instrument plays on
-   * without it, asking again the next time a reader appears.
+   * without it. It is asked for again (#960) the next time a reader appears, when the reader set
+   * changes, and on the events after which a refusal may have turned (`watchCameraRetry`); those
+   * retries are `quiet`: the toast was said once, for the request the player caused. Reads only
+   * refs, so a closure from any render does the same.
    */
-  const requestCamera = () => {
+  const requestCamera = ({ quiet = false }: { quiet?: boolean } = {}) => {
     const open = openCameraRef.current;
     const engine = engineRef.current;
     const registry = registryRef.current;
@@ -218,6 +229,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .then((opened) => {
         if (!opened || engineRef.current !== engine) return;
         videoOpenRef.current = true;
+        disarmCameraRetry();
         // The player may have switched back to an instrument that reads nothing while the
         // browser asked: the camera stays open (it does for the session), but the hand model
         // is swapped in only for a reader. The next reader re-wires (`readsCamera` effect).
@@ -226,6 +238,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .catch((e: unknown) => {
         if (engineRef.current !== engine) return;
         console.error('[thoremin] could not open the camera', e);
+        cameraRetryRef.current ??= watchCameraRetry(() => requestCamera({ quiet: true }));
+        if (quiet) return;
         const why = e instanceof Error ? e.message : String(e);
         useToasts.getState().push(`Could not open the camera (${why}). This instrument reads it; it plays on without it.`, CAMERA_FAILURE_TOAST_MS, 'error');
       })
@@ -530,6 +544,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       frameHold = null;
       releaseTake();
       openCameraRef.current = null;
+      disarmCameraRetry();
       videoOpenRef.current = false;
       handsLiveRef.current = false;
       cameraStreamRef.current = null;
@@ -595,6 +610,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const registry = registryRef.current;
     if (!engine || !registry) return;
     rewire(engine, registry);
+    // A reader that changed while a refused camera is still wanted asks for it again (#960).
+    if (cameraRetryRef.current) requestCamera({ quiet: true });
   }, [branchKey]);
 
   // Keep master gain synced to the UI volume, and drop it to zero while muted.
