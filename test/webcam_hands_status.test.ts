@@ -55,11 +55,15 @@ const ctx = { tick: 0, time: 0, dt: 0, resources: {} } as unknown as NodeContext
 const MAX_TURNS = 500;
 /** Let promises, the module loader and zero-delay timers run until `reached()` (`setTimeout` is
  *  fake; the loader's dynamic import settles on a real turn of the event loop, hence `setImmediate`). */
-const settleUntil = async (reached: () => boolean): Promise<void> => {
-  for (let i = 0; i < MAX_TURNS && !reached(); i++) {
+/** Turn the event loop until `reached` holds; throws if it never does, so a slow runner fails here
+ *  with a clear message, never later on an assertion about a state that was still on its way. */
+const settleUntil = async (reached: () => boolean, what = 'the expected state'): Promise<void> => {
+  for (let i = 0; i < MAX_TURNS; i++) {
+    if (reached()) return;
     await vi.advanceTimersByTimeAsync(0);
     await new Promise((r) => setImmediate(r));
   }
+  if (!reached()) throw new Error(`never reached ${what} in ${MAX_TURNS} turns`);
 };
 
 /** One camera frame: the video advances, then the pump's animation frame runs. */
@@ -126,8 +130,11 @@ describe('webcam-hands when its hand model stops', () => {
       for (let i = 0; i < MAIN_REPLACEMENT_RETRIES; i++) {
         const loads = createFromOptions.mock.calls.length;
         await vi.advanceTimersByTimeAsync(MAIN_REPLACEMENT_RETRY_MS); // the wait is over: load again
-        await settleUntil(() => createFromOptions.mock.calls.length > loads && out().status !== HANDS_STATUS.replacing);
-        expect(out().status).toBe(i < MAIN_REPLACEMENT_RETRIES - 1 ? HANDS_STATUS.retrying : HANDS_STATUS.failed);
+        // The new load is asked for, then refused: wait for the state that refusal leads to (the load
+        // chain is several promises long, longer since the runner became a lazyResource, #922).
+        const expected = i < MAIN_REPLACEMENT_RETRIES - 1 ? HANDS_STATUS.retrying : HANDS_STATUS.failed;
+        await settleUntil(() => createFromOptions.mock.calls.length > loads && out().status === expected, `${expected.message} after load ${i + 1}`);
+        expect(out().status).toBe(expected);
         expect(out().hands.hands).toEqual([]);
       }
       const failed = out();
