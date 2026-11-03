@@ -7,11 +7,11 @@
  */
 import type { NodeContext } from '@thoremin/dag';
 import { createExpressionBlend, createHandGesture, createIctus, createImpactDetector, type DynamicsEstimate, type ExpressionBlend, type HandGesture, type Ictus, type IctusState } from '@thoremin/ictus';
-import type { BodyFrame, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type BodyFrame, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { handGestureFrame } from './conductor_gesture';
 import { bodyChannelFrame, conductorBodyJoints, createBodyExpressionMeter, type BodyExpressionMeter } from './conductor_body';
-import { handPoint, isFresh, MIN_SAMPLE_SPACING, shapingHand } from './conductor_hands';
+import { handPoint, MIN_SAMPLE_SPACING, shapingHand } from './conductor_hands';
 import type { ConductorDialParams as Params } from './conductor.schema';
 
 /** What the shaping of one tick reads from the beat's follower. */
@@ -125,7 +125,7 @@ export function createExpressionShaper(): ExpressionShaper {
     }
     if (source === 'hands') {
       const frame = inputs.hands as HandsFrame | undefined;
-      const fresh = isFresh(frame, lastExprHands);
+      const fresh = isFreshFrame(lastExprHands, frame);
       lastExprHands = frame;
       const hand = frame && fresh ? shapingHand(frame, c) : undefined;
       const t = captureTime(frame, ctx);
@@ -189,7 +189,7 @@ export function createExpressionShaper(): ExpressionShaper {
     blend ??= createExpressionBlend({ articulation });
     blend.setArticulation(articulation);
     const body = inputs.body as BodyFrame | undefined;
-    const fresh = isFresh(body, lastExprBody);
+    const fresh = isFreshFrame(lastExprBody, body);
     lastExprBody = body;
     const t = captureTime(body, ctx);
     if (body && fresh && t >= lastExprBodyT + MIN_SAMPLE_SPACING) {
