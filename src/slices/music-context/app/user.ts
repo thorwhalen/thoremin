@@ -115,8 +115,9 @@ let lastTapNow = 0;
 /** The song player's jumps at the last tap: a different count is a seek since (#945). */
 let jumpsAtLastTap: number | null = null;
 /** How many taps a run keeps: its first (the downbeat) and the latest; their beat numbers are kept
- *  with them, so dropping the middle moves nothing. */
-const MAX_TAPS = 128;
+ *  with them, so dropping the middle moves no numbering. A local fit reads only a window of taps
+ *  (#945), so the cap is about time, not cost: over eight minutes at 120 bpm. */
+const MAX_TAPS = 1024;
 /** A song that moved this much more or less than the clock between two taps was sought (plus a
  *  share of the gap, for a rate that changed in between): the backstop for a move the song player
  *  did not make itself (a scrub in a provider's own player), since a short one escapes it. The

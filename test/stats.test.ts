@@ -96,3 +96,19 @@ describe('ewUpdate and clamp01', () => {
     expect(Number.isNaN(clamp01(NaN))).toBe(true);
   });
 });
+
+describe('olsLine with weights (#945)', () => {
+  it('weights 1 are the plain fit; a zero weight leaves a point out; bad weights refuse', async () => {
+    const { olsLine } = await import('@thoremin/stats/line');
+    const xs = [0, 1, 2, 3];
+    const ys = [1, 3, 5, 100];
+    const plain = olsLine(xs, ys)!;
+    expect(olsLine(xs, ys, { weights: [1, 1, 1, 1] })).toEqual(plain);
+    const without = olsLine(xs, ys, { weights: [1, 1, 1, 0] })!;
+    expect(without.slope).toBeCloseTo(2, 12);
+    expect(without.intercept).toBeCloseTo(1, 12);
+    expect(olsLine(xs, ys, { weights: [1, 1, 1] })).toBeNull();
+    expect(olsLine(xs, ys, { weights: [1, -1, 1, 1] })).toBeNull();
+    expect(olsLine(xs, ys, { weights: [0, 0, 0, 0] })).toBeNull();
+  });
+});

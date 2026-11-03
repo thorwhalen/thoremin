@@ -16,9 +16,9 @@ export interface LineFit {
   intercept: number;
   /** y per unit of x. */
   slope: number;
-  /** The residual sum of squares. */
+  /** The residual sum of squares (weighted by `weights` when given). */
   rss: number;
-  /** Σ (x - mean x)²: the spread the slope stands on. */
+  /** Σ w (x - mean x)²: the spread the slope stands on (w = 1 unweighted). */
   sxx: number;
   /** The number of points fitted. */
   n: number;
@@ -27,6 +27,9 @@ export interface LineFit {
 export interface LineOptions {
   /** Where x is measured from (the caller's choice, for conditioning). Default 0. */
   origin?: number;
+  /** A weight per point (weighted least squares: a local fit, #945). Default 1 for each. Must
+   *  have the points' length; a negative or non-finite weight, or none positive, gives null. */
+  weights?: readonly number[];
 }
 
 /**
@@ -38,26 +41,32 @@ export function olsLine(xs: readonly number[], ys: readonly number[], options: L
   const n = xs.length;
   if (n < 2 || ys.length !== n) return null;
   const origin = options.origin ?? 0;
+  const ws = options.weights;
+  if (ws && (ws.length !== n || ws.some((w) => !(w >= 0) || !Number.isFinite(w)))) return null;
+  const w = (k: number) => (ws ? ws[k] : 1);
+  let sw = 0;
   let sx = 0;
   let sy = 0;
   for (let k = 0; k < n; k++) {
-    sx += xs[k] - origin;
-    sy += ys[k];
+    sw += w(k);
+    sx += w(k) * (xs[k] - origin);
+    sy += w(k) * ys[k];
   }
-  const mx = sx / n;
-  const my = sy / n;
+  if (!(sw > 0)) return null;
+  const mx = sx / sw;
+  const my = sy / sw;
   let sxx = 0;
   let sxy = 0;
   for (let k = 0; k < n; k++) {
     const dx = xs[k] - origin - mx;
-    sxx += dx * dx;
-    sxy += dx * (ys[k] - my);
+    sxx += w(k) * dx * dx;
+    sxy += w(k) * dx * (ys[k] - my);
   }
   // No spread, or one so large its square overflows: either way no line to fit.
   if (!(sxx > 0) || !Number.isFinite(sxx)) return null;
   const slope = sxy / sxx;
   const intercept = my - slope * mx;
   let rss = 0;
-  for (let k = 0; k < n; k++) rss += (ys[k] - (intercept + slope * (xs[k] - origin))) ** 2;
+  for (let k = 0; k < n; k++) rss += w(k) * (ys[k] - (intercept + slope * (xs[k] - origin))) ** 2;
   return { intercept, slope, rss, sxx, n };
 }
