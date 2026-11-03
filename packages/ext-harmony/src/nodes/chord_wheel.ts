@@ -39,7 +39,7 @@ import { radial, type Region } from '@thoremin/sdk/harmony/layout';
 import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { ratedTensionModel, TENSION_MODEL_IDS, TENSION_MODELS, tensionText, type RatedTensionModel, type TensionModel, type TensionModelId } from '@thoremin/sdk/harmony/tension';
+import { createTensionChooser, TENSION_SETTING, tensionText } from '@thoremin/sdk/harmony/tension';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
 import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
 import { arousalOf, createLevelTracker, createRestBaseline } from '@thoremin/sdk/harmony/affect';
@@ -167,8 +167,8 @@ const Params = z.object({
   /** Show each chord's tension under it, by this model, named on the wheel (H10 of #613):
    *  the models rank the chords differently, so a number never appears without its model.
    *  `rated` is the player's own, from "Rate this move" (#809), Lerdahl's distance for a move
-   *  not rated ({@link RATED_TENSION_FALLBACK}). */
-  tension: z.enum(['off', ...TENSION_MODEL_IDS, 'rated']).default('off'),
+   *  not rated (`RATED_TENSION_FALLBACK`, `@thoremin/sdk/harmony/tension`). */
+  tension: z.enum(TENSION_SETTING).default('off'),
   /** Where each move sits: always the same place, or (the key's moves only) the likeliest next
    *  chord on top, then clockwise by a transition prior (Piston's usual root progressions), so the
    *  wheel reorders as the chord changes (H10 of #613). */
@@ -222,24 +222,8 @@ export interface ChordWheelStatus {
 
 export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, category: null, steer: 'hand', walking: false };
 
-/** What measures a move the player has not rated, under the `rated` tension model (#809): Lerdahl's
- *  distance, which has an opinion on every chord (the functional ladder has none outside the key). */
-export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
 /** What follows a number under the player's own model when the number is theirs, not the fallback's. */
 export const RATED_MARK = '(you)';
-
-/** The tension model the wheel's setting names: none, a named one, or the player's own over their
- *  ratings (no ratings yet: every move is the fallback's). The player's is built again only when the
- *  ratings table changes (the same object between two ratings). */
-function createTensionModels(): (choice: Params['tension'], ratings: RatingsTable | null | undefined) => TensionModel | RatedTensionModel | null {
-  let rated: { table: RatingsTable | null | undefined; model: RatedTensionModel } | null = null;
-  return (choice, ratings) => {
-    if (choice === 'off') return null;
-    if (choice !== 'rated') return TENSION_MODELS[choice];
-    if (!rated || rated.table !== ratings) rated = { table: ratings, model: ratedTensionModel(ratings ?? {}, TENSION_MODELS[RATED_TENSION_FALLBACK]) };
-    return rated.model;
-  };
-}
 
 /** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
 function diatonicTarget(d: number, relation: string): number | null {
@@ -320,7 +304,7 @@ export const chordWheelNode = defineNode<Params>({
   params: Params,
   make(p) {
     const clockReader = createClockReader();
-    const tensionModelOf = createTensionModels();
+    const tensionModelOf = createTensionChooser();
     const realizer = createRealizer({ idBase: CHORD_WHEEL_VOICE_ID_BASE, maxVoices: MAX_CHORD_WHEEL_VOICES });
     let cfg: Params = p;
     let lastConfigRef: unknown = undefined;

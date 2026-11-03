@@ -46,6 +46,7 @@
  *
  * Off by default; pure and Node-safe.
  */
+import { TENSION_SETTING } from '@thoremin/sdk/harmony/tension';
 import { z } from 'zod';
 import { displayedUnit } from '@thoremin/sdk/view/frame_view';
 import { defineNode } from '@thoremin/dag';
@@ -181,6 +182,9 @@ const Params = z.object({
   /** The words on those moves (#714): the interval in scale steps, or what the move does (the
    *  tones it keeps, its colour, how expected it is after the Piston prior). */
   captionSet: z.enum(CAPTION_SET_IDS).default('interval'),
+  /** The computed captions' "resolving / opening" (#920): off, or the tension model it reads, a
+   *  named one or the player's own (their ratings, the rest by Lerdahl's tonal pitch space). */
+  captionTension: z.enum(TENSION_SETTING).default('off'),
   /** A named path (Pachelbel, the Romanesca, the circle of fifths...) drawn ahead of the chord in
    *  force as a ghost trail that follows the player along it (#713); `none` draws nothing. */
   idiom: z.enum(CHORD_MAP_IDIOMS).default('none'),
@@ -732,7 +736,7 @@ export const chordMapNode = defineNode<Params>({
           tension: !ownScale && tensionLevel > (c.sevenths ? 1 : 0) ? tensionLevel : 0,
         };
         // The idiom's trail and the caption set's words (#713, #714; `lib/map_paths.ts`).
-        const { trail, moveText, idiom: idiomStatus } = paths.push({ idiom: c.idiom, captionSet: c.captionSet, trailSteps: c.trailSteps, spec, chords, shown, ratings: (inputs.ratings as RatingsTable | null | undefined) ?? undefined });
+        const { trail, moveText, idiom: idiomStatus } = paths.push({ idiom: c.idiom, captionSet: c.captionSet, captionTension: c.captionTension, trailSteps: c.trailSteps, spec, chords, shown, ratings: (inputs.ratings as RatingsTable | null | undefined) ?? undefined });
         status = { ...status, idiom: idiomStatus };
         const marks =
           anchor === 'letters' ? cells.map((cell, i) => (placed[i].degree === 0 ? 'home' : now < changedUntil && changedLetters.has(cell.degree) ? 'changed' : undefined)) : undefined;

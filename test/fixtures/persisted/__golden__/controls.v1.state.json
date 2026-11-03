@@ -268,6 +268,7 @@
     "bpm": 100,
     "captions": true,
     "captionSet": "interval",
+    "captionTension": "off",
     "cellSize": 0.2,
     "chordHand": "left",
     "chordsFrom": "key",

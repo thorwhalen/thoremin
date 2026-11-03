@@ -131,10 +131,23 @@ export function ratedCount(table: RatingsTable, mode: RatingMode): number {
   return movesOf(mode).filter((m) => table[moveKey(m.mode, m.from, m.to)]).length;
 }
 
+/** The moves the practice covers first (#920): those from the tonic, which the player's own
+ *  tension reads (`ratedTensionModel`), so the wheel turns the player's sooner. */
+export const fromTonic = (m: { from: number }): boolean => m.from === 0;
+
 /** The next move to rate: one of the least-rated moves of the mode, chosen by `random` (0..1),
- *  never `avoid` (the move just rated) when another is as little rated. */
-export function nextMoveToRate(table: RatingsTable, mode: RatingMode, { random = Math.random, avoid }: { random?: () => number; avoid?: { from: number; to: number } } = {}): { mode: RatingMode; from: number; to: number } {
-  const moves = movesOf(mode);
+ *  never `avoid` (the move just rated) when another is as little rated. While a move `first` names
+ *  is unrated, the pick is among those (default: the moves from the tonic; `() => false` for none). */
+export function nextMoveToRate(
+  table: RatingsTable,
+  mode: RatingMode,
+  { random = Math.random, avoid, first = fromTonic }: { random?: () => number; avoid?: { from: number; to: number }; first?: (move: { from: number; to: number }) => boolean } = {},
+): { mode: RatingMode; from: number; to: number } {
+  const all = movesOf(mode);
+  const notAvoided = (m: { from: number; to: number }) => !avoid || m.from !== avoid.from || m.to !== avoid.to;
+  // The first set, while any of it but the move just shown is unrated ("Another move" must move on).
+  const unratedFirst = all.filter((m) => first(m) && notAvoided(m) && !table[moveKey(mode, m.from, m.to)]);
+  const moves = unratedFirst.length ? unratedFirst : all;
   const count = (m: { from: number; to: number }) => table[moveKey(mode, m.from, m.to)]?.n ?? 0;
   const least = Math.min(...moves.map(count));
   let pool = moves.filter((m) => count(m) === least);

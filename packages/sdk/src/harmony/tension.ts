@@ -167,6 +167,11 @@ export interface RatedTensionModel extends TensionModel {
  * same wheel. So a rating is placed on the fallback's own range over the key's seven chords: -1 at
  * its least tense diatonic chord, 1 at its most. A rated chord then reads as a number the fallback
  * could have given, and the two rank together. The range is computed once per key.
+ *
+ * Coverage (#920): the move from the tonic is one of 42 a mode has, so the practice asks for the
+ * six moves from the tonic first (`nextMoveToRate`'s `first`). A move into a degree from another
+ * is felt from that chord, not from home, so it is never pooled in: a number marked the player's
+ * is one they gave.
  */
 export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel): RatedTensionModel {
   const ranges = new Map<string, { lo: number; hi: number } | null>();
@@ -187,7 +192,7 @@ export function ratedTensionModel(ratings: RatingsTable, fallback: TensionModel)
   };
   return {
     id: 'rated',
-    name: `Your ratings, else ${fallback.name.replace(/ \(.*\)$/, '')}`,
+    name: ratedTensionName(fallback),
     isRated: (chord, key) => ratedMove(chord, key) !== undefined && rangeOf(key) !== null,
     tension(chord, key) {
       const rated = ratedMove(chord, key);
@@ -204,3 +209,42 @@ export function tensionText(model: TensionModel, chord: Chord, key: Key): string
   return t === null ? '' : String(t);
 }
 
+/** A tension choice a setting offers: a named model, or the player's own over their ratings. */
+export const TENSION_CHOICES = [...TENSION_MODEL_IDS, 'rated'] as const;
+export type TensionChoice = (typeof TENSION_CHOICES)[number];
+/** A setting that may also show none (the wheel's numbers, the captions' resolving / opening). */
+export const TENSION_SETTING = ['off', ...TENSION_CHOICES] as const;
+export type TensionSetting = (typeof TENSION_SETTING)[number];
+/** The model the player's own falls back on where a chord is not rated (#809): Lerdahl's distance,
+ *  which has an opinion on every chord (the functional ladder has none outside the key). */
+export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
+
+/** The player's own model's name, which names its fallback (no model built for it). */
+export function ratedTensionName(fallback: TensionModel = TENSION_MODELS[RATED_TENSION_FALLBACK]): string {
+  return `Your ratings, else ${fallback.name.replace(/ \(.*\)$/, '')}`;
+}
+
+/** A setting's name for a select: none, a model's own, or the player's with its fallback. */
+export function tensionSettingName(choice: TensionSetting, { fallback = RATED_TENSION_FALLBACK }: { fallback?: TensionModelId } = {}): string {
+  if (choice === 'off') return 'none';
+  return choice === 'rated' ? ratedTensionName(TENSION_MODELS[fallback]) : TENSION_MODELS[choice].name;
+}
+
+/**
+ * The model a setting names, for a display that reads it every frame (the chord wheel's numbers,
+ * the chord map's captions, #920): none for `off`, a named one, or the player's own over their
+ * ratings (no ratings yet: every chord is the fallback's), built again only when the ratings table
+ * changes (the same object between two ratings).
+ */
+export function createTensionChooser({ fallback = RATED_TENSION_FALLBACK }: { fallback?: TensionModelId } = {}): (
+  choice: TensionSetting,
+  ratings: RatingsTable | null | undefined,
+) => TensionModel | RatedTensionModel | null {
+  let rated: { table: RatingsTable | null | undefined; model: RatedTensionModel } | null = null;
+  return (choice, ratings) => {
+    if (choice === 'off') return null;
+    if (choice !== 'rated') return TENSION_MODELS[choice];
+    if (!rated || rated.table !== ratings) rated = { table: ratings, model: ratedTensionModel(ratings ?? {}, TENSION_MODELS[fallback]) };
+    return rated.model;
+  };
+}
