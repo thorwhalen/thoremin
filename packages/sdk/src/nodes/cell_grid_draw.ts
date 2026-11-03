@@ -20,6 +20,9 @@ const MARK_WIDTH = 2;
 
 /** A cell's label is this fraction of its smaller side. */
 const CELL_LABEL_SIZE = 0.3;
+/** A cell's label and sub-line fit this fraction of its width (#920: a long wheel label with
+ *  "(you)" ran past its cell): the canvas narrows the text to it, no `measureText` needed. */
+const CELL_TEXT_FIT = 0.9;
 /** The radius of a pointer's ring, px. */
 const CELL_POINTER_R = 9;
 /** Approximate glyph width of the 11px captions (no measureText: the headless recording-canvas test). */
@@ -180,10 +183,11 @@ export function drawCellGrid(g: CanvasRenderingContext2D, W: number, H: number, 
     g.globalAlpha = cell.state === 'idle' ? 0.8 : 1;
     g.fillStyle = cell.color;
     g.font = `bold ${size}px sans-serif`;
-    g.fillText(cell.label, cell.x * W, cell.y * H - (cell.sub ? size * 0.25 : 0));
+    const fit = cell.w * W * CELL_TEXT_FIT;
+    g.fillText(cell.label, cell.x * W, cell.y * H - (cell.sub ? size * 0.25 : 0), fit);
     if (cell.sub) {
       g.font = `${Math.round(size * 0.5)}px sans-serif`;
-      g.fillText(cell.sub, cell.x * W, cell.y * H + size * 0.6);
+      g.fillText(cell.sub, cell.x * W, cell.y * H + size * 0.6, fit);
     }
   }
   for (const trail of grid.trails ?? []) drawTrail(g, W, H, trail);

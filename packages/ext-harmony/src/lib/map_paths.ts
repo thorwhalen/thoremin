@@ -6,8 +6,9 @@
  *
  * Pure: the SDK's idiom and caption libraries over the map's chords.
  */
-import { captionSet as captionSetOf, type CaptionSet, type CaptionSetId } from '@thoremin/sdk/harmony/captions';
+import { captionSet as captionSetOf, DEFAULT_CAPTION_PARTS, type CaptionSet, type CaptionSetId } from '@thoremin/sdk/harmony/captions';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
+import { createTensionChooser, type TensionChoice, type TensionModel } from '@thoremin/sdk/harmony/tension';
 import { ahead, followCommit, idiomById, startFollow, type FollowCursor } from '@thoremin/sdk/harmony/idioms';
 import { keyOf } from '@thoremin/sdk/harmony/chord';
 import { keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -26,6 +27,9 @@ export interface PathFrame {
   /** The dial's idiom id, `none` for no trail. */
   idiom: string;
   captionSet: CaptionSetId;
+  /** The computed captions' "resolving / opening" part and the tension model it reads (#920):
+   *  `off` (the default) leaves the part out, as before. */
+  captionTension?: TensionChoice | 'off';
   trailSteps: number;
   /** The key in force (with the face's parallel): the idiom is realized in it. */
   spec: ScaleSpec;
@@ -48,7 +52,8 @@ export interface PathFollower {
 }
 
 export function createPathFollower(): PathFollower {
-  let captions: { id: CaptionSetId; ratings: RatingsTable | undefined; set: CaptionSet } | null = null;
+  let captions: { id: CaptionSetId; ratings: RatingsTable | undefined; tension: TensionModel | null; set: CaptionSet } | null = null;
+  const chooseTension = createTensionChooser();
   // Reset by another idiom or another key.
   let cursor: FollowCursor = startFollow();
   let cursorKey = '';
@@ -59,10 +64,15 @@ export function createPathFollower(): PathFollower {
     followed = -1;
   };
   return {
-    push({ idiom: id, captionSet, trailSteps, spec, chords, shown, ratings }) {
+    push({ idiom: id, captionSet, captionTension = 'off', trailSteps, spec, chords, shown, ratings }) {
       const key = keyOf(spec);
-      // Rebuilt when the set changes, or (the player's own) when a new rating arrives.
-      if (captions?.id !== captionSet || (captionSet === 'mine' && captions.ratings !== ratings)) captions = { id: captionSet, ratings, set: captionSetOf(captionSet, { ratings }) };
+      // Rebuilt when the set or the tension model changes, or (the player's own) when a new rating
+      // arrives: the chooser hands back the same model until then.
+      const tension = captionTension === 'off' ? null : chooseTension(captionTension, ratings);
+      if (captions?.id !== captionSet || captions.tension !== tension || (captionSet === 'mine' && captions.ratings !== ratings)) {
+        const options = tension ? { ratings, tension, parts: [...DEFAULT_CAPTION_PARTS, 'direction' as const] } : { ratings };
+        captions = { id: captionSet, ratings, tension, set: captionSetOf(captionSet, options) };
+      }
       const moveText = captionSet === 'interval' ? undefined : captionTextFor(captions.set, chords, key);
       const idiom = id !== 'none' && chords.length === DEGREES ? idiomById(id) : undefined;
       if (!idiom) {

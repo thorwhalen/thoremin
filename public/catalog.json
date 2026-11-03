@@ -1465,6 +1465,11 @@
         "default": "interval"
       },
       {
+        "name": "captionTension",
+        "type": "enum(off | function | tps | profile | rated)",
+        "default": "off"
+      },
+      {
         "name": "idiom",
         "type": "enum(none | circle | pachelbel | romanesca | monte | fonte | thirds | fifties | deceptive | andalusian)",
         "default": "none"

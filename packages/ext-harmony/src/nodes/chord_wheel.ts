@@ -39,7 +39,7 @@ import { radial, type Region } from '@thoremin/sdk/harmony/layout';
 import { createBeatWalk, createCategoryStepper, createDirectionStepper, type CategoryStepper, type DirectionStepper } from '@thoremin/sdk/harmony/navigate';
 import { EMOTIONS, type Emotion, type ExpressionScores } from '@thoremin/sdk/music/expression';
 import { RELATIONS } from '@thoremin/sdk/harmony/space';
-import { ratedTensionModel, TENSION_MODEL_IDS, TENSION_MODELS, tensionText, type RatedTensionModel, type TensionModel, type TensionModelId } from '@thoremin/sdk/harmony/tension';
+import { createTensionChooser, RATED_TENSION_FALLBACK, TENSION_MODEL_IDS, tensionText, type RatedTensionModel, type TensionModel } from '@thoremin/sdk/harmony/tension';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
 import { TRANSITION_PRIORS, rankBySurprise } from '@thoremin/sdk/harmony/prior';
 import { arousalOf, createLevelTracker, createRestBaseline } from '@thoremin/sdk/harmony/affect';
@@ -224,21 +224,15 @@ export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves
 
 /** What measures a move the player has not rated, under the `rated` tension model (#809): Lerdahl's
  *  distance, which has an opinion on every chord (the functional ladder has none outside the key). */
-export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
+export { RATED_TENSION_FALLBACK };
 /** What follows a number under the player's own model when the number is theirs, not the fallback's. */
 export const RATED_MARK = '(you)';
 
-/** The tension model the wheel's setting names: none, a named one, or the player's own over their
- *  ratings (no ratings yet: every move is the fallback's). The player's is built again only when the
- *  ratings table changes (the same object between two ratings). */
+/** The tension model the wheel's setting names: none, or the SDK's chooser's (a named one, or the
+ *  player's own over their ratings). */
 function createTensionModels(): (choice: Params['tension'], ratings: RatingsTable | null | undefined) => TensionModel | RatedTensionModel | null {
-  let rated: { table: RatingsTable | null | undefined; model: RatedTensionModel } | null = null;
-  return (choice, ratings) => {
-    if (choice === 'off') return null;
-    if (choice !== 'rated') return TENSION_MODELS[choice];
-    if (!rated || rated.table !== ratings) rated = { table: ratings, model: ratedTensionModel(ratings ?? {}, TENSION_MODELS[RATED_TENSION_FALLBACK]) };
-    return rated.model;
-  };
+  const choose = createTensionChooser();
+  return (choice, ratings) => (choice === 'off' ? null : choose(choice, ratings));
 }
 
 /** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
