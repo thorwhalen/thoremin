@@ -1540,6 +1540,7 @@ Each box is one part of the instrument; the lines show where its numbers come fr
 1. Open Tools, then Your poses, then Record my poses.
 2. Do the three short demonstrations (closer and further, a step aside, a slight turn), then each pose, held for a moment.
 3. Sort and name the groups. The conductor can use them to start, hold and stop.
+4. Under the groups, name a gesture (a wave of the arm) and record it a few times: it can fire a command too.
 
 The same tool as [Your faces](#tools-faces), for your body. It needs most of your body in view, otherwise it says "Cannot see you".
 
@@ -1550,6 +1551,10 @@ Tick *Left and right are the same pose* before you record if one arm up should b
 **Use them**
 
 A pose model can start, hold and cut off the [Conductor](#tools-conductor). In the editor, the Pose categorizer section chooses which model an instrument plays.
+
+**Gestures: movements, not poses**
+
+Under the groups, the **Gestures** section keeps movements of your body, such as a wave of the arm or a step to the side, exactly as in [Your hand shapes](#tools-hand-shapes): type a name, press *Record a gesture*, stand still while a ring fills, then do the movement as many times as it asks, coming to rest between each one. *Test with my body*, *Quiz me* and the *Everyday check* hear them too, and a saved one can be bound to a command in [Gestures](#tools-gestures).
 
 Its settings: [Pose categorizer](#settings--pose-categorizer).
 

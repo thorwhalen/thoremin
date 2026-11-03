@@ -18,7 +18,7 @@ import { camera } from '@thoremin/sdk-ui/host';
 import { syntheticExpressionAt, syntheticFaceVector } from '../lib/synthetic';
 import { syntheticHandShapeAt, syntheticHandVector } from '../lib/synthetic_hand';
 import { syntheticBodyAt, syntheticBodyVector } from '../lib/synthetic_body';
-import { GESTURE_PATHS, syntheticGesturePhase, syntheticGestureVector } from '../lib/synthetic_gesture';
+import { GESTURE_PATHS, SYNTHETIC_BODY_GESTURE, syntheticBodyGestureVector, syntheticGesturePhase, syntheticGestureVector } from '../lib/synthetic_gesture';
 
 export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
@@ -53,6 +53,12 @@ export const HAND_GESTURE_SCRIPT: SyntheticScript = {
 };
 /** The scripted body (`../lib/synthetic_body.ts`): the rest, the three nuisances, four poses. */
 export const BODY_SCRIPT: SyntheticScript = { vectorAt: syntheticBodyVector, labelAt: syntheticBodyAt };
+/** The scripted body waving its right arm (#954, `../lib/synthetic_gesture.ts`): what a body
+ *  gesture take reads. */
+export const BODY_GESTURE_SCRIPT: SyntheticScript = {
+  vectorAt: (ms, frame) => syntheticBodyGestureVector(GESTURE_PATHS.wave, ms, frame),
+  labelAt: (ms) => (syntheticGesturePhase(ms, SYNTHETIC_BODY_GESTURE) === null ? { name: 'rest', color: '#334155' } : { name: 'wave', color: '#0f766e' }),
+};
 
 export function liveSource(): FaceSource {
   // A reader of its own: the take and the test each create a source, and each sees every part once.
