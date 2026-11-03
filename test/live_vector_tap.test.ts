@@ -19,6 +19,7 @@ import { handFeatureVectorNode } from '@/nodes/features/hand_feature_vector';
 import { HAND_REPLAY_RESOURCE_KEY, replayHandsNode, type HandReplay } from '@/nodes/sources/replay_hands';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { createNoiseEstimator } from '@thoremin/sdk/enroll/noise';
+import { createSession } from '@thoremin/sdk/enroll/session';
 import { createFreshReader, LiveVectorTap, readLiveVector, resetLiveVector, SOURCE_FRAME_EDGES } from '@thoremin/sdk-ui/enroll/liveVector';
 import { waveTake } from './helpers/wave_take';
 import { pollLiveVector } from '@/slices/trainer/app/trainerController';
@@ -298,11 +299,30 @@ describe('a stamp per part, and a fresh reader per consumer (#916)', () => {
     expect(r()!.fresh).toEqual({ h: 0 });
   });
 
-  it('the trainer\'s poll samples only the fresh parts', () => {
-    const sampled: Record<string, number>[] = [];
-    const trainer = { sample: (v: Record<string, number>) => void sampled.push(v), tick() {} };
+  it('the trainer\'s poll samples the whole vector, with only the fresh parts for the noise estimate', () => {
+    const sampled: { v: Record<string, number>; fresh: string[] | null }[] = [];
+    const trainer = { sample: (v: Record<string, number>, _t: number, fresh?: (id: string) => boolean) => void sampled.push({ v, fresh: fresh ? Object.keys(v).filter(fresh) : null }), tick() {} };
     pollLiveVector(-Infinity, { vector: { f: 1, h: 1 }, t: 1, tickT: 1, fresh: { f: 1 } }, trainer);
     pollLiveVector(-Infinity, { vector: { f: 1, h: 1 }, t: 1, tickT: 1 }, trainer);
-    expect(sampled).toEqual([{ f: 1 }, { f: 1, h: 1 }]);
+    expect(sampled).toEqual([{ v: { f: 1, h: 1 }, fresh: ['f'] }, { v: { f: 1, h: 1 }, fresh: null }]);
+  });
+
+  it('a session fed the whole vector with the fresh filter keeps the hand\'s unit as the hand alone gives it', () => {
+    // A face new every tick, the hand at half that rate (re-offered on odd ticks) and moving.
+    const handAt = (k: number) => ({ 'hand.right.wrist.x': 0.5 + 0.02 * k + 0.001 * Math.sin(k * 2.1) });
+    const run = (filter: boolean) => {
+      const session = createSession({ allFeatureIds: ['face.jitter', 'hand.right.wrist.x'], groupOf: () => 'g' });
+      for (let i = 0; i < 120; i++) {
+        const k = Math.floor(i / 2);
+        const v = { 'face.jitter': 0.01 * Math.sin(i * 1.7), ...handAt(k) };
+        session.push(v, i * 16.7, filter ? (id) => id !== 'hand.right.wrist.x' || i % 2 === 0 : undefined);
+      }
+      return session.noise().snapshot().sigma['hand.right.wrist.x'];
+    };
+    const alone = createNoiseEstimator();
+    for (let k = 0; k < 60; k++) alone.push(handAt(k), k * 33.4);
+    expect(run(true)).toBeCloseTo(alone.snapshot().sigma['hand.right.wrist.x'], 12);
+    // Unfiltered, the re-offers are zero differences under the face's stamps: another unit.
+    expect(Math.abs(run(false) / run(true) - 1)).toBeGreaterThan(0.1);
   });
 });

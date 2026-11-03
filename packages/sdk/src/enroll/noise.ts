@@ -119,9 +119,18 @@ export interface NoiseSnapshot {
   frames: number;
 }
 
+/**
+ * Which features of a pushed vector are new readings (#916). The live vector merges parts that
+ * update on different ticks (the hands on their worker, the body on its own pump): a part
+ * re-offered beside a new one repeats its values under the new stamp, a zero difference that would
+ * deflate its estimate. A feature it calls not fresh is skipped as if absent (its last reading
+ * stays the reference). Absent = every feature is fresh.
+ */
+export type FreshFilter = (id: string) => boolean;
+
 export interface NoiseEstimator {
   /** Fold one frame in. `tMs` must be non-decreasing. */
-  push(vector: FeatureVector, tMs: number): void;
+  push(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void;
   /** The effective sigma for `id` — the jitter estimate floored by the range — or
    *  `NaN` when the feature has never been seen. */
   sigma(id: string): number;
@@ -186,11 +195,11 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
   };
 
   return {
-    push(vector, tMs) {
+    push(vector, tMs, fresh) {
       let advanced = false;
       for (const id of Object.keys(vector)) {
         const x = vector[id];
-        if (!Number.isFinite(x)) continue;
+        if (!Number.isFinite(x) || (fresh && !fresh(id))) continue;
         const s = stats.get(id);
         if (!s) {
           stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, warm: [], rewarms: 0, best: Infinity, lo: x, hi: x, step: Infinity });

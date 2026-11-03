@@ -55,8 +55,9 @@
  * with its own stamp, and {@link createFreshReader} gives one consumer the features of the parts
  * that moved since ITS last read (`fresh`). Per consumer, because consumers poll at their own
  * rate and the tap keeps only the latest tick: a part is fresh for a reader until that reader has
- * seen it. What feeds an estimator or a sampler (the trainer's session, the carve take) reads
- * `fresh`; what shows or classifies the current state reads `vector`.
+ * seen it. Only the noise estimate needs it (a repeated value is a zero difference there): the
+ * trainer's session and the carve take push the whole `vector`, with `fresh` as the estimator's
+ * filter (`FreshFilter`); the samplers, bars and stills judge the whole current vector.
  *
  * A replay that has ended (or a single-frame fixture) holds its last frame, so the stamp holds
  * too: no new camera frame, no new sample. A clock that restarts lower (a new engine, without a

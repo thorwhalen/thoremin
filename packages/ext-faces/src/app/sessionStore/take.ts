@@ -115,9 +115,10 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
       const live = read ? { ...read, vector: readLive(read.vector) } : null;
       if (live) loc.lastMirrored = readLive.mirrored();
       if (live) {
-        // Only a read whose carved part moved feeds the take (#916): a hand re-offered beside a new
-        // face frame repeats its features under the new stamp, deflating their noise estimate.
-        if (!read!.fresh || Object.keys(projectVector(modality, read!.fresh, readOptions())).length > 0) loc.take.push(live.vector, live.t);
+        // Which of the carved features are new readings (#916), in the carve's own ids: a part
+        // re-offered beside a new one must not feed the noise estimate a zero difference.
+        const freshIds = read!.fresh ? new Set(Object.keys(projectVector(modality, read!.fresh, readOptions()))) : null;
+        loc.take.push(live.vector, live.t, freshIds ? (id) => freshIds.has(id) : undefined);
         loc.bars?.push(modality.read(live.vector), live.t);
         loc.lastVector = live.vector;
         // A burst's still: once a few frames in, from the frame showing now.
