@@ -16,8 +16,7 @@ import ConductorPanel from './panels/ConductorPanel';
 import { ConductorControls } from './panels/conductor';
 import { makeConductorReporter, useConductorStatus, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './app/conductorStatus';
 import { makeLeadCalibrationSink } from './app/conductorLead';
-import { makeOrchestraReporter, useOrchestraStatus, ABSENT_ORCHESTRA_STATUS } from './app/orchestraStatus';
-import { ORCHESTRA_NODE_ID } from './branches';
+import { ORCHESTRA_STATUS } from './app/orchestraStatus';
 import { startScoreLoader } from './app/scoreLoader';
 import { CONDUCTOR_TIMING_COMMANDS } from './app/conductorLeadCommands';
 import { provideOrchestraEngine } from './nodes/orchestra';
@@ -58,12 +57,7 @@ export const CONDUCTOR_UI: ExtensionUi = {
       onRemoved: () => {},
       reset: () => {},
     },
-    {
-      nodeId: ORCHESTRA_NODE_ID,
-      make: (engine) => makeOrchestraReporter(engine),
-      onRemoved: () => useOrchestraStatus.getState().report(ABSENT_ORCHESTRA_STATUS),
-      reset: () => useOrchestraStatus.getState().reset(),
-    },
+    ORCHESTRA_STATUS.statusHook,
   ],
   onMount: [startScoreLoader],
   commands: CONDUCTOR_TIMING_COMMANDS,
