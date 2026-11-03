@@ -12,6 +12,10 @@
  * models and the faces, hand shapes and poses carved in their own tools, whose bindings ride
  * their records. A Trainer's model is deleted here; a carved one in its own tool.
  *
+ * A carved categorizer's moving GESTURES (#754: recorded in its tool's Gestures section) are listed
+ * under its categories and bound the same way; a gesture's command runs each time it is made (an
+ * event), where a category's runs on entering it.
+ *
  * The section sits at the TOP of the panel, so *Save and bind* lands on it with no scroll.
  * The live readout polls `readCategoryLive()` at UI rate while the section is mounted,
  * like the trainer polls the live vector: the dispatcher computes it per tick (with binding
@@ -192,6 +196,33 @@ export default function CategoryBindings() {
                 );
               })}
             </ul>
+          )}
+          {active?.gestures && active.gestures.names.length > 0 && (
+            <div className="space-y-2" data-category-gestures>
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/50">Gestures</h4>
+              <p className="text-[10px] leading-snug text-white/45">Making a gesture runs its command once, each time you make it.</p>
+              <ul className="space-y-2">
+                {active.gestures.names.map((g) => {
+                  const name = g.label.trim() || g.id;
+                  const fires = live?.gestureFires[g.id] ?? 0;
+                  return (
+                    <li key={g.id} className="space-y-1 rounded-lg border border-white/10 bg-white/5 p-2" data-category-gesture={g.id}>
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-widest text-white/70">{name}</span>
+                        <span className="text-[10px] tabular-nums text-white/50" data-gesture-fires={fires}>
+                          {fires > 0 ? `made ${fires}x` : 'not made yet'}
+                        </span>
+                      </div>
+                      <CommandBindingFields
+                        label={name}
+                        binding={Object.hasOwn(active.categories.bindings, g.id) ? active.categories.bindings[g.id] : undefined}
+                        onChange={(next) => void useCategoryBinding.getState().setBinding(g.id, next)}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </>
       )}

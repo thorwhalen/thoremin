@@ -24,6 +24,14 @@
  * - **Unknown or confirmation-gated commands are refused with a toast**, never dispatched
  *   ({@link isGestureBindable} is the one rule for any hands-free trigger).
  *
+ * A bound categorizer's moving GESTURES (#754) are dispatched beside its categories, from the
+ * same projected vector, by a live listener (`createGestureListener`: the matcher of the saved
+ * traces, its own noise estimate, a refractory period): a gesture is an EVENT, so its command runs
+ * when the matcher FIRES (each repetition), never on an entry, under the same rules otherwise (no
+ * set or hushed: the listener is reset; off: a fire is spent; unbound: spent; unknown or
+ * confirmation-gated: refused with a toast). What a fire's variation (speed, size) passes to its
+ * command is #755's ({@link gestureArgs} is the seam).
+ *
  * Time is an INPUT (`tick(nowMs)`), driven by the frame loop in `useEngine` after the
  * tick that updated the live vector. The latest reading is kept in a module holder for the
  * panel to poll at UI rate (the `liveVector.ts` pattern: never a per-tick store write).
@@ -33,10 +41,12 @@ import {
   createCategoryEdge,
   categoryName,
   toCategoryScores,
+  type CategoryBinding,
   type CategoryEdge,
   type FeatureVector,
   type TrainedModel,
 } from '@thoremin/sdk/enroll';
+import { createGestureListener, type GestureFire, type GestureListener, type GestureModel } from '@thoremin/sdk/enroll/gestures';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import { registry } from '../commands/registry';
 // The extensions' commands join the registry (#600 S11).
@@ -57,6 +67,8 @@ export interface CategoryLive {
   model: TrainedModel;
   scores: CategoryScores;
   committed: string | null;
+  /** How many times each gesture fired since its set became active (#754), by gesture id. */
+  gestureFires: Readonly<Record<string, number>>;
 }
 
 let live: CategoryLive | null = null;
@@ -80,6 +92,16 @@ export interface CategoryDispatcherDeps {
   isBindable(id: string): boolean;
   dispatch(command: string, args?: unknown): Promise<Result<unknown>>;
   notify(message: string, level?: 'info' | 'error'): void;
+  /** The listener a set's gestures are heard with (#754; `createGestureListener` by default). */
+  listen(model: GestureModel): GestureListener;
+}
+
+/**
+ * The args a gesture's command runs with: the binding's own, for now. The #755 seam: a fire carries
+ * its `variation` (how fast, how big), which the causal matcher's phase will pass on here.
+ */
+export function gestureArgs(binding: CategoryBinding, _fire: GestureFire): unknown {
+  return binding.args;
 }
 
 function defaultDeps(): CategoryDispatcherDeps {
@@ -96,6 +118,7 @@ function defaultDeps(): CategoryDispatcherDeps {
     dispatch: (command, args) => registry.dispatch(command, args),
     notify: (message, level = 'info') =>
       useToasts.getState().push(message, level === 'error' ? ERROR_TOAST_MS : FIRE_TOAST_MS, level),
+    listen: (model) => createGestureListener(model),
   };
 }
 
@@ -110,24 +133,29 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   let edge: CategoryEdge | null = null;
   /** How the active set reads the live vector (#385 E8; its tuning since #371), kept per set. */
   let readSet: SavedCategories | null = null;
-  let read: (v: FeatureVector) => FeatureVector = (v) => v;
+  let project: (v: FeatureVector) => FeatureVector = (v) => v;
+  let tune: ((v: FeatureVector) => FeatureVector) | undefined;
+  /** The set's gestures (#754): the model the listener was made for, the listener, the fires. */
+  let gestureModel: GestureModel | null = null;
+  let listener: GestureListener | null = null;
+  let gestureFires: Record<string, number> = {};
 
-  const fire = (set: SavedCategories, categoryId: string) => {
+  /** Run the binding of `id` (a category's entry, or a gesture's fire), named `label`. */
+  const fire = (set: SavedCategories, id: string, label: string, args: (binding: CategoryBinding) => unknown = (b) => b.args) => {
     // Own keys only: an id such as `constructor` reads as present on any `{}` (#338).
     const bindings = set.categories.bindings;
-    const binding = Object.hasOwn(bindings, categoryId) ? bindings[categoryId] : undefined;
+    const binding = Object.hasOwn(bindings, id) ? bindings[id] : undefined;
     if (!binding) return; // an unbound entry is spent
-    const label = categoryName(set.categories.model, categoryId);
     if (!deps.hasCommand(binding.command)) {
       deps.notify(`${label}: unknown command "${binding.command}". Rebind it in the Gestures panel`, 'error');
       return;
     }
     if (!deps.isBindable(binding.command)) {
-      deps.notify(`${label}: "${binding.command}" needs confirmation and cannot be fired by a category`, 'error');
+      deps.notify(`${label}: "${binding.command}" needs confirmation and cannot be fired hands-free`, 'error');
       return;
     }
     const title = deps.commandTitle(binding.command);
-    void deps.dispatch(binding.command, binding.args).then(
+    void deps.dispatch(binding.command, args(binding)).then(
       (result) => {
         if (isErr(result)) deps.notify(`${label}: ${result.error.message}`, 'error');
         else deps.notify(`${label} → ${title}`);
@@ -142,6 +170,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       const enabled = deps.isEnabled();
       if (!set || deps.isHushed() || !(enabled || deps.isPreviewing())) {
         edge?.reset();
+        listener?.reset();
         live = null;
         return;
       }
@@ -153,16 +182,30 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       edge.setHoldMs(deps.holdMs());
       if (set !== readSet) {
         readSet = set;
-        const reader = readFor(set.categories.read, set.categories.model);
+        project = readFor(set.categories.read, set.categories.model);
         // A carved categorizer's live tuning (#453), after the projection, as its tool applies it.
-        const tune = set.tune;
-        read = tune ? (v) => tune(reader(v)) : reader;
+        tune = set.tune;
+      }
+      const gm = set.gestures?.model ?? null;
+      if (gm !== gestureModel) {
+        gestureModel = gm;
+        listener = gm && gm.gestures.length > 0 ? deps.listen(gm) : null;
+        gestureFires = {};
       }
       const raw = deps.readVector();
-      const step = edge.push(raw ? read(raw) : null, nowMs);
-      live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current() };
+      const projected = raw ? project(raw) : null;
+      const step = edge.push(projected && tune ? tune(projected) : projected, nowMs);
+      // A gesture is heard on the projected vector (the tuning is the held categories').
+      const fired = listener?.push(projected, nowMs) ?? null;
+      if (fired) gestureFires = { ...gestureFires, [fired.gesture]: (gestureFires[fired.gesture] ?? 0) + 1 };
+      live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current(), gestureFires };
       // An entry that completes while binding is off (a preview) is spent, not deferred.
-      if (step.entered && enabled) fire(set, step.entered);
+      if (step.entered && enabled) fire(set, step.entered, categoryName(set.categories.model, step.entered));
+      // So is a gesture's fire.
+      if (fired && enabled) {
+        const label = set.gestures?.names.find((g) => g.id === fired.gesture)?.label.trim() || fired.gesture;
+        fire(set, fired.gesture, label, (b) => gestureArgs(b, fired));
+      }
     },
   };
 }

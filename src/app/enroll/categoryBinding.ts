@@ -50,6 +50,7 @@ import { provideCategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { createCategorizerIndex, onCategorizersChanged, type CategorizerIndex, type CategorizerStoreOptions, type CategorizerSummary } from '@thoremin/sdk-ui/enroll/categorizers';
 import { TRAINED_KIND, isTrainedRecord, recordBindings, trainedId, type AnyCategorizerRecord } from '@thoremin/sdk/enroll/record';
 import { liveModel, tuneVector } from '@thoremin/sdk/enroll/live';
+import { gestureModelFromCategorizer, type GestureModel } from '@thoremin/sdk/enroll/gestures';
 import { useTools } from '../tools/toolsStore';
 import { useToasts } from '../shell/toasts';
 import {
@@ -76,6 +77,10 @@ export interface SavedCategories {
   /** A carved categorizer's live tuning (sensitivity, distance), applied to the vector `read`
    *  gives before it is classified; absent when the tuning leaves the vector as it is. */
   tune?: (vector: FeatureVector) => FeatureVector;
+  /** A carved categorizer's moving gestures (#754): the matcher's model, derived from the stored
+   *  traces, and each gesture's name by id. Absent when it has none. Bound in the same `bindings`
+   *  map, by gesture id; a gesture fires on an EVENT (each repetition), not on an entry. */
+  gestures?: { model: GestureModel; names: readonly { id: string; label: string }[] };
 }
 
 /** The host's view of the one collection (every kind). */
@@ -122,7 +127,9 @@ export function playable(record: AnyCategorizerRecord): SavedCategories {
   const live = liveModel(categorizer, tuning ?? {}, modality ? { modality } : {});
   const read: CategoryRead = { modality: kind, ...(categorizer.hand && categorizer.hand !== 'either' ? { hand: categorizer.hand } : {}), ...(categorizer.mirror ? { mirror: true } : {}) };
   const tunes = live.tuning.sensitivity !== 1 || live.tuning.distance > 0;
-  return { ...base, kind, categories: { model: live.model, bindings, read }, ...(tunes ? { tune: (v: FeatureVector) => tuneVector(live, v) } : {}) };
+  const items = categorizer.gestures?.items ?? [];
+  const gestures = items.length > 0 ? { model: gestureModelFromCategorizer(categorizer), names: items.map((g) => ({ id: g.id, label: g.label })) } : undefined;
+  return { ...base, kind, categories: { model: live.model, bindings, read }, ...(tunes ? { tune: (v: FeatureVector) => tuneVector(live, v) } : {}), ...(gestures ? { gestures } : {}) };
 }
 
 /** What the playable model is made of: a record whose key is unchanged plays the same model. */
