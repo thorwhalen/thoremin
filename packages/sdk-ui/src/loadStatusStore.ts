@@ -12,8 +12,8 @@
  * store, reporter and hook (with the reset-count rebuild that keeps a returning node's status from
  * being swallowed by the change gate), keyed by the load-status vocabulary's own change key.
  *
- * It lives here and not beside `makeLoadStatusReporter` in `@thoremin/lazy`, because that
- * package is pure and Node-safe with no vendor library, and the store is a React hook (zustand).
+ * It lives here and not beside `makeLoadStatusReporter` in `@thoremin/sdk/status/gate`, because
+ * that module is pure and Node-safe with no vendor library, and the store is a React hook (zustand).
  * A store with more than the status (the face's label and scores, throttled, with a toast) is
  * its own store: it reads another port shape and reports on its own cadence.
  */

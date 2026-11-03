@@ -8,7 +8,7 @@
  * change of what the readout shows, and a status hook wiring the two into the engine host. They
  * differ in the status type, in the key that says what changed, in the state's field name (`status`
  * or `live`) and, for MIDI, in a throttle on a counter that moves at frame rate. This factory is
- * that shape once; the change gate itself is `makeStatusReporter` in `@thoremin/lazy/status`, pure.
+ * that shape once; the change gate itself is `makeStatusReporter` in `@thoremin/sdk/status/gate`, pure.
  *
  * The host builds a hook's sink once per engine (`src/app/extensions/index.ts`), while a node may
  * leave the graph and come back many times under it. The reporter's change gate remembers the last
@@ -24,7 +24,7 @@
  * member.
  */
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import { makeStatusReporter, type StatusReporterOptions, type StatusSink, type StatusThrottle } from '@thoremin/lazy/status';
+import { makeStatusReporter, type StatusReporterOptions, type StatusSink, type StatusThrottle } from '@thoremin/sdk/status/gate';
 import type { OutputReader, StatusHook } from './types';
 
 /** The store's state: the node's latest status under `field` (`status` by default), or `absent`

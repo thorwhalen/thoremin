@@ -6,7 +6,7 @@
  * node reads them through `read`, and a store of another shape takes the reset count alone (#983).
  */
 import { describe, expect, it, vi } from 'vitest';
-import { makeStatusGate } from '@thoremin/lazy/status';
+import { makeStatusGate } from '@thoremin/sdk/status/gate';
 import { createResetCount, createStatusStore } from '@thoremin/sdk-ui/statusStore';
 
 interface Reading {
