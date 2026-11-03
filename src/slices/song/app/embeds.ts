@@ -36,7 +36,8 @@ export function embedStretcher(player: EmbedPlayer): Stretcher {
     },
     appliedRate: () => applied,
     durationS: () => player.durationS(),
-    setVolume: (v) => player.setVolume?.(v),
+    // A provider's optional verbs exist exactly when its capabilities say so.
+    setVolume: player.setVolume ? (v) => player.setVolume!(v) : undefined,
     position: () => player.position(),
     seek: player.seek ? (p) => player.seek!(p) : undefined,
     playing: () => player.playing(),
@@ -182,6 +183,15 @@ export function embedSession(item: MediaItem, song: SongHandle, player: EmbedPla
       if (mine) setSongHandle(null);
     },
   };
+}
+
+/** The muted badge's note while an embedded player that offers no volume is open (#939): the
+ *  player's mute reaches an embed only through its volume. A pure read of the hot store (the loaded
+ *  song), so the badge updates with it; most such players report no playback, so the note does not
+ *  wait for one. */
+export function embedStillSounding(state: Readonly<Record<string, unknown>>): string | null {
+  const player = (state.songHandle as SongHandle | null | undefined)?.player;
+  return player && !player.setVolume ? 'embedded player not muted' : null;
 }
 
 /** What the open embedded player last said went wrong, for the Song tool; null when nothing. */

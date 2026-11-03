@@ -4138,9 +4138,9 @@
         "default": 0
       },
       {
-        "name": "claimed",
+        "name": "silent",
         "kind": "boolean",
-        "description": "A tool holds the instrument quiet (the Trainer)",
+        "description": "The player's mute or a tool's claim (`muteAll`): the song's own volume goes to 0, the one way to reach a provider's embedded player (#939)",
         "default": false
       }
     ],

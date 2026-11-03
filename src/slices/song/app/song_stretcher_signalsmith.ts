@@ -183,7 +183,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         if (disposed) return null;
         console.warn(`[song-player] Signalsmith Stretch could not start, playing through the media element: ${String(e)}`);
         fallback = createMediaElementStretcher(audio);
-        fallback.setVolume(volume);
+        fallback.setVolume?.(volume);
         fallback.setRate(rate);
       }
       return node;
@@ -200,7 +200,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
     n.disconnect();
     console.warn(`[song-player] Signalsmith Stretch failed while playing, the media element takes over at ${at.toFixed(2)} s: ${String(ev)}`);
     const next = createMediaElementStretcher(audio);
-    next.setVolume(volume);
+    next.setVolume?.(volume);
     next.setRate(rate);
     fallback = next;
     // A load waiting on this worklet (the processor died while the song was decoding or being
@@ -296,7 +296,7 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       rampGain(fader.gain, level, seconds, now());
     },
     setVolume(v) {
-      if (fallback) return fallback.setVolume(v);
+      if (fallback) return fallback.setVolume?.(v);
       if (v === volume) return;
       volume = v;
       gain.gain.setTargetAtTime(v, now(), 0.03);

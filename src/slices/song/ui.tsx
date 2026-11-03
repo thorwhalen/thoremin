@@ -14,6 +14,7 @@ import { SONG_TOOL } from './tool';
 import { RecordingSection, recordingStart, recordingStop } from './panels/RecordingSection';
 import { makeSongReporter, SONG_NODE_ID, useSongStatus } from './app/songStatus';
 import { SONG_COMMANDS } from './app/songCommands';
+import { embedStillSounding } from './app/embeds';
 import { clearAnsweredSeek, setSongPlaying, songPlaying, useSongField } from './app/state';
 
 /** The transport goes off, if it is on (a song that ended, an engine that is gone). */
@@ -59,6 +60,8 @@ export const SONG_UI: ExtensionUi = {
       detached: { useRunning: () => useSongField(songPlaying), stop: () => void dispatchCommand('song.pause', {}), hint: 'pause the song' },
     },
   ],
+  // An embed whose provider offers no volume plays on through the player's mute (#939).
+  stillSounding: [{ id: 'song.embed', whileMuted: embedStillSounding }],
   toolSections: [{ id: 'song.recording', from: 'conductor', when: { 'conductor.conducts': 'recording' }, Section: RecordingSection, on: { start: recordingStart, stop: recordingStop } }],
 };
 
