@@ -24,6 +24,7 @@ import type { NodeDef } from '@thoremin/dag';
 import type { GraphBranch } from './branch';
 import type { FrameView } from '../view/frame_view';
 import type { CarveModality } from '../enroll/modality';
+import type { HandPreference } from '../nodes/player_hands';
 
 /**
  * A whole-object dial the extension owns: one top-level key of the settings schema.
@@ -437,6 +438,14 @@ export interface Extension<D extends readonly DialSlice[] = readonly DialSlice[]
   /** Whether, with these settings, a branch of its that declares one hand reads two at once
    *  (#600 S18a; the conductor's split with the hands alone): the hand model then looks for two. */
   readsTwoHands?: (settings: ExtensionDerivationSettings) => boolean;
+  /** Which hand, with these settings, its branch that declares ONE hand (`hands: 1`) reads when two
+   *  are in view (#784; the conductor's beating hand, ASL's higher hand); undefined when it reads
+   *  none or does not mind. Told to look for one hand, the landmarker holds whichever it found
+   *  first, so the host looks for two while the tracked hand is not this one
+   *  (`src/instruments/hands.ts`). Contract: it counts only while one of the extension's
+   *  `hands: 1` branches is composed (the host ignores it otherwise, so it need not repeat the
+   *  branch's own condition); two extensions wanting different hands read two hands. */
+  prefersHand?: (settings: ExtensionDerivationSettings) => HandPreference | undefined;
   /** Candidates for the shell's slots (#600 S17): node types of its own that can fill a slot the
    *  shell declares (`body`, `source`, ...), and, for at most one extension per slot, the
    *  slot's default. The shell keeps the slot and its contract; a URL picks a candidate

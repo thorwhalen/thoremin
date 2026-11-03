@@ -4,14 +4,8 @@
  * camera frame. Pure functions of a frame and the conductor's params; no state.
  */
 import { LM, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import type { ConductorDialParams as Params, ConductorHand } from './conductor.schema';
-
-/** MediaPipe's label for the player's hand, given the mirror convention. */
-export function labelFor(hand: Exclude<ConductorHand, 'auto'>, mirrorHandedness: boolean): Hand['handedness'] {
-  const raw = hand === 'right' ? 'Right' : 'Left';
-  if (!mirrorHandedness) return raw;
-  return raw === 'Right' ? 'Left' : 'Right';
-}
+import { labelFor } from '@thoremin/sdk/nodes/player_hands';
+import type { ConductorDialParams as Params } from './conductor.schema';
 
 /** The hand that shapes the expression (#378): the one `expressionHand` names (#457);
  *  with `auto`, while an ARM of the body beats on a named side, the other hand (the

@@ -63,7 +63,8 @@ export const conductor = defineBranch({
   voices: [{ from: { node: 'score', port: 'params' }, role: 'score' }],
   overlay: [overlayElementId(CONDUCTOR_EXTENSION_ID, CONDUCTOR_HUD_ELEMENT)],
   // One hand at a time: the beating hand (`pickHand`), or the shaping hand while the body
-  // beats. Which one depends on the hands in view, so `HAND_COUNT_POLICY` decides (#325).
+  // beats. Which one depends on the hands in view, so `HAND_COUNT_POLICY` decides (#325), and
+  // the slice names it (`prefersHand`) so the model tracks that one when two are in view (#784).
   // The split with the hands alone (#457) reads two at once: a dial, so the host says so
   // (`HandCountContext.twoHandsRead`, from `conductorReadsTwoHands`).
   hands: 1,

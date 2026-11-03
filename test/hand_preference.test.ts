@@ -1,0 +1,157 @@
+/**
+ * The preferred hand (#784, item 3 of #480): with one hand looked for and two in view, the host
+ * looks for two while the tracked hand is not the one a one-hand reader wants, and for one again
+ * once only the wanted hand is in view. The pure pieces on scripted frames (`stepHandPreference`,
+ * `foldHandPreferences`, `preferredHand`), then a replay of the recorded conducting hands through a
+ * simulated one-hand landmarker (`scripts/hands/lib_prefer_hand.ts`).
+ */
+import { describe, expect, it } from 'vitest';
+import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { PREFER_HIGHER_HAND, preferPlayerHand, preferredHand, type HandPreference } from '@thoremin/sdk/nodes/player_hands';
+import {
+  foldHandPreferences,
+  HAND_PREFERENCE_OPTIONS,
+  initialHandPreferenceState,
+  stepHandPreference,
+  type HandCount,
+  type HandPreferenceState,
+  type ObservedHands,
+} from '@/instruments/hands';
+import { runPreference, SWITCH_ABOUT_EVERY_SECOND } from '../scripts/hands/lib_prefer_hand';
+import { loadStream } from './helpers/fixtures';
+
+/** A hand with only its wrist placed (what the policy reads: the label and the wrist's height). */
+const hand = (handedness: Hand['handedness'], wristY = 300): Hand => ({ handedness, keypoints: [{ x: 100, y: wristY, z: 0 }] });
+const R = hand('Right');
+const L = hand('Left');
+const RIGHT: HandPreference = { kind: 'label', handedness: 'Right' };
+const { escalateAfterFrames, settleAfterFrames, probeEveryFrames } = HAND_PREFERENCE_OPTIONS;
+
+/** Step the policy over scripted frames (each a NEW frame), returning the count after each. */
+function run(frames: readonly (readonly Hand[])[], preference: HandPreference | undefined, derived: HandCount = 1, from: HandPreferenceState = initialHandPreferenceState()): { counts: HandCount[]; state: HandPreferenceState } {
+  let state = from;
+  const counts = frames.map((hands) => {
+    state = stepHandPreference(state, derived, preference, { hands });
+    return state.count;
+  });
+  return { counts, state };
+}
+const times = <T>(n: number, x: T): T[] => Array.from({ length: n }, () => x);
+
+describe('preferredHand', () => {
+  it('picks by raw label, or the hand whose wrist is highest in the image', () => {
+    expect(preferredHand([L, R], RIGHT)).toBe(R);
+    expect(preferredHand([L], RIGHT)).toBeUndefined();
+    const low = hand('Right', 500);
+    const high = hand('Left', 100);
+    expect(preferredHand([low, high], PREFER_HIGHER_HAND)).toBe(high);
+  });
+
+  it("states the player's hand in the frame's terms: the mirrored camera swaps the label", () => {
+    expect(preferPlayerHand('right', true)).toEqual({ kind: 'label', handedness: 'Left' });
+    expect(preferPlayerHand('right', false)).toEqual({ kind: 'label', handedness: 'Right' });
+  });
+});
+
+describe('foldHandPreferences', () => {
+  it('keeps the one hand the readers agree on, and calls two different hands a conflict', () => {
+    expect(foldHandPreferences([])).toEqual({ conflict: false });
+    expect(foldHandPreferences([undefined, RIGHT, { kind: 'label', handedness: 'Right' }])).toEqual({ preference: RIGHT, conflict: false });
+    expect(foldHandPreferences([RIGHT, PREFER_HIGHER_HAND]).conflict).toBe(true);
+    expect(foldHandPreferences([RIGHT, { kind: 'label', handedness: 'Left' }]).conflict).toBe(true);
+  });
+});
+
+describe('stepHandPreference', () => {
+  it('with no preference is the derived count exactly, whatever is in view', () => {
+    expect(run(times(20, [L]), undefined, 1).counts).toEqual(times(20, 1));
+    expect(run(times(20, [L]), undefined, 2).counts).toEqual(times(20, 2));
+  });
+
+  it('lets a two-hand need win: a derived two is never lowered', () => {
+    expect(run(times(30, [R]), RIGHT, 2).counts).toEqual(times(30, 2));
+  });
+
+  it('looks for two once the wrong hand has been tracked for a few frames', () => {
+    const { counts } = run(times(escalateAfterFrames, [L]), RIGHT);
+    expect(counts.at(-2)).toBe(1);
+    expect(counts.at(-1)).toBe(2);
+  });
+
+  it('holds one hand through a label flicker shorter than the escalation', () => {
+    const flicker = [...times(escalateAfterFrames - 1, [L]), [R], ...times(escalateAfterFrames - 1, [L]), [R]];
+    expect(run(flicker, RIGHT).counts).toEqual(times(flicker.length, 1));
+  });
+
+  it('stays at two while both hands are in view, and drops back once only the wanted hand is', () => {
+    const escalated = run(times(escalateAfterFrames, [L]), RIGHT).state;
+    expect(run(times(50, [L, R]), RIGHT, 1, escalated).counts).toEqual(times(50, 2));
+    const settled = run(times(settleAfterFrames, [R]), RIGHT, 1, escalated).counts;
+    expect(settled.at(-2)).toBe(2);
+    expect(settled.at(-1)).toBe(1);
+  });
+
+  it('keeps looking for the wanted hand while only the other one is in view', () => {
+    const escalated = run(times(escalateAfterFrames, [L]), RIGHT).state;
+    expect(run(times(50, [L]), RIGHT, 1, escalated).counts).toEqual(times(50, 2));
+  });
+
+  it('starts the settling over on a frame with both hands, and lets a frame with none pass', () => {
+    const escalated = run(times(escalateAfterFrames, [L]), RIGHT).state;
+    const half = Math.ceil(settleAfterFrames / 2);
+    const broken = run([...times(half, [R]), [L, R], ...times(settleAfterFrames - 1, [R])], RIGHT, 1, escalated).counts;
+    expect(broken.at(-1)).toBe(2);
+    const gapped = run([...times(half, [R]), [], ...times(settleAfterFrames - half, [R])], RIGHT, 1, escalated).counts;
+    expect(gapped.at(-1)).toBe(1);
+  });
+
+  it('counts the same frame read twice once (the same object, or a copy with the same stamp)', () => {
+    const frame: ObservedHands = { hands: [L], t: 1 };
+    let state = initialHandPreferenceState();
+    for (let i = 0; i < 2 * escalateAfterFrames; i++) state = stepHandPreference(state, 1, RIGHT, frame);
+    for (let i = 0; i < 2 * escalateAfterFrames; i++) state = stepHandPreference(state, 1, RIGHT, { hands: [L], t: 1 });
+    expect(state.count).toBe(1);
+    expect(state.run).toBe(1);
+  });
+
+  it('starts over on another preference, keeping the count it asks for', () => {
+    const almost = run(times(escalateAfterFrames - 1, [L]), RIGHT).state;
+    const other = run([[R]], { kind: 'label', handedness: 'Left' }, 1, almost);
+    expect(other.counts).toEqual([1]);
+    expect(other.state.run).toBe(1);
+  });
+
+  it('for the higher hand, looks at two when a hand is found after none, and now and then after', () => {
+    const lone = hand('Right', 400);
+    const found = run([[], [lone]], PREFER_HIGHER_HAND).counts;
+    expect(found).toEqual([1, 2]);
+    // Settled back on one hand: the next look comes after `probeEveryFrames` frames of it.
+    const settled = run(times(settleAfterFrames, [lone]), PREFER_HIGHER_HAND, 1, run([[], [lone]], PREFER_HIGHER_HAND).state);
+    expect(settled.state.count).toBe(1);
+    const later = run(times(probeEveryFrames, [lone]), PREFER_HIGHER_HAND, 1, settled.state).counts;
+    expect(later.at(-2)).toBe(1);
+    expect(later.at(-1)).toBe(2);
+  });
+});
+
+describe('the recorded conducting hands (a simulated one-hand landmarker)', () => {
+  const frames = loadStream('conducting_44', 'src.hands') as HandsFrame[];
+  const FPS = 30;
+  /** The rule's floor on this clip: the share of two-hands-in-view frames a reader gets its hand. */
+  const WANTED_FLOOR = 0.95;
+
+  for (const [name, preference] of [
+    ['a raw label', RIGHT],
+    ['the higher hand', PREFER_HIGHER_HAND],
+  ] as const) {
+    it(`hands a reader that wants ${name} its hand on nearly every two-hand frame`, () => {
+      for (const switchPerFrame of [0, SWITCH_ABOUT_EVERY_SECOND]) {
+        const without = runPreference(frames, preference, { fps: FPS, rule: false, landmarker: { switchPerFrame } });
+        const withRule = runPreference(frames, preference, { fps: FPS, rule: true, landmarker: { switchPerFrame } });
+        expect(withRule.wantedShare).toBeGreaterThanOrEqual(WANTED_FLOOR);
+        expect(without.wantedShare).toBeLessThan(WANTED_FLOOR);
+        expect(without.atTwoShare).toBe(0);
+      }
+    });
+  }
+});

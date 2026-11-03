@@ -15,11 +15,23 @@ import type { Engine, NodeRegistry } from '@thoremin/dag';
 import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { branchClosureIds, type Composed } from '@/instruments/compose';
-import { deriveHandCount, parseHandsOverride, type HandCount } from '@/instruments/hands';
+import {
+  deriveHandCount,
+  foldHandPreferences,
+  HAND_PREFERENCE_OPTIONS,
+  initialHandPreferenceState,
+  parseHandsOverride,
+  stepHandPreference,
+  type HandCount,
+  type HandPreferenceOptions,
+  type ObservedHands,
+} from '@/instruments/hands';
 import { deriveReadsCamera, type CameraReadContext } from '@/instruments/camera';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
-import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
+import type { HandPreference } from '@thoremin/sdk/nodes/player_hands';
+import { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
+import { SOURCE_SLOT_OUTPUT } from '@/nodes/sources/source_contract';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useControls } from '../store';
@@ -55,8 +67,10 @@ const HANDS_OVERRIDE: HandCount | null = typeof location === 'undefined' ? null 
  * count (#325) and for whether the camera is read at all (#869), so the two never disagree on
  * who reads.
  */
-function liveReaders(controls: ReturnType<typeof useControls.getState>, demanded: DemandedGroups): { branches: GraphBranch[]; ctx: CameraReadContext } {
+function liveReaders(controls: ReturnType<typeof useControls.getState>, demanded: DemandedGroups): { branches: GraphBranch[]; ctx: CameraReadContext; preference?: HandPreference } {
   const ids = branchClosureIds([TRUNK_ID, ...liveBranchIds(controls, demanded)], ALL_BRANCHES);
+  const settings = controls as unknown as Readonly<Record<string, unknown>>;
+  const { preference, conflict } = foldedPreferences(settings, new Set(ids));
   return {
     branches: ids.flatMap((id) => BRANCH_BY_ID.get(id) ?? []),
     ctx: {
@@ -64,10 +78,16 @@ function liveReaders(controls: ReturnType<typeof useControls.getState>, demanded
       gesturesEnabled: controls.gestures?.enabled,
       skeletonShown: controls.overlay?.landmarks?.show,
       videoShown: controls.overlay?.video?.show,
-      twoHandsRead: CONTRIBUTIONS.readsTwoHands.some((reads) => reads(controls as unknown as Readonly<Record<string, unknown>>)),
+      // Two one-hand readers that want different hands read two hands (#784).
+      twoHandsRead: CONTRIBUTIONS.readsTwoHands.some((reads) => reads(settings)) || conflict,
     },
+    ...(preference ? { preference } : {}),
   };
 }
+
+/** The hand preferences of the extensions whose one-hand branch is composed, folded (#784). */
+const foldedPreferences = (settings: Readonly<Record<string, unknown>>, composed: ReadonlySet<string>) =>
+  foldHandPreferences(CONTRIBUTIONS.prefersHand.filter((p) => p.branches.some((b) => composed.has(b))).map((p) => p.prefers(settings)));
 
 /**
  * How many hands the hand model should look for right now (#325): what the live branch set
@@ -104,6 +124,63 @@ export function liveCameraReading(
 ): CameraReading {
   const { branches, ctx } = liveReaders(controls, demanded);
   return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, ctx) };
+}
+
+/** Which hand the live instrument's one-hand readers want when two are in view (#784), if any:
+ *  from the same reading of the readers as the hand count. */
+export function liveHandPreference(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): HandPreference | undefined {
+  return liveReaders(controls, demanded).preference;
+}
+
+/**
+ * {@link liveHandPreference} over the hot store and the live demand, recomputed only when either
+ * changes: the resource reads it once per camera frame, and composing the branch set is not free.
+ */
+function memoLivePreference(): () => HandPreference | undefined {
+  let last: { controls: unknown; demand: string; value: HandPreference | undefined } | undefined;
+  return () => {
+    const controls = useControls.getState();
+    const demanded = featureDemandResource();
+    const demand = demanded === null ? '*' : [...demanded].sort().join('|');
+    if (!last || last.controls !== controls || last.demand !== demand) last = { controls, demand, value: liveHandPreference(controls, demanded) };
+    return last.value;
+  };
+}
+
+/** What the live hand count reads of a running engine: one node's output. */
+export type HandsReader = Pick<Engine, 'getOutput'>;
+
+export interface LiveHandCountOptions {
+  /** The derived count (`liveCameraReading(...).handCount`, which the host keeps current in a ref). */
+  derived: () => HandCount;
+  /** The running engine, read for the hand source's last frame (`cam.hands`); null before it runs. */
+  engine: () => HandsReader | null;
+  /** The live preference; default {@link liveHandPreference} over the hot store and the demand. */
+  preference?: () => HandPreference | undefined;
+  /** The page's `?hands=` override: a pin, so the preference never moves it. */
+  override?: HandCount | null;
+  /** How quickly the count follows the hands in view. */
+  options?: Readonly<HandPreferenceOptions>;
+}
+
+/** The hand source's last frame, when it is one. */
+function observedHands(engine: HandsReader | null): ObservedHands | undefined {
+  const v = engine?.getOutput(TRUNK.cam, SOURCE_SLOT_OUTPUT.name) as Partial<ObservedHands> | undefined;
+  return v && Array.isArray(v.hands) ? (v as ObservedHands) : undefined;
+}
+
+/**
+ * The host's `handCount` resource (#325, #784): the derived count, raised to two while a one-hand
+ * reader's preferred hand is not the one tracked (`stepHandPreference`, over the hand source's last
+ * frame). `webcam-hands` calls it once per camera frame; it keeps the policy's small state.
+ */
+export function createLiveHandCount({ derived, engine, preference = memoLivePreference(), override = HANDS_OVERRIDE, options = HAND_PREFERENCE_OPTIONS }: LiveHandCountOptions): () => HandCount {
+  let state = initialHandPreferenceState();
+  return () => {
+    if (override) return derived();
+    state = stepHandPreference(state, derived(), preference(), observedHands(engine()), options);
+    return state.count;
+  };
 }
 
 /** The live branch set as a key, for "did it change since the build?". */

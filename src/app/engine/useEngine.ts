@@ -44,7 +44,7 @@ import { useTimingStatus, makeTimingReporter } from '../timing/timingStatus';
 import { makeStatusSinks, statusHooks } from '../host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
-import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveCameraReading, liveGraph } from './liveApply';
+import { applyLive, createLiveHandCount, currentBranchKey, lazyDeps, liveBranchIds, liveCameraReading, liveGraph } from './liveApply';
 import { useShallow } from 'zustand/react/shallow';
 import { useToasts } from '../shell/toasts';
 import { useGestureStatus, makeGestureReporter } from '../gestures/gestureStatus';
@@ -339,7 +339,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         timing = createTimingResource({ audio: () => resources.audioContext as AudioContext | undefined });
         timing.noteCamera(stream);
         resources[TIMING_RESOURCE_KEY] = () => timing!.reading();
-        resources[HAND_COUNT_RESOURCE_KEY] = () => handCountRef.current;
+        // Raised to two while a one-hand reader's wanted hand is not the tracked one (#784).
+        resources[HAND_COUNT_RESOURCE_KEY] = createLiveHandCount({ derived: () => handCountRef.current, engine: () => engineRef.current });
         // A recording the player loaded to replay in place of the camera (the Replay tool,
         // `?replay=`): the `replay-hands` source reads it each tick, by time.
         resources[HAND_REPLAY_RESOURCE_KEY] = () => useReplay.getState().replay;

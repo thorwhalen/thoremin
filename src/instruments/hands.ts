@@ -18,9 +18,19 @@
  * ASL: the higher hand), so for them one hand is a change a player would feel, and the skeleton
  * overlay (on by default) would draw one hand of two. Both are maintainer decisions (#168 D13),
  * held in {@link HAND_COUNT_POLICY} and applied on the recommendations (#480): a one-hand reader
- * gets one hand (with both in view the landmarker may hold the other one for a while), and the
+ * gets one hand (with both in view, steered to the one it reads when it says which: below), and the
  * skeleton shows what the instrument tracks, so an instrument that reads one hand or none draws
  * one; an open hand tool, a hand-group claim, gestures or a two-hand dial still ask for every hand.
+ *
+ * Which hand, when one is looked for and two are in view (#784, item 3 of #480). Told to look for
+ * one, the landmarker holds whichever it found first, so a reader that wants a particular hand (the
+ * conductor's right hand, ASL's higher hand) states a {@link HandPreference} and
+ * {@link stepHandPreference} escalates to two hands while the tracked hand is not the wanted one,
+ * and drops back to one once only the wanted hand is in view: tracking two hands with two in view
+ * costs no search (the search is paid only while fewer are tracked than looked for), so the
+ * escalation costs the search only while the wanted hand is out of view. The thresholds are frame
+ * counts ({@link HAND_PREFERENCE_OPTIONS}), so a label flicker of a frame or two moves nothing.
+ * No preference is the derived count exactly.
  *
  * Pure: no store, no engine, no React.
  */
@@ -28,6 +38,8 @@ import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { demandWantsHands } from '@thoremin/sdk/features/sources';
+import { preferredHand, sameHandPreference, type HandPreference } from '@thoremin/sdk/nodes/player_hands';
+import type { Hand } from '@thoremin/sdk/nodes/domain';
 
 /** How many hands the model can be told to look for. It always looks for at least one. */
 export type HandCount = 1 | 2;
@@ -115,4 +127,115 @@ export function deriveHandCount(branches: readonly GraphBranch[], ctx: HandCount
 export function parseHandsOverride(search: string): HandCount | null {
   const v = new URLSearchParams(search).get('hands');
   return v === '1' ? 1 : v === '2' ? 2 : null;
+}
+
+/**
+ * The preferences of the one-hand readers, folded (#784): the one they agree on, or `conflict` when
+ * two want different hands (the host then looks for two: two hands are read).
+ */
+export function foldHandPreferences(preferences: readonly (HandPreference | undefined)[]): { preference?: HandPreference; conflict: boolean } {
+  let preference: HandPreference | undefined;
+  for (const p of preferences) {
+    if (!p) continue;
+    if (preference && !sameHandPreference(preference, p)) return { conflict: true };
+    preference ??= p;
+  }
+  return preference ? { preference, conflict: false } : { conflict: false };
+}
+
+/** How quickly the count follows the hands in view (#784), in camera frames (each a new frame). */
+export interface HandPreferenceOptions {
+  /** Consecutive frames the tracked hand must be the wrong one before looking for two: a raw
+   *  label flickers for a frame now and then on a single hand. */
+  escalateAfterFrames: number;
+  /** Consecutive frames with only the wanted hand in view (frames with no hand neither count nor
+   *  break the run) before looking for one again. */
+  settleAfterFrames: number;
+  /** For a preference one tracked hand cannot judge (`higher`: is another hand above it?), the
+   *  frames of one hand after which the model looks for two once, to see; it also looks at once
+   *  when a hand is found after none (the moment the landmarker chooses). */
+  probeEveryFrames: number;
+}
+
+/** About a tenth of a second to escalate, a third to settle, a look every three seconds at 30 fps. */
+export const HAND_PREFERENCE_OPTIONS: Readonly<HandPreferenceOptions> = Object.freeze({ escalateAfterFrames: 3, settleAfterFrames: 10, probeEveryFrames: 90 });
+
+/** The frame the policy reads: the hand source's last output. */
+export interface ObservedHands {
+  hands: readonly Hand[];
+  /** The capture stamp, when the source gives one: a copy with the same stamp is no new frame. */
+  t?: number;
+}
+
+/** The policy's small state between frames. */
+export interface HandPreferenceState {
+  /** The count it asks for now. */
+  readonly count: HandCount;
+  /** Consecutive frames toward the next change: wrong ones at one hand, settled ones at two. */
+  readonly run: number;
+  /** Judged frames at one hand since the last look (for a preference one hand cannot judge). */
+  readonly sinceProbe: number;
+  /** The preference the runs were counted for: another one starts them over. */
+  readonly preference?: HandPreference;
+  /** The last frame observed, so the same frame read twice counts once. */
+  readonly frame?: ObservedHands;
+}
+
+/** The state before any frame: the derived count, nothing counted. */
+export function initialHandPreferenceState(count: HandCount = 1): HandPreferenceState {
+  return { count, run: 0, sinceProbe: 0 };
+}
+
+/** What one frame says at one hand: the tracked hand is the wanted one, another, or one hand
+ *  cannot tell (`higher` with a single hand); `none` with no hand. */
+function judgeTracked(hands: readonly Hand[], preference: HandPreference): 'wanted' | 'wrong' | 'unknown' | 'none' {
+  if (hands.length === 0) return 'none';
+  if (preference.kind === 'higher') return hands.length > 1 ? 'wanted' : 'unknown';
+  return preferredHand(hands, preference) ? 'wanted' : 'wrong';
+}
+
+/** Whether a frame at two hands shows only the wanted hand (`null`: no hand, which says nothing). */
+function onlyWantedInView(hands: readonly Hand[], preference: HandPreference): boolean | null {
+  if (hands.length === 0) return null;
+  return hands.length === 1 && preferredHand(hands, preference) === hands[0];
+}
+
+const isNewFrame = (frame: ObservedHands, last: ObservedHands | undefined): boolean =>
+  frame !== last && !(last !== undefined && frame.t !== undefined && frame.t === last.t);
+
+/**
+ * The next count, given the DERIVED count, the one-hand readers' preference and the hand source's
+ * last frame (#784). Only a derived count of one with a preference is ever raised; anything else
+ * passes through and clears the runs. At one hand: `escalateAfterFrames` frames of the wrong hand
+ * (or, for a preference one hand cannot judge, `probeEveryFrames` judged frames) ask for two. At
+ * two: `settleAfterFrames` frames with only the wanted hand in view ask for one again.
+ */
+export function stepHandPreference(
+  state: HandPreferenceState,
+  derived: HandCount,
+  preference: HandPreference | undefined,
+  frame: ObservedHands | undefined,
+  options: Readonly<HandPreferenceOptions> = HAND_PREFERENCE_OPTIONS,
+): HandPreferenceState {
+  if (derived !== 1 || !preference) return { ...initialHandPreferenceState(derived), frame };
+  // A new preference starts the runs over, keeping the count it asks for (no reconfigure for it).
+  if (!state.preference || !sameHandPreference(state.preference, preference)) state = { ...initialHandPreferenceState(state.count), preference, frame: state.frame };
+  if (!frame || !isNewFrame(frame, state.frame)) return state;
+  const seen = { ...state, frame };
+  if (state.count === 1) {
+    const verdict = judgeTracked(frame.hands, preference);
+    if (verdict === 'none') return { ...seen, run: 0 };
+    if (verdict === 'unknown') {
+      // A hand found after none is the landmarker's choice being made: look at once, then now and then.
+      const found = (state.frame?.hands.length ?? 0) === 0;
+      const sinceProbe = found ? options.probeEveryFrames : state.sinceProbe + 1;
+      return sinceProbe >= options.probeEveryFrames ? { ...seen, count: ALL_HANDS, run: 0, sinceProbe: 0 } : { ...seen, run: 0, sinceProbe };
+    }
+    const run = verdict === 'wrong' ? state.run + 1 : 0;
+    return run >= options.escalateAfterFrames ? { ...seen, count: ALL_HANDS, run: 0, sinceProbe: 0 } : { ...seen, run };
+  }
+  const only = onlyWantedInView(frame.hands, preference);
+  if (only === null) return seen;
+  const run = only ? state.run + 1 : 0;
+  return run >= options.settleAfterFrames ? { ...seen, count: 1, run: 0, sinceProbe: 0 } : { ...seen, run };
 }
