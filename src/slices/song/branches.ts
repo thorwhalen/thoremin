@@ -11,8 +11,9 @@ const to = (from: { node: string; port: string }, toRef: { node: string; port: s
   optional ? { from, to: toRef, optional: true } : { from, to: toRef };
 
 /** The song the player loaded in the Song tool (#186 PR G): the loaded song by identity, its
- *  transport, level and rate, a tool's claim, which silences it like every other voice, and the
- *  player's mute, which must reach an embedded player the master gain does not carry (#939). It
+ *  transport, level and rate, and `muteAll` (the player's mute or a tool's claim), which silences
+ *  it at its own volume: the one way to reach an embedded player the master gain does not carry
+ *  (#939). It
  *  plays into the master bus itself (no voice in the merge). */
 export const SONG_PLAYBACK = defineBranch({
   id: SONG_PLAYBACK_BRANCH,
@@ -27,8 +28,7 @@ export const SONG_PLAYBACK = defineBranch({
     to(ui('songHoldFade'), { node: SONG_PLAYER, port: 'holdFade' }),
     to(ui('songHoldSlow'), { node: SONG_PLAYER, port: 'holdSlow' }),
     to(ui('songSeek'), { node: SONG_PLAYER, port: 'seek' }),
-    to(ui('claimed'), { node: SONG_PLAYER, port: 'claimed' }),
-    to(ui('mute'), { node: SONG_PLAYER, port: 'mute' }),
+    to(ui('muteAll'), { node: SONG_PLAYER, port: 'silent' }),
   ],
 });
 

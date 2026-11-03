@@ -53,10 +53,9 @@ export interface Stretcher {
   pause(): void;
   /** Playback rate, pitch preserved; 1 = the song's own tempo. */
   setRate(rate: number): void;
-  setVolume(volume: number): void;
-  /** Whether `setVolume` is heard now: false for a provider's player that offers no volume (an
-   *  iframe with no API), which the player's mute cannot reach (#939). Absent = it is. */
-  obeysVolume?(): boolean;
+  /** The song's level, 0..1. Absent for a provider's player that offers no volume (an iframe with
+   *  no API), which nothing of ours can silence, the player's mute included (#939). */
+  setVolume?(volume: number): void;
   /** Ramp the fader (separate from the volume) to `level` (0..1) over `seconds`; 0 seconds
    *  is immediate (#366: the conductor's hold fades the song). Absent = cuts only. */
   fade?(level: number, seconds: number): void;

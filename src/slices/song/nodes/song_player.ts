@@ -41,9 +41,10 @@
  * stretcher's fader ramps to silence over that many seconds, the song keeps sounding
  * meanwhile and pauses once it is silent; a release before the end of the ramp climbs
  * back from where it was, one after it fades in from silence. A cue waits out the ramp.
- * A tool's claim (the Trainer) silences the song like every other voice, and so does the player's
- * mute (#939): the master gain it acts on carries a file's audio, but not a provider's embedded
- * player, which sounds from its own frame and is reached only through its volume.
+ * A tool's claim (the Trainer) and the player's mute silence the song at its own volume (`silent`,
+ * the trunk's `muteAll`; #939): the master gain the mute also closes carries a file's audio, but not
+ * a provider's embedded player, which sounds from its own frame and is reached only through its
+ * volume.
  */
 import { z } from 'zod';
 import { defineNode, realtimeOutputAllowed } from '@thoremin/dag';
@@ -140,12 +141,12 @@ export const songPlayerNode = defineNode<Params>({
       description:
         "How far toward `minRate` the song slows during a conductor's hold fade-out (#573), a fraction (0 = the rate holds, as before); needs `holdFade` > 0. The rate eases back over the same length on the release",
     },
-    { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
     {
-      name: 'mute',
+      name: 'silent',
       kind: 'boolean',
       default: false,
-      description: "The player's mute (#939): silences the song at its own volume too, the one way to reach a provider's embedded player",
+      description:
+        "The player's mute or a tool's claim (`muteAll`): the song's own volume goes to 0, the one way to reach a provider's embedded player (#939)",
     },
   ],
   outputs: [
@@ -341,9 +342,8 @@ export const songPlayerNode = defineNode<Params>({
         }
         const rate = Math.max(p.minRate, Math.min(p.maxRate, wanted));
         applied = rate;
-        const silent = inputs.claimed === true || inputs.mute === true;
-        const volume = silent ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
-        s.setVolume(volume);
+        const volume = inputs.silent === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
+        s.setVolume?.(volume);
         s.setRate(rate);
         const playable = songPlayable(status);
         // A cue moves the song to a beat; one that arrives while the song is still loading

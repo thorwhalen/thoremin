@@ -95,9 +95,8 @@ const ADDED_SINCE_SNAPSHOT: EdgeSpec[] = [
   { from: { node: 'ui', port: 'songHoldFade' }, to: { node: 'songPlayer', port: 'holdFade' } },
   { from: { node: 'ui', port: 'songHoldSlow' }, to: { node: 'songPlayer', port: 'holdSlow' } },
   { from: { node: 'ui', port: 'songVolume' }, to: { node: 'songPlayer', port: 'volume' } },
-  { from: { node: 'ui', port: 'claimed' }, to: { node: 'songPlayer', port: 'claimed' } },
-  // #939: the player's mute reaches a provider's embedded player, which the master gain does not carry.
-  { from: { node: 'ui', port: 'mute' }, to: { node: 'songPlayer', port: 'mute' } },
+  // #939: the player's mute as well as a tool's claim, to reach an embedded player the master gain does not carry.
+  { from: { node: 'ui', port: 'muteAll' }, to: { node: 'songPlayer', port: 'silent' } },
   // The Song tool's playback session moves the song to a position (its seek).
   { from: { node: 'ui', port: 'songSeek' }, to: { node: 'songPlayer', port: 'seek' } },
   // #186 PR H: the song follows the dancer; the pace controller reads the player back on

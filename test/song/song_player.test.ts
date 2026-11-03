@@ -154,7 +154,7 @@ describe.runIf(SONG)('song-player', () => {
     await drive(make(), [{ song: s, rate: 7, volume: 0.5 }], { resources: { ...AUDIO, createStretcher: () => st } });
     expect(st.rate()).toBe(2);
     expect(st.volume()).toBe(0.5);
-    await drive(make(), [{ song: s, rate: 0.1, claimed: true }], { resources: { ...AUDIO, createStretcher: () => st } });
+    await drive(make(), [{ song: s, rate: 0.1, silent: true }], { resources: { ...AUDIO, createStretcher: () => st } });
     expect(st.rate()).toBe(0.5);
     expect(st.volume()).toBe(0);
   });
@@ -310,9 +310,8 @@ describe.runIf(SONG)('the trunk wires the song player to the store and the claim
     expect(into('play')).toEqual(['ui.songPlays']);
     expect(into('rate')).toEqual(['ui.songRate']);
     expect(into('volume')).toEqual(['ui.songVolume']);
-    expect(into('claimed')).toEqual(['ui.claimed']);
-    // The player's mute, which the master gain cannot carry to an embedded player (#939).
-    expect(into('mute')).toEqual(['ui.mute']);
+    // The player's mute or a tool's claim, which the master gain cannot carry to an embedded player (#939).
+    expect(into('silent')).toEqual(['ui.muteAll']);
     // The ports exist on store-controls (a dangling edge would fail validation, not silently).
     const ui = createAppRegistry().get('store-controls')!;
     for (const p of ['songHandle', 'songPlaying', 'songPlays', 'songRate', 'songVolume']) expect(ui.outputs.map((o) => o.name)).toContain(p);

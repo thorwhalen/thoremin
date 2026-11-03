@@ -216,7 +216,7 @@ describe.runIf(SONG)('the Signalsmith stretcher, at its edges', () => {
     expect(el.fade).toHaveBeenCalledWith(0, 0.2);
     s.seek!(3);
     expect(el.seek).toHaveBeenCalledWith(3);
-    s.setVolume(0.3);
+    s.setVolume!(0.3);
     expect(el.setVolume).toHaveBeenLastCalledWith(0.3);
     s.play();
     s.pause();

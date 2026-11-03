@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The song player drives a song's own embedded player (`SongHandle.player`) the way it drives the
  * stretcher: load, transport, rate (and reports the rate the provider applied), seek, position into
@@ -8,7 +9,8 @@ import type { NodeContext, NodeHandlers, PortValues } from '@thoremin/dag';
 import { EMPTY_SONG_GRID } from '@thoremin/ictus';
 import { songPlayerNode, type SongHandle, type Stretcher } from '@/slices/song/nodes/song_player';
 import { embedStillSounding, embedStretcher } from '@/slices/song/app/embeds';
-import type { EmbedPlayer } from '@thoremin/sources';
+import type { EmbedPlayer, MediaItem } from '@thoremin/sources';
+import { createIframePlayer } from '@thoremin/sources/embeds/iframe_player';
 import { NO_CONTROL } from '@thoremin/sources';
 import { SONG } from '../helpers/extensions';
 
@@ -113,33 +115,21 @@ describe.runIf(SONG)("the player's mute reaches an embedded player (#939)", () =
     const yt = fake('yt');
     const song: SongHandle = { id: 'e3', name: 'v', url: 'u', durationS: 200, grid: EMPTY_SONG_GRID, player: yt };
     const at = { song, playing: true, volume: 0.6 };
-    await drive(songPlayerNode.make(songPlayerNode.params.parse({})), [at, { ...at, mute: true }, { ...at, mute: false }], fake('stretcher'));
+    await drive(songPlayerNode.make(songPlayerNode.params.parse({})), [at, { ...at, silent: true }, { ...at, silent: false }], fake('stretcher'));
     expect(yt.volumes).toEqual([0.6, 0, 0.6]);
     // Muting never touches the transport: the song plays on, silent.
     expect(yt.log.filter((l) => l === 'yt:pause')).toEqual([]);
   });
 
-  const player = (volume: boolean, playing = true): EmbedPlayer =>
-    ({
-      ready: Promise.resolve(),
-      capabilities: { ...NO_CONTROL, play: true, volume },
-      play() {},
-      pause() {},
-      position: () => 0,
-      durationS: () => 0,
-      playing: () => playing,
-      ended: () => false,
-      on: () => () => {},
-      dispose() {},
-      ...(volume ? { setVolume() {} } : {}),
-    }) as unknown as EmbedPlayer;
+  const item = { source: 'deezer', id: 'd1', title: 'A track', rights: 'embed_only', media: { kind: 'embed', embedUrl: 'https://widget.deezer.com/x' } } as unknown as MediaItem;
   const handle = (p: EmbedPlayer): SongHandle => ({ id: 'e', name: 'v', url: 'u', durationS: 0, grid: EMPTY_SONG_GRID, player: embedStretcher(p) });
 
-  it('an embed with no volume is named by the muted badge while it plays, and only then', () => {
-    expect(embedStillSounding({ songHandle: handle(player(false)) })).toBe('embedded player still on');
-    expect(embedStillSounding({ songHandle: handle(player(false, false)) })).toBeNull();
-    expect(embedStillSounding({ songHandle: handle(player(true)) })).toBeNull();
-    // A file plays through the master gain the mute closes: nothing to say.
+  it('the muted badge names an open embed with no volume (the real iframe player: reports no playback)', () => {
+    const iframe = createIframePlayer(document.createElement('div'), item);
+    expect(embedStillSounding({ songHandle: handle(iframe) })).toBe('embedded player not muted');
+    // One with a volume is silenced by the mute: nothing to say.
+    expect(embedStillSounding({ songHandle: handle({ ...iframe, capabilities: { ...NO_CONTROL, volume: true }, setVolume() {} }) })).toBeNull();
+    // A file plays through the master gain the mute closes.
     expect(embedStillSounding({ songHandle: { id: 'f', name: 'f', url: 'blob:f', durationS: 1, grid: EMPTY_SONG_GRID } })).toBeNull();
     expect(embedStillSounding({ songHandle: null })).toBeNull();
   });
