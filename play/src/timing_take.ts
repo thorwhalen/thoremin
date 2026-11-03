@@ -30,6 +30,8 @@ export const RAW_MICROPHONE = { echoCancellation: false, noiseSuppression: false
 export interface KeepTakeDeps {
   writeOffset(v: StoredOffset): boolean;
   setInputStage(stage: InputStage): void;
+  /** The input stage in force during the take (a tap offset is kept relative to it, `./offset`). */
+  inputStage(): InputStage;
   now(): Date;
 }
 
@@ -37,7 +39,7 @@ export interface KeepTakeDeps {
 export function keepTake(mode: CalibrationMode, result: CalibrationTakeResult, deps: KeepTakeDeps): string | null {
   if (result.refusal) return result.refusal;
   if (mode === 'tap') {
-    deps.writeOffset({ offset: result.offset, spread: result.spread, at: deps.now().toISOString() });
+    deps.writeOffset({ offset: result.offset, spread: result.spread, at: deps.now().toISOString(), stage: deps.inputStage().seconds });
     return null;
   }
   const stage = result.inputStage?.stage;

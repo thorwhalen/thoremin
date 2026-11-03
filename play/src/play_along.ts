@@ -8,7 +8,7 @@ import { lessonsFor } from '@thoremin/games/lessons';
 import { GAMES_ANALYSERS } from '@thoremin/games/listen';
 import { createPlayAlongSession } from '@thoremin/games/play_along';
 import { drawStage } from '@thoremin/games/stage';
-import { offsetLine, readOffset } from './offset';
+import { offsetFor, offsetLine, readOffset } from './offset';
 import { mountGamePage } from './page';
 import { mountSpecBar } from './spec_bar';
 import { rememberedSelect } from './remembered_select';
@@ -34,11 +34,11 @@ mountGamePage({
   canvas: $<HTMLCanvasElement>('stage'),
   startButton: $<HTMLButtonElement>('start'),
   analysers: GAMES_ANALYSERS,
-  session: (start) => {
+  session: (start, _ctx, inputStage) => {
     const song = spec.song();
     const lesson = song ? lessonFromSong(song, 'play-along', spec.settings()) : shipped();
     const d = difficultySel.value as Difficulty;
-    return createPlayAlongSession(lesson, { start, windows: ONSET_WINDOWS[d], toleranceCents: PITCH_TOLERANCE[d], offset: readOffset()?.offset ?? 0 });
+    return createPlayAlongSession(lesson, { start, windows: ONSET_WINDOWS[d], toleranceCents: PITCH_TOLERANCE[d], offset: offsetFor(readOffset(), inputStage.seconds) });
   },
   draw: (g, W, H, view) => {
     if (view) drawStage(g, { W, H, notes: noteView(), staff: staffMode() }, view);

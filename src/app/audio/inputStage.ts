@@ -10,7 +10,6 @@ import { inputStageStore, type InputStageState } from '@thoremin/sdk-ui/audio/in
 export {
   INPUT_STAGE_RECORD_ID,
   INPUT_STAGE_STORAGE_KEY,
-  createInputStageProvider,
   createInputStageStore,
   hydrateInputStage,
   inputStageRecord,
@@ -23,8 +22,9 @@ export {
   type InputStageState,
   type InputStageStoreOptions,
 } from '@thoremin/sdk-ui/audio/inputStage';
+export { createInputStageProvider } from '@thoremin/sdk-ui/audio/inputStageProvider';
 
 /** The stored stage in a React component (re-renders when it changes). */
 export function useInputStage<T>(selector: (s: InputStageState) => T): T {
-  return useStore(inputStageStore, selector);
+  return useStore(inputStageStore(), selector);
 }

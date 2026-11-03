@@ -102,6 +102,8 @@ fallback only, tracked for migration.
 preset-collection* layer. Load preset → hydrate zustand; edit → debounce → save
 via the provider. Never `await` a provider in the tick/audio loop.
 
+**One exception to "Zod schema first":** this device's input-stage record (`@thoremin/sdk-ui/audio/inputStage`, #881) is checked by a hand-written guard, not a Zod schema, because every standalone game page carries it and Zod alone is several times a page's budget (`scripts/check_play_bundle.ts`); it still persists through a zodal `DataProvider`, imported on demand.
+
 ## Dev skills (`skills/`, linked from `.claude/skills/`)
 
 - **`thoremin-dev-guide`** — keeping the player guide (and, in its second section, the private research guide) true: when a seed, tool or editor section is added or changed, how to add its guide entry, regenerate its picture and the voice to write in. Read it before shipping a player-visible change.

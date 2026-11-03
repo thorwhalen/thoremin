@@ -56,7 +56,7 @@ const page: GamePage<GameView> = mountGamePage<GameView>({
     const r = take?.result();
     if (r && !kept) {
       kept = true;
-      const refusal = keepTake(takeMode, r, { writeOffset, setInputStage, now: () => new Date() });
+      const refusal = keepTake(takeMode, r, { writeOffset, setInputStage, inputStage: () => page.inputStage(), now: () => new Date() });
       const verdict = refusal ? `Not kept (${refusal}).` : 'Kept.';
       if (takeMode === 'tap') status.textContent = `${verdict} ${offsetLine(readOffset())}`;
       else stageLine.textContent = `${verdict} ${inputStageLine(page.inputStage(), inputStageRecordNow())}`;
@@ -67,5 +67,5 @@ const page: GamePage<GameView> = mountGamePage<GameView>({
 
 const showStage = () => (stageLine.textContent = inputStageLine(page.inputStage(), inputStageRecordNow()));
 // The stored record hydrates after mount: say the stage once it is read, and whenever it changes.
-inputStageStore.subscribe(showStage);
+inputStageStore().subscribe(showStage);
 showStage();

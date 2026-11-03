@@ -22,8 +22,9 @@ export interface GamePageOptions<V extends { notice?: string }> {
   startButton: HTMLButtonElement;
   /** The analysers the game reads (its lease on the hub). */
   analysers: readonly AnalyserSpec[];
-  /** A new session starting at `start` (context seconds). */
-  session(start: number, ctx: AudioContext): Session<V>;
+  /** A new session starting at `start` (context seconds), under the input stage in force (what the
+   *  runner moves heard times back by; a stored player offset is relative to it, `./offset`). */
+  session(start: number, ctx: AudioContext, inputStage: InputStage): Session<V>;
   /** Draw a view (or the page's idle picture when `view` is null) at CSS size W x H. */
   draw(g: CanvasRenderingContext2D, W: number, H: number, view: V | null): void;
   /** The game is over: the microphone goes off, the last view stays. */
@@ -75,7 +76,7 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
     lease = hub.acquire({ analysers: [...o.analysers], ...(o.constraints ? { constraints: o.constraints } : {}) });
     const audio = ctx!;
     const own = lease;
-    runner = createRunner<V>(o.session(audio.currentTime + (o.leadS ?? 0.8), audio), {
+    runner = createRunner<V>(o.session(audio.currentTime + (o.leadS ?? 0.8), audio, hub.inputStage()), {
       drain: () => own.drain(),
       now: () => audio.currentTime,
       sampleRate: () => audio.sampleRate,

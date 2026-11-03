@@ -65,7 +65,9 @@ export interface LoopbackStageInputs {
   /** The input stage in force during the take (what the heard times were corrected by). */
   current: InputStage;
   /** The output stage the browser reports, seconds (scheduled to speaker), or null when it reports
-   *  none: then nothing is taken out, and the new stage carries the output stage with it. */
+   *  none: then the take is refused, since the round trip cannot be split into its two halves (a
+   *  stage carrying the output stage would outrank `reported` and misalign the microphone with the
+   *  camera in every graph that reads both). */
   outputStage: number | null;
 }
 
@@ -75,14 +77,19 @@ export type LoopbackStage = { stage: InputStage; refusal: null } | { stage: null
 /**
  * The input stage a loopback take measured. A click scheduled at `t` leaves the speaker at
  * `t + output`, reaches the input stamped at `t + output + input`, and was read at that stamp
- * minus `current`; so `input = current + residual - output`. Refused when that is negative (the
- * reported output stage is longer than the round trip heard) or past {@link MAX_INPUT_STAGE_S}.
+ * minus `current`; so `input = current + residual - output`. Refused when the browser reports no
+ * output stage, when the round trip heard (`current + residual`) is negative (each click was paired
+ * with the next one's echo: an output slower than the take can tell, a Bluetooth speaker), when the
+ * reported output stage is longer than that round trip, or past {@link MAX_INPUT_STAGE_S}.
  */
 export function inputStageFromLoopback({ residual, current, outputStage }: LoopbackStageInputs): LoopbackStage {
   if (!Number.isFinite(residual)) return { stage: null, refusal: 'no residual was measured' };
-  const seconds = current.seconds + residual - (outputStage ?? 0);
   const ms = (x: number) => `${Math.round(x * 1000)} ms`;
-  if (seconds < 0) return { stage: null, refusal: `the round trip heard (${ms(current.seconds + residual)}) is shorter than the output stage reported (${ms(outputStage ?? 0)})` };
+  const roundTrip = current.seconds + residual;
+  if (roundTrip < 0) return { stage: null, refusal: 'the output is too slow to measure (Bluetooth?): each click was heard nearer the next one' };
+  if (outputStage === null) return { stage: null, refusal: `the browser reports no output stage, so the round trip heard (${ms(roundTrip)}) cannot be split into the speaker's and the microphone's shares` };
+  const seconds = roundTrip - outputStage;
+  if (seconds < 0) return { stage: null, refusal: `the round trip heard (${ms(roundTrip)}) is shorter than the output stage reported (${ms(outputStage)})` };
   if (seconds > MAX_INPUT_STAGE_S) return { stage: null, refusal: `an input stage of ${ms(seconds)} is past the ${ms(MAX_INPUT_STAGE_S)} a device may keep` };
   return { stage: { seconds, source: 'loopback' }, refusal: null };
 }

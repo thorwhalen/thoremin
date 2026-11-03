@@ -12,12 +12,17 @@
  *   take, so the number is the device's own: the heard times were already moved back by the input
  *   stage in force, so what is measured is a residual, and the new input stage is that stage plus
  *   the residual minus the output stage the browser reports (`inputStageFromLoopback`). The take
- *   asks for those two stages when it ends ({@link LoopbackStages}), and its result says the stage
- *   to keep or why none is kept. It wants echo cancellation OFF (it would cancel the very clicks).
+ *   reads the output stage on every tick and keeps the median (one reading of a stage the browser
+ *   is still settling is noise), reads the input stage in force when it ends ({@link LoopbackStages}),
+ *   and its result says the stage to keep or why none is kept (no output stage reported, or a round
+ *   trip too long to tell: it clicks slower than a tap take, {@link LOOPBACK_BPM}, so the longest
+ *   round trip it can measure is half a second). It wants echo cancellation OFF (it would cancel
+ *   the very clicks).
  *
  * Heard times are NOT shifted by the old offset: the take measures it afresh.
  */
 import { clickTimes, estimateOffset, type CalibrationOptions, type CalibrationResult } from '@thoremin/judge';
+import { median } from '@thoremin/stats';
 import { inputStageFromLoopback, type InputStage, type LoopbackStage } from '@thoremin/sdk/timing/input_stage';
 import { CLICK_MIDI, ACCENT_VELOCITY, CLICK_VELOCITY, createCueFeed, type Cue } from './cues';
 import type { Heard } from './listen';
@@ -29,12 +34,13 @@ export type CalibrationMode = 'tap' | 'loopback';
 export interface LoopbackStages {
   /** The input stage the heard times were corrected by (the hub's, in force during the take). */
   inputStage(): InputStage;
-  /** The output stage the browser reports, seconds, or null when it reports none. */
+  /** The output stage the browser reports now, seconds, or null when it reports none (read every tick). */
   outputStage(): number | null;
 }
 
 interface CalibrateBase {
   start: number;
+  /** Default {@link DEFAULT_BPM} for a tap take, {@link LOOPBACK_BPM} for a loopback. */
   bpm?: number;
   /** Clicks before the ones that count. Default 4. */
   countIn?: number;
@@ -48,6 +54,9 @@ export type CalibrateOptions = CalibrateBase & ({ mode?: 'tap' } | { mode: 'loop
 export type CalibrationTakeResult = CalibrationResult & { inputStage?: LoopbackStage; outputStage?: number | null };
 
 const DEFAULT_BPM = 100;
+/** A loopback's clicks: slower than a tap take's, since it pairs within half a period, so a round
+ *  trip up to half a second (a slow wireless output) is measured rather than paired with the next click. */
+export const LOOPBACK_BPM = 60;
 const DEFAULT_COUNT_IN = 4;
 const DEFAULT_CLICKS = 16;
 /** Seconds the cue feed schedules ahead of the clock. */
@@ -76,15 +85,14 @@ function summaryOf(result: CalibrationTakeResult, mode: CalibrationMode): string
   const m = MODES[mode];
   if (result.refusal) return `Not usable: ${result.refusal}. ${m.retry}`;
   if (mode === 'tap') return `Offset ${ms(result.offset)} ms, steady to ${ms(result.spread)} ms over ${result.kept} ${m.unit}.`;
-  // A loopback result with no refusal carries its stage (`finish`).
+  // A loopback result with no refusal carries its stage and the output stage it took out (`finish`).
   const seconds = result.inputStage?.stage?.seconds ?? NaN;
-  const out = result.outputStage == null ? 'output stage not reported, so not taken out' : `output stage ${ms(result.outputStage)} ms taken out`;
-  return `Input stage ${ms(seconds)} ms (residual ${ms(result.offset)} ms, ${out}), steady to ${ms(result.spread)} ms over ${result.kept} ${m.unit}.`;
+  return `Input stage ${ms(seconds)} ms (residual ${ms(result.offset)} ms, output stage ${ms(result.outputStage ?? NaN)} ms taken out), steady to ${ms(result.spread)} ms over ${result.kept} ${m.unit}.`;
 }
 
 export function createCalibrationSession(opts: CalibrateOptions) {
   const mode: CalibrationMode = opts.mode ?? 'tap';
-  const bpm = opts.bpm ?? DEFAULT_BPM;
+  const bpm = opts.bpm ?? (mode === 'loopback' ? LOOPBACK_BPM : DEFAULT_BPM);
   const period = 60 / bpm;
   const countIn = opts.countIn ?? DEFAULT_COUNT_IN;
   const n = opts.clicks ?? DEFAULT_CLICKS;
@@ -98,18 +106,24 @@ export function createCalibrationSession(opts: CalibrateOptions) {
   const feed = createCueFeed(CUE_LOOKAHEAD_S);
   feed.add(all.map((t, i): Cue => ({ t, midi: CLICK_MIDI, velocity: i % BEATS_PER_BAR === 0 ? ACCENT_VELOCITY : CLICK_VELOCITY, kind: 'click' })));
   const onsets: number[] = [];
+  /** The output stage as the browser reported it on each tick of a loopback take. */
+  const outputReadings: number[] = [];
   let result: CalibrationTakeResult | null = null;
 
   function finish(): CalibrationTakeResult {
     const r = estimateOffset(counted, onsets.filter((t) => t >= from), judge);
     if (opts.mode !== 'loopback') return r;
-    const outputStage = opts.stages.outputStage();
+    const outputStage = outputReadings.length > 0 ? median(outputReadings) : null;
     const inputStage: LoopbackStage = r.refusal ? { stage: null, refusal: r.refusal } : inputStageFromLoopback({ residual: r.offset, current: opts.stages.inputStage(), outputStage });
     return { ...r, refusal: inputStage.refusal, inputStage, outputStage };
   }
 
   function tick(now: number, heard: Heard): { view: GameView; cues: Cue[] } {
     for (const o of heard.onsets) onsets.push(o.t);
+    if (opts.mode === 'loopback' && result === null) {
+      const o = opts.stages.outputStage();
+      if (o !== null && Number.isFinite(o)) outputReadings.push(o);
+    }
     if (result === null && now >= end) result = finish();
     const phase = now < counted[0] ? 'count-in' : result ? 'results' : 'playing';
     const heardSoFar = onsets.filter((t) => t >= from).length;

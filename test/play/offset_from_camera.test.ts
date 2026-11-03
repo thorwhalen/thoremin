@@ -47,8 +47,11 @@ describe('the camera app\'s timing offset carries over to the standalone pages (
     expect(cameraAppOffset()).toBeNull();
   });
 
-  it('a loopback take with no spread carries over with a zero spread', () => {
+  it('never adopts a camera loopback offset: the device is the input stage now (#881)', () => {
     camera({ ...MEASURED, source: 'loopback', spread: null });
+    expect(cameraAppOffset()).toBeNull();
+    // A tap take with no spread still carries over, with a zero spread.
+    camera({ ...MEASURED, spread: null });
     expect(cameraAppOffset()).toEqual({ offset: 0.042, spread: 0, at: MEASURED.measuredAt });
   });
 });
