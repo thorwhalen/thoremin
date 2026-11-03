@@ -187,7 +187,9 @@ const CategorizerCategorySchema = z.object({
  * repetitions at the segmenter's longest (3 s) at 60 fps is 21,600; the five 1.5 s repetitions of
  * a dozen at 30 fps the design budgets are 1,800 (about 700 kB of pretty JSON at 14 features).
  * Like {@link MAX_CATEGORIZER_SAMPLES} it is enforced at the untrusted door
- * ({@link importCategorizer}), never by the schema, so a saved record over it still loads.
+ * ({@link importCategorizer}), never by the schema, so a saved record over it still loads. Since
+ * #954 the gesture edits hold it on save too (`gestures/edit.ts`: an edit that would grow the
+ * section past it is refused), so a document the tool saves always re-imports.
  */
 export const MAX_GESTURE_FRAMES = MAX_CATEGORIZER_SAMPLES * MAX_SAMPLE_SUPPORT;
 /** Decimal places a trace frame's time keeps, in ms (a camera stamp's own precision is coarser). */

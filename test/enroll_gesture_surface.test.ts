@@ -18,6 +18,7 @@ import {
   createMotionSegmenter,
   deleteGesture,
   dropGestureTrace,
+  framesRefusal,
   gestureModelFromCategorizer,
   gestureQuality,
   gestureSpace,
@@ -28,7 +29,7 @@ import {
   renameGesture,
   type GestureEdit,
 } from '@thoremin/sdk/enroll/gestures';
-import { CATEGORIZER_FORMAT, CATEGORIZER_VERSION, exportCategorizer, importCategorizer, PersonalCategorizerSchema, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { CATEGORIZER_FORMAT, CATEGORIZER_VERSION, exportCategorizer, gestureFrameCount, importCategorizer, MAX_GESTURE_FRAMES, PersonalCategorizerSchema, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { rekeyBindings } from '@thoremin/sdk/enroll/bind';
 import { createNoiseEstimator, scaleWeights, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
 import { rowJson } from '@thoremin/sdk/util/json';
@@ -192,6 +193,32 @@ describe('the Gestures section: its verbs', () => {
     expect(!r.ok && r.error).toMatch(/not measured on the same features/);
     // The share is an option: with none required the rows are pooled (as holes).
     expect(mergeGestures(apart, 'gesture-2', 'gesture-1', { minShared: 0 })).toMatchObject({ ok: true });
+  });
+});
+
+describe('the frame bound holds on save, as at the import door (#954)', () => {
+  const frames = gestureFrameCount(WITH.gestures);
+  const again = cutTraces('wave', takeOf('wave', { seed: 2, waves: 2 })).traces;
+
+  it('record more is refused, with the reason, when it would grow the section past the bound', () => {
+    const r = addGestureTraces(WITH, again, { ...OPTS, into: 'gesture-1', maxFrames: frames });
+    expect(r).toMatchObject({ ok: false });
+    expect(!r.ok && r.error).toMatch(/more than the \d+ a saved file can carry; drop or delete some repetitions first/);
+    // So is a new gesture.
+    expect(addGestureTraces(WITH, again.map((t) => ({ ...t, gesture: 'push' })), { ...OPTS, maxFrames: frames })).toMatchObject({ ok: false });
+    // Under the default (the import door's), the same take is accepted, and what it saves re-imports.
+    const c = ok(addGestureTraces(WITH, again, { ...OPTS, into: 'gesture-1' }));
+    expect(importCategorizer(exportCategorizer(c)).ok).toBe(true);
+  });
+
+  it('an edit that does not grow the section passes, so a record already over the bound can be trimmed', () => {
+    const over = frames - 1;
+    expect(framesRefusal(WITH.gestures, WITH.gestures, over)).toBeNull();
+    expect(dropGestureTrace(WITH, 'gesture-1', 'wave-5#3')).toMatchObject({ ok: true });
+    expect(framesRefusal(WITH.gestures, ok(deleteGesture(WITH, 'gesture-1')).gestures, over)).toBeNull();
+    expect(framesRefusal(undefined, WITH.gestures, over)).toMatch(/drop or delete/);
+    expect(framesRefusal(undefined, WITH.gestures)).toBeNull();
+    expect(frames).toBeLessThan(MAX_GESTURE_FRAMES);
   });
 });
 

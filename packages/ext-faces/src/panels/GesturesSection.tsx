@@ -2,7 +2,7 @@
  * The Gestures section of the sorting grid (#754, design section 4): the working categorizer's
  * named MOVING gestures beside its held categories, and how to record one.
  *
- * Per gesture: its name (renamed in place), its repetitions as small path sketches (each with a
+ * Per gesture: its name (renamed in place, `./RowControls.tsx` as a held category's), its repetitions as small path sketches (each with a
  * drop), its quality chip (the held categories' three dots and a word: distinct, ok, close to X,
  * repetitions differ, needs another repetition; the numbers in the tooltip), a one-click "Drop the
  * odd one" when a repetition is clearly unlike the others, Record more, Merge into another, and
@@ -20,6 +20,7 @@ import { ProgressRing } from '@thoremin/sdk-ui/enroll/ProgressRing';
 import type { FaceSessionState } from '../app/sessionStore';
 import { gestureCards, type GestureCard, type TraceSketch } from '../lib/gestureView';
 import { recordsGestures } from '../lib/gestureTake';
+import { MergeSelect, NameInput, mergeActions } from './RowControls';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const hint = 'text-[11px] leading-relaxed text-white/60';
@@ -49,33 +50,12 @@ function Sketch({ t, label, onDrop }: { key?: string; t: TraceSketch; label: str
 }
 
 function GestureRow({ g, others, s }: { key?: string; g: GestureCard; others: readonly GestureCard[]; s: FaceSessionState }) {
-  const [text, setText] = useState(g.label);
-  const [last, setLast] = useState(g.label);
-  if (last !== g.label) {
-    setLast(g.label);
-    setText(g.label);
-  }
-  const commit = () => {
-    if (text.trim() && text.trim() !== g.label) {
-      if (!s.renameGesture(g.id, text)) setText(g.label);
-    } else setText(g.label);
-  };
   const colour = !g.chip ? 'text-white/50' : g.chip.grade === 'distinct' ? 'text-emerald-300' : g.chip.grade === 'ok' ? 'text-white/70' : 'text-amber-300';
   const several = g.traces.length > 1;
   return (
     <li data-gesture={g.id} className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 p-2">
       <div className="flex items-center gap-2">
-        <input
-          aria-label={`Name of the gesture ${g.label}`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setText(g.label);
-          }}
-          className="min-w-0 flex-1 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white outline-none focus:bg-white/20"
-        />
+        <NameInput value={g.label} label={`Name of the gesture ${g.label}`} onRename={(text) => s.renameGesture(g.id, text)} />
         <span className="shrink-0 text-[10px] text-white/50">{`${g.traces.length} ${g.traces.length === 1 ? 'repetition' : 'repetitions'}`}</span>
         {g.chip && (
           <span className={`shrink-0 whitespace-nowrap text-[10px] ${colour}`} title={g.chip.title} data-gesture-quality={g.chip.grade}>
@@ -98,19 +78,12 @@ function GestureRow({ g, others, s }: { key?: string; g: GestureCard; others: re
           Record more
         </button>
         {others.length > 0 && (
-          <select
-            aria-label={`Merge ${g.label} into`}
-            value=""
-            onChange={(e) => e.target.value && s.mergeGestures(g.id, e.target.value)}
+          <MergeSelect
+            label={`Merge ${g.label} into`}
+            placeholder="Merge into..."
+            actions={mergeActions(others, (into) => s.mergeGestures(g.id, into))}
             className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-white/70"
-          >
-            <option value="">Merge into...</option>
-            {others.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          />
         )}
         <button type="button" className={btn} aria-label={`Delete the gesture ${g.label}`} onClick={() => s.deleteGesture(g.id)}>
           Delete

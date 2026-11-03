@@ -29,8 +29,9 @@
  * traces, its own noise estimate, a refractory period): a gesture is an EVENT, so its command runs
  * when the matcher FIRES (each repetition), never on an entry, under the same rules otherwise (no
  * set or hushed: the listener is reset; off: a fire is spent; unbound: spent; unknown or
- * confirmation-gated: refused with a toast). What a fire's variation (speed, size) passes to its
- * command is #755's ({@link gestureArgs} is the seam).
+ * confirmation-gated: refused with a toast). A fire's command runs with its binding's own args:
+ * the fire's variation (how fast, how big) is not passed on yet. That is #755's, which adds the
+ * mapping from a fire to its args where `fire` below takes the binding's.
  *
  * Time is an INPUT (`tick(nowMs)`), driven by the frame loop in `useEngine` after the
  * tick that updated the live vector. The latest reading is kept in a module holder for the
@@ -41,12 +42,11 @@ import {
   createCategoryEdge,
   categoryName,
   toCategoryScores,
-  type CategoryBinding,
   type CategoryEdge,
   type FeatureVector,
   type TrainedModel,
 } from '@thoremin/sdk/enroll';
-import { createGestureListener, type GestureFire, type GestureListener, type GestureModel } from '@thoremin/sdk/enroll/gestures';
+import { createGestureListener, type GestureListener, type GestureModel } from '@thoremin/sdk/enroll/gestures';
 import type { CategoryScores } from '@thoremin/sdk/nodes/domain';
 import { registry } from '../commands/registry';
 // The extensions' commands join the registry (#600 S11).
@@ -104,14 +104,6 @@ export interface CategoryDispatcherDeps {
   listen(model: GestureModel): GestureListener;
 }
 
-/**
- * The args a gesture's command runs with: the binding's own, for now. The #755 seam: a fire carries
- * its `variation` (how fast, how big), which the causal matcher's phase will pass on here.
- */
-export function gestureArgs(binding: CategoryBinding, _fire: GestureFire): unknown {
-  return binding.args;
-}
-
 function defaultDeps(): CategoryDispatcherDeps {
   return {
     getActive: () => useCategoryBinding.getState().active,
@@ -154,7 +146,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   let running = false;
 
   /** Run the binding of `id` (a category's entry, or a gesture's fire), named `label`. */
-  const fire = (set: SavedCategories, id: string, label: string, args: (binding: CategoryBinding) => unknown = (b) => b.args) => {
+  const fire = (set: SavedCategories, id: string, label: string) => {
     // Own keys only: an id such as `constructor` reads as present on any `{}` (#338).
     const bindings = set.categories.bindings;
     const binding = Object.hasOwn(bindings, id) ? bindings[id] : undefined;
@@ -168,7 +160,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       return;
     }
     const title = deps.commandTitle(binding.command);
-    void deps.dispatch(binding.command, args(binding)).then(
+    void deps.dispatch(binding.command, binding.args).then(
       (result) => {
         if (isErr(result)) deps.notify(`${label}: ${result.error.message}`, 'error');
         else deps.notify(`${label} → ${title}`);
@@ -226,7 +218,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       // So is a gesture's fire.
       if (fired && enabled) {
         const label = set.gestures?.names.find((g) => g.id === fired.gesture)?.label.trim() || fired.gesture;
-        fire(set, fired.gesture, label, (b) => gestureArgs(b, fired));
+        fire(set, fired.gesture, label);
       }
     },
   };

@@ -26,9 +26,16 @@
  * Trace ids are kept unique across the section (a later take of the same cue id would repeat
  * `<cue>#1`): a repeated id gets a `~n` suffix, since dropping a trace names it by id.
  *
+ * ## The file's frame bound holds on save too (#954)
+ *
+ * An imported file may carry at most `MAX_GESTURE_FRAMES` trace frames. An edit that would GROW
+ * the section past that bound is refused with the reason, so "Record more" never saves a document
+ * its own export cannot re-import. An edit that does not grow it (a drop, a delete, a rename, a
+ * merge) always passes, so a record saved over the bound by an older build can still be trimmed.
+ *
  * Pure: categorizers and traces in, categorizers out.
  */
-import { PersonalCategorizerSchema, type CategorizerGesture, type CategorizerGestures, type PersonalCategorizer } from '../categorizer';
+import { gestureFrameCount, MAX_GESTURE_FRAMES, PersonalCategorizerSchema, type CategorizerGesture, type CategorizerGestures, type PersonalCategorizer } from '../categorizer';
 import type { FeatureWeights, Trace } from '../types';
 import { fromStoredTrace, gestureSection, toStoredTrace } from './file';
 import type { GestureShape } from './matcher';
@@ -39,10 +46,21 @@ export type GestureEdit = { ok: true; categorizer: PersonalCategorizer } | { ok:
 
 const fail = (error: string): GestureEdit => ({ ok: false, error });
 
-/** `c` with `gestures` (none: the section dropped), validated; a schema error is the result's. */
-function withGestures(c: PersonalCategorizer, gestures: CategorizerGestures | null): GestureEdit {
+/** Why an edit may not grow `before`'s section to `after` (null: it may): past `maxFrames` trace
+ *  frames, and more than it had (see the module header). */
+export function framesRefusal(before: CategorizerGestures | undefined, after: CategorizerGestures | null | undefined, maxFrames: number = MAX_GESTURE_FRAMES): string | null {
+  const now = gestureFrameCount(after);
+  if (now <= maxFrames || now <= gestureFrameCount(before)) return null;
+  return `the gestures would hold ${now} frames of movement, more than the ${maxFrames} a saved file can carry; drop or delete some repetitions first`;
+}
+
+/** `c` with `gestures` (none: the section dropped), validated; a schema error, or growth past the
+ *  frame bound, is the result's. */
+function withGestures(c: PersonalCategorizer, gestures: CategorizerGestures | null, maxFrames?: number): GestureEdit {
   const { gestures: _old, ...rest } = c;
   void _old;
+  const refused = framesRefusal(c.gestures, gestures, maxFrames);
+  if (refused) return fail(refused);
   const next = gestures && gestures.items.length > 0 ? { ...rest, gestures: { ...gestures, weights: usedWeights(gestures) } } : rest;
   try {
     return { ok: true, categorizer: PersonalCategorizerSchema.parse(next) };
@@ -85,6 +103,9 @@ export interface AddTracesOptions {
   weights: Readonly<FeatureWeights>;
   /** The shape a NEW gesture is written with (`gestureSection`'s default when absent). */
   shape?: GestureShape;
+  /** The most trace frames the section may grow to (default `MAX_GESTURE_FRAMES`, the import
+   *  door's bound). */
+  maxFrames?: number;
 }
 
 /**
@@ -103,7 +124,7 @@ export function addGestureTraces(c: PersonalCategorizer, traces: readonly Trace[
   const ids = traceIds(c);
   if (target) {
     const added = kept.map((t) => ({ ...toStoredTrace(t, target.features), id: uniqueId(t.id, ids) }));
-    return withGestures(c, { weights: c.gestures!.weights, items: items.map((g) => (g === target ? { ...g, traces: [...g.traces, ...added] } : g)) });
+    return withGestures(c, { weights: c.gestures!.weights, items: items.map((g) => (g === target ? { ...g, traces: [...g.traces, ...added] } : g)) }, options.maxFrames);
   }
   if (!label) return fail('a new gesture needs a name');
   let fresh: CategorizerGestures;
@@ -119,7 +140,7 @@ export function addGestureTraces(c: PersonalCategorizer, traces: readonly Trace[
   }
   const made = fresh.items.map((g) => ({ ...g, traces: g.traces.map((t) => ({ ...t, id: uniqueId(t.id, ids) })) }));
   // The section's weights win; the take's fill only the features it had none for.
-  return withGestures(c, { weights: { ...fresh.weights, ...(c.gestures?.weights ?? {}) }, items: [...items, ...made] });
+  return withGestures(c, { weights: { ...fresh.weights, ...(c.gestures?.weights ?? {}) }, items: [...items, ...made] }, options.maxFrames);
 }
 
 /** Rename gesture `id` to `label` (trimmed). Refused when empty or another gesture's name. */
