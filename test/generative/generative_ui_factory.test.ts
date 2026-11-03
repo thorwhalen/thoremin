@@ -63,8 +63,11 @@ describe.runIf(GENERATIVE)('the generative slice React half', () => {
     const setTransient = vi.fn();
     let playing = true;
     provideControls({ get: () => ({ steerPlaying: playing }), setTransient, setHush: () => {}, setPref: () => {}, subscribe: () => () => {} } as ControlsHost);
+    const { useGenerativeStatus, ABSENT_GENERATIVE_STATUS } = await import('@/slices/generative/app/generativeStatus');
+    useGenerativeStatus.getState().report({ phase: 'active', message: 'Playing' });
     hook.reset!();
     expect(setTransient).toHaveBeenCalledWith('steerPlaying', false);
+    expect(useGenerativeStatus.getState().status).toEqual(ABSENT_GENERATIVE_STATUS);
     playing = false;
     hook.reset!();
     expect(setTransient).toHaveBeenCalledOnce();
