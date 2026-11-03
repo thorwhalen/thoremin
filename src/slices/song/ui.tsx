@@ -12,7 +12,7 @@ import './app/stretchers';
 import SongPanel from './panels/SongPanel';
 import { SONG_TOOL } from './tool';
 import { RecordingSection, recordingStart, recordingStop } from './panels/RecordingSection';
-import { makeSongReporter, SONG_NODE_ID, useSongStatus } from './app/songStatus';
+import { makeSongStatusSink, SONG_NODE_ID, useSongStatus } from './app/songStatus';
 import { SONG_COMMANDS } from './app/songCommands';
 import { embedStillSounding } from './app/embeds';
 import { clearAnsweredSeek, setSongPlaying, songPlaying, useSongField } from './app/state';
@@ -33,7 +33,7 @@ export const SONG_UI: ExtensionUi = {
     {
       nodeId: SONG_NODE_ID,
       // A song that played to its end, or one the browser refused to start, is not playing.
-      make: (engine) => makeSongReporter(engine, useSongStatus.getState(), stopTransport, (id) => {
+      make: (engine) => makeSongStatusSink(engine, stopTransport, (id) => {
         try {
           clearAnsweredSeek(id);
         } catch {

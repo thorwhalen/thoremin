@@ -5,15 +5,20 @@
  * confident it is, and the dynamics. Ephemeral per-frame runtime state, exactly like
  * `generativeStatus` and `midiStatus` — the DAG produces it; React only displays it.
  *
- * {@link makeConductorReporter} is the per-frame sink the host loop registers beside
- * the other bridges in `useEngine.ts`: it reads the `conductor` node's `time`,
- * `dynamics` and `enabled` outputs and reports only when something a player can SEE
- * changed (the state, the whole beat, the tempo to the bpm, the confidence and
- * dynamics to a twentieth), so the panel never re-renders 60×/s for a phase that
- * merely crept.
+ * {@link makeConductorReporter} is the per-frame sink behind the slice's status hook: it
+ * reads the `conductor` node's `time`, `dynamics`, `enabled`, `transport` and `dance`
+ * outputs and reports only when something a player can SEE changed (the state, the
+ * whole beat, the tempo to the bpm, the confidence and dynamics to a twentieth), so the
+ * panel never re-renders 60×/s for a phase that merely crept.
+ *
+ * Since #983 the store is the shared status-store factory's (`@thoremin/sdk-ui/statusStore`),
+ * reading several ports of its one node through `read`: its hook then starts the change
+ * gate afresh when the node leaves and when the engine goes, so a conductor that comes back
+ * with the reading it left with is shown again rather than staying absent.
  */
-import { create } from 'zustand';
 import { type DanceLeadMode, type MusicalTime } from '@thoremin/ictus';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 import type { ConductorTransportReading } from '../nodes/conductor';
 
 export interface ConductorLive {
@@ -53,63 +58,52 @@ export const ABSENT_CONDUCTOR_LIVE: ConductorLive = {
 /** The node id the reporter reads — the `conductor` node in `graph.ts`. */
 export const CONDUCTOR_NODE_ID = 'conductor';
 
-export interface ConductorStatusState {
-  live: ConductorLive;
-  report(live: ConductorLive): void;
-  reset(): void;
-}
-
-export const useConductorStatus = create<ConductorStatusState>((set) => ({
-  live: ABSENT_CONDUCTOR_LIVE,
-  report: (live) => set({ live }),
-  reset: () => set({ live: ABSENT_CONDUCTOR_LIVE }),
-}));
-
-/** The one thing the reporter needs from an engine: a node output read. */
-export interface OutputReader {
-  getOutput(nodeId: string, port: string): unknown;
-}
-
 /** Quantise what the panel shows, so the change gate compares what a player sees. */
 export function conductorLiveKey(l: ConductorLive): string {
   return `${l.enabled ? 1 : 0}|${l.state}|${Math.round(l.tempo)}|${l.beat}|${l.beatInBar}|${l.beatsPerBar}|${Math.round(l.confidence * 20)}|${Math.round(l.dynamics * 20)}|${l.anchors}|${l.transport ?? 'off'}|${l.dance ?? '-'}`;
 }
 
-/**
- * Build the per-frame sink: read the conductor node's outputs, report them to
- * {@link useConductorStatus} when something visible changed. Pure over the reader, so
- * it is testable with a stub engine.
- */
-export function makeConductorReporter(
-  engine: OutputReader,
-  store: Pick<ConductorStatusState, 'report'> = useConductorStatus.getState(),
-  nodeId: string = CONDUCTOR_NODE_ID,
-): () => void {
-  let lastKey = '';
-  return () => {
-    const time = engine.getOutput(nodeId, 'time') as MusicalTime | undefined;
-    if (!time) return;
-    const dynamics = engine.getOutput(nodeId, 'dynamics');
-    const enabled = engine.getOutput(nodeId, 'enabled');
-    const live: ConductorLive = {
-      enabled: enabled === true,
-      state: time.state,
-      tempo: Number.isFinite(time.tempo) ? time.tempo : 0,
-      beat: Math.floor(time.beat),
-      beatInBar: time.beatInBar,
-      beatsPerBar: time.beatsPerBar,
-      confidence: time.confidence,
-      dynamics: typeof dynamics === 'number' ? dynamics : 0,
-      anchors: time.anchors,
-      transport: transportOf(engine.getOutput(nodeId, 'transport')),
-      dance: danceOf(engine.getOutput(nodeId, 'dance')),
-    };
-    const key = conductorLiveKey(live);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(live);
+/** The conductor's reading, assembled from its node's `time`, `dynamics`, `enabled`, `transport`
+ *  and `dance` outputs; undefined before the node has computed a time. */
+export function readConductorLive(engine: OutputReader, nodeId: string): ConductorLive | undefined {
+  const time = engine.getOutput(nodeId, 'time') as MusicalTime | undefined;
+  if (!time) return undefined;
+  const dynamics = engine.getOutput(nodeId, 'dynamics');
+  const enabled = engine.getOutput(nodeId, 'enabled');
+  return {
+    enabled: enabled === true,
+    state: time.state,
+    tempo: Number.isFinite(time.tempo) ? time.tempo : 0,
+    beat: Math.floor(time.beat),
+    beatInBar: time.beatInBar,
+    beatsPerBar: time.beatsPerBar,
+    confidence: time.confidence,
+    dynamics: typeof dynamics === 'number' ? dynamics : 0,
+    anchors: time.anchors,
+    transport: transportOf(engine.getOutput(nodeId, 'transport')),
+    dance: danceOf(engine.getOutput(nodeId, 'dance')),
   };
 }
+
+/** The conductor's store, reporter and status hook: the shared factory's, over several ports of
+ *  the one node (#983), so its hook clears the change gate on removal and reset like every other. */
+export const CONDUCTOR_STATUS = createStatusStore(CONDUCTOR_NODE_ID, {
+  absent: ABSENT_CONDUCTOR_LIVE,
+  keyOf: conductorLiveKey,
+  read: readConductorLive,
+  field: 'live',
+});
+
+export type ConductorStatusState = StatusState<ConductorLive, 'live'>;
+
+export const useConductorStatus = CONDUCTOR_STATUS.useStatus;
+
+/**
+ * Build the per-frame sink: read the conductor node's outputs, report them to
+ * {@link useConductorStatus} (or `store`) when something visible changed. Pure over the reader, so
+ * it is testable with a stub engine.
+ */
+export const makeConductorReporter = CONDUCTOR_STATUS.makeReporter;
 
 const DANCE_MODES: readonly DanceLeadMode[] = ['waiting', 'locking', 'armed', 'following', 'switching', 'holding', 'fermata', 'ended'];
 /** The dance lead's mode (absent when no dancer leads, or unknown). */

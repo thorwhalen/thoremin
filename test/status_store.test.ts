@@ -2,11 +2,12 @@
  * The general readout store (#969): one factory gives any node readout its store (the status under
  * `status` or a named field), its reporter gated by the readout's own key (with an optional
  * throttle for a counter that moves at frame rate, MIDI's) and its status hook, whose sink reports a
- * node that returns after a reset with the status it left with.
+ * node that returns after a reset with the status it left with. A readout of several ports of its
+ * node reads them through `read`, and a store of another shape takes the reset count alone (#983).
  */
 import { describe, expect, it, vi } from 'vitest';
 import { makeStatusGate } from '@thoremin/lazy/status';
-import { createStatusStore } from '@thoremin/sdk-ui/statusStore';
+import { createResetCount, createStatusStore } from '@thoremin/sdk-ui/statusStore';
 
 interface Reading {
   on: boolean;
@@ -71,6 +72,26 @@ describe('createStatusStore', () => {
     expect(engine.getOutput).toHaveBeenCalledWith('reader', 'status');
   });
 
+  it('a readout of several ports reads them through `read`, absent until the node has computed', () => {
+    const outputs: Record<string, unknown> = {};
+    const store = createStatusStore('multi', {
+      absent: IDLE,
+      keyOf,
+      read: (engine, nodeId) => {
+        const on = engine.getOutput(nodeId, 'on');
+        return on === undefined ? undefined : { on: on === true, level: Number(engine.getOutput(nodeId, 'level') ?? 0), count: 0 };
+      },
+    });
+    const writes: Reading[] = [];
+    const report = store.makeReporter({ getOutput: (_n: string, port: string) => outputs[port] }, { report: (r) => writes.push(r) });
+    report();
+    outputs.on = true;
+    outputs.level = 0.5;
+    report();
+    report();
+    expect(writes).toEqual([{ on: true, level: 0.5, count: 0 }]);
+  });
+
   it('types away the two misuses: a throttled sink without a time, a field named only in the type', () => {
     const paced = createStatusStore('n', { absent: IDLE, keyOf, throttle: { ms: 250, keyOf: (r) => String(r.count) } });
     const sink = paced.makeReporter(engineSaying('n', 'status', () => IDLE));
@@ -110,5 +131,23 @@ describe('createStatusStore', () => {
     expect(store.useStatus.getState().status.count).toBe(0);
     sink(300);
     expect(store.useStatus.getState().status.count).toBe(4);
+  });
+});
+
+describe('createResetCount', () => {
+  it('rebuilds a sink after a reset, and only then', () => {
+    const resets = createResetCount();
+    let built = 0;
+    const sink = resets.rebuilding(() => {
+      built += 1;
+      return () => {};
+    });
+    sink(0);
+    sink(1);
+    expect(built).toBe(1);
+    resets.bump();
+    sink(2);
+    sink(3);
+    expect(built).toBe(2);
   });
 });
