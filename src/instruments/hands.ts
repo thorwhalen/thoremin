@@ -152,7 +152,8 @@ export interface HandPreferenceOptions {
    *  break the run) before looking for one again. */
   settleAfterFrames: number;
   /** For a preference one tracked hand cannot judge (`higher`: is another hand above it?), the
-   *  frames of one judged hand after which the model looks for two once, to see. */
+   *  frames of one hand after which the model looks for two once, to see; it also looks at once
+   *  when a hand is found after none (the moment the landmarker chooses). */
   probeEveryFrames: number;
 }
 
