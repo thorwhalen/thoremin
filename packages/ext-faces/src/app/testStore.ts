@@ -22,7 +22,8 @@
  * own stamp), made once per gestures section (`LiveModel.gestures` keeps its identity across a
  * tuning change, so a slider does not restart its warm-up). Trying shows each gesture's fires and
  * says while the listener warms; the quiz asks the gestures too and takes a fire as the answer
- * (`Quiz.fire`); the everyday check counts every fire (`EverydayCheck.fire`).
+ * (`Quiz.fire`, a movement under way holding the deadline); the everyday check counts every
+ * fire (`EverydayCheck.fire`).
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
@@ -197,7 +198,8 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
     const feedChecks = (categoryId: string | null, now: number, vector?: FeatureVector) => {
       if (quiz && !quiz.told) {
         const before = quiz.run.step(now);
-        quiz.run.push({ categoryId }, now, vector);
+        // A gesture being made holds an asked gesture's deadline (its fire comes at the end).
+        quiz.run.push({ categoryId, moving: listener?.inGesture() ?? false }, now, vector);
         const after = quiz.run.step(now);
         const moved = before.kind !== after.kind || ('index' in before && 'index' in after && before.index !== after.index);
         if (moved || now - lastCheckPublish >= deps.publishMs) {
@@ -241,8 +243,11 @@ export function createFaceTestStore(deps: FaceTestDeps): StoreApi<FaceTestState>
       startQuiz(live, options = {}) {
         ensureRunning(live);
         everyday = null;
-        const order = options.order ?? quizOrder(checkTargets(live).map((c) => c.id));
-        const run = createQuiz(order, options);
+        const { order: asked, onDone: _onDone, ...timings } = options;
+        void _onDone;
+        const targets = checkTargets(live);
+        const order = asked ?? quizOrder(targets.map((c) => c.id));
+        const run = createQuiz(order, { ...timings, events: targets.filter((c) => c.kind === 'gesture').map((c) => c.id) });
         run.start(deps.now());
         quiz = { run, onDone: options.onDone, told: false };
         lastCheckPublish = -Infinity;

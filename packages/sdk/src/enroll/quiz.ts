@@ -14,9 +14,13 @@
  *
  * A moving gesture (#954) is asked like a category but answered by an EVENT, as the everyday check
  * counts it ({@link Quiz.fire}): the matcher's fire of the asked gesture is a hit when the movement
- * began within `hitMs` of the prompt, slow when later (before `timeoutMs`), and a miss otherwise; a
- * fire of another gesture is the confusion. It must be found too: a movement begun before the prompt
- * (during the relax) does not answer it. A gesture is never held, so the readings never answer it.
+ * began within `hitMs` of the prompt, slow when later (before `timeoutMs`), and a miss otherwise. The
+ * quiz is told which ids are gestures (`events`). A fire arrives only at the movement's closing
+ * quiet, so, as a held run begun before the deadline may finish, a movement under way at the
+ * deadline (the reading's `moving`: the listener is inside a gesture) holds the deadline until it
+ * ends. It must be found too: a movement begun before the prompt (during the relax) does not
+ * answer it. Confusions are counted in the target's own kind: what was READ instead of an asked
+ * category, what FIRED instead of an asked gesture (a frame count and a fire count never compete).
  *
  * Pure and modality-free: readings are `{ categoryId }` (the tracker's settled category, null for
  * none of these) on the caller's clock, as the cue runner is driven. No timers, no React.
@@ -44,6 +48,18 @@ export const QUIZ_DEFAULTS = {
 /** The quiz's timings, each a number (the defaults are `as const`, so their literal types are not the options'). */
 export type QuizOptions = { [K in Exclude<keyof typeof QUIZ_DEFAULTS, 'repeats' | 'slowWeight'>]?: number };
 
+/** A quiz's setup: its timings, and which of the asked ids are moving gestures (answered by a fire). */
+export interface QuizSetup extends QuizOptions {
+  events?: Iterable<string>;
+}
+
+/** One settled reading: the category read (null: none of these), and whether a gesture is being
+ *  made on this frame (the listener's `inGesture`; absent: no). */
+export interface QuizReading {
+  categoryId: string | null;
+  moving?: boolean;
+}
+
 export type QuizOutcome = 'hit' | 'slow' | 'miss';
 
 /** One prompt's result. */
@@ -70,7 +86,7 @@ export type QuizStep =
 export interface Quiz {
   start(tMs: number): void;
   /** Feed the settled reading at `tMs` (and the live vector, for the hits' samples). */
-  push(reading: { categoryId: string | null }, tMs: number, vector?: FeatureVector): void;
+  push(reading: QuizReading, tMs: number, vector?: FeatureVector): void;
   /** One fire of a moving gesture `id` at `tMs`, its movement begun at `startMs` (default `tMs`):
    *  the answer to an asked gesture, or a confusion (see the module header). */
   fire(id: string, tMs: number, startMs?: number): void;
@@ -133,8 +149,14 @@ function meanOf(vectors: readonly FeatureVector[]): FeatureVector {
 }
 
 /** A quiz over `order` (see {@link quizOrder}). */
-export function createQuiz(order: readonly string[], options: QuizOptions = {}): Quiz {
-  const o = { ...QUIZ_DEFAULTS, ...definedOnly(options) };
+export function createQuiz(order: readonly string[], options: QuizSetup = {}): Quiz {
+  const { events: eventIds, ...timings } = options;
+  const o = { ...QUIZ_DEFAULTS, ...definedOnly(timings) };
+  const events = new Set(eventIds ?? []);
+  /** When the movement under way began (null: none), for an asked gesture's deadline. */
+  let movingSince: number | null = null;
+  /** What fired instead of an asked gesture (by fires). */
+  let fired = new Map<string, number>();
   const trials: QuizTrial[] = [];
   let started = false;
   let index = 0;
@@ -150,7 +172,9 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
   let lastT = 0;
 
   const finish = (outcome: QuizOutcome, tMs: number, timeToHitMs: number | null, vector?: FeatureVector) => {
-    const confusedWith = outcome === 'miss' ? ([...others.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null) : null;
+    // In the target's own kind: what was read instead of a category, what fired instead of a gesture.
+    const pool = events.has(order[index]) ? fired : others;
+    const confusedWith = outcome === 'miss' ? ([...pool.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null) : null;
     trials.push({ categoryId: order[index], outcome, timeToHitMs, confusedWith, ...(vector ? { vector } : {}) });
     index += 1;
     asking = false;
@@ -159,6 +183,8 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
     armed = false;
     runVectors = [];
     others = new Map();
+    fired = new Map();
+    movingSince = null;
   };
 
   return {
@@ -172,6 +198,8 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
       runStart = null;
       runVectors = [];
       others = new Map();
+      fired = new Map();
+      movingSince = null;
     },
     push(reading, tMs, vector) {
       if (!started || index >= order.length) return;
@@ -183,6 +211,14 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
         armed = false;
       }
       const target = order[index];
+      if (events.has(target)) {
+        // An asked gesture: answered by `fire`. A movement begun before the deadline holds it.
+        movingSince = reading.moving ? (movingSince ?? tMs) : null;
+        if (reading.categoryId !== null) others.set(reading.categoryId, (others.get(reading.categoryId) ?? 0) + 1);
+        const underWay = movingSince !== null && movingSince - since < o.timeoutMs;
+        if (tMs - since >= o.timeoutMs && !underWay) finish('miss', tMs, null);
+        return;
+      }
       if (reading.categoryId === target && armed) {
         if (runStart === null) {
           // A run must begin before the deadline; one under way may finish after it.
@@ -207,7 +243,7 @@ export function createQuiz(order: readonly string[], options: QuizOptions = {}):
       if (!started || index >= order.length || !asking) return;
       lastT = Math.max(lastT, tMs);
       if (id !== order[index]) {
-        others.set(id, (others.get(id) ?? 0) + 1);
+        fired.set(id, (fired.get(id) ?? 0) + 1);
         return;
       }
       // Begun before the prompt: not found (the relax's movement), as a face already held is not.

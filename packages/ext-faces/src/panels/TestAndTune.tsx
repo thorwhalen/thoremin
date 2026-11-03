@@ -31,7 +31,7 @@ import { NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { QUIZ_DEFAULTS, reproducibilityOf, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
 import { checkLabels, checkTargets, liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
-import { LISTEN_WARMING_SAY } from '@thoremin/sdk/enroll/gestures';
+import { gesturePrompt, LISTEN_WARMING_SAY } from '@thoremin/sdk-ui/enroll/gestureWords';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -272,6 +272,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
   const s = useStore(session);
   const q = t.quiz;
   const labels = checkLabels(live);
+  const gestureIds = new Set((live.gestures?.names ?? []).map((g) => g.id));
   const label = (id: string | null) => (id ? labels.get(id) || id : '');
   const start = () =>
     t.startQuiz(live, {
@@ -312,12 +313,14 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
   }
   const step = q.step;
   if (step.kind !== 'done') {
+    // A gesture is made once, never held: its prompt says so and has no hold bar.
+    const askedGesture = step.kind === 'ask' && gestureIds.has(step.categoryId);
     return (
       <div className="space-y-1" data-faces-quiz={step.kind}>
         <p className="text-base font-bold text-white" role="status" aria-live="polite">
-          {step.kind === 'ask' ? `Make: ${label(step.categoryId)}` : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
+          {step.kind === 'ask' ? (askedGesture ? gesturePrompt(label(step.categoryId)) : `Make: ${label(step.categoryId)}`) : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
         </p>
-        {step.kind === 'ask' && (
+        {step.kind === 'ask' && !askedGesture && (
           <span className="block h-1.5 overflow-hidden rounded bg-white/10" title="Held so far">
             <span className="block h-full bg-emerald-400" style={{ width: `${Math.round(Math.min(1, step.heldMs / QUIZ_DEFAULTS.holdMs) * 100)}%` }} />
           </span>

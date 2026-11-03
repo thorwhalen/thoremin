@@ -12,6 +12,7 @@ import { checkLabels, checkTargets, liveModel } from '@thoremin/sdk/enroll/live'
 import { everydayResult } from '@thoremin/sdk/enroll/everyday';
 import type { QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
+import { nameCategory } from '@thoremin/sdk/enroll/sorting';
 import { FACES } from '../helpers/extensions';
 import { withRecordedGesture } from '../helpers/gesture_categorizer';
 import { waveTake, type WaveScript } from '../helpers/wave_take';
@@ -62,6 +63,16 @@ describe.runIf(FACES)('the live test hears the gestures (#954)', () => {
     expect(kinds.at(-1)).toBe('gesture');
     expect(kinds.indexOf('gesture')).toBe(LIVE.model.categories.length);
     expect(checkLabels(LIVE).get('gesture-1')).toBe('wave');
+  });
+
+  it('a sorting edit (which re-parses, cloning the gestures) keeps the very same gesture model (#954 review)', () => {
+    const c = withRecordedGesture();
+    const renamed = nameCategory(c, c.categories[0].id, 'renamed');
+    if (!renamed.ok) throw new Error(renamed.error);
+    expect(renamed.categorizer.gestures).not.toBe(c.gestures);
+    expect(renamed.categorizer.gestures).toEqual(c.gestures);
+    const before = liveModel(c, {}, { modality: handModality }).gestures;
+    expect(liveModel(renamed.categorizer, {}, { modality: handModality }).gestures).toBe(before);
   });
 
   it('Trying: each wave fires once; the listener says it is warming first, then not', async () => {

@@ -32,6 +32,8 @@
  * the section past that bound is refused with the reason, so "Record more" never saves a document
  * its own export cannot re-import. An edit that does not grow it (a drop, a delete, a rename, a
  * merge) always passes, so a record saved over the bound by an older build can still be trimmed.
+ * The store asks first, when a take begins (`takeRoomRefusal`), so the player is told before
+ * making the repetitions, not after.
  *
  * Pure: categorizers and traces in, categorizers out.
  */
@@ -40,6 +42,7 @@ import type { FeatureWeights, Trace } from '../types';
 import { fromStoredTrace, gestureSection, toStoredTrace } from './file';
 import type { GestureShape } from './matcher';
 import { GESTURE_QUALITY_DEFAULTS } from './quality';
+import { SEGMENTER_DEFAULTS } from './segmenter';
 
 /** What every verb returns (the sorting verbs' shape). */
 export type GestureEdit = { ok: true; categorizer: PersonalCategorizer } | { ok: false; error: string };
@@ -52,6 +55,31 @@ export function framesRefusal(before: CategorizerGestures | undefined, after: Ca
   const now = gestureFrameCount(after);
   if (now <= maxFrames || now <= gestureFrameCount(before)) return null;
   return `the gestures would hold ${now} frames of movement, more than the ${maxFrames} a saved file can carry; drop or delete some repetitions first`;
+}
+
+export const TAKE_ROOM_DEFAULTS = {
+  /** The camera rate a take's frames are budgeted at: the pipeline's real rate (30 fps,
+   *  `docs/research/intent-and-subframe-timing.md`). A faster camera is still bounded at save. */
+  fps: 30,
+  /** The longest repetition the segmenter keeps (`SEGMENTER_DEFAULTS.maxTraceMs`). */
+  maxTraceMs: SEGMENTER_DEFAULTS.maxTraceMs,
+} as const;
+
+/**
+ * Why a take of `repetitions` may not START on `section` (null: it may; #954 review): the frames it
+ * can add at most (each repetition at the segmenter's longest, at the take's camera rate) would not
+ * fit under `maxFrames`. Asked before the player makes five repetitions, not after: the save-side
+ * {@link framesRefusal} stays the backstop (a faster camera).
+ */
+export function takeRoomRefusal(
+  section: CategorizerGestures | undefined,
+  repetitions: number,
+  { fps = TAKE_ROOM_DEFAULTS.fps, maxTraceMs = TAKE_ROOM_DEFAULTS.maxTraceMs, maxFrames = MAX_GESTURE_FRAMES }: { fps?: number; maxTraceMs?: number; maxFrames?: number } = {},
+): string | null {
+  const have = gestureFrameCount(section);
+  const need = Math.ceil((repetitions * maxTraceMs * fps) / 1000);
+  if (have + need <= maxFrames) return null;
+  return `the gestures already hold ${have} frames of movement; ${repetitions} more repetitions could pass the ${maxFrames} a saved file can carry, so drop or delete some repetitions first`;
 }
 
 /** `c` with `gestures` (none: the section dropped), validated; a schema error, or growth past the

@@ -19,6 +19,8 @@ import { gestureCue } from '@thoremin/ext-faces/lib/gestureTake';
 import { SYNTHETIC_GESTURE } from '@thoremin/ext-faces/lib/synthetic_gesture';
 import { handModality } from '@thoremin/sdk/features/modalities/hand';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
+import { exportCategorizer, gestureFrameCount, MAX_GESTURE_FRAMES } from '@thoremin/sdk/enroll/categorizer';
+import { TAKE_ROOM_DEFAULTS } from '@thoremin/sdk/enroll/gestures';
 import { FACES } from '../helpers/extensions';
 
 let clock = 0;
@@ -154,6 +156,25 @@ describe.runIf(FACES)('a named gesture recorded into the working categorizer', (
     expect(s().deleteGesture('gesture-1')).toBe(true);
     expect(s().working!.gestures).toBeUndefined();
     expect(s().renameGesture('gesture-1', 'x')).toBe(false);
+  }, 120_000);
+
+  it('Record more is refused when the take BEGINS if its repetitions might not fit the file (#954 review)', async () => {
+    const store = opened();
+    const s = () => store.getState();
+    s().recordGesture('wave');
+    await run(TAKE_MS);
+    const c = s().working!;
+    const g = c.gestures!.items[0];
+    const perTrace = g.traces[0].rows.length;
+    // Copies of the first repetition up to just under the bound, less than a take's worth of room.
+    const room = Math.ceil((5 * TAKE_ROOM_DEFAULTS.maxTraceMs * TAKE_ROOM_DEFAULTS.fps) / 1000);
+    const copies = Math.floor((MAX_GESTURE_FRAMES - room / 2) / perTrace);
+    const full = { ...c, gestures: { ...c.gestures!, items: [{ ...g, traces: Array.from({ length: copies }, (_, i) => ({ ...g.traces[0], id: `copy#${i}` })) }] } };
+    expect(gestureFrameCount(full.gestures)).toBeLessThanOrEqual(MAX_GESTURE_FRAMES);
+    expect(s().importFile(exportCategorizer(full))).toBe(true);
+    expect(s().recordMoreGesture('gesture-1')).toBe(false);
+    expect(s().phase).toBe('saved');
+    expect(s().notice).toMatch(/^Not recorded: the gestures already hold \d+ frames of movement/);
   }, 120_000);
 
   it('Stop keeps what was cut; Cancel (or closing the tool) keeps nothing and returns as it was', async () => {

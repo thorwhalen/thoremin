@@ -17,7 +17,7 @@
  * The overlap of the new gesture with the held categories is measured once, on the take's whole
  * frames, and said in the notice (`gestureOverlapNotice`; why only then: `lib/gestureView.ts`).
  */
-import { addGestureTraces, deleteGesture, dropGestureTrace, mergeGestures, renameGesture } from '@thoremin/sdk/enroll/gestures/edit';
+import { addGestureTraces, deleteGesture, dropGestureTrace, mergeGestures, renameGesture, takeRoomRefusal } from '@thoremin/sdk/enroll/gestures/edit';
 import { modelFromCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { createReader } from '@thoremin/sdk/enroll/modality';
 import { createGestureTake, GESTURE_TAKE_DEFAULTS, recordsGestures, type GestureTake } from '../../lib/gestureTake';
@@ -60,6 +60,12 @@ export function createGesture(ctx: SessionCtx, h: Pick<ReturnType<typeof createC
     const { phase, working } = get();
     const label = name.trim();
     if (!working || (phase !== 'carved' && phase !== 'saved') || !label || !recordsGestures(modality)) return false;
+    // Refused before the player makes the repetitions, not after them (the save bound's backstop).
+    const full = takeRoomRefusal(working.gestures, GESTURE_TAKE_DEFAULTS.repetitions);
+    if (full) {
+      set({ notice: `Not recorded: ${full}.` });
+      return false;
+    }
     const take = createGestureTake({ modality, name: label, cueId: `${modality.words.slug}-gesture-${deps.newTakeId()}`, repetitions: GESTURE_TAKE_DEFAULTS.repetitions });
     const source = (deps.gestureSource ?? deps.source)();
     // Read as the carve reads: one hand, side-relative; a mirrored body on the side nearer its model.

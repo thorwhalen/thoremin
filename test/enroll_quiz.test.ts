@@ -178,9 +178,9 @@ describe('per-category size (Category.scale)', () => {
 
 describe('a moving gesture in the quiz: answered by a fire (#954)', () => {
   const { relaxMs, hitMs, timeoutMs } = QUIZ_DEFAULTS;
-  /** A quiz over `order`, started at 0. */
+  /** A quiz over `order` (every id a gesture), started at 0. */
   const quizOver = (order: string[]) => {
-    const q = createQuiz(order);
+    const q = createQuiz(order, { events: order });
     q.start(0);
     return q;
   };
@@ -210,11 +210,49 @@ describe('a moving gesture in the quiz: answered by a fire (#954)', () => {
   });
 
   it('a fire in the relax, before start or after the end, changes nothing', () => {
-    const q = createQuiz(['wave']);
+    const q = createQuiz(['wave'], { events: ['wave'] });
     q.fire('wave', 10);
     q.start(0);
     q.fire('wave', 100);
     expect(q.step(100)).toMatchObject({ kind: 'relax' });
     expect(q.trials()).toHaveLength(0);
+  });
+
+  it('a movement begun before the deadline is not timed out while it is made (polled between frames, #954 review)', () => {
+    // A 1.5 s wave begun 3.4 s after the prompt fires at its closing quiet, about 5.1 s: past the
+    // 5 s deadline, and still an answer (slow), as a held run begun before it may finish.
+    const q = quizOver(['wave']);
+    q.push({ categoryId: null }, relaxMs);
+    const begin = relaxMs + 3400;
+    const firesAt = relaxMs + 5100;
+    for (let t = relaxMs + 33; t < firesAt; t += 33) {
+      q.push({ categoryId: null, moving: t >= begin }, t);
+      // The panel polls the step between frames: still asking.
+      expect(q.step(t + 10)).toMatchObject({ kind: 'ask', categoryId: 'wave' });
+    }
+    q.fire('wave', firesAt, begin);
+    expect(q.trials()[0]).toMatchObject({ outcome: 'slow', timeToHitMs: 3400 });
+    // A movement begun AFTER the deadline does not hold it.
+    const late = quizOver(['wave']);
+    late.push({ categoryId: null }, relaxMs);
+    late.push({ categoryId: null, moving: true }, relaxMs + timeoutMs + 10);
+    expect(late.trials()[0]).toMatchObject({ outcome: 'miss' });
+  });
+
+  it('confusion is counted in the target\'s kind: fires for a gesture, readings for a category', () => {
+    // A held category read on every frame of a gesture prompt, one other gesture fired: the fire wins.
+    const q = createQuiz(['wave', 'smile'], { events: ['wave', 'circle'] });
+    q.start(0);
+    q.push({ categoryId: 'smile' }, relaxMs);
+    for (let t = relaxMs + 33; t < relaxMs + 1000; t += 33) q.push({ categoryId: 'smile' }, t);
+    q.fire('circle', relaxMs + 1000, relaxMs + 500);
+    q.push({ categoryId: 'smile' }, relaxMs + timeoutMs);
+    expect(q.trials()[0]).toMatchObject({ categoryId: 'wave', outcome: 'miss', confusedWith: 'circle' });
+    // For an asked category, a gesture's fires do not count: what was read does.
+    const next = relaxMs + timeoutMs + relaxMs;
+    q.push({ categoryId: 'frown' }, next);
+    for (let k = 0; k < 5; k++) q.fire('circle', next + 100 + k, next + 50);
+    q.push({ categoryId: 'frown' }, next + timeoutMs);
+    expect(q.trials()[1]).toMatchObject({ categoryId: 'smile', outcome: 'miss', confusedWith: 'frown' });
   });
 });

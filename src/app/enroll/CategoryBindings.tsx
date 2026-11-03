@@ -24,7 +24,7 @@
  */
 import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
-import { LISTEN_WARMING_SAY } from '@thoremin/sdk/enroll/gestures';
+import { LISTEN_WARMING_SAY } from '@thoremin/sdk-ui/enroll/gestureWords';
 import CommandBindingFields from '../gestures/CommandBindingFields';
 import { useTools } from '../tools/toolsStore';
 import { modalityById } from '@thoremin/sdk/features/modalities';
@@ -35,11 +35,6 @@ import { readCategoryLive, type CategoryLive } from './categoryDispatch';
 
 /** How often the readout refreshes (ms). */
 const POLL_MS = 150;
-
-/** Why no gesture fires while the listener's noise unit warms (#954): a set made active mid-move,
- *  or the first movement after a hush, is otherwise lost without a word. The SDK's words, which
- *  the carve tool's Trying says too. */
-export const GESTURES_WARMING_TEXT = LISTEN_WARMING_SAY;
 
 function useCategoryLive(): CategoryLive | null {
   const [live, setLive] = useState<CategoryLive | null>(() => readCategoryLive());
@@ -210,7 +205,7 @@ export default function CategoryBindings() {
               <p className="text-[10px] leading-snug text-white/45">Making a gesture runs its command once, each time you make it.</p>
               {live?.gesturesWarming && (
                 <p role="status" className="rounded-md bg-amber-500/10 px-2 py-1 text-[10px] leading-snug text-amber-100" data-gestures-warming>
-                  {GESTURES_WARMING_TEXT}
+                  {LISTEN_WARMING_SAY}
                 </p>
               )}
               <ul className="space-y-2">

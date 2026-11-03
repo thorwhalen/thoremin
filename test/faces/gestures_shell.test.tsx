@@ -19,7 +19,7 @@ import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import CategoryBindings from '@/app/enroll/CategoryBindings';
 import { setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
 import { createCategoryDispatcher, resetCategoryLive } from '@/app/enroll/categoryDispatch';
-import { GESTURES_WARMING_TEXT } from '@/app/enroll/CategoryBindings';
+import { LISTEN_WARMING_SAY } from '@thoremin/sdk-ui/enroll/gestureWords';
 import { waveTake } from '../helpers/wave_take';
 import { FACES } from '../helpers/extensions';
 import { withRecordedGesture } from '../helpers/gesture_categorizer';
@@ -106,10 +106,10 @@ describe.runIf(FACES)('the Gestures section is reachable from the shell', () => 
     const d = createCategoryDispatcher({ isPreviewing: () => true, isHushed: () => false, readVector: () => ({ vector: frames[i].v, t: frames[i].t }) });
     d.tick(frames[0].t);
     render(<CategoryBindings />);
-    await waitFor(() => expect(screen.getByText(GESTURES_WARMING_TEXT)).toBeTruthy(), WAIT);
+    await waitFor(() => expect(screen.getByText(LISTEN_WARMING_SAY)).toBeTruthy(), WAIT);
     // A second at rest: the noise unit is learned, and the cue goes.
     for (i = 1; i < frames.length; i++) d.tick(frames[i].t);
-    await waitFor(() => expect(screen.queryByText(GESTURES_WARMING_TEXT)).toBeNull(), WAIT);
+    await waitFor(() => expect(screen.queryByText(LISTEN_WARMING_SAY)).toBeNull(), WAIT);
     resetCategoryLive();
     setSavedCategoriesStore(null);
   }, 60_000);

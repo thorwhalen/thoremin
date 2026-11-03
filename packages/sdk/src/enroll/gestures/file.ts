@@ -231,23 +231,34 @@ export interface PlayableGestures {
   names: readonly { id: string; label: string }[];
 }
 
-/** One derivation per `gestures` section (the section objects are immutable: an edit makes a new
- *  one). A live model is re-made on every tuning change; the matcher's model must not be, both for
- *  its cost (a DTW per pair of repetitions) and so a listener kept by model identity stays warm. */
-const playableMemo = new WeakMap<CategorizerGestures, PlayableGestures>();
+/** How many sections the content memo keeps (the working one, the saved one, undo's neighbours). */
+export const PLAYABLE_MEMO_SIZE = 8;
+
+/** One derivation per gestures CONTENT. A live model is re-made on every tuning change and every
+ *  edit, and every edit re-parses the categorizer (the schema clones `gestures`), so a memo by
+ *  reference would miss on a hold moved or a category renamed. The matcher's model must not be
+ *  re-derived then, both for its cost (a DTW per pair of repetitions) and so a listener kept by
+ *  model identity stays warm (#954 review). The reference is the fast path; the content (its
+ *  JSON) the key; a few recent sections are kept. */
+const byReference = new WeakMap<CategorizerGestures, PlayableGestures>();
+const byContent = new Map<string, PlayableGestures>();
 
 /**
  * The gestures of `c` as a host plays them (#954: the carve tool's live test and the category
  * dispatcher alike), or null when it has none: the derived model ({@link
- * gestureModelFromCategorizer}) and the names by id. The same object for the same section.
+ * gestureModelFromCategorizer}) and the names by id. The same object for the same content.
  */
 export function playableGestures(c: Pick<PersonalCategorizer, 'gestures'>): PlayableGestures | null {
   const section = c.gestures;
   if (!section || section.items.length === 0) return null;
-  let out = playableMemo.get(section);
-  if (!out) {
-    out = { model: gestureModelFromCategorizer(c), names: section.items.map((g) => ({ id: g.id, label: g.label })) };
-    playableMemo.set(section, out);
-  }
+  const known = byReference.get(section);
+  if (known) return known;
+  const key = JSON.stringify(section);
+  let out = byContent.get(key);
+  if (out) byContent.delete(key); // re-inserted below: the most recent last
+  else out = { model: gestureModelFromCategorizer(c), names: section.items.map((g) => ({ id: g.id, label: g.label })) };
+  byContent.set(key, out);
+  while (byContent.size > PLAYABLE_MEMO_SIZE) byContent.delete(byContent.keys().next().value!);
+  byReference.set(section, out);
   return out;
 }
