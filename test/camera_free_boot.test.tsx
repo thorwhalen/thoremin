@@ -141,9 +141,9 @@ describe('booting with a finished-frame source', () => {
   });
 
   it('the hand source\'s status reaches the shell\'s store while the engine runs, and is cleared on teardown (#922)', async () => {
-    // The wiring, not the reporter: `useEngine` must put the hands reporter among the Applier's
-    // sinks and reset its store when the engine goes. A sink left out leaves the store null; a
-    // reset left out leaves the last engine's status on screen after it is gone.
+    // The wiring, not the reporter: the hands' status hook must be among the hooks the engine host
+    // runs as sinks (`statusHooks`) and reset when the engine goes. A hook left out leaves the store
+    // null; a reset left out leaves the last engine's status on screen after it is gone.
     stubMissingCamera();
     useHandsStatus.getState().reset();
     const seen: { status?: string; error?: string | null } = {};

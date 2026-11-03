@@ -53,8 +53,8 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // nothing fails — the face readout, or (worst) the gesture dispatcher, which would
     // stop dispatching commands entirely — or (#188) the generative readout, which would
     // show "off" while a paid stream plays. (The MIDI and generative statuses are their slices'
-    // status hooks since #600 S13 / S14, so they ride `extensionSinks`.)
-    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportGesture[^\]]*extensionSinks[^\]]*\]/);
+    // status hooks since #600 S13 / S14, so they ride the status sinks, `statusSinks`.)
+    expect(code(useEngine)).toMatch(/sinks:\s*\[[^\]]*reportFace[^\]]*reportGesture[^\]]*statusSinks[^\]]*\]/);
   });
 
   it('converts the clock time to MILLISECONDS for every bridge', () => {
@@ -71,11 +71,12 @@ describe('useEngine drives the live loop from the Clock seam', () => {
     // (`reportTiming` is the timing resource's readout for the camera status line, step 0 of the timing plan.)
     // (`reportCategory` feeds the #160 category dispatcher, whose hold is in ms like the gestures'.)
     // (The song's reporter left with its slice, #600 S15: it is one of the extension status hooks.)
-    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportTiming\),\s*toMs\(extensionSinks\)\s*\]/);
+    expect(c).toMatch(/sinks:\s*\[\s*(?:\.\.\.latencySinks,\s*)?toMs\(reportFace\),\s*toMs\(reportGesture\),\s*toMs\(reportCategory\),\s*toMs\(reportTiming\),\s*toMs\(statusSinks\)\s*\]/);
     // The extensions' sinks (the air instruments' readouts and shape taps, PR 5a) are built
     // from the manifests and converted the same way, in one place: one sink over every status
-    // hook in hand, so a lazy extension that loads mid-session gets its readout.
-    expect(c).toMatch(/const extensionSinks = makeExtensionSinks\(engine, \(\) => resources\)/);
+    // hook in hand, so a lazy extension that loads mid-session gets its readout. Core's own status
+    // hooks (the hands', #922) ride the same sink (`statusHooks` at the React fold point).
+    expect(c).toMatch(/const statusSinks = makeStatusSinks\(engine, \(\) => resources\)/);
   });
 
   it('publishes the read-only debug handle when the engine is ready, and removes it on teardown (#209)', () => {

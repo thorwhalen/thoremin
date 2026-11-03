@@ -36,13 +36,12 @@ import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useRecordingController } from '../recording/useRecordingController';
 import { tagOverlayResource } from '../tagging/runtime';
 import { useFaceStatus, makeFaceReporter } from '../face/faceStatus';
-import { makeHandsReporter, useHandsStatus } from '../hands/handsStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
 import { createTimingResource } from '../timing/resource';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
 import { useTimingStatus, makeTimingReporter } from '../timing/timingStatus';
-import { extensionStatusHooks, makeExtensionSinks } from '../host/contributions';
+import { makeStatusSinks, statusHooks } from '../host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
 import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount } from './liveApply';
@@ -72,7 +71,7 @@ export type { RecordingPhase } from '../recording/useRecordingController';
 /** The status stores that mirror a branch node, by node id; reset when the node leaves. */
 function resetStatusesOf(removed: readonly string[]): void {
   for (const id of removed) {
-    for (const hook of extensionStatusHooks()) if (hook.nodeId === id) hook.onRemoved();
+    for (const hook of statusHooks()) if (hook.nodeId === id) hook.onRemoved();
   }
 }
 
@@ -342,8 +341,6 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // back to React for the indicator/readout (#65), throttled; a transition into
         // 'error' surfaces a toast once.
         const reportFace = makeFaceReporter(engine);
-        // The hand model's status for the camera status column (#922), when it changes.
-        const reportHands = makeHandsReporter(engine);
         // Gesture dispatch (#129): the classifier's per-hand poses feed the dispatcher
         // (fresh timing state per engine run) every frame, which turns held-pose
         // TRANSITIONS into command dispatches; the status store is written only when a
@@ -360,10 +357,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         void useCategoryBinding.getState().load();
         const reportCategory = (now: number) => categoryDispatcher.tick(now);
 
-        // The extensions' status hooks (the air instruments' readouts and live shapes, the
+        // The status hooks: core's own (the hand model's status for the camera status column,
+        // #922) and the extensions' (the air instruments' readouts and live shapes, the
         // conductor's musical time, its timing take and the orchestra's load status):
         // built once per engine, run as sinks below, reset on removal and teardown.
-        const extensionSinks = makeExtensionSinks(engine, () => resources);
+        const statusSinks = makeStatusSinks(engine, () => resources);
 
         // #101 M-D, live half: this effect is now an {@link Applier} config. Batch
         // (`runHeadless`) and paced (here) differ on **{clock, sinks, taps} jointly**,
@@ -407,7 +405,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), () => reportHands(), toMs(reportGesture), toMs(reportCategory), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportTiming), toMs(statusSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -437,11 +435,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       engineRef.current = null;
       registryRef.current = null;
       useFaceStatus.getState().reset();
-      useHandsStatus.getState().reset();
       resetLiveVector();
       useGestureStatus.getState().reset();
       useTimingStatus.getState().reset();
-      for (const hook of extensionStatusHooks()) hook.reset();
+      for (const hook of statusHooks()) hook.reset();
       uninstallDebug();
       uninstallLatency();
       uninstallCategoryDemand();
