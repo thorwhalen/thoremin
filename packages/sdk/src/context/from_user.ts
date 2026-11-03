@@ -173,8 +173,9 @@ const LOCAL_REACH_HALF_LIVES = 10;
  *  to the nearest taps either side when the reach holds fewer than two. */
 function localFit(run: readonly NumberedTap[], k: number, halfLifeBeats: number) {
   const reach = LOCAL_REACH_HALF_LIVES * halfLifeBeats;
-  let near = run.filter((x) => Math.abs(x.k - k) <= reach);
-  if (near.length < 2) near = [...run].sort((a, b) => Math.abs(a.k - k) - Math.abs(b.k - k)).slice(0, 2);
+  const near = run.filter((x) => Math.abs(x.k - k) <= reach);
+  // Too few in reach (a long gap): the two nearest, unweighted (a far tap's weight would underflow).
+  if (near.length < 2) return fitTaps([...run].sort((a, b) => Math.abs(a.k - k) - Math.abs(b.k - k)).slice(0, 2));
   return fitTaps(near, (x) => 0.5 ** (Math.abs(x.k - k) / halfLifeBeats));
 }
 
@@ -241,12 +242,16 @@ export function tapRuler(
  * before there is one. Returns the run with it (`bounce`: the run unchanged, the tap was a finger
  * bounce; `restart`: a pause, the tap starts a new run as its beat 0).
  */
-export function numberTap(run: readonly NumberedTap[], t: number): { run: NumberedTap[]; event: 'added' | 'bounce' | 'restart' } {
+export function numberTap(
+  run: readonly NumberedTap[],
+  t: number,
+  { halfLifeBeats = RULER_HALF_LIFE_BEATS }: { halfLifeBeats?: number } = {},
+): { run: NumberedTap[]; event: 'added' | 'bounce' | 'restart' } {
   const last = run[run.length - 1];
   if (!last || t <= last.t) return { run: [{ t, k: 0 }], event: last ? 'restart' : 'added' };
   const gaps = run.slice(1).map((x, i) => (x.t - run[i].t) / Math.max(1, x.k - run[i].k));
   // The beat now: the fit centred on the last tap (a tempo that changes is numbered at its pace).
-  const fit = run.length >= 3 ? localFit(run, last.k, RULER_HALF_LIFE_BEATS) : null;
+  const fit = run.length >= 3 ? localFit(run, last.k, halfLifeBeats) : null;
   const beat = fit?.period ?? (gaps.length ? median(gaps) : t - last.t);
   const gap = t - last.t;
   if ((gaps.length && gap < TAP_BOUNCE * beat) || gap < TAP_MIN_GAP_S) return { run: [...run], event: 'bounce' };
