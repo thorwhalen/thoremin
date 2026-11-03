@@ -17,7 +17,8 @@
  *   vector, as it did).
  *
  * Bindings are keyed by category id and live on the record they name, so deleting a categorizer
- * deletes its bindings and an edit carries them by name (`rekeyBindings`).
+ * deletes its bindings and an edit carries them by name (`rekeyBindings`). A carved categorizer's
+ * gestures (#754) are bound the same way, by gesture id, in the same map.
  */
 import { z } from 'zod';
 import { slugId } from '../util/ids';
@@ -122,6 +123,11 @@ export function parseRecord(raw: unknown): AnyCategorizerRecord | null {
 /** The categories a record's bindings name. */
 export function recordCategories(r: AnyCategorizerRecord): readonly NamedCategory[] {
   return isTrainedRecord(r) ? r.model.trained.categories : r.model.categorizer.categories;
+}
+
+/** The gestures a record's bindings name (#754): a carved categorizer's, none for a trained model. */
+export function recordGestures(r: AnyCategorizerRecord): readonly NamedCategory[] {
+  return isTrainedRecord(r) ? [] : (r.model.categorizer.gestures?.items ?? []);
 }
 
 /** A record's bindings (none when it has none). */

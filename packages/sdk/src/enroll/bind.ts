@@ -154,24 +154,33 @@ export interface NamedCategory {
   label: string;
 }
 
+/** What a categorizer's bindings are keyed by: its categories and, since #754, its gestures. */
+export interface BindingTargets {
+  categories: readonly NamedCategory[];
+  gestures?: readonly NamedCategory[];
+}
+
 /**
  * Bindings kept across an EDIT of the categories they name (#371): a categorizer re-saved after
  * a correction, a re-cut or a rename. A category that keeps its id and its name keeps its binding
  * (so an unnamed category, which {@link carryBindings} cannot carry, survives an edit that did not
  * touch it); any other binding moves by name as {@link carryBindings} moves it, or is dropped.
+ *
+ * A gesture's binding (#754) is carried the same way among the GESTURES: by id and name, then by
+ * name. The two kinds are carried apart, so a category and a gesture that share a name ("wave")
+ * never take each other's binding (their ids never clash: the file refuses it).
  */
-export function rekeyBindings(
-  from: { categories: readonly NamedCategory[] },
-  bindings: Record<string, CategoryBinding>,
-  to: { categories: readonly NamedCategory[] },
-): Record<string, CategoryBinding> {
-  const out = carryBindings({ model: from, bindings }, to);
-  const before = new Map(from.categories.map((c) => [c.id, c.label.trim()]));
-  for (const c of to.categories) {
-    if (Object.hasOwn(out, c.id) || !Object.hasOwn(bindings, c.id)) continue;
-    if (before.get(c.id) === c.label.trim()) out[c.id] = bindings[c.id];
-  }
-  return out;
+export function rekeyBindings(from: BindingTargets, bindings: Record<string, CategoryBinding>, to: BindingTargets): Record<string, CategoryBinding> {
+  const carry = (before: readonly NamedCategory[], after: readonly NamedCategory[]): Record<string, CategoryBinding> => {
+    const out = carryBindings({ model: { categories: before }, bindings }, { categories: after });
+    const named = new Map(before.map((c) => [c.id, c.label.trim()]));
+    for (const c of after) {
+      if (Object.hasOwn(out, c.id) || !Object.hasOwn(bindings, c.id)) continue;
+      if (named.get(c.id) === c.label.trim()) out[c.id] = bindings[c.id];
+    }
+    return out;
+  };
+  return { ...carry(from.categories, to.categories), ...carry(from.gestures ?? [], to.gestures ?? []) };
 }
 
 /** True when `vector` holds at least `minPresent` (a fraction) of the model's features. */

@@ -61,7 +61,9 @@
  *
  * Everything is measured in the matcher's own space (`resolveGestureOptions`: the gesture's
  * features in noise units, resampled, position and scale invariant by default), so a chip and the
- * matcher never disagree about what "alike" means. Pure and modality-free.
+ * matcher never disagree about what "alike" means. A gesture with its own shape (#754: its own
+ * length or invariances, `shapes`) is judged in its own series, and so is every trace it is
+ * compared with, as the matcher compares a segment with it. Pure and modality-free.
  */
 import { median } from '@thoremin/stats';
 import { classify } from '../classify';
@@ -71,7 +73,7 @@ import type { FeatureVector, TrainedModel, Trace, TraceSample } from '../types';
 import { definedOnly } from '../../util/options';
 import { dtwDistance } from './dtw';
 import { gestureRadius, MATCHER_DEFAULTS, resolveGestureOptions, type GestureModelOptions } from './matcher';
-import { toSeries, type Series } from './series';
+import { toSeries, type Series, type SeriesOptions } from './series';
 
 export const GESTURE_QUALITY_DEFAULTS = {
   /**
@@ -480,12 +482,24 @@ export function gestureQuality(traces: readonly Trace[], options: GestureQuality
   const resolved = resolveGestureOptions(options);
   const o: Options = { ...GESTURE_QUALITY_DEFAULTS, ...definedOnly(options), minRadius: resolved.minRadius };
   checkQualityOptions(o);
-  const { series, band, minTraces } = resolved;
-  const { items, members } = prepare(traces, series);
-  const order = [...members.keys()];
-  const space = makePairSpace(items, ownColumns(order, o, series.features, series.weights), o.minShared, band);
+  const { band, minTraces } = resolved;
+  // One prepared space per distinct series (one, unless a gesture has its own shape), each over
+  // every trace: a gesture is judged, and compared with the others, in its own series.
+  const spaces = new Map<SeriesOptions, { items: Item[]; members: Map<string, number[]>; space: PairSpace }>();
+  const spaceFor = (series: SeriesOptions) => {
+    let got = spaces.get(series);
+    if (!got) {
+      const { items, members } = prepare(traces, series);
+      const space = makePairSpace(items, ownColumns([...members.keys()], o, series.features, series.weights), o.minShared, band);
+      spaces.set(series, (got = { items, members, space }));
+    }
+    return got;
+  };
+  const order = [...spaceFor(resolved.series).members.keys()];
 
   const parts = order.map((g) => {
+    const series = resolved.seriesOf(g);
+    const { items, members, space } = spaceFor(series);
     const idx = members.get(g)!;
     const within = withinGesture(g, idx, space, o, series.scale);
     const apart = separation(g, idx, members, space);

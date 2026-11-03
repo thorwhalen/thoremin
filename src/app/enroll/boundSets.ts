@@ -60,7 +60,7 @@ async function takeOver(index: CategorizerIndex, set: LegacyBoundSet): Promise<{
   const c = target.model.categorizer;
   if ((c.modality ?? 'face') !== read.modality || (c.hand ?? 'either') !== (read.hand ?? 'either') || (c.mirror === true) !== (read.mirror === true)) return null;
   const old = set.categories.bindings;
-  const carried = rekeyBindings({ categories: set.categories.model.categories }, old, c);
+  const carried = rekeyBindings({ categories: set.categories.model.categories }, old, { categories: c.categories });
   if (Object.keys(carried).length !== Object.keys(old).length) return null;
   return { id, bindings: { ...carried, ...recordBindings(target) } };
 }

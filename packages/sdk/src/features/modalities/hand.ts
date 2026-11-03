@@ -46,9 +46,11 @@ export function handShapeFeatureIds(sel: HandShapeSelection = {}): string[] {
 
 /** The groups a hand-shape cue collects (the shape ids are all in these). */
 export const HAND_SHAPE_GROUPS: readonly string[] = ['hand.finger.flexion', 'hand.finger.spread', 'hand.distances.pinch', 'hand.whole'];
+/** The groups a hand's moving gesture is a path through (#754): its raw positions. */
+export const HAND_GESTURE_GROUPS: readonly string[] = ['hand.position.raw'];
 /** The groups claimed while the tool reads the camera: the shape, and the positions a still is
- *  cropped and its skeleton drawn from. */
-export const HAND_CLAIM_GROUPS: readonly string[] = [...HAND_SHAPE_GROUPS, 'hand.position.raw'];
+ *  cropped and its skeleton drawn from (and a gesture is a path through). */
+export const HAND_CLAIM_GROUPS: readonly string[] = [...HAND_SHAPE_GROUPS, ...HAND_GESTURE_GROUPS];
 
 const SHAPE_IDS: readonly string[] = handShapeFeatureIds();
 const SHAPE = new Set(SHAPE_IDS);
@@ -168,6 +170,10 @@ export const handModality: CarveModality = {
     // the hand is and how it is turned is not what it does.
     omit: HAND_SPACE.ids.filter((id) => HAND_SHAPE_GROUPS.includes(GROUP_OF.get(id) ?? '') && !SHAPE.has(id)),
   }),
+  // A hand's gesture (#754) is a path of the hand in the frame: its raw positions (wrist, palm
+  // centre, fingertips), side-relative like its shape. Matched position and scale invariant, so
+  // where in the frame, and how big, is not what it is.
+  gestureCollects: () => ({ groups: [...HAND_GESTURE_GROUPS], omit: [] }),
   project,
   space: HAND_SPACE,
   /** One hand's shape keys, side-relative, or null when no hand is in view. */

@@ -2,7 +2,8 @@
  * Dynamic gestures (#718): moving categories beside the static carve. The design and its
  * phases are `docs/design/dynamic-gestures.md`; this barrel grows a module per phase (the
  * segmenter of #751; the window matcher of #752 with its DTW and series; the file section, the
- * trace quality and the everyday replay of #753). Pure, like the rest of `enroll/`.
+ * trace quality and the everyday replay of #753; the Gestures section's edits and the live
+ * listener a binding runs, #754). Pure, like the rest of `enroll/`.
  */
 export { createMotionSegmenter, SEGMENTER_DEFAULTS, type MotionSegmenter, type SegmenterOptions } from './segmenter';
 export { dtwDistance, type DtwOptions, type Rows } from './dtw';
@@ -20,6 +21,7 @@ export {
   type GestureFire,
   type GestureModel,
   type GestureModelOptions,
+  type GestureShape,
   type GestureTemplates,
   type MatchReading,
   type ResolvedGestureOptions,
@@ -32,6 +34,9 @@ export { gestureRestCue, GESTURE_REST_CUE, restlessGestures, withRestBeforeGestu
 export {
   freshGestureId,
   fromStoredTrace,
+  RECORDED_SHAPE,
+  statedShape,
+  storedShape,
   gestureModelFromCategorizer,
   gestureSection,
   gestureSpace,
@@ -52,3 +57,5 @@ export {
   type TraceQuality,
 } from './quality';
 export { gestureEveryday, type GestureEverydayOptions } from './everyday';
+export { addGestureTraces, deleteGesture, dropGestureTrace, mergeGestures, renameGesture, type AddTracesOptions, type GestureEdit } from './edit';
+export { createGestureListener, GESTURE_LISTEN_DEFAULTS, type GestureListener, type GestureListenerOptions, type MatcherFactory } from './listen';
