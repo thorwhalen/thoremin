@@ -80,7 +80,7 @@ export const GESTURE_QUALITY_DEFAULTS = {
    * The least share of the gesture's features both traces of a pair must have measured for the
    * pair to be compared at all. Half: below it the DTW reads what is LEFT of a repetition, so a
    * pair says more about what was lost than about the shape. Provisional, like the matcher's
-   * numbers, until the real-take set of #754.
+   * numbers, until the real-take set of #949.
    */
   minShared: 0.5,
   /** Separation below this many radii is CLOSE: the matcher's own tolerance, inside which another

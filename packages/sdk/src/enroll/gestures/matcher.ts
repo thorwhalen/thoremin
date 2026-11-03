@@ -112,7 +112,7 @@ export interface WindowMatcher {
   inGesture(): boolean;
 }
 
-/** The defaults, with where each comes from. Provisional until the real-take set of #754. */
+/** The defaults, with where each comes from. Provisional until the real-take set of #949. */
 export const MATCHER_DEFAULTS = {
   /** Rows a series is resampled to: a 1.5 s repetition at 30 fps is 45 frames, so 32 keeps its
    *  shape and keeps DTW at about a thousand cells per template. */

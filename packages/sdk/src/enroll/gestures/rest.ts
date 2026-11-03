@@ -26,7 +26,7 @@
  * The inserted rest is a baseline like any other, so it also feeds the session's rest vectors
  * (the reject radius, the reference of a later `excursion` cue); that is what a rest is for.
  *
- * Nothing calls this in the app yet: the Gestures section that builds a gesture routine is #754.
+ * The carve tool's gesture take (#754, `ext-faces/lib/gestureTake.ts`) builds its routine with it.
  *
  * ## What it does
  *

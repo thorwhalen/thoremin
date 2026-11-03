@@ -1083,7 +1083,7 @@ section.page { border-top: 1px solid var(--line); margin-top: 2.5rem; }
 <p>Run commands without touching the screen. Bind a hand pose, or any group you taught in <a href="#tools-faces">Your faces</a>, <a href="#tools-hand-shapes">Your hand shapes</a> or <a href="#tools-poses">Your poses</a>, to a command such as mute, octave up or load an instrument.</p>
 
 <details open><summary>Your categories</summary>
-<p><em>Your categories</em> binds each group of a saved model to a command: entering the group fires the command. Commands that could lose your work (saving over an instrument) are not allowed here.</p>
+<p><em>Your categories</em> binds each group of a saved model to a command: entering the group fires the command. A model&#39;s movements (the gestures recorded in <a href="#tools-hand-shapes">Your hand shapes</a>) are listed under its groups: a movement runs its command once each time you make it. Commands that could lose your work (saving over an instrument) are not allowed here.</p>
 </details>
 
 
@@ -1095,11 +1095,18 @@ section.page { border-top: 1px solid var(--line); margin-top: 2.5rem; }
 <figure><img src="https://apps.thorwhalen.com/thoremin/guide/pics/tool-hand-shapes.jpg" alt="Your hand shapes, open in the app"></figure>
 
 <h2>What to do</h2>
-<ol class="do"><li>Open Tools, then Your hand shapes, then Record my hand shapes.</li><li>Make your shapes one after another, as in Your faces.</li><li>Sort and name the groups, then bind them to commands or to the air guitar.</li></ol>
+<ol class="do"><li>Open Tools, then Your hand shapes, then Record my hand shapes.</li><li>Make your shapes one after another, as in Your faces.</li><li>Sort and name the groups, then bind them to commands or to the air guitar.</li><li>Under the groups, name a gesture (a wave) and record it a few times: it can fire a command too.</li></ol>
 <p>The same tool as <a href="#tools-faces">Your faces</a>, for the shape of one hand. A shape is read relative to the hand, so left and right hands share it, or you can choose a hand.</p>
 
 <details open><summary>Where the shapes go</summary>
 <p>A saved shape model can be the air guitar&#39;s chords (<a href="#instruments-air-guitar">Air Guitar</a>), or fire a command when you make a shape (<a href="#tools-gestures">Gestures</a>).</p>
+</details>
+
+
+<details open><summary>Gestures: movements, not shapes</summary>
+<p>Under the groups, the <strong>Gestures</strong> section keeps movements of your hand: a wave, a circle, a push. Type a name and press <em>Record a gesture</em>. Hold your hand still while a ring fills (it learns how much your hand wanders at rest), then do the movement as many times as it asks, letting your hand come to rest between each one. It stops by itself when it has them; <em>Stop and keep them</em> keeps the ones done so far.</p>
+<p>Each gesture shows each of its repetitions as a small drawing of the path, and dots for how alike they are and how far from your other gestures. When one repetition is unlike the others, <em>Drop the odd one</em> removes it; the small x on a drawing drops any one. <em>Record more</em> adds repetitions, <em>Merge into</em> puts two gestures together, and the name can be changed in place. Undo and redo work as for the groups. If a gesture passes through one of your shapes for long enough to also fire it, a line says so when you record it.</p>
+<p>A saved gesture appears in <a href="#tools-gestures">Gestures</a>, <em>Your categories</em>, under the groups: bound to a command, it runs that command once each time you make the movement.</p>
 </details>
 
 
