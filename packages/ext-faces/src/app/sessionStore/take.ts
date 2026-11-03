@@ -9,7 +9,7 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { restStats } from './ops';
 import { createRestWatch, createLightWatch } from '../sessionWatches';
 import { FACE_SESSION_DEFAULTS, type FacePhase, isLive, isRecording } from './state';
-import { type ModalityOptions, createReader } from '@thoremin/sdk/enroll/modality';
+import { type ModalityOptions, createReader, projectVector } from '@thoremin/sdk/enroll/modality';
 import { modelFromCategorizer, MAX_CATEGORIZER_SAMPLES, categorizerFromModel } from '@thoremin/sdk/enroll/categorizer';
 import { holdId } from '../thumbnails';
 import { flooredRejectRadius, DEFAULT_TUNING } from '@thoremin/sdk/enroll/live';
@@ -115,7 +115,9 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
       const live = read ? { ...read, vector: readLive(read.vector) } : null;
       if (live) loc.lastMirrored = readLive.mirrored();
       if (live) {
-        loc.take.push(live.vector, live.t);
+        // Only a read whose carved part moved feeds the take (#916): a hand re-offered beside a new
+        // face frame repeats its features under the new stamp, deflating their noise estimate.
+        if (!read!.fresh || Object.keys(projectVector(modality, read!.fresh, readOptions())).length > 0) loc.take.push(live.vector, live.t);
         loc.bars?.push(modality.read(live.vector), live.t);
         loc.lastVector = live.vector;
         // A burst's still: once a few frames in, from the frame showing now.

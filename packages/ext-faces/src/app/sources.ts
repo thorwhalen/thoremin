@@ -13,7 +13,7 @@
  * converts to).
  */
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
+import { createFreshReader } from '@thoremin/sdk-ui/enroll/liveVector';
 import { camera } from '@thoremin/sdk-ui/host';
 import { syntheticExpressionAt, syntheticFaceVector } from '../lib/synthetic';
 import { syntheticHandShapeAt, syntheticHandVector } from '../lib/synthetic_hand';
@@ -21,8 +21,10 @@ import { syntheticBodyAt, syntheticBodyVector } from '../lib/synthetic_body';
 
 export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
-  /** The latest vector and its engine time (ms), or null when there is none. */
-  read(): { vector: FeatureVector; t: number } | null;
+  /** The latest vector and its engine time (ms), or null when there is none. `fresh`, when the
+   *  source can tell, holds only the features of the parts that moved since the last read (#916:
+   *  the live tap's parts update on different ticks); absent = every feature is new. */
+  read(): { vector: FeatureVector; t: number; fresh?: FeatureVector } | null;
   /** A stream the holds' stills are taken from, or null (then the grid has no pictures). */
   video(): MediaStream | null;
   /** Release what the source opened (the synthetic canvas); never the camera. */
@@ -47,7 +49,8 @@ export const HAND_SCRIPT: SyntheticScript = { vectorAt: syntheticHandVector, lab
 export const BODY_SCRIPT: SyntheticScript = { vectorAt: syntheticBodyVector, labelAt: syntheticBodyAt };
 
 export function liveSource(): FaceSource {
-  return { kind: 'live', read: readLiveVector, video: () => camera().stream(), dispose: () => {} };
+  // A reader of its own: the take and the test each create a source, and each sees every part once.
+  return { kind: 'live', read: createFreshReader(), video: () => camera().stream(), dispose: () => {} };
 }
 
 /** A scripted part (the face by default), timed from when it is created; its video is a 160x120

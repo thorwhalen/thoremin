@@ -46,7 +46,17 @@
  * The merged stamp is the newest part's, and never goes back (a branch leaving the graph would
  * otherwise drop it to an older part's). A vector whose parts are ALL re-offers repeats the
  * previous stamp; one with a new face frame and a re-offered hand frame gets the new stamp, its
- * hand features repeated (a stamp per part would be needed to skip those: #916).
+ * hand features repeated.
+ *
+ * ## A stamp per part, and a reader per consumer (#916)
+ *
+ * Parts update on different ticks (the hands on their worker, the body on its own pump), so the
+ * merged stamp alone cannot say which features are new. Each read also carries its `parts`, each
+ * with its own stamp, and {@link createFreshReader} gives one consumer the features of the parts
+ * that moved since ITS last read (`fresh`). Per consumer, because consumers poll at their own
+ * rate and the tap keeps only the latest tick: a part is fresh for a reader until that reader has
+ * seen it. What feeds an estimator or a sampler (the trainer's session, the carve take) reads
+ * `fresh`; what shows or classifies the current state reads `vector`.
  *
  * A replay that has ended (or a single-frame fixture) holds its last frame, so the stamp holds
  * too: no new camera frame, no new sample. A clock that restarts lower (a new engine, without a
@@ -71,8 +81,26 @@ export const SOURCE_FRAME_EDGES: Readonly<Record<(typeof FEATURE_VECTOR_EDGES)[n
 };
 const SOURCE_KEYS: ReadonlySet<string> = new Set(Object.values(SOURCE_FRAME_EDGES));
 
+/** One part of the merged vector (one source's vector) and its own stamp, in ms (#916). */
+export interface LivePart {
+  /** The vector edge it came from (one of {@link FEATURE_VECTOR_EDGES}). */
+  edge: string;
+  t: number;
+  vector: FeatureVector;
+}
+
+/** A read of the tap: the merged vector, its stamp (the newest part's), the tick, and the parts. */
+export interface LiveRead {
+  vector: FeatureVector;
+  t: number;
+  tickT: number;
+  parts: readonly LivePart[];
+}
+
 /** The latest merged vector, or null before the first tick with any source present. */
 let latest: FeatureVector | null = null;
+/** The parts of {@link latest}, each with its own stamp. */
+let latestParts: LivePart[] = [];
 /** Stamp of the latest vector, in MILLISECONDS: the tick at which its newest source frame was
  *  first offered (see the module header). The DAG clock (`ctx.time`) is in
  *  seconds; the trainer's sampler (`dwellMs`, `speedWindowMs`) is in ms, and v1
@@ -128,14 +156,17 @@ export class LiveVectorTap implements Tap {
     // every tick (it should not happen — face and hand ids are namespaced — but a
     // non-deterministic merge would be an awful bug to chase).
     const merged: FeatureVector = {};
+    const parts: LivePart[] = [];
     let newest = -Infinity;
     for (const k of FEATURE_VECTOR_EDGES) {
       const part = byEdge.get(k);
       if (!part || part.time !== ctx.time) continue;
       Object.assign(merged, part.vector);
+      parts.push({ edge: k, t: part.stamp * 1000, vector: part.vector });
       newest = Math.max(newest, part.stamp);
     }
     latest = merged;
+    latestParts = parts;
     latestT = Math.max(latestT, newest * 1000);
     latestTickT = ctx.time * 1000;
   }
@@ -159,13 +190,44 @@ function sameFrame(a: unknown, b: unknown): boolean {
 /** The most recent merged feature vector, or null if none has arrived yet: `t` is its camera
  *  frame's stamp (repeated on a re-offer; feed samplers and estimators with it), `tickT` the tick
  *  it was read on (a clock), both in ms. */
-export function readLiveVector(): { vector: FeatureVector; t: number; tickT: number } | null {
-  return latest ? { vector: latest, t: latestT, tickT: latestTickT } : null;
+export function readLiveVector(): LiveRead | null {
+  return latest ? { vector: latest, t: latestT, tickT: latestTickT, parts: latestParts } : null;
+}
+
+/** A read for one consumer: {@link LiveRead} plus `fresh`, the features of the parts that moved
+ *  since this reader's previous read (empty when none did). */
+export type FreshRead = LiveRead & { fresh: FeatureVector };
+
+/**
+ * A reader for ONE consumer that feeds an estimator or a sampler (#916): each read says which
+ * parts are new to it. A part is new when its stamp passed the one this reader last returned for
+ * that edge; a clock that went back (a new engine) starts the reader over. Create one per consumer: two consumers sharing a reader would take each
+ * other's frames.
+ */
+export function createFreshReader(read: () => LiveRead | null = readLiveVector): () => FreshRead | null {
+  const seen = new Map<string, number>();
+  let lastTick = -Infinity;
+  return () => {
+    const live = read();
+    if (!live) return null;
+    // A clock that went back is a new engine (the tap starts over too): nothing seen on the old
+    // clock may hold a part back.
+    if (live.tickT < lastTick) seen.clear();
+    lastTick = live.tickT;
+    const fresh: FeatureVector = {};
+    for (const p of live.parts) {
+      if (p.t <= (seen.get(p.edge) ?? -Infinity)) continue;
+      seen.set(p.edge, p.t);
+      Object.assign(fresh, p.vector);
+    }
+    return { ...live, fresh };
+  };
 }
 
 /** Forget everything — used by tests, and on engine teardown. */
 export function resetLiveVector(): void {
   latest = null;
+  latestParts = [];
   latestT = 0;
   latestTickT = 0;
   byEdge.clear();

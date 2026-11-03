@@ -19,7 +19,7 @@ import { handFeatureVectorNode } from '@/nodes/features/hand_feature_vector';
 import { HAND_REPLAY_RESOURCE_KEY, replayHandsNode, type HandReplay } from '@/nodes/sources/replay_hands';
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { createNoiseEstimator } from '@thoremin/sdk/enroll/noise';
-import { LiveVectorTap, readLiveVector, resetLiveVector, SOURCE_FRAME_EDGES } from '@thoremin/sdk-ui/enroll/liveVector';
+import { createFreshReader, LiveVectorTap, readLiveVector, resetLiveVector, SOURCE_FRAME_EDGES } from '@thoremin/sdk-ui/enroll/liveVector';
 import { waveTake } from './helpers/wave_take';
 import { pollLiveVector } from '@/slices/trainer/app/trainerController';
 import { makeDebugHandle } from '@/app/engine/debugHandle';
@@ -230,5 +230,79 @@ describe('through a real engine: replay-hands playing a 30 fps recording under 6
     expect(at60.samples).toBe(at30.samples);
     // Half the 60 Hz ticks re-offer a frame, and were held.
     expect(at60.held).toBeGreaterThan(replay.frames.length * 0.8);
+  });
+});
+
+describe('a stamp per part, and a fresh reader per consumer (#916)', () => {
+  const rest = waveTake().frames.filter((f) => f.t < 1900);
+  const HAND_KEYS = Object.keys(rest[0].v);
+  const handOnly = (snap: ReturnType<ReturnType<typeof createNoiseEstimator>['snapshot']>) =>
+    Object.fromEntries(Object.entries(snap.sigma).filter(([k]) => HAND_KEYS.includes(k)));
+
+  /** Face frames new on every 60 Hz tick, each hand frame offered on two ticks (the hands on their
+   *  worker at half the face's rate); the estimator fed `fresh` (#916) or, as before, the merged vector. */
+  function faceAndHands(feed: 'fresh' | 'merged') {
+    resetLiveVector();
+    const tap = new LiveVectorTap();
+    const read = createFreshReader();
+    const noise = createNoiseEstimator();
+    rest.forEach((f, k) => {
+      for (const half of [0, 1]) {
+        const i = 2 * k + half;
+        const time = f.t / 1000 + half / 60;
+        const face = { t: time };
+        offer(tap, time, [
+          [FACE_SOURCE, face, 'faceVec.vector', { 'face.jitter': Math.sin(i * 1.7) * 0.01 }],
+          [HAND_SOURCE, rest[k], 'handVec.vector', { ...f.v }],
+        ]);
+        const live = read()!;
+        noise.push(feed === 'fresh' ? live.fresh : live.vector, live.t);
+      }
+    });
+    return noise.snapshot();
+  }
+
+  it('the hand features\' noise estimate equals the hand-only one at the hand\'s own rate', () => {
+    // The hand alone, one tick per camera frame, at its frames' own times.
+    const alone = createNoiseEstimator();
+    for (const f of rest) alone.push(f.v, f.t);
+    const fresh = handOnly(faceAndHands('fresh'));
+    expect(fresh['hand.right.wrist.x']).toBeGreaterThan(0);
+    const expected = handOnly(alone.snapshot());
+    expect(Object.keys(fresh).sort()).toEqual(Object.keys(expected).sort());
+    for (const k of Object.keys(expected)) expect(fresh[k]).toBeCloseTo(expected[k], 12);
+    // The merged vector at the face's stamp repeats the hand under a new stamp: deflated (#916).
+    expect(handOnly(faceAndHands('merged'))['hand.right.wrist.x']).toBeLessThan(0.8 * fresh['hand.right.wrist.x']);
+  });
+
+  it('each reader sees each part once, whatever the other readers took', () => {
+    const tap = new LiveVectorTap();
+    const a = createFreshReader();
+    const b = createFreshReader();
+    offer(tap, 1.0, [[FACE_SOURCE, { t: 1 }, 'faceVec.vector', { f: 1 }], [HAND_SOURCE, { t: 1 }, 'handVec.vector', { h: 1 }]]);
+    expect(a()!.fresh).toEqual({ f: 1, h: 1 });
+    offer(tap, 1.016, [[FACE_SOURCE, { t: 2 }, 'faceVec.vector', { f: 2 }], [HAND_SOURCE, { t: 1 }, 'handVec.vector', { h: 1 }]]);
+    expect(a()!.fresh).toEqual({ f: 2 });
+    // b never read before: both parts are new to it.
+    expect(b()!.fresh).toEqual({ f: 2, h: 1 });
+    expect(a()!.fresh).toEqual({});
+    expect(readLiveVector()!.parts.map((p) => [p.edge, p.t])).toEqual([['faceVec.vector', 1016], ['handVec.vector', 1000]]);
+  });
+
+  it('a clock that restarts lower (a new engine) starts a reader over', () => {
+    const tap = new LiveVectorTap();
+    const r = createFreshReader();
+    offer(tap, 5.0, [[HAND_SOURCE, { t: 5 }, 'handVec.vector', { h: 5 }]]);
+    expect(r()!.fresh).toEqual({ h: 5 });
+    offer(tap, 0.5, [[HAND_SOURCE, { t: 0.5 }, 'handVec.vector', { h: 0 }]]);
+    expect(r()!.fresh).toEqual({ h: 0 });
+  });
+
+  it('the trainer\'s poll samples only the fresh parts', () => {
+    const sampled: Record<string, number>[] = [];
+    const trainer = { sample: (v: Record<string, number>) => void sampled.push(v), tick() {} };
+    pollLiveVector(-Infinity, { vector: { f: 1, h: 1 }, t: 1, tickT: 1, fresh: { f: 1 } }, trainer);
+    pollLiveVector(-Infinity, { vector: { f: 1, h: 1 }, t: 1, tickT: 1 }, trainer);
+    expect(sampled).toEqual([{ f: 1 }, { f: 1, h: 1 }]);
   });
 });
