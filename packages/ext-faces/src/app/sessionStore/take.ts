@@ -108,7 +108,8 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
     let lastShown = -1;
     // The vector the carve works in (#385 E8): one hand made side-relative; the face as is. A
     // mirrored body take holds its side (#382), a merge chooses the side nearer its base.
-    const readLive = createReader(modality, readOptions(), loc.mergeBase?.working.mirror ? modelFromCategorizer(loc.mergeBase.working) : undefined);
+    const options = readOptions();
+    const readLive = createReader(modality, options, loc.mergeBase?.working.mirror ? modelFromCategorizer(loc.mergeBase.working) : undefined);
     loc.timer = setInterval(() => {
       if (!loc.take || !loc.source) return;
       const read = loc.source.read();
@@ -117,7 +118,7 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
       if (live) {
         // Which of the carved features are new readings (#916), in the carve's own ids: a part
         // re-offered beside a new one must not feed the noise estimate a zero difference.
-        const freshIds = read!.fresh ? new Set(Object.keys(projectVector(modality, read!.fresh, readOptions()))) : null;
+        const freshIds = read!.fresh ? new Set(Object.keys(projectVector(modality, read!.fresh, options))) : null;
         loc.take.push(live.vector, live.t, freshIds ? (id) => freshIds.has(id) : undefined);
         loc.bars?.push(modality.read(live.vector), live.t);
         loc.lastVector = live.vector;
