@@ -9,7 +9,7 @@
  *        (`--root`: every clip folder under it, a terpsi corpus export for one, #861)
  */
 import { createImpactDetector, createStrokeDetector, type AnchorDetector, type ImpactDetectorOptions } from '@thoremin/ictus';
-import { clipsFromArgs, loadClip, syntheticClip, type BodyClip } from './lib_clips';
+import { parseClipArgs, loadClip, syntheticClip, type BodyClip } from './lib_clips';
 import { chanceFLag } from './lib_channels';
 import { clipFrames, replayAnchors, scoreBeat } from './lib_impact';
 
@@ -31,7 +31,7 @@ function row(clip: BodyClip, name: string, make: () => AnchorDetector): string {
   return `| ${clip.name} | ${name} | ${s.f.toFixed(2)} | ${s.fLag.toFixed(2)} | ${s.r.toFixed(2)} (${s.n}) | ${s.p < 1e-3 ? '<0.001' : s.p.toFixed(3)} | ${Math.round(s.lagS * 1000)} |`;
 }
 
-const clips = clipsFromArgs(process.argv.slice(2), [...CLIPS, 'synthetic']).map((n) => (n === 'synthetic' ? syntheticClip() : loadClip(n)));
+const clips = parseClipArgs(process.argv.slice(2), { defaults: [...CLIPS, 'synthetic'] }).clips.map((n) => (n === 'synthetic' ? syntheticClip() : loadClip(n)));
 console.log('| clip | detector | F | F (lag) | R (anchors) | p | lag ms |\n|---|---|---:|---:|---:|---:|---:|');
 for (const clip of clips) {
   for (const [name, make] of DETECTORS) console.log(row(clip, name, make));

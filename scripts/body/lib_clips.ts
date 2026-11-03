@@ -10,6 +10,7 @@
 import { syntheticBodyNode } from '../../src/slices/body/nodes/synthetic_body';
 import type { BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { join, dirname, basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
@@ -180,19 +181,32 @@ export function syntheticClip({ seconds = 30, fps = 30, noisePx = 1.5, seed = 37
   return { name: 'synthetic', frames, fps, grid, beatsPerBar: SYNTH_BEATS_PER_BAR, phaseKnown: true };
 }
 
+/** A script's own flags, as `node:util` `parseArgs` declares them. */
+export type ClipScriptOptions = NonNullable<ParseArgsConfig['options']>;
+
 /**
- * The clips a measuring script runs on, from its command line (#861): every clip folder under
+ * A measuring script's command line (#861): its own flags (declared, parsed strictly: an unknown
+ * flag or a flag missing its value throws), and the clips to run on: every clip folder under
  * `--root <dir>` (a corpus, such as terpsi's export into the app-data dir), else the clips named
- * (fixture names or folder paths), else `defaults`. One reading for every script, so a corpus is
- * measured by any of them the same way.
+ * (fixture names or folder paths), else `defaults`. One reading for every body script, so a corpus
+ * is measured by any of them the same way. A root with no clip folder, or a root beside named
+ * clips, throws rather than measuring nothing or the wrong thing.
  */
-export function clipsFromArgs(argv: readonly string[], defaults: readonly string[]): string[] {
-  const i = argv.indexOf('--root');
-  if (i >= 0) {
-    const root = argv[i + 1];
-    if (!root) throw new Error('--root needs a folder');
-    return clipDirs(root);
-  }
-  const named = argv.filter((a, k) => a !== '--' && !a.startsWith('--') && !(k > 0 && argv[k - 1].startsWith('--')));
-  return named.length ? named : [...defaults];
+export function parseClipArgs(
+  argv: readonly string[],
+  { defaults, options = {} }: { defaults: readonly string[]; options?: ClipScriptOptions },
+): { clips: string[]; values: Record<string, string | boolean | undefined> } {
+  const { values, positionals } = parseArgs({
+    args: argv.filter((a) => a !== '--'),
+    options: { ...options, root: { type: 'string' } },
+    allowPositionals: true,
+    strict: true,
+  });
+  const v = values as Record<string, string | boolean | undefined>;
+  const root = v.root as string | undefined;
+  if (root === undefined) return { clips: positionals.length ? positionals : [...defaults], values: v };
+  if (positionals.length) throw new Error(`--root ${root} and named clips (${positionals.join(', ')}): give one or the other`);
+  const clips = clipDirs(root);
+  if (!clips.length) throw new Error(`no clip folder (${POSE_FILE} and ${META_FILE}) directly under ${root}`);
+  return { clips, values: v };
 }

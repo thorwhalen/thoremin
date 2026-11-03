@@ -22,7 +22,7 @@
 import { readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { measureClip, extractChannels, pulseSummary, bestCell, meterReading, medianBeatS, chanceFLag, type CellResult } from './lib_channels';
-import { FIXTURES, loadClip, adHocClip, syntheticClip, clipDirs, type BodyClip } from './lib_clips';
+import { FIXTURES, loadClip, adHocClip, syntheticClip, parseClipArgs, type BodyClip } from './lib_clips';
 
 const f2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : '-');
 
@@ -111,16 +111,14 @@ function acrossClipsTable(runs: ReadonlyArray<{ clip: BodyClip; cells: readonly 
 }
 
 function main(): void {
-  const args = process.argv.slice(2).filter((a) => a !== '--');
-  const csvAt = args.indexOf('--csv');
-  const csvPath = csvAt >= 0 ? args.splice(csvAt, 2)[1] : undefined;
-  const opt = (flag: string): string | undefined => {
-    const i = args.indexOf(flag);
-    return i >= 0 ? args.splice(i, 2)[1] : undefined;
-  };
-  const posePath = opt('--pose');
-  const beatsPath = opt('--beats');
-  const bpb = Number(opt('--bpb') ?? 4);
+  const { clips: names, values } = parseClipArgs(process.argv.slice(2), {
+    defaults: [...readdirSync(FIXTURES).filter((d) => d.startsWith('video_body_') && existsSync(join(FIXTURES, d, 'meta.json'))), 'synthetic'],
+    options: { csv: { type: 'string' }, pose: { type: 'string' }, beats: { type: 'string' }, bpb: { type: 'string' }, summary: { type: 'boolean' } },
+  });
+  const csvPath = values.csv as string | undefined;
+  const posePath = values.pose as string | undefined;
+  const beatsPath = values.beats as string | undefined;
+  const bpb = Number((values.bpb as string | undefined) ?? 4);
   if (posePath && beatsPath) {
     const clip = adHocClip(posePath, beatsPath, bpb);
     const cells = measureClip(clip.frames, clip.fps, clip.grid, clip.beatsPerBar);
@@ -128,14 +126,7 @@ function main(): void {
     console.log(`Pulse follower per channel:\n\n${pulseTable(clip)}\n`);
     return;
   }
-  const root = opt('--root');
-  const summaryOnly = args.includes('--summary');
-  if (summaryOnly) args.splice(args.indexOf('--summary'), 1);
-  const names = root
-    ? clipDirs(root)
-    : args.length
-    ? args
-    : [...readdirSync(FIXTURES).filter((d) => d.startsWith('video_body_') && existsSync(join(FIXTURES, d, 'meta.json'))), 'synthetic'];
+  const summaryOnly = values.summary === true;
   const meter = ['| clip | stated beats per bar | beat level: channel, period in beats (ACF r) | bar level: channel, period in beats (ACF r) | ratio |', '|---|---:|---|---|---:|'];
   const csv = ['clip,channel,event,polarity,level,n,rate,f,fLag,lagS,r,p,logP,bas,cemgil'];
   const runs: Array<{ clip: BodyClip; cells: CellResult[] }> = [];
