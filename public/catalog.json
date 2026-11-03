@@ -4142,6 +4142,12 @@
         "kind": "boolean",
         "description": "A tool holds the instrument quiet (the Trainer)",
         "default": false
+      },
+      {
+        "name": "mute",
+        "kind": "boolean",
+        "description": "The player's mute (#939): silences the song at its own volume too, the one way to reach a provider's embedded player",
+        "default": false
       }
     ],
     "outputs": [

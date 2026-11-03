@@ -572,7 +572,7 @@ _Play a song to dance or play along to: its beat tracked in the browser, its tem
 Plays the song loaded in the Song tool at a live rate with the pitch preserved, into the master bus, and publishes the song's beat as musical time.
 
 - **roles:** synth
-- **in:** song:song-handle, playing:boolean, play:number, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, seek:song-seek, volume:number, holdFade:number, holdSlow:number, claimed:boolean
+- **in:** song:song-handle, playing:boolean, play:number, rate:number, followRate:number, followPlaying:boolean, cue:song-cue, seek:song-seek, volume:number, holdFade:number, holdSlow:number, claimed:boolean, mute:boolean
 - **out:** status:load-status, position:number, rate:number, songTime:musical-time, seeked:number
 - **params:** minRate (number=0.5), maxRate (number=2), stretcher (enum(signalsmith | element)="signalsmith")
 

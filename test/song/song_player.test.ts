@@ -311,6 +311,8 @@ describe.runIf(SONG)('the trunk wires the song player to the store and the claim
     expect(into('rate')).toEqual(['ui.songRate']);
     expect(into('volume')).toEqual(['ui.songVolume']);
     expect(into('claimed')).toEqual(['ui.claimed']);
+    // The player's mute, which the master gain cannot carry to an embedded player (#939).
+    expect(into('mute')).toEqual(['ui.mute']);
     // The ports exist on store-controls (a dangling edge would fail validation, not silently).
     const ui = createAppRegistry().get('store-controls')!;
     for (const p of ['songHandle', 'songPlaying', 'songPlays', 'songRate', 'songVolume']) expect(ui.outputs.map((o) => o.name)).toContain(p);

@@ -41,8 +41,9 @@
  * stretcher's fader ramps to silence over that many seconds, the song keeps sounding
  * meanwhile and pauses once it is silent; a release before the end of the ramp climbs
  * back from where it was, one after it fades in from silence. A cue waits out the ramp.
- * A tool's claim (the Trainer) silences the song like every other voice; the player's
- * mute acts on the master gain the song is mixed into.
+ * A tool's claim (the Trainer) silences the song like every other voice, and so does the player's
+ * mute (#939): the master gain it acts on carries a file's audio, but not a provider's embedded
+ * player, which sounds from its own frame and is reached only through its volume.
  */
 import { z } from 'zod';
 import { defineNode, realtimeOutputAllowed } from '@thoremin/dag';
@@ -140,6 +141,12 @@ export const songPlayerNode = defineNode<Params>({
         "How far toward `minRate` the song slows during a conductor's hold fade-out (#573), a fraction (0 = the rate holds, as before); needs `holdFade` > 0. The rate eases back over the same length on the release",
     },
     { name: 'claimed', kind: 'boolean', default: false, description: 'A tool holds the instrument quiet (the Trainer)' },
+    {
+      name: 'mute',
+      kind: 'boolean',
+      default: false,
+      description: "The player's mute (#939): silences the song at its own volume too, the one way to reach a provider's embedded player",
+    },
   ],
   outputs: [
     { name: 'status', kind: 'load-status' },
@@ -334,7 +341,8 @@ export const songPlayerNode = defineNode<Params>({
         }
         const rate = Math.max(p.minRate, Math.min(p.maxRate, wanted));
         applied = rate;
-        const volume = inputs.claimed === true ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
+        const silent = inputs.claimed === true || inputs.mute === true;
+        const volume = silent ? 0 : Math.max(0, Math.min(1, finite(inputs.volume, 0.8)));
         s.setVolume(volume);
         s.setRate(rate);
         const playable = songPlayable(status);

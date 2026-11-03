@@ -37,6 +37,7 @@ export function embedStretcher(player: EmbedPlayer): Stretcher {
     appliedRate: () => applied,
     durationS: () => player.durationS(),
     setVolume: (v) => player.setVolume?.(v),
+    obeysVolume: () => player.capabilities.volume && !!player.setVolume,
     position: () => player.position(),
     seek: player.seek ? (p) => player.seek!(p) : undefined,
     playing: () => player.playing(),
@@ -182,6 +183,13 @@ export function embedSession(item: MediaItem, song: SongHandle, player: EmbedPla
       if (mine) setSongHandle(null);
     },
   };
+}
+
+/** The muted badge's note while an embedded player that offers no volume plays on (#939): the
+ *  player's mute reaches an embed only through its volume, so one without it keeps sounding. */
+export function embedStillSounding(state: Readonly<Record<string, unknown>>): string | null {
+  const player = (state.songHandle as SongHandle | null | undefined)?.player;
+  return player && player.obeysVolume?.() === false && player.playing() ? 'embedded player still on' : null;
 }
 
 /** What the open embedded player last said went wrong, for the Song tool; null when nothing. */
