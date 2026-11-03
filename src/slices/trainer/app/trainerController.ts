@@ -21,7 +21,8 @@ import { dispatchCommand } from '@thoremin/sdk-ui/dials';
 import { categoryBinder, type CategoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { useRecordingConfig } from '@thoremin/sdk-ui/recording/config';
 import { describeTakeDestination, folderPickerSupported } from '@thoremin/sdk-ui/recording/destination';
-import { readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
+import { createFreshReader, readLiveVector } from '@thoremin/sdk-ui/enroll/liveVector';
+import type { FreshFilter } from '@thoremin/sdk/enroll/noise';
 import { useTrainer } from './store';
 import { useTrainerPrefs } from './prefs';
 import { installVoice, useVoice } from '@thoremin/sdk-ui/enroll/voiceRuntime';
@@ -44,15 +45,21 @@ export const nowMs = (): number => readLiveVector()?.tickT ?? performance.now();
  * and repeats while the camera has not delivered a new frame (and for good once a replay has
  * ended), so only a NEW stamp is a sample; otherwise the trainer still ticks on the clock, so a
  * stalled camera cannot freeze the runner's patience. Returns the last stamp sampled.
+ *
+ * With `fresh` (a {@link createFreshReader} read, #916) the whole vector is still sampled (the
+ * samplers judge motion over it), but only the parts that moved since the last poll feed the noise
+ * estimate: a hand part re-offered beside a new face frame would otherwise repeat its features
+ * under the new stamp, a zero difference that deflates their estimate.
  */
 export function pollLiveVector(
   lastSampled: number,
-  live: { vector: FeatureVector; t: number; tickT: number } | null,
-  trainer: { sample(vector: FeatureVector, tMs: number): void; tick(tMs: number): void },
+  live: { vector: FeatureVector; t: number; tickT: number; fresh?: FeatureVector } | null,
+  trainer: { sample(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void; tick(tMs: number): void },
   now: () => number = () => performance.now(),
 ): number {
   if (live && live.t > lastSampled) {
-    trainer.sample(live.vector, live.t);
+    const fresh = live.fresh;
+    trainer.sample(live.vector, live.t, fresh ? (id) => id in fresh : undefined);
     return live.t;
   }
   trainer.tick(live?.tickT ?? now());
@@ -187,9 +194,10 @@ export function useTrainerSession(running: boolean): void {
   useEffect(() => {
     if (!running) return;
     let lastSampled = -Infinity;
+    const read = createFreshReader();
     const id = setInterval(() => {
       if (!runningRef.current) return;
-      lastSampled = pollLiveVector(lastSampled, readLiveVector(), useTrainer.getState());
+      lastSampled = pollLiveVector(lastSampled, read(), useTrainer.getState());
     }, SAMPLE_INTERVAL_MS);
     return () => clearInterval(id);
   }, [running]);

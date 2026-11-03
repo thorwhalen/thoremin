@@ -47,7 +47,7 @@ import {
   weightsFromNuisance,
   weightsFromSelection,
 } from './invariance';
-import { applyWeights, createNoiseEstimator, scaleWeights, type NoiseEstimator, type NoiseOptions } from './noise';
+import { applyWeights, createNoiseEstimator, scaleWeights, type FreshFilter, type NoiseEstimator, type NoiseOptions } from './noise';
 import { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
 import { createMotionSegmenter, type MotionSegmenter } from './gestures/segmenter';
 import type { FeatureVector, FeatureWeights, StillPoint, Trace, TrainedModel } from './types';
@@ -85,8 +85,9 @@ export interface Session {
    *  not taken again (a carve resumed after a pause, #385 E2). */
   beginCue(cue: Cue, options?: { after?: FeatureVector }): void;
   /** Feed a live feature vector. Every frame feeds the noise estimate; the active
-   *  cue (if any) samples it. */
-  push(vector: FeatureVector, tMs: number): void;
+   *  cue (if any) samples it. `fresh` (#916) says which features are new readings: only those
+   *  feed the noise estimate, while the samplers see the whole vector. */
+  push(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void;
   /** Finish the active cue. */
   endCue(): void;
   /** Add a still-point taken outside the sampler (#385 E7: a burst, every frame of it one hold)
@@ -283,14 +284,14 @@ export function createSession(options: SessionOptions = {}): Session {
       }
     },
 
-    push(vector, tMs) {
+    push(vector, tMs, fresh) {
       // A nuisance demonstration is deliberate motion (closer and further, a step aside, a
       // turn): it sets the nuisance profile and never the noise every distance is measured
       // in (#460). Its frames are a gap to the estimator, which re-anchors after it. A
       // gesture is deliberate motion too (#751), but only while a repetition is under way:
       // a gesture cue's frame is fed below, after the segmenter has seen it, and only when
       // no run is open.
-      if (active?.produces !== 'nuisance' && !segmenter) noise.push(vector, tMs);
+      if (active?.produces !== 'nuisance' && !segmenter) noise.push(vector, tMs, fresh);
       if (!active) {
         idle?.push(vector, tMs);
         lastIdle = { v: vector, t: tMs };
@@ -301,7 +302,7 @@ export function createSession(options: SessionOptions = {}): Session {
       if (!activeFeatures.some((id) => Number.isFinite(vector[id]))) {
         // Not a sample of the cue, but still noise for every other feature (the face while
         // the hand is out of view), as it is in any other cue.
-        if (segmenter && !segmenter.inRun()) noise.push(vector, tMs);
+        if (segmenter && !segmenter.inRun()) noise.push(vector, tMs, fresh);
         return;
       }
       lastInCue = { v: vector, t: tMs };
@@ -316,7 +317,7 @@ export function createSession(options: SessionOptions = {}): Session {
         // five waves folded into the jitter would inflate the very unit they are judged in,
         // but a feature first seen during the cue (the other hand coming into view) must
         // still warm, or the segmenter could never judge another frame.
-        if (!segmenter.inRun()) noise.push(vector, tMs);
+        if (!segmenter.inRun()) noise.push(vector, tMs, fresh);
       } else {
         frames.get(active.id)!.push(vector);
       }

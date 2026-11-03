@@ -9,7 +9,7 @@ import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { restStats } from './ops';
 import { createRestWatch, createLightWatch } from '../sessionWatches';
 import { FACE_SESSION_DEFAULTS, type FacePhase, isLive, isRecording } from './state';
-import { type ModalityOptions, createReader } from '@thoremin/sdk/enroll/modality';
+import { type ModalityOptions, createReader, projectVector } from '@thoremin/sdk/enroll/modality';
 import { modelFromCategorizer, MAX_CATEGORIZER_SAMPLES, categorizerFromModel } from '@thoremin/sdk/enroll/categorizer';
 import { holdId } from '../thumbnails';
 import { flooredRejectRadius, DEFAULT_TUNING } from '@thoremin/sdk/enroll/live';
@@ -108,14 +108,18 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
     let lastShown = -1;
     // The vector the carve works in (#385 E8): one hand made side-relative; the face as is. A
     // mirrored body take holds its side (#382), a merge chooses the side nearer its base.
-    const readLive = createReader(modality, readOptions(), loc.mergeBase?.working.mirror ? modelFromCategorizer(loc.mergeBase.working) : undefined);
+    const options = readOptions();
+    const readLive = createReader(modality, options, loc.mergeBase?.working.mirror ? modelFromCategorizer(loc.mergeBase.working) : undefined);
     loc.timer = setInterval(() => {
       if (!loc.take || !loc.source) return;
       const read = loc.source.read();
       const live = read ? { ...read, vector: readLive(read.vector) } : null;
       if (live) loc.lastMirrored = readLive.mirrored();
       if (live) {
-        loc.take.push(live.vector, live.t);
+        // Which of the carved features are new readings (#916), in the carve's own ids: a part
+        // re-offered beside a new one must not feed the noise estimate a zero difference.
+        const freshIds = read!.fresh ? new Set(Object.keys(projectVector(modality, read!.fresh, options))) : null;
+        loc.take.push(live.vector, live.t, freshIds ? (id) => freshIds.has(id) : undefined);
         loc.bars?.push(modality.read(live.vector), live.t);
         loc.lastVector = live.vector;
         // A burst's still: once a few frames in, from the frame showing now.

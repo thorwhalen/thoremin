@@ -38,6 +38,7 @@
  * (the take stays paused: burst-only capture). A burst shorter than `minBurstFrames` frames of the
  * modality takes nothing.
  */
+import type { FreshFilter } from '@thoremin/sdk/enroll/noise';
 import { CueSchema, type Cue, type CueSpecInput } from '@thoremin/sdk/enroll/cue';
 import { samplingFor } from '@thoremin/sdk/enroll/cue';
 import { createStillPointSampler, type StillPointSampler } from '@thoremin/sdk/enroll/sampler';
@@ -191,7 +192,8 @@ export interface FaceTake {
   hold(): HoldState;
   /** Feed one live vector. Ignored while idle or done; a repeat of the last time is dropped.
    *  Exploring or paused, it feeds the noise estimate and the watching sampler only. */
-  push(vector: FeatureVector, tMs: number): void;
+  /** One live frame; `fresh` (#916): which features are new readings, for the noise estimate. */
+  push(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void;
   /** End the take. Builds the session when there is anything to carve; returns whether it built. */
   stop(): boolean;
   /** The rest frames that had the modality in view (a face) (what "neutral" is, by demonstration). */
@@ -388,12 +390,12 @@ export function createFaceTake(options: FaceTakeOptions = {}): FaceTake {
       if ((phase === 'explore' || phase === 'paused') && watch) return holdOf(watch.isSettling(), watch.isArmed());
       return 'open';
     },
-    push(vector, tMs) {
+    push(vector, tMs, fresh) {
       if (phase === 'idle' || phase === 'done') return;
       if (!(tMs > lastT)) return;
       lastT = tMs;
       const before = session.points().length;
-      session.push(vector, tMs);
+      session.push(vector, tMs, fresh);
       if (bursting) {
         // No cue is active during a burst: the session only measures noise; the take collects.
         if (modality.read(vector) !== null) bursting.frames.push(vector);

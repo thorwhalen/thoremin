@@ -40,6 +40,7 @@ import { clickPlan, samplingFor } from './cue';
 import type { Session } from './session';
 import { defaultSufficiency, type SufficiencyEvaluator, type Verdict } from './sufficiency';
 import type { FeatureVector } from './types';
+import type { FreshFilter } from './noise';
 import { definedOnly } from '@thoremin/stats/options';
 
 /** Fixed phrases the runner may say at a cue's end (a finite set, for the clip cache). */
@@ -107,7 +108,7 @@ export interface Runner {
    *  cues it still feeds the session's noise estimate (a 1.5 s hole per cue boundary
    *  would otherwise dent every threshold the next cue is judged by). No-op once done
    *  or stopped. */
-  push(vector: FeatureVector, tMs: number): void;
+  push(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void;
   /** Advance time without a sample (so patience and beats still elapse). */
   tick(tMs: number): void;
   /** The player says they have DONE the active cue: end it as complete, keeping whatever
@@ -286,10 +287,10 @@ export function createRunner(options: RunnerOptions): Runner {
       outcomes.fill(null);
       beginCue(0, tMs);
     },
-    push(vector, tMs) {
+    push(vector, tMs, fresh) {
       advance(tMs);
       if (status !== 'running' && status !== 'between') return;
-      session.push(vector, tMs);
+      session.push(vector, tMs, fresh);
       if (status === 'running') consider(tMs);
     },
     tick(tMs) {

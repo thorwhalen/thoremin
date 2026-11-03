@@ -32,6 +32,7 @@
  * `retrain(k)` is cheap by construction — it re-cuts the built hierarchy rather than
  * reclustering — which is what lets the k control be a live slider rather than a button.
  */
+import type { FreshFilter } from '@thoremin/sdk/enroll/noise';
 import { create } from 'zustand';
 import {
   categoryKey,
@@ -174,7 +175,8 @@ interface TrainerState {
    * take's share an origin. Resolves once the routine is running.
    */
   startTake(now: () => number): Promise<void>;
-  sample(vector: FeatureVector, tMs: number): void;
+  /** One live sample; `fresh` (#916): which features are new readings, for the noise estimate. */
+  sample(vector: FeatureVector, tMs: number, fresh?: FreshFilter): void;
   tick(tMs: number): void;
   /** The player's "Done": complete the active cue, keeping its samples, and move on. */
   complete(tMs: number): void;
@@ -515,10 +517,10 @@ export const useTrainer = create<TrainerState>()((set, get) => {
       }
     },
 
-    sample(vector, tMs) {
+    sample(vector, tMs, fresh) {
       if (!runner) return;
       advanceClicks(tMs);
-      runner.push(vector, tMs);
+      runner.push(vector, tMs, fresh);
       reconcileRecording(get, set);
       set(fromRunner());
     },
