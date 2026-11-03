@@ -77,6 +77,9 @@ export interface SufficiencyInput {
   /** Whether the vector is currently HELD (the sampler is accumulating a dwell, or
    *  sitting on an already-captured pose). Tells "holding" apart from "sweeping". */
   settling: boolean;
+  /** Whether a gesture cue withholds until an attended feature has a noise unit learned at rest
+   *  (#913, `Session.warming`). Absent = no. */
+  warming?: boolean;
   /** The resting baseline (mean of the baseline cue's frames), if one has run. */
   baseline?: FeatureVector;
   /** The session's noise unit for a feature (NaN if unseen). */
@@ -194,11 +197,14 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
 
     case 'repetitions': {
       // Phase 1 counts. Whether the repetitions AGREE is the trace-quality chip of #753, and
-      // the spoken repetition prompt is #754's; until then nothing is said mid-cue.
+      // the spoken repetition prompt is #754's.
       if (input.traces.length >= s.minTraces) return { verdict: 'enough' };
       if (outOfPatience) {
         return { verdict: 'cannot', why: input.moved ? CANNOT_REASONS.tooFew : CANNOT_REASONS.noMove };
       }
+      // The part that will gesture has no unit learned at rest yet (#913): a moment's stillness
+      // gives it one, and a repetition made before then could not be judged.
+      if (input.warming) return { verdict: 'need-variation', key: 'hold', say: DEFAULT_NUDGES.hold };
       return { verdict: 'need-more' };
     }
 

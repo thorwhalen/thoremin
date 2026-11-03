@@ -85,6 +85,13 @@ export interface FeatureDef<Ctx> {
    *  a line; for glitch-free MUSICAL control, derive `sin(...)`/`cos(...)` of the
    *  angle in a Lab formula (both helpers ship in DEFAULT_HELPERS). */
   circular?: boolean;
+  /**
+   * An upper bound on the feature's frame-to-frame jitter while the part is held still, in the
+   * feature's own units, measured on real takes (#913). A noise warm-up above it was learned from
+   * motion, not from rest: a gesture cue forgets it and warms again (`enroll/session.ts`).
+   * Absent = not measured, and no warm-up is questioned.
+   */
+  restJitter?: number;
   controllability?: Controllability;
   /** One-line human description (surfaced in the catalog manual + lab tooltips). */
   description?: string;

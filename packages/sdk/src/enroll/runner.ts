@@ -237,6 +237,7 @@ export function createRunner(options: RunnerOptions): Runner {
       sinceLastSampleMs: lastSampleAt === null ? tMs - startedAt : tMs - lastSampleAt,
       moved: session.moved(),
       settling: session.settling(),
+      warming: session.warming(),
       baseline: session.baseline(),
       sigma: session.sigma,
       askedVariations,

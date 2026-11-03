@@ -39,6 +39,8 @@ export interface FlatFeature {
   invariantTo?: readonly Invariance[];
   /** The part of `invariantTo` that holds only on world landmarks (see FeatureDef.worldOnly). */
   worldOnly?: readonly Invariance[];
+  /** See FeatureDef.restJitter (#913). */
+  restJitter?: number;
   controllability?: Controllability;
   description?: string;
 }
@@ -162,7 +164,7 @@ function buildAllFeatures(): FlatFeature[] {
   }
   for (const side of HAND_SIDES) {
     for (const f of HAND_SIDE_FEATURES) {
-      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, controllability: f.controllability, description: f.description });
+      out.push({ id: `hand.${side}.${f.id}`, group: f.group, source: f.source, range: f.range, circular: f.circular, invariantTo: f.invariantTo, restJitter: f.restJitter, controllability: f.controllability, description: f.description });
     }
   }
   for (const f of HAND_PAIR_FEATURES) {

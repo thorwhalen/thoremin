@@ -75,6 +75,12 @@ export interface SessionOptions {
   groupOf?: (id: string) => string | undefined;
   /** The feature ids a cue's groups are resolved against. Defaults to the catalog. */
   allFeatureIds?: readonly string[];
+  /**
+   * A feature's rest-jitter ceiling (#913), in its own units: a noise warm-up that ends above it
+   * during a gesture cue was learned from the gesture, and is forgotten so it warms again.
+   * Defaults to the catalog's `restJitter`; undefined = never questioned.
+   */
+  restJitterOf?: (id: string) => number | undefined;
 }
 
 export interface Session {
@@ -112,6 +118,10 @@ export interface Session {
   moved(): boolean;
   /** Whether the vector is currently held (the active sampler is in a dwell). */
   settling(): boolean;
+  /** True while the active gesture cue withholds (#913): an attended feature in view has no
+   *  noise unit learned at rest yet (it just came into view, or its warm-up was the gesture
+   *  itself), so no repetition can be judged. What a "hold still a moment" nudge reads. */
+  warming(): boolean;
   /** Whether the active sampler would emit a held pose (false right after one, until the
    *  player moves; false when idle). With `settling`, what a hold indicator shows. */
   armed(): boolean;
@@ -150,6 +160,7 @@ const DEFAULTS = { maxFeatures: 24, useDeclaredInvariance: false, nuisanceScale:
 // The only place this module touches the catalog: resolving a cue's groups to ids.
 const defaultGroupOf = (id: string): string | undefined => FEATURE_BY_ID[id]?.group;
 const defaultFeatureIds = (): readonly string[] => ALL_FEATURES.map((f) => f.id);
+const defaultRestJitterOf = (id: string): number | undefined => FEATURE_BY_ID[id]?.restJitter;
 
 /** Mean of `vectors` over the union of their finite keys. */
 function meanOf(vectors: readonly FeatureVector[]): FeatureVector | undefined {
@@ -174,6 +185,7 @@ export function createSession(options: SessionOptions = {}): Session {
   const noise = createNoiseEstimator(o.noise);
   const groupOf = o.groupOf ?? defaultGroupOf;
   const allIds = o.allFeatureIds ?? defaultFeatureIds();
+  const restJitterOf = o.restJitterOf ?? defaultRestJitterOf;
 
   /** Still-points per vocabulary cue. */
   const points = new Map<string, StillPoint[]>();
@@ -188,6 +200,34 @@ export function createSession(options: SessionOptions = {}): Session {
   let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
   let segmenter: MotionSegmenter | null = null;
+  /** The active gesture cue's features seen cold, whose warm-up is still to be judged (#913). */
+  const coldSeen = new Set<string>();
+  let warming = false;
+  /**
+   * #913: whether an attended feature in `vector` has no noise unit learned at rest. A feature
+   * first seen cold in a gesture cue is judged once, when it warms: a warm-up whose unit exceeds
+   * the feature's rest-jitter ceiling was the gesture (a hand waving as it comes into view), so it
+   * is forgotten and warms again, and the cue keeps withholding. Judged at the transition, from the
+   * warm-up's frames alone: a unit learned earlier, at rest, is never second-guessed.
+   */
+  const coldInView = (vector: FeatureVector): boolean => {
+    let cold = false;
+    for (const id of activeFeatures) {
+      if (!Number.isFinite(vector[id])) continue;
+      if (!noise.isWarm(id)) {
+        coldSeen.add(id);
+        cold = true;
+        continue;
+      }
+      if (!coldSeen.has(id)) continue;
+      const ceiling = restJitterOf(id);
+      if (ceiling !== undefined && noise.sigma(id) > ceiling) {
+        noise.forget(id);
+        cold = true;
+      } else coldSeen.delete(id);
+    }
+    return cold;
+  };
   /** The last frame the active cue sampled. */
   let lastInCue: { v: FeatureVector; t: number } | null = null;
   /**
@@ -228,6 +268,8 @@ export function createSession(options: SessionOptions = {}): Session {
       active = cue;
       cuesSeen.set(cue.id, cue);
       activeFeatures = featuresFor(cue);
+      coldSeen.clear();
+      warming = false;
       points.delete(cue.id);
       frames.delete(cue.id);
       traces.delete(cue.id);
@@ -300,6 +342,8 @@ export function createSession(options: SessionOptions = {}): Session {
         const p = sampler.push(vector, tMs);
         if (p) points.get(active.id)!.push(p);
       } else if (segmenter) {
+        // Judged before the segmenter sees the frame: a forgotten warm-up disarms it here.
+        warming = coldInView(vector);
         const trace = segmenter.push(vector, tMs);
         if (trace) traces.get(active.id)!.push(trace);
         // Between repetitions the hand is at rest, and those frames are noise like any other:
@@ -321,6 +365,8 @@ export function createSession(options: SessionOptions = {}): Session {
       sampler = null;
       segmenter = null;
       activeFeatures = [];
+      coldSeen.clear();
+      warming = false;
     },
 
     addPoint(point) {
@@ -340,6 +386,7 @@ export function createSession(options: SessionOptions = {}): Session {
     baseline: () => meanOf(framesWhere('baseline')),
     moved: () => (sampler ?? segmenter)?.hasMoved() ?? false,
     settling: () => sampler?.isSettling() ?? false,
+    warming: () => warming,
     armed: () => sampler?.isArmed() ?? false,
     built: () => hierarchy.size > 0 && hierarchy.size === vocabulary().length,
     sigma: (id) => noise.sigma(id),
@@ -440,6 +487,8 @@ export function createSession(options: SessionOptions = {}): Session {
       activeFeatures = [];
       sampler = null;
       segmenter = null;
+      coldSeen.clear();
+      warming = false;
       lastInCue = null;
       idle = null;
       lastIdle = null;
