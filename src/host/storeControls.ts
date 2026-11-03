@@ -92,7 +92,7 @@ const Params = z.object({});
  *   chords, the air flute) but NOT the conducted score, while an extension's `hushes` rule holds (the conductor's, while it is on): then
  *   the score is the music, and the active instrument under it is what the player could
  *   not hear past.
- * - `muteStrikes` silences the struck instruments' schedulers (air drum, bass, guitar)
+ * - `muteStrikes` silences the struck instruments' schedulers (air drum, bass, guitar, chord strum)
  *   in every one of those cases: an air instrument is the active instrument as much as a
  *   field voice is, and conducting motions strike it. The opt-in to drum ALONG a conducted
  *   piece is the hush's own (`HushDecl.strikesAlong`, the conductor's `strikesAlong` dial, #719):

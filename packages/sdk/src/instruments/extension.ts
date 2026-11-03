@@ -175,8 +175,9 @@ export interface HushDecl {
   /** How the shell's badge ends "Instrument quiet ...": `while conducting`. */
   reason: string;
   while: (state: ExtensionDerivationSettings) => boolean;
-  /** While it holds, whether the struck instruments (air drum, bass, guitar) may still sound: the
-   *  player drumming along a conducted piece (#719). Absent = no, they are hushed with the voices. */
+  /** While it holds, whether the struck instruments (every output on `muteStrikes`: air drum, bass,
+   *  guitar, the chord map's strum) may still sound: the player playing along a conducted piece
+   *  (#719). Absent = no, they are hushed with the voices. */
   strikesAlong?: (state: ExtensionDerivationSettings) => boolean;
 }
 
