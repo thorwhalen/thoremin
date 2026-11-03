@@ -138,6 +138,11 @@ export interface CarveModality {
   readonly groups: readonly string[];
   /** A cue's `collects`: the groups and the ids left out (where you sit is not what you do). */
   collects(): { groups: string[]; omit: string[] };
+  /** A GESTURE cue's `collects` (#754, `docs/design/dynamic-gestures.md`): what a moving gesture
+   *  of this part is a path through (a hand's wave is where the hand is, not its shape). Its
+   *  groups must be among {@link groups}, so the tool's claim computes them. Absent: the modality
+   *  records no gestures. */
+  gestureCollects?(): { groups: string[]; omit: string[] };
   /**
    * The vector the carve works in, from the merged live vector (#385 E8), when it is not the
    * merged vector itself: a side-relative hand renames one hand's keys here (and keeps its

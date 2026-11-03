@@ -196,8 +196,8 @@ export const defaultSufficiency: SufficiencyEvaluator = (input) => {
     }
 
     case 'repetitions': {
-      // Phase 1 counts. Whether the repetitions AGREE is the trace-quality chip of #753, and
-      // the spoken repetition prompt is #754's.
+      // Phase 1 counts. Whether the repetitions AGREE is the trace-quality chip of #753; the
+      // repetition prompt is the cue's instruction, said as it starts (#754); the hold-still nudge below (#913) is the only thing said mid-cue.
       if (input.traces.length >= s.minTraces) return { verdict: 'enough' };
       if (outOfPatience) {
         return { verdict: 'cannot', why: input.moved ? CANNOT_REASONS.tooFew : CANNOT_REASONS.noMove };

@@ -79,7 +79,7 @@ export interface SegmenterOptions {
 
 /**
  * The thresholds, with where each comes from. The two durations are provisional: no real
- * gesture take exists yet, and the real-take set of #754 re-tunes them.
+ * gesture take exists yet, and the real-take set of #949 re-tunes them.
  */
 export const SEGMENTER_DEFAULTS = {
   /** The lower edge of deliberate motion on the recorded face clip (a head turn reads 8-12). */

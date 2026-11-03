@@ -181,14 +181,25 @@ function buildAllFeatures(): FlatFeature[] {
  * `restCeiling`): its `restJitter` times its part's extent in the frame. Only a hand's features
  * declare one (`hand.<side>.` positions, scaled by that hand's extent); undefined for the rest, or
  * when the extent cannot be read from the vector.
+ *
+ * A SIDE-RELATIVE hand id (`wrist.x`: the hand modality's projection, which strips the side; what a
+ * hand categorizer's take and its live gesture listener read, #754) is judged the same way, against
+ * the extent of the unprefixed hand in the same vector.
  */
 export function restCeilingOf(id: string, vector: Readonly<Record<string, number>>): number | undefined {
-  const f = FEATURE_BY_ID[id];
+  const flat = FEATURE_BY_ID[id];
+  const sideRelative = flat === undefined ? HAND_SIDE_BY_ID[id] : undefined;
+  const f = flat ?? sideRelative;
   if (f?.restJitter === undefined || f.source !== 'hand') return undefined;
-  const side = /^hand\.(left|right)\./.exec(id);
-  const extent = side ? handExtent(vector, side[0]) : NaN;
+  const prefix = sideRelative ? '' : /^hand\.(left|right)\./.exec(id)?.[0];
+  const extent = prefix !== undefined ? handExtent(vector, prefix) : NaN;
   return Number.isFinite(extent) ? f.restJitter * extent : undefined;
 }
+
+/** The per-hand features by their side-relative id (`wrist.x`). */
+const HAND_SIDE_BY_ID: Readonly<Record<string, (typeof HAND_SIDE_FEATURES)[number]>> = Object.fromEntries(
+  HAND_SIDE_FEATURES.map((f) => [f.id, f]),
+);
 
 /** Fast lookup: feature id → its flat entry. */
 export const FEATURE_BY_ID: Readonly<Record<string, FlatFeature>> = Object.fromEntries(

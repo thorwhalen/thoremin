@@ -78,6 +78,7 @@
  * already treats a non-finite value.
  */
 import { HAND_CHOICES, type HandChoice, type Skeleton } from './modality';
+import { rowJson } from '../util/json';
 import { z } from 'zod';
 import { trainModel, trainNeutral } from './classify';
 import type { FeatureVector, StillPoint, TrainedModel } from './types';
@@ -214,6 +215,14 @@ const CategorizerGestureSchema = z.object({
   /** The features it is matched on, in row order (each weighted in the section's `weights`). */
   features: z.array(z.string().min(1)).min(1).max(MAX_CATEGORIZER_FEATURES),
   traces: z.array(GestureTraceSchema).min(1),
+  /** How it is matched (#754, design section 5): the window length in rows, and whether it is
+   *  the same made anywhere (`position`) and at any size (`scale`). Optional and additive: a
+   *  gesture without them is matched with the matcher's defaults of the day (`MATCHER_DEFAULTS`);
+   *  one recorded since states the values it was recorded with, so a retune of those defaults
+   *  never silently changes it. */
+  length: z.number().int().min(2).optional(),
+  position: z.boolean().optional(),
+  scale: z.boolean().optional(),
 });
 
 /** The `gestures` section: one weights map for all of them (the noise units are the session's,
@@ -634,9 +643,10 @@ export interface ImportOptions {
 const finiteEntries = (v: object): Record<string, number> =>
   Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])));
 
-/** The categorizer as a file's text (validated first; throws if it does not validate). */
+/** The categorizer as a file's text (validated first; throws if it does not validate): indented,
+ *  every array of plain values (a trace row, a support frame) on one line (`rowJson`, #754). */
 export function exportCategorizer(c: PersonalCategorizer): string {
-  return JSON.stringify(PersonalCategorizerSchema.parse(c), null, 2);
+  return rowJson(PersonalCategorizerSchema.parse(c));
 }
 
 /**

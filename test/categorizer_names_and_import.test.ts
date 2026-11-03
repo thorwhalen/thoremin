@@ -153,7 +153,7 @@ describe('the category dispatcher: a category id that is a built-in property', (
       isPreviewing: () => false,
       holdMs: () => 0,
       isHushed: () => false,
-      readVector: () => vector,
+      readVector: () => (vector ? { vector, t } : null),
       hasCommand: () => true,
       commandTitle: (id) => id,
       isBindable: () => true,

@@ -21,6 +21,9 @@
  * #385 E7: while capturing or paused, a **burst** records one held face from every frame while
  * B (or the button) is held, optionally under a name typed first (a labelled hold, pinned to the
  * category of that name). Paused, bursts are the only capture: burst mode.
+ *
+ * #754: under the categories, the Gestures section (`./GesturesSection.tsx`) records named moving
+ * gestures into the same categorizer; while one is recorded the panel shows its take.
  */
 import { DARK_ROOM_MESSAGE } from '@thoremin/sdk/enroll/light';
 import { useCallback, useEffect, useState } from 'react';
@@ -32,11 +35,9 @@ import { BAR_PINS_DEFAULTS, pinsOf, useBarPins } from '@thoremin/sdk-ui/enroll/b
 import { HoldRing, type HoldRingState } from '@thoremin/sdk-ui/enroll/HoldRing';
 import { ProgressRing } from '@thoremin/sdk-ui/enroll/ProgressRing';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
-import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { mirrorOffable } from '@thoremin/sdk/enroll/sorting';
 import { faceSessionStore, faceTestStore } from '../app/faceSession';
 import { isLive, type FaceSessionState } from '../app/sessionStore';
-import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { HAND_CHOICES, type HandChoice, type ModalityWords } from '@thoremin/sdk/enroll/modality';
 import { categoryBinder } from '@thoremin/sdk-ui/enroll/binder';
 import { handSessionStore, handTestStore } from '../app/handSession';
@@ -45,8 +46,9 @@ import { WordsContext } from './words';
 import type { FaceTestState } from '../app/testStore';
 import { downloadCategorizer, ImportButton, mergeText, TestAndTune } from './TestAndTune';
 import { setupCues, vocabularyCue } from '../lib/take';
-import type { SortingView } from '../lib/carving';
 import { Sorting } from './Sorting';
+import { StrangersSwitch, strangersSummary, strangersText } from './Strangers';
+import { GesturesSection, LiveGestureTake } from './GesturesSection';
 import { HoldStrip } from './HoldStrip';
 import { chooseCategorizerChordsWrites, chooseCategorizerWrites } from '../schema';
 import { useCategorizerPlay } from '../app/categorizerPlay';
@@ -57,57 +59,6 @@ import { onVocabularyImporters, vocabularyImporters, type VocabularyImporter } f
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
 const hint = 'text-[11px] leading-relaxed text-white/60';
-
-/** The strangers switch (#385 E5), stated plainly: what a face nobody taught reads as, in the
- *  modality's words (`one`: `face`, `hand shape`). Neutral itself is taught by example (the
- *  Neutral bin) in both settings. */
-export function strangersText({ one, many }: Pick<ModalityWords, 'one' | 'many'>): Record<CategorizerStrangers, { title: string; says: string }> {
-  return {
-    neutral: {
-      title: 'Neutral',
-      says: `A ${one} far from every category you made reads as none of these, as your Neutral ${many} do.`,
-    },
-    nearest: {
-      title: `The nearest ${one}`,
-      says: `A ${one} you never taught reads as whichever of your categories it is closest to (or Neutral, when it is closer to your Neutral ${many}).`,
-    },
-  };
-}
-
-/** The face's (#385 E5). */
-export const STRANGERS_TEXT = strangersText(faceModality.words);
-
-/** One line saying how many categories there are and what Neutral holds. */
-export function strangersSummary(view: SortingView, { one, many }: Pick<ModalityWords, 'one' | 'many'> = faceModality.words): string {
-  const held = view.neutral.count === 1 ? `1 held ${one}` : `${view.neutral.count} held ${many}`;
-  const neutral =
-    view.neutral.count === 0
-      ? view.neutralKnown
-        ? `Neutral is empty: drag the ${many} that should mean nothing into it.`
-        : `There was no rest to tell neutral by, so Neutral is empty: drag your resting ${many} into it.`
-      : view.neutralTrained
-        ? `Neutral (${held}) plays nothing.`
-        : `Neutral (${held}) is not trained on: this categorizer was made before Neutral was taught.`;
-  return `${view.k} ${view.k === 1 ? 'category' : 'categories'}. ${neutral}`;
-}
-
-function StrangersSwitch({ strangers, setStrangers, words }: { strangers: CategorizerStrangers; setStrangers: (m: CategorizerStrangers) => void; words: ModalityWords }) {
-  const text = strangersText(words);
-  return (
-    <fieldset className="space-y-1" data-faces-strangers>
-      <legend className="text-[10px] font-bold uppercase tracking-widest text-white/50">{`A ${words.one} I never taught reads as`}</legend>
-      {(['neutral', 'nearest'] as const).map((m) => (
-        <label key={m} className={`flex cursor-pointer gap-2 rounded-md border p-1.5 ${strangers === m ? 'border-emerald-400/40 bg-emerald-500/10' : 'border-white/10'}`}>
-          <input type="radio" name="faces-strangers" value={m} checked={strangers === m} onChange={() => setStrangers(m)} className="mt-0.5" />
-          <span>
-            <span className="block text-[11px] font-semibold text-white/90">{text[m].title}</span>
-            <span className="block text-[10px] leading-snug text-white/55">{text[m].says}</span>
-          </span>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
 
 function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<FaceSessionState>; test: StoreApi<FaceTestState> }) {
   const view = s.view!;
@@ -152,6 +103,7 @@ function Grid({ s, session, test }: { s: FaceSessionState; session: StoreApi<Fac
       {!s.hasStills && !s.figures && <p className={hint}>No pictures were taken, so the categories have none.</p>}
       {!s.hasStills && s.figures && <p className={hint}>Each {words.one} is drawn as a stick figure of what the camera read: no picture of you is kept.</p>}
       <Sorting s={s} />
+      <GesturesSection s={s} />
       <form
         className="flex items-center gap-2"
         onSubmit={(e) => {
@@ -630,6 +582,7 @@ function SessionView({ store, test }: { store: StoreApi<FaceSessionState>; test:
     );
   }
   if (s.phase === 'explore' || s.phase === 'rest' || s.phase === 'faces' || s.phase === 'paused') return <LiveTake s={s} store={store} />;
+  if (s.phase === 'gesture') return <LiveGestureTake s={s} />;
 
   return (
     <div className="space-y-3">

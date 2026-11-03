@@ -428,6 +428,8 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
     reset() {
       loc.generation++;
       loc.pauseOnCapture = false;
+      loc.gestureRun?.stop();
+      loc.gestureRun = null;
       release();
       loc.take = null;
       loc.takeId = null;
@@ -448,9 +450,14 @@ export function createTake(ctx: SessionCtx, h: Pick<ReturnType<typeof createStil
       loc.pending.clear();
       dropUrls();
       clearStrip();
-      set({ phase: 'idle', restProgress: null, restMoving: false, tooDark: false, mirror: loc.chosenMirror, vocabulary: loc.chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, focus: null, holdsAs: null, burst: null, burstName: '' });
+      set({ phase: 'idle', restProgress: null, restMoving: false, tooDark: false, mirror: loc.chosenMirror, vocabulary: loc.chosenVocabulary, view: null, thumbs: {}, points: 0, hold: 'open', elapsed: 0, hasStills: false, openId: null, k: 0, notice: null, working: null, history: { undo: 0, redo: 0 }, tuning: DEFAULT_TUNING, checks: {}, dirty: false, merging: null, focus: null, holdsAs: null, burst: null, burstName: '', gesture: null });
     },
     cancelRecording() {
+      // A gesture take returns to the categorizer it was recording into, as it was (#754).
+      if (get().phase === 'gesture') {
+        get().cancelGesture();
+        return;
+      }
       const merge = loc.mergeBase;
       if (!isRecording(get().phase) || !merge) {
         if (isLive(get().phase)) get().reset();

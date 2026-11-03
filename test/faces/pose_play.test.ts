@@ -288,7 +288,7 @@ describe.runIf(FACES)('a saved conducting categorizer, replayed through the node
       isPreviewing: () => false,
       holdMs: () => 0,
       isHushed: () => false,
-      readVector: () => vector,
+      readVector: () => (vector ? { vector, t } : null),
       hasCommand: () => true,
       commandTitle: (id) => id,
       isBindable: () => true,

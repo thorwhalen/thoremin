@@ -60,6 +60,14 @@ describe('the rest ceiling (#913)', () => {
     expect(restCeilingOf(WRIST, {})).toBeUndefined();
   });
 
+  it('judges a side-relative hand id (the hand modality\'s projection, #754) against the unprefixed hand', () => {
+    const v = waveTake({ waves: 0 }).frames[0].v;
+    const projected = Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith('hand.right.')).map(([k, x]) => [k.slice('hand.right.'.length), x]));
+    expect(restCeilingOf('wrist.x', projected)).toBeCloseTo(restCeilingOf(WRIST, v)!, 12);
+    expect(restCeilingOf('index.pipAngle', projected)).toBeUndefined();
+    expect(restCeilingOf('wrist.x', {})).toBeUndefined();
+  });
+
   it('the estimator warms a feature again after a warm-up above its ceiling, and keeps the lowest after maxRewarms', () => {
     // A feature that moves 1 a frame for its first 30 differences, then jitters 0.1.
     const noise = createNoiseEstimator({ restCeiling: () => 0.5, maxRewarms: 2 });

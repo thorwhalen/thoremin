@@ -76,6 +76,7 @@ const trainerTake = (): FeatureVector[] => [0, 1, 0, 1, 0].flatMap((x) => Array.
 /** The commands a set fires over `frames` (binding on, no hold, everything bindable). */
 function fired(set: SavedCategories, frames: readonly FeatureVector[]): string[] {
   let vector: FeatureVector | null = null;
+  let t = 0;
   const out: string[] = [];
   const d = createCategoryDispatcher({
     getActive: () => set,
@@ -83,7 +84,7 @@ function fired(set: SavedCategories, frames: readonly FeatureVector[]): string[]
     isPreviewing: () => false,
     holdMs: () => 0,
     isHushed: () => false,
-    readVector: () => vector,
+    readVector: () => (vector ? { vector, t } : null),
     hasCommand: () => true,
     commandTitle: (id) => id,
     isBindable: () => true,
@@ -95,7 +96,8 @@ function fired(set: SavedCategories, frames: readonly FeatureVector[]): string[]
   });
   frames.forEach((v, i) => {
     vector = v;
-    d.tick(1000 + i * 33);
+    t = 1000 + i * 33;
+    d.tick(t);
   });
   return out;
 }

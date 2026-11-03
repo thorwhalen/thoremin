@@ -61,6 +61,7 @@ import {
   parseRecord,
   recordBindings,
   recordCategories,
+  recordGestures,
   recordKind,
   trainedId,
   type AnyCategorizerRecord,
@@ -303,7 +304,7 @@ export function createCategorizerStore(modality: Pick<CarveModality, 'id' | 'wor
       const categorizer = payload.categorizer.modality === modality.id ? payload.categorizer : { ...payload.categorizer, modality: modality.id };
       const previous = await stored(provider, id);
       const kept = previous ? recordBindings(previous) : {};
-      const bindings = payload.bindings ?? (previous && Object.keys(kept).length > 0 ? rekeyBindings({ categories: recordCategories(previous) }, kept, categorizer) : undefined);
+      const bindings = payload.bindings ?? (previous && Object.keys(kept).length > 0 ? rekeyBindings({ categories: recordCategories(previous), gestures: recordGestures(previous) }, kept, { categories: categorizer.categories, gestures: categorizer.gestures?.items ?? [] }) : undefined);
       const record = CategorizerRecordSchema.parse({
         id,
         name: name.trim() || id,

@@ -49,6 +49,14 @@
  *
  * The model is derived from the traces, never stored (samples are the source of truth: the
  * design's section 3), so {@link buildGestureModel} is pure and cheap to re-run.
+ *
+ * ## A gesture's own shape (#754)
+ *
+ * The window length and the two invariances are the model's (`length`, `position`, `scale`), unless
+ * a gesture states its own ({@link GestureShape}, `shapes` by gesture): a saved gesture keeps what
+ * it was recorded with, so a later retune of {@link MATCHER_DEFAULTS} does not silently change how
+ * it is matched (design section 5). A segment is then made a series once per distinct shape, and
+ * each gesture compares it in its own.
  */
 import { median } from '@thoremin/stats';
 import type { NoiseEstimator } from '../noise';
@@ -104,7 +112,7 @@ export interface WindowMatcher {
   inGesture(): boolean;
 }
 
-/** The defaults, with where each comes from. Provisional until the real-take set of #754. */
+/** The defaults, with where each comes from. Provisional until the real-take set of #949. */
 export const MATCHER_DEFAULTS = {
   /** Rows a series is resampled to: a 1.5 s repetition at 30 fps is 45 frames, so 32 keeps its
    *  shape and keeps DTW at about a thousand cells per template. */
@@ -129,8 +137,12 @@ export const MATCHER_DEFAULTS = {
   position: true,
   /** ...and at any size (the size is reported as the variation instead). */
   scale: true,
-  /** No extra hold-off: the segmenter already spaces two segments by its closing quiet. */
-  refractoryMs: 0,
+  /** After a fire, no other for this long (ms): longer than a hand takes to settle after a
+   *  repetition, shorter than the pause a take asks for between two. The segmenter already spaces
+   *  two fires by `minTraceMs` plus its closing quiet (620 ms at its defaults), so this only bites
+   *  under a shorter segmentation. The one default: the live listener (`listen.ts`) inherits it.
+   *  Like `tolerance`, a device's live tuning that no pref exposes yet (a follow-up with #755). */
+  refractoryMs: 500,
 } as const;
 
 export interface GestureModelOptions {
@@ -145,11 +157,20 @@ export interface GestureModelOptions {
   scale?: boolean;
   minRadius?: number;
   minTraces?: number;
+  /** A gesture's own length and invariances, by gesture (see the module header); the rest use
+   *  the model's. */
+  shapes?: Readonly<Record<string, GestureShape>>;
 }
+
+/** What a gesture may state for itself, over the model's (see the module header). */
+export type GestureShape = Partial<Pick<SeriesOptions, 'length' | 'position' | 'scale'>>;
 
 /** One gesture's templates and what they agree on. */
 export interface GestureTemplates {
   gesture: string;
+  /** The series its templates (and a segment compared with them) are made in; the model's when
+   *  absent. */
+  series?: SeriesOptions;
   templates: Series[];
   /** Median distance from a template to its nearest sibling, floored by `minRadius`. */
   radius: number;
@@ -205,6 +226,14 @@ export interface ResolvedGestureOptions {
   band: number;
   minRadius: number;
   minTraces: number;
+  /** The series a gesture is made in: its own shape over {@link series}, or `series` itself (the
+   *  same object, so a reader can cache per distinct series). */
+  seriesOf(gesture: string): SeriesOptions;
+}
+
+/** Refuse a length that is no series (#912: it would silently skip every gesture). */
+function checkLength(length: number, where: string): void {
+  if (!(Number.isInteger(length) && length >= 2)) throw new Error(`gesture options: ${where}length must be an integer of at least 2 rows (got ${length})`);
 }
 
 /**
@@ -218,13 +247,16 @@ export function resolveGestureOptions(options: GestureModelOptions): ResolvedGes
   const o = { ...MATCHER_DEFAULTS, ...definedOnly(options) };
   if (!(o.band >= 0)) throw new Error(`gesture options: band must be a number at or above 0 (got ${o.band})`);
   if (!(Number.isFinite(o.minRadius) && o.minRadius >= 0)) throw new Error(`gesture options: minRadius must be a finite number at or above 0 (got ${o.minRadius})`);
-  if (!(Number.isInteger(o.length) && o.length >= 2)) throw new Error(`gesture options: length must be an integer of at least 2 rows (got ${o.length})`);
-  return {
-    series: { features: o.features, weights: o.weights, length: o.length, position: o.position, scale: o.scale },
-    band: o.band,
-    minRadius: o.minRadius,
-    minTraces: o.minTraces,
-  };
+  checkLength(o.length, '');
+  const series: SeriesOptions = { features: o.features, weights: o.weights, length: o.length, position: o.position, scale: o.scale };
+  const own = new Map<string, SeriesOptions>();
+  for (const [gesture, shape] of Object.entries(options.shapes ?? {})) {
+    const s = { ...series, ...definedOnly(shape) };
+    checkLength(s.length, `gesture "${gesture}": `);
+    // A shape that states the model's own values is the model's series (one series to cache).
+    if (s.length !== series.length || s.position !== series.position || s.scale !== series.scale) own.set(gesture, s);
+  }
+  return { series, band: o.band, minRadius: o.minRadius, minTraces: o.minTraces, seriesOf: (g) => own.get(g) ?? series };
 }
 
 /**
@@ -245,7 +277,8 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
   const gestures: GestureTemplates[] = [];
   const skipped: string[] = [];
   for (const [gesture, list] of byGesture(traces)) {
-    const templates = list.map((tr) => toSeries(tr.samples, series)).filter((s) => s.rows.length > 0);
+    const own = o.seriesOf(gesture);
+    const templates = list.map((tr) => toSeries(tr.samples, own)).filter((s) => s.rows.length > 0);
     if (templates.length < o.minTraces) {
       skipped.push(gesture);
       continue;
@@ -254,13 +287,14 @@ export function buildGestureModel(traces: readonly Trace[], options: GestureMode
       Math.min(...templates.filter((_, j) => j !== i).map((b) => dtwDistance(a.rows, b.rows, { band: o.band }))),
     );
     const amplitude = median(templates.map((s) => s.amplitude));
-    const radius = gestureRadius(nearestSibling, amplitude, { minRadius: o.minRadius, scale: series.scale });
+    const radius = gestureRadius(nearestSibling, amplitude, { minRadius: o.minRadius, scale: own.scale });
     if (!Number.isFinite(radius)) {
       skipped.push(gesture);
       continue;
     }
     gestures.push({
       gesture,
+      ...(own !== series ? { series: own } : {}),
       templates,
       radius,
       motionSpanMs: median(templates.map((s) => s.motionSpanMs)),
@@ -277,14 +311,20 @@ export function matchSegment(
   { tolerance = MATCHER_DEFAULTS.tolerance }: { tolerance?: number } = {},
 ): SegmentMatch {
   checkTolerance(tolerance);
-  const seg = toSeries(samples, model.series);
-  let best: { g: GestureTemplates; distance: number; ratio: number } | null = null;
-  if (seg.rows.length > 0) {
-    for (const g of model.gestures) {
-      const distance = Math.min(...g.templates.map((t) => dtwDistance(seg.rows, t.rows, { band: model.band })));
-      const ratio = g.radius > 0 ? distance / g.radius : distance === 0 ? 0 : Infinity;
-      if (!best || ratio < best.ratio) best = { g, distance, ratio };
-    }
+  // One series per distinct shape: the model's for every gesture that states none.
+  const made = new Map<SeriesOptions, Series>();
+  const segmentIn = (s: SeriesOptions): Series => {
+    let seg = made.get(s);
+    if (!seg) made.set(s, (seg = toSeries(samples, s)));
+    return seg;
+  };
+  let best: { g: GestureTemplates; seg: Series; distance: number; ratio: number } | null = null;
+  for (const g of model.gestures) {
+    const seg = segmentIn(g.series ?? model.series);
+    if (seg.rows.length === 0) continue;
+    const distance = Math.min(...g.templates.map((t) => dtwDistance(seg.rows, t.rows, { band: model.band })));
+    const ratio = g.radius > 0 ? distance / g.radius : distance === 0 ? 0 : Infinity;
+    if (!best || ratio < best.ratio) best = { g, seg, distance, ratio };
   }
   if (!best) return { gesture: null, nearest: null, distance: Infinity, ratio: Infinity, confidence: 0, variation: { speed: NaN, scale: NaN } };
   // A ratio that is not finite (no shared feature with any template) is never accepted, even
@@ -297,8 +337,8 @@ export function matchSegment(
     ratio: best.ratio,
     confidence: accepted ? 1 - best.ratio / tolerance : 0,
     variation: {
-      speed: seg.motionSpanMs > 0 ? best.g.motionSpanMs / seg.motionSpanMs : NaN,
-      scale: best.g.amplitude > 0 ? seg.amplitude / best.g.amplitude : NaN,
+      speed: best.seg.motionSpanMs > 0 ? best.g.motionSpanMs / best.seg.motionSpanMs : NaN,
+      scale: best.g.amplitude > 0 ? best.seg.amplitude / best.g.amplitude : NaN,
     },
   };
 }

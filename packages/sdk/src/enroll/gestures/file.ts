@@ -28,8 +28,14 @@
  *
  * {@link gestureModelFromCategorizer} rebuilds the matcher's model from the stored traces with
  * `buildGestureModel`, as `modelFromCategorizer` rebuilds the held categories from the samples.
- * The window length and the invariances are the matcher's defaults (`MATCHER_DEFAULTS`) until a
- * gesture needs its own; the live tuning (tolerance, refractory period) is the device's.
+ * The live tuning (tolerance, refractory period) is the device's.
+ *
+ * ## The shape it was recorded with (#754)
+ *
+ * A gesture written here states its window length and invariances (`length`, `position`, `scale`:
+ * the matcher's defaults at the time, unless the caller says otherwise), and is read back with
+ * them, so a later retune of `MATCHER_DEFAULTS` never silently changes how a saved gesture is
+ * matched. A gesture saved before (#753) states none and is matched with the defaults of the day.
  *
  * Pure: traces and records in, records and traces out.
  */
@@ -43,7 +49,11 @@ import {
   type PersonalCategorizer,
 } from '../categorizer';
 import type { FeatureVector, FeatureWeights, Trace } from '../types';
-import { buildGestureModel, byGesture, type GestureModel, type GestureModelOptions } from './matcher';
+import { definedOnly } from '../../util/options';
+import { buildGestureModel, byGesture, MATCHER_DEFAULTS, type GestureModel, type GestureModelOptions, type GestureShape } from './matcher';
+
+/** The shape a gesture is written with when the caller names none: the matcher's defaults now. */
+export const RECORDED_SHAPE: Required<GestureShape> = { length: MATCHER_DEFAULTS.length, position: MATCHER_DEFAULTS.position, scale: MATCHER_DEFAULTS.scale };
 
 /** A gesture id not in `taken`: `gesture-n`, smallest n first (`freshCategoryId`'s twin). */
 export function freshGestureId(taken: ReadonlySet<string>): string {
@@ -66,6 +76,14 @@ export interface GestureSectionOptions {
   ids?: ReadonlyMap<string, string>;
   /** Ids a NEW gesture may not take: the categorizer's category ids (the bins are always taken). */
   taken?: Iterable<string>;
+  /** The length and invariances each gesture is written with (one for all, or per gesture name);
+   *  default {@link RECORDED_SHAPE}. */
+  shape?: GestureShape | ((gesture: string) => GestureShape);
+}
+
+/** `shape` with every field stated ({@link RECORDED_SHAPE} filling the rest). */
+export function statedShape(shape: GestureShape = {}): Required<GestureShape> {
+  return { ...RECORDED_SHAPE, ...definedOnly(shape) };
 }
 
 const roundTime = (x: number): number => Number(x.toFixed(TRACE_TIME_DECIMALS));
@@ -125,6 +143,7 @@ function sectionWeights(features: ReadonlyMap<string, readonly string[]>, weight
  */
 export function gestureSection(traces: readonly Trace[], options: GestureSectionOptions): CategorizerGestures {
   const featuresOf = typeof options.features === 'function' ? options.features : () => options.features as readonly string[];
+  const shapeOf = typeof options.shape === 'function' ? options.shape : () => (options.shape ?? {}) as GestureShape;
   const kept = [...byGesture(traces)]
     .map(([label, list]) => ({ label, list: list.filter((tr) => tr.samples.length >= 2), features: [...featuresOf(label)] }))
     .filter((g) => g.list.length > 0);
@@ -136,7 +155,7 @@ export function gestureSection(traces: readonly Trace[], options: GestureSection
   );
   return {
     weights,
-    items: kept.map((g) => ({ id: ids.get(g.label)!, label: g.label, features: g.features, traces: g.list.map((tr) => toStoredTrace(tr, g.features)) })),
+    items: kept.map((g) => ({ id: ids.get(g.label)!, label: g.label, features: g.features, traces: g.list.map((tr) => toStoredTrace(tr, g.features)), ...statedShape(shapeOf(g.label)) })),
   };
 }
 
@@ -164,11 +183,22 @@ export function gestureTraces(c: Pick<PersonalCategorizer, 'gestures'>): Trace[]
 }
 
 /** The one feature space the stored gestures are matched in: the union of their features (in
- *  first-seen order), the section's weights, and each gesture's own features by id. */
+ *  first-seen order), the section's weights, each gesture's own features by id, and the shape a
+ *  gesture states (only those that state one). */
 export interface GestureSpace {
   features: string[];
   weights: FeatureWeights;
   featuresOf: Record<string, string[]>;
+  shapes: Record<string, GestureShape>;
+}
+
+/** What a stored gesture states of its shape (nothing for one saved before #754). */
+export function storedShape(g: GestureShape): GestureShape {
+  const out: GestureShape = {};
+  if (g.length !== undefined) out.length = g.length;
+  if (g.position !== undefined) out.position = g.position;
+  if (g.scale !== undefined) out.scale = g.scale;
+  return out;
 }
 
 export function gestureSpace(c: Pick<PersonalCategorizer, 'gestures'>): GestureSpace {
@@ -178,6 +208,7 @@ export function gestureSpace(c: Pick<PersonalCategorizer, 'gestures'>): GestureS
     features,
     weights: { ...(c.gestures?.weights ?? {}) },
     featuresOf: Object.fromEntries(items.map((g) => [g.id, [...g.features]])),
+    shapes: Object.fromEntries(items.flatMap((g) => (Object.keys(storedShape(g)).length > 0 ? [[g.id, storedShape(g)]] : []))),
   };
 }
 
@@ -188,8 +219,8 @@ export function gestureSpace(c: Pick<PersonalCategorizer, 'gestures'>): GestureS
  */
 export function gestureModelFromCategorizer(
   c: Pick<PersonalCategorizer, 'gestures'>,
-  options: Omit<GestureModelOptions, 'features' | 'weights'> = {},
+  options: Omit<GestureModelOptions, 'features' | 'weights' | 'shapes'> = {},
 ): GestureModel {
-  const { features, weights } = gestureSpace(c);
-  return buildGestureModel(gestureTraces(c), { ...options, features, weights });
+  const { features, weights, shapes } = gestureSpace(c);
+  return buildGestureModel(gestureTraces(c), { ...options, features, weights, shapes });
 }
