@@ -36,7 +36,7 @@ export { HEAL_RULES } from './heal';
 export { migrateControls } from './migrations';
 export { devicePrefsFromOtherTab, mergeControls, persistedControls, withExtensionPrefs } from './persist';
 
-const CONTROLS_STORAGE_KEY = 'thoremin-controls';
+export const CONTROLS_STORAGE_KEY = 'thoremin-controls';
 
 export const useControls = create<ControlState>()(
   persist(
