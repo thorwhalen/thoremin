@@ -70,7 +70,10 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
   }
 
   async function start(): Promise<void> {
-    await ensureAudio();
+    // The stored stage is in force before the session starts, so a Start pressed before the record
+    // has loaded never changes the stage under a running game (#881 review). The hub still reads it
+    // per frame: the microphone's reported latency arrives only once the input is open.
+    await Promise.all([ensureAudio(), hydrateInputStage()]);
     hub.poke();
     lease?.release();
     lease = hub.acquire({ analysers: [...o.analysers], ...(o.constraints ? { constraints: o.constraints } : {}) });
