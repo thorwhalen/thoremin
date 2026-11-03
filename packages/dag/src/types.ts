@@ -138,6 +138,15 @@ export interface NodeDef<P = unknown> {
    * swap UI. Optional so third-party defs don't have to declare it.
    */
   roles?: Role[];
+  /**
+   * The host resources (keys of {@link NodeContext.resources}) this node NEEDS to produce its
+   * outputs, e.g. `['video']` for a node that runs a model on the camera's frames. Advisory like
+   * `roles`: the engine never checks it. A host reads it to decide what to acquire before a graph
+   * holding the node runs (thoremin opens the camera only while a composed node reads the video,
+   * #960). A resource a node merely uses when present (an overlay drawing the video as a backdrop
+   * when it is there) is not declared. Read through {@link readsResource}.
+   */
+  reads?: readonly string[];
   /** Build the instance behaviour from validated params. */
   make(params: P): NodeHandlers;
 }

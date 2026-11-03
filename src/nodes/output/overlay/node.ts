@@ -4,6 +4,7 @@
  * Part of the `canvas-overlay` node (`../canvas_overlay.ts` is its public face; split into these
  * files by #600 S19a, the drawing unchanged).
  */
+import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { OVERLAY_CORE_INPUTS, OverlayParamsSchema, captionsPort, categoryPool, categoryPoolInputs, type CategoryPoolSizes, type OverlayParams } from '../canvas_overlay.schema';
@@ -63,7 +64,7 @@ export function makeCanvasOverlayNode(contributed: readonly ContributedElement[]
       return {
         process(inputs, ctx: NodeContext) {
           const canvas = ctx.resources.canvas as HTMLCanvasElement | undefined;
-          const video = ctx.resources.video as HTMLVideoElement | undefined;
+          const video = ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined;
           if (!canvas) return {};
           const g = canvas.getContext('2d');
           if (!g) return {};

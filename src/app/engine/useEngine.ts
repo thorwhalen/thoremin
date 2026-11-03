@@ -19,12 +19,12 @@
  * status reporters (`makeFaceReporter` and its siblings, beside their stores), and the take's
  * lifecycle (`./recording/useRecordingController`).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
-import { createAppRegistry } from '@/host/appRegistry';
+import { createAppRegistry, declaredAppRegistry } from '@/host/appRegistry';
 import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
-import { slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
+import { cameraNodes, slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';
@@ -52,6 +52,7 @@ import { createGestureDispatcher } from '../gestures/gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBinding';
 import { cameraConstraints } from './camera';
+import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { HAND_REPLAY_RESOURCE_KEY, useReplay } from '../replay/replayStore';
 import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
 import { AUDIO_INPUT_RESOURCE_KEY, audioInput, provideAudioOutput } from '../audio';
@@ -168,8 +169,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // `handCount` resource on each frame; a change reconfigures the live model, never the graph.
   // And whether anything reads the camera at all (#869), from the same reading: an instrument
   // that only listens never opens it, and a switch to one that reads it opens it then
-  // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders.
-  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, demanded)));
+  // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders. A
+  // camera model counts by its node's own declaration, a slot node as THIS selection fills it
+  // (#960: `?slot.body=synthetic-body` reads no camera).
+  const nodes = useMemo(() => cameraNodes(slots, declaredAppRegistry()), [slotsKey]);
+  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, demanded, { nodes })));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
   const readsCameraRef = useRef(readsCamera);
@@ -323,7 +327,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         sizeCanvasTo(canvasRef.current, video);
 
         const resources = resourcesRef.current;
-        resources.video = video;
+        resources[VIDEO_RESOURCE_KEY] = video;
         resources.canvas = canvasRef.current;
         resources.window = window;
         resources.controls = () => useControls.getState();

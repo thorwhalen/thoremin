@@ -33,6 +33,7 @@
  * model; the pump starts once it is held; a load that lands after `dispose()` is closed on arrival;
  * a failed load is tried again on the same policy as a dead worker's replacement.
  */
+import { READS_VIDEO, VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { lazyResource, type LoadResult, type LoadStatus } from '@thoremin/lazy';
@@ -231,6 +232,8 @@ export function runnerChoice(resources: Record<string, unknown>, param: HandRunn
 export const webcamHandsNode = defineNode<Params>({
   type: 'webcam-hands',
   roles: ['source'],
+  // A camera model: the host opens the camera while a composed node reads the video (#960).
+  reads: READS_VIDEO,
   title: 'Webcam Hands',
   description: 'MediaPipe hand landmark detection from a webcam video element.',
   inputs: [],
@@ -331,7 +334,7 @@ export const webcamHandsNode = defineNode<Params>({
     return {
       init(ctx: NodeContext) {
         // Cheap: the shared <video> and the host's resources. The model is requested by `process`.
-        video = ctx.resources.video as HTMLVideoElement | undefined;
+        video = ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined;
         resources = ctx.resources;
       },
       process() {

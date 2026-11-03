@@ -22,6 +22,7 @@
  *    returns that cache — decoupling detection rate from the engine tick rate
  *    and guaranteeing the first tick after enabling never blocks.
  */
+import { READS_VIDEO, VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { z } from 'zod';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import { defineNode } from '@thoremin/dag';
@@ -109,6 +110,8 @@ interface TasksVisionModule {
 export const webcamFaceNode = defineNode<Params>({
   type: 'webcam-face',
   roles: ['source'],
+  // A camera model: the host opens the camera while a composed node reads the video (#960).
+  reads: READS_VIDEO,
   title: 'Webcam Face',
   description:
     'MediaPipe FaceLandmarker blendshapes from the shared webcam (lazy-loaded, off by default).',
@@ -225,10 +228,10 @@ export const webcamFaceNode = defineNode<Params>({
       init(ctx: NodeContext) {
         // Cheap: only capture the shared <video>. No model download here, so
         // engine.init() is never blocked and a disabled face source costs nothing.
-        video = ctx.resources.video as HTMLVideoElement | undefined;
+        video = ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined;
       },
       process(_inputs, ctx: NodeContext) {
-        video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
+        video = (ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined) ?? video;
         // No per-tick gate (the instruments-as-graphs ADR, §3.5): this node is in the
         // graph only while an instrument's face mapping, a face-group demand or the Lab
         // wants the face (`branchIdsFor`), and it is removed, and disposed, when none

@@ -19,6 +19,8 @@ interface BaseNodeSpec<P> {
   description?: string;
   /** Advisory role tag(s) (see {@link Role}); never gates execution. */
   roles?: Role[];
+  /** Host resources the node needs to produce its outputs (see `NodeDef.reads`). */
+  reads?: readonly string[];
   inputs: PortSpec[];
   outputs: PortSpec[];
   /** Defaults to an empty-object schema when omitted. */
@@ -62,6 +64,7 @@ export function defineNode<P = Record<string, never>>(
     title: spec.title,
     description: spec.description,
     roles: spec.roles,
+    ...(spec.reads ? { reads: spec.reads } : {}),
     inputs: spec.inputs,
     outputs: spec.outputs,
     params,

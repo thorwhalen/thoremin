@@ -123,8 +123,6 @@ export const faceSource = defineBranch({
   // mesh belongs to the branches where the face PLAYS (timbre, chord, controls).
   overlay: [],
   demands: [...FACE_GROUP_IDS],
-  // The face model reads the camera's video (#869): composing this branch opens the camera.
-  camera: true,
 });
 
 export const faceTimbre = defineBranch({

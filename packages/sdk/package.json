@@ -152,6 +152,7 @@
     "./sources/delegate": "./src/sources/delegate.ts",
     "./sources/model_input": "./src/sources/model_input.ts",
     "./sources/body_contract": "./src/sources/body_contract.ts",
+    "./sources/video": "./src/sources/video.ts",
     "./nodes/slot_contract": "./src/nodes/slot_contract.ts",
     "./music/effects": "./src/music/effects.ts",
     "./features/feature_gate": "./src/features/feature_gate.ts",

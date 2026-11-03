@@ -12,7 +12,7 @@
  * ML models).
  */
 import type { Engine, NodeRegistry } from '@thoremin/dag';
-import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, type SlotSelection } from '../graph';
+import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, cameraNodes, composeInstrumentGraph, NO_SLOTS, parseSlotSelection, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { branchClosureIds, type Composed } from '@/instruments/compose';
 import {
@@ -26,7 +26,8 @@ import {
   type HandPreferenceOptions,
   type ObservedHands,
 } from '@/instruments/hands';
-import { deriveReadsCamera, type CameraReadContext } from '@/instruments/camera';
+import { deriveReadsCamera, type CameraNodes, type CameraReadContext } from '@/instruments/camera';
+import { declaredAppRegistry } from '@/host/appRegistry';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { HandPreference } from '@thoremin/sdk/nodes/player_hands';
@@ -99,15 +100,33 @@ export function liveHandCount(
   demanded = featureDemandResource(),
   override: HandCount | null = HANDS_OVERRIDE,
 ): HandCount {
-  return liveCameraReading(controls, demanded, override).handCount;
+  if (override !== null) return override;
+  const { branches, ctx } = liveReaders(controls, demanded);
+  return deriveHandCount(branches, ctx);
+}
+
+/** The camera derivation's view of the nodes when the host gives none: this page's URL slot
+ *  selection over the declared app registry, both fixed for the page, so built once. */
+let pageCameraNodes: CameraNodes | undefined;
+export function defaultCameraNodes(): CameraNodes {
+  return (pageCameraNodes ??= cameraNodes(typeof location === 'undefined' ? NO_SLOTS : parseSlotSelection(location.search), declaredAppRegistry()));
+}
+
+/** What a live camera reading may be told instead of its defaults. */
+export interface CameraReadingOptions {
+  /** The `?hands=` override; default this page's. */
+  override?: HandCount | null;
+  /** The slots and node declarations the camera derivation resolves branch nodes through (#960);
+   *  default {@link defaultCameraNodes}. The host passes its own slot selection's. */
+  nodes?: CameraNodes;
 }
 
 /**
  * Whether the live instrument or the shell reads the camera right now (#869): the host opens
  * the camera when this turns true, and never for an instrument that only listens.
  */
-export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): boolean {
-  return liveCameraReading(controls, demanded).readsCamera;
+export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource(), options: CameraReadingOptions = {}): boolean {
+  return liveCameraReading(controls, demanded, options).readsCamera;
 }
 
 /** Both answers from one reading of the readers: what the host's store selector asks on every
@@ -120,10 +139,10 @@ export interface CameraReading {
 export function liveCameraReading(
   controls: ReturnType<typeof useControls.getState>,
   demanded = featureDemandResource(),
-  override: HandCount | null = HANDS_OVERRIDE,
+  { override = HANDS_OVERRIDE, nodes = defaultCameraNodes() }: CameraReadingOptions = {},
 ): CameraReading {
   const { branches, ctx } = liveReaders(controls, demanded);
-  return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, ctx) };
+  return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, nodes, ctx) };
 }
 
 /** Which hand the live instrument's one-hand readers want when two are in view (#784), if any:
