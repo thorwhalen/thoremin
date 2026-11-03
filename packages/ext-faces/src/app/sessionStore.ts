@@ -37,6 +37,9 @@
  * are read, not pushed: the poll feeds the bars model, and the panel reads `live()` at its own
  * rate (the hot-path rule: a holder plus a poll, never a store write per frame). The store is
  * told only when the ring's state changes.
+ *
+ * #754: a working categorizer also records named moving GESTURES (`./sessionStore/gesture.ts`):
+ * phase `gesture` while a take runs, its repetitions joining the document as one undoable edit.
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { DEFAULT_TUNING } from '@thoremin/sdk/enroll/live';
@@ -51,6 +54,7 @@ import { createPersist } from './sessionStore/persist';
 import { createEdits } from './sessionStore/edits';
 import { createLive } from './sessionStore/live';
 import { createTake } from './sessionStore/take';
+import { createGesture } from './sessionStore/gesture';
 import { createLocals, type SessionCtx } from './sessionStore/locals';
 
 export * from './sessionStore/state';
@@ -80,6 +84,7 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
     const persistConcern = createPersist(ctx, { stillsTaken: stillsConcern.stillsTaken, showOpened: carveConcern.showOpened });
     const editsConcern = createEdits(ctx, { edit: carveConcern.edit, recutOptions: carveConcern.recutOptions, showDoc: carveConcern.showDoc, roomFor: carveConcern.roomFor });
     const liveConcern = createLive(ctx);
+    const gestureConcern = createGesture(ctx, { edit: carveConcern.edit });
     const takeConcern = createTake(ctx, { grabStill: stillsConcern.grabStill, refreshStrip: stripConcern.refreshStrip, refreshGhost: stripConcern.refreshGhost, show: stillsConcern.show, clearStrip: stripConcern.clearStrip, restoreEdits: carveConcern.restoreEdits, showDoc: carveConcern.showDoc, takeSamples: stripConcern.takeSamples, withLeans: stripConcern.withLeans, withLabels: stripConcern.withLabels, labelledHolds: stripConcern.labelledHolds, holdAllIn: stripConcern.holdAllIn, commit: carveConcern.commit, carveFresh: carveConcern.carveFresh, dropUrls: stillsConcern.dropUrls });
     return {
       modality,
@@ -119,8 +124,10 @@ export function createFaceSessionStore(deps: FaceSessionDeps): StoreApi<FaceSess
       burstName: '',
       burst: null,
       checks: {},
+      gesture: null,
 
       ...takeConcern.actions,
+      ...gestureConcern.actions,
       ...editsConcern.actions,
       ...persistConcern.actions,
       ...liveConcern.actions,

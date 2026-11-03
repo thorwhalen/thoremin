@@ -32,8 +32,9 @@ export const FACES_CLAIMER = OWNERS.carve;
 export const FACES_TEST_CLAIMER = OWNERS.test;
 
 /** A carve tool's session dependencies in the browser, for one modality (#385 E8): its view of the
- *  one categorizer collection, its crop and overlay, its claim owner, its scripted source. */
-export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): FaceSessionDeps {
+ *  one categorizer collection, its crop and overlay, its claim owner, its scripted source (and, for
+ *  a modality that records gestures, #754, the scripted source a gesture take reads). */
+export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript, gestureScript?: SyntheticScript): FaceSessionDeps {
   const owner = carveOwners(ui.modality).carve;
   const thumbs = idbThumbStore();
   // Stills no saved categorizer names (#569): listed once per page; deleted only behind a flag.
@@ -42,6 +43,7 @@ export function browserDepsFor(ui: CarveModalityUi, script: SyntheticScript): Fa
     forests: createForestPrefetcher(),
     merge: createMergeRunner().merge,
     source: () => sourceFromUrl(undefined, script),
+    ...(gestureScript ? { gestureSource: () => sourceFromUrl(undefined, gestureScript) } : {}),
     thumbs,
     frames: openLiveFrames,
     region: ui.region,

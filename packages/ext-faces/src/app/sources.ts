@@ -18,6 +18,7 @@ import { camera } from '@thoremin/sdk-ui/host';
 import { syntheticExpressionAt, syntheticFaceVector } from '../lib/synthetic';
 import { syntheticHandShapeAt, syntheticHandVector } from '../lib/synthetic_hand';
 import { syntheticBodyAt, syntheticBodyVector } from '../lib/synthetic_body';
+import { GESTURE_PATHS, syntheticGesturePhase, syntheticGestureVector } from '../lib/synthetic_gesture';
 
 export interface FaceSource {
   readonly kind: 'live' | 'synthetic';
@@ -45,6 +46,11 @@ export interface SyntheticScript {
 export const FACE_SCRIPT: SyntheticScript = { vectorAt: syntheticFaceVector, labelAt: syntheticExpressionAt };
 /** The scripted hand (`../lib/synthetic_hand.ts`). */
 export const HAND_SCRIPT: SyntheticScript = { vectorAt: syntheticHandVector, labelAt: syntheticHandShapeAt };
+/** The scripted hand waving (#754, `../lib/synthetic_gesture.ts`): what a gesture take reads. */
+export const HAND_GESTURE_SCRIPT: SyntheticScript = {
+  vectorAt: (ms, frame) => syntheticGestureVector(GESTURE_PATHS.wave, ms, frame),
+  labelAt: (ms) => (syntheticGesturePhase(ms) === null ? { name: 'rest', color: '#334155' } : { name: 'wave', color: '#0f766e' }),
+};
 /** The scripted body (`../lib/synthetic_body.ts`): the rest, the three nuisances, four poses. */
 export const BODY_SCRIPT: SyntheticScript = { vectorAt: syntheticBodyVector, labelAt: syntheticBodyAt };
 

@@ -112,6 +112,8 @@ export interface SessionLocals {
   readonly stills: Map<string, Blob>;
   /** The stills still being encoded, so Save waits for them. */
   readonly pending: Set<Promise<void>>;
+  /** The gesture take under way (#754): stopping it releases its source, poll and claim. */
+  gestureRun: { stop(): void } | null;
 }
 
 /** A fresh store's working state. */
@@ -154,6 +156,7 @@ export function createLocals(): SessionLocals {
     figureUrls: new Map<string, string>(),
     stills: new Map<string, Blob>(),
     pending: new Set<Promise<void>>(),
+    gestureRun: null,
   };
 }
 

@@ -22,6 +22,7 @@ import type { FaceSource } from '../sources';
 import type { FrameOpener, ThumbStore } from '../thumbnails';
 import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import { MAX_CATEGORY_SLOTS } from '../../schema';
+import { GESTURE_TAKE_DEFAULTS } from '../../lib/gestureTake';
 
 export type FacePhase =
   /** Nothing recorded; the saved list and Record. */
@@ -43,7 +44,10 @@ export type FacePhase =
   | 'empty'
   /** A categorizer open (saved, imported or merged): the same sorting grid (a re-cut of k too,
    *  from its samples), the live test, corrections and the tuning. */
-  | 'saved';
+  | 'saved'
+  /** Recording a named moving gesture into the working categorizer (#754): a rest, then its
+   *  repetitions; it returns to `carved` or `saved`. */
+  | 'gesture';
 
 /** What a new take merged into the open categorizer keeps of it (P1's `mergeSession` seed):
  *  `samples`, more of the same player; `centroids`, only the categories (a model made by
@@ -60,7 +64,7 @@ export interface BarFocus {
 }
 
 /** Whether a phase is a recording in progress (closing the tool must end it). */
-export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'paused' || phase === 'stopping';
+export const isRecording = (phase: FacePhase): boolean => phase === 'rest' || phase === 'faces' || phase === 'paused' || phase === 'stopping' || phase === 'gesture';
 
 /** Whether a phase reads the camera (claims the features, hushes the instrument): exploring
  *  or recording. Closing the tool ends it. */
@@ -104,6 +108,25 @@ export interface FaceSessionDeps {
   /** Whether a take keeps camera stills unless the player says otherwise (#387 C7: yes for a face
    *  or a hand, no for a body, whose stick figure is its picture). Default true. */
   stillsByDefault?: boolean;
+  /** Where a GESTURE take reads from (#754): the scripted source plays a gesture rather than held
+   *  shapes. Default {@link source}. */
+  gestureSource?: () => FaceSource;
+}
+
+/** The gesture take under way (#754), as the panel shows it. */
+export interface GestureTakeView {
+  /** The gesture's name. */
+  name: string;
+  /** The gesture its repetitions join ("Record more"), by id; null: by name, or a new one. */
+  into: string | null;
+  step: 'rest' | 'gesture';
+  /** What the routine says now (the prompt, a nudge). */
+  say: string;
+  /** The rest's progress (0..1), in steps, while resting; else null. */
+  restProgress: number | null;
+  /** Repetitions cut so far, and how many the prompt asks for. */
+  count: number;
+  target: number;
 }
 
 /** One card of the live strip (#404). */
@@ -203,6 +226,8 @@ export interface FaceSessionState {
   burst: { label: string; frames: number } | null;
   /** The open categorizer's quiz and everyday-check results (#385 E7), kept with it on Save. */
   checks: CategorizerChecks;
+  /** The gesture take under way (phase `gesture`), or null. */
+  gesture: GestureTakeView | null;
 
   /** Read the camera without recording (#385 E2): the bars and the ring run; Start captures. */
   explore(): void;
@@ -316,6 +341,26 @@ export interface FaceSessionState {
   importSaved(id: string, importer: VocabularyImporter, confirm: (question: string) => boolean): Promise<boolean>;
   /** The SAVED categorizer `id`'s category names (null when it cannot be read). */
   savedLabels(id: string): Promise<string[] | null>;
+
+  /** Record a NEW moving gesture named `name` into the working categorizer (#754): the rest, then
+   *  "Do the <name> N times; pause between", its repetitions joining the document as one undoable
+   *  edit when the prompt is satisfied or {@link finishGesture} is pressed. A name an existing
+   *  gesture has records more of that one. False when it cannot start (no working categorizer,
+   *  no name, or a modality that records no gestures). */
+  recordGesture(name: string): boolean;
+  /** "Record more": a take whose repetitions join gesture `id`. */
+  recordMoreGesture(id: string): boolean;
+  /** End the gesture take now, keeping the repetitions cut so far. */
+  finishGesture(): void;
+  /** End the gesture take without keeping anything. */
+  cancelGesture(): void;
+  /** Rename gesture `id`. Undoable, like every edit below. */
+  renameGesture(id: string, label: string): boolean;
+  deleteGesture(id: string): boolean;
+  /** Drop one repetition of gesture `id` (never its only one). */
+  dropGestureTrace(id: string, traceId: string): boolean;
+  /** Pool gesture `from`'s repetitions into `into`. */
+  mergeGestures(from: string, into: string): boolean;
 }
 
 export const FACE_SESSION_DEFAULTS = {
@@ -346,6 +391,8 @@ export const FACE_SESSION_DEFAULTS = {
   burstStillAfter: 3,
   /** The rest ring (#403) moves in steps of this much (0..1). */
   restProgressStep: 0.05,
+  /** The repetitions a gesture take asks for (#754; `GESTURE_TAKE_DEFAULTS`). */
+  gestureRepetitions: GESTURE_TAKE_DEFAULTS.repetitions,
   /** During the rest, a frame this far from the rest so far (`FaceTake.restMotion`: noise units,
    *  its largest feature off the rest frames' median) is movement: "stay relaxed". The recorded
    *  face's still rest reaches about 12, its smile 100 (the range floor's ceiling). */
