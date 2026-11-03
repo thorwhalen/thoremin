@@ -222,11 +222,8 @@ export interface ChordWheelStatus {
 
 export const IDLE_CHORD_WHEEL_STATUS: ChordWheelStatus = { enabled: false, moves: 'diatonic', key: '', steering: false, chord: null, numeral: '', armed: true, moveCount: 0, lastMove: null, rejected: null, face: null, category: null, steer: 'hand', walking: false };
 
-/** What measures a move the player has not rated, under the `rated` tension model (#809): Lerdahl's
- *  distance, which has an opinion on every chord (the functional ladder has none outside the key). */
 /** What follows a number under the player's own model when the number is theirs, not the fallback's. */
 export const RATED_MARK = '(you)';
-
 
 /** The degree a diatonic move reaches from degree `d` ('dia+3': up a fourth), or null. */
 function diatonicTarget(d: number, relation: string): number | null {

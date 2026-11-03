@@ -209,14 +209,14 @@ export function tensionText(model: TensionModel, chord: Chord, key: Key): string
   return t === null ? '' : String(t);
 }
 
-
 /** A tension choice a setting offers: a named model, or the player's own over their ratings. */
 export const TENSION_CHOICES = [...TENSION_MODEL_IDS, 'rated'] as const;
 export type TensionChoice = (typeof TENSION_CHOICES)[number];
 /** A setting that may also show none (the wheel's numbers, the captions' resolving / opening). */
 export const TENSION_SETTING = ['off', ...TENSION_CHOICES] as const;
 export type TensionSetting = (typeof TENSION_SETTING)[number];
-/** The model the player's own falls back on where a chord is not rated (#809). */
+/** The model the player's own falls back on where a chord is not rated (#809): Lerdahl's distance,
+ *  which has an opinion on every chord (the functional ladder has none outside the key). */
 export const RATED_TENSION_FALLBACK: TensionModelId = 'tps';
 
 /** The player's own model's name, which names its fallback (no model built for it). */

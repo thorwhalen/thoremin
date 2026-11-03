@@ -13,7 +13,6 @@ import { RELATIONS } from '@thoremin/sdk/harmony/space';
 import { EMOTIONS, type Emotion } from '@thoremin/sdk/music/expression';
 import { PLAYER_HANDS } from '@thoremin/sdk/nodes/player_hands';
 
-
 const STEER_LABEL: Record<ChordWheelDialParams['steer'], string> = {
   hand: 'the hand (push toward a move)',
   face: 'the face (each expression a move)',
