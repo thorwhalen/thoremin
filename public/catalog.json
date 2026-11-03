@@ -2201,6 +2201,11 @@
         "name": "periodGain",
         "type": "number",
         "default": 0.4
+      },
+      {
+        "name": "strikesAlong",
+        "type": "boolean",
+        "default": false
       }
     ]
   },
