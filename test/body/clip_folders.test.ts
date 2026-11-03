@@ -28,3 +28,19 @@ describe('body clip folders outside the fixtures', () => {
     }
   });
 });
+
+describe('the clips a script runs on (#861)', () => {
+  it('a root lists its folders; named clips win over the defaults; a flag value is not a clip', async () => {
+    const { clipsFromArgs } = await import('../../scripts/body/lib_clips');
+    const root = mkdtempSync(join(tmpdir(), 'clip-args-'));
+    try {
+      cpSync(join(FIXTURES, 'video_body_budots'), join(root, 'a'), { recursive: true });
+      expect(clipsFromArgs(['--', '--root', root], ['x'])).toEqual([join(root, 'a')]);
+      expect(clipsFromArgs(['--', '--speed', '1.5', 'video_body_budots'], ['x'])).toEqual(['video_body_budots']);
+      expect(clipsFromArgs(['--', '--long', '0'], ['x', 'y'])).toEqual(['x', 'y']);
+      expect(() => clipsFromArgs(['--root'], [])).toThrow(/needs a folder/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

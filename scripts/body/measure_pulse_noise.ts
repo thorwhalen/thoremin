@@ -5,14 +5,14 @@
  * the real dancers' and conductors' trusted ticks, so both are counted under the same
  * options: trusted = confidence at or above `PULSE_TRUSTED_CONFIDENCE`, after the first 6 s.
  *
- * Usage: npx vite-node scripts/body/measure_pulse_noise.ts -- [--long S] [--long-level S] [--speed X]
+ * Usage: npx vite-node scripts/body/measure_pulse_noise.ts -- [--long S] [--long-level S] [--speed X] [--root DIR | clip ...]
  *        (`--long 0` is the follower without the long-level window; the default is the
- *        package's own default)
+ *        package's own default; `--root`: every clip folder under it, a terpsi corpus export
+ *        for one (#861), measured at each clip's own frame rate)
  */
 import { createPulseFollower, PULSE_TRUSTED_CONFIDENCE, type PulseOptions, type PulseState } from '@thoremin/ictus';
-import type { BodyFrame } from '@/nodes';
 import { pulseChannelValue, createYawUnwrapper, AUTO_PULSE_CHANNELS } from '@/slices/body/nodes/body_pulse';
-import { loadStream } from '../../test/helpers/fixtures';
+import { clipsFromArgs, loadClip } from './lib_clips';
 
 const HZ = 30;
 const SKIP_S = 6;
@@ -35,15 +35,15 @@ const trustedOf = (states: readonly PulseState[]) => states.slice(SKIP_S * HZ).f
 /** Trusted runs at one level (within 6 %) of at least `PERSIST_S`: what the pace
  *  controller's persistence would follow (it acts on a new level only after 3 s). */
 const PERSIST_S = 3;
-const persistentRuns = (states: readonly PulseState[]): number => {
+const persistentRuns = (states: readonly PulseState[], hz = HZ): number => {
   let runs = 0;
   let start = -1;
   let level = NaN;
   const close = (i: number) => {
-    if (start >= 0 && i - start >= PERSIST_S * HZ) runs++;
+    if (start >= 0 && i - start >= Math.round(PERSIST_S * hz)) runs++;
     start = -1;
   };
-  states.slice(SKIP_S * HZ).forEach((s, i) => {
+  states.slice(Math.round(SKIP_S * hz)).forEach((s, i) => {
     const ok = s.confidence >= PULSE_TRUSTED_CONFIDENCE;
     if (ok && start >= 0 && Math.abs(s.level / level - 1) < 0.06) return;
     close(i);
@@ -52,7 +52,7 @@ const persistentRuns = (states: readonly PulseState[]): number => {
       level = s.level;
     }
   });
-  close(states.length - SKIP_S * HZ);
+  close(states.length - Math.round(SKIP_S * hz));
   return runs;
 };
 
@@ -80,19 +80,20 @@ for (const a of [0.8, 0.95]) {
 let total = 0;
 let ticksAll = 0;
 let runsAll = 0;
-for (const clip of CLIPS) {
-  const frames = loadStream(clip, 'camBody.body') as BodyFrame[];
+for (const name of clipsFromArgs(process.argv.slice(2), CLIPS)) {
+  const { name: clip, frames, fps } = loadClip(name);
   const row: string[] = [];
   for (const ch of AUTO_PULSE_CHANNELS) {
     const unwrap = createYawUnwrapper();
     const raw = frames.map((f) => (ch === 'yaw' ? unwrap(pulseChannelValue(f, ch)) : pulseChannelValue(f, ch)));
     // A faster replay: the same samples on a compressed clock (no interpolation).
     const p = createPulseFollower(opts);
-    const states = raw.map((v, i) => p.feed(i / (HZ * speed), v));
-    const tr = trustedOf(states);
+    const states = raw.map((v, i) => p.feed(i / (fps * speed), v));
+    const skip = Math.round(SKIP_S * fps);
+    const tr = states.slice(skip).filter((s) => s.confidence >= PULSE_TRUSTED_CONFIDENCE);
     total += tr.length;
-    ticksAll += states.length - SKIP_S * HZ;
-    runsAll += persistentRuns(states);
+    ticksAll += Math.max(0, states.length - skip);
+    runsAll += persistentRuns(states, fps);
     const lv = tr.length ? tr.reduce((m, s) => m + s.level, 0) / tr.length : NaN;
     row.push(`${ch} ${tr.length} (${Number.isFinite(lv) ? lv.toFixed(2) : '-'} s)`);
   }

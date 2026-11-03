@@ -179,3 +179,20 @@ export function syntheticClip({ seconds = 30, fps = 30, noisePx = 1.5, seed = 37
   const grid = Array.from({ length: Math.floor(seconds / SYNTH_BEAT_S) + 1 }, (_, k) => k * SYNTH_BEAT_S);
   return { name: 'synthetic', frames, fps, grid, beatsPerBar: SYNTH_BEATS_PER_BAR, phaseKnown: true };
 }
+
+/**
+ * The clips a measuring script runs on, from its command line (#861): every clip folder under
+ * `--root <dir>` (a corpus, such as terpsi's export into the app-data dir), else the clips named
+ * (fixture names or folder paths), else `defaults`. One reading for every script, so a corpus is
+ * measured by any of them the same way.
+ */
+export function clipsFromArgs(argv: readonly string[], defaults: readonly string[]): string[] {
+  const i = argv.indexOf('--root');
+  if (i >= 0) {
+    const root = argv[i + 1];
+    if (!root) throw new Error('--root needs a folder');
+    return clipDirs(root);
+  }
+  const named = argv.filter((a, k) => a !== '--' && !a.startsWith('--') && !(k > 0 && argv[k - 1].startsWith('--')));
+  return named.length ? named : [...defaults];
+}
