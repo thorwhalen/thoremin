@@ -88,7 +88,7 @@ export interface PreferenceRun {
 }
 
 export interface RunOptions {
-  /** The frame rate of the recording (for the per-minute rate). */
+  /** The frame rate of the recording: the replayed frames' stamps, and the per-minute rate. */
   fps: number;
   /** The rule on (the host's policy) or off (one hand, as on main before #784). */
   rule: boolean;
@@ -111,7 +111,8 @@ export function runPreference(frames: readonly HandsFrame[], preference: HandPre
       count = state.count;
     }
     const out = detect(frame, count);
-    previous = { hands: out, t: i };
+    // Stamped at the recording's own rate: the policy's thresholds are seconds (#964).
+    previous = { hands: out, t: i / fps };
     if (count === 2) {
       atTwo++;
       if (frame.hands.length === 1) search++;

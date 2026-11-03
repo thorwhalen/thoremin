@@ -57,7 +57,8 @@ describe('createLiveHandCount (#784)', () => {
   /** An engine whose hand source has a new frame of the wrong hand at each read. */
   const wrongHandEngine = (): HandsReader => ({ getOutput: (node, port) => (node === 'cam' && port === 'hands' ? { width: 640, height: 480, hands: [wrong] } : undefined) });
   const reads = (resource: () => HandCount, n: number): HandCount[] => Array.from({ length: n }, () => resource());
-  const n = HAND_PREFERENCE_OPTIONS.escalateAfterFrames;
+  /** The escalation in reads of unstamped frames, each counted for the assumed period. */
+  const n = Math.round(HAND_PREFERENCE_OPTIONS.escalateAfterS / HAND_PREFERENCE_OPTIONS.framePeriodS);
 
   it('raises the derived count to two while the tracked hand is not the preferred one', () => {
     const engine = wrongHandEngine();
