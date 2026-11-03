@@ -3,22 +3,12 @@
  * and the Instruments view (the key, the chord in force, whether the wheel is armed, the last move).
  * The `chordMapStatus` pattern: the DAG produces it, React only displays it.
  */
-import { create } from 'zustand';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_CHORD_WHEEL_STATUS, type ChordWheelStatus } from '../nodes/chord_wheel';
 
 export const CHORD_WHEEL_NODE_ID = 'chordWheel';
 
-export interface ChordWheelStatusState {
-  live: ChordWheelStatus;
-  report(live: ChordWheelStatus): void;
-  reset(): void;
-}
-
-export const useChordWheelStatus = create<ChordWheelStatusState>((set) => ({
-  live: IDLE_CHORD_WHEEL_STATUS,
-  report: (live) => set({ live }),
-  reset: () => set({ live: IDLE_CHORD_WHEEL_STATUS }),
-}));
+export type ChordWheelStatusState = StatusState<ChordWheelStatus, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeChordWheelLive(live: ChordWheelStatus): string {
@@ -46,14 +36,10 @@ export function chordWheelLiveKey(l: ChordWheelStatus): string {
   return [l.enabled ? 1 : 0, l.moves, l.steer, l.face ?? '-', l.category ?? '-', l.key, l.steering ? 1 : 0, l.chord ?? '-', l.numeral, l.armed ? 1 : 0, l.moveCount, l.lastMove ?? '-', l.rejected ?? '-', l.walking ? 1 : 0].join('|');
 }
 
-export function makeChordWheelReporter(engine: { getOutput(nodeId: string, port: string): unknown }, store: Pick<ChordWheelStatusState, 'report'> = useChordWheelStatus.getState()): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(CHORD_WHEEL_NODE_ID, 'status') as ChordWheelStatus | undefined;
-    if (!status) return;
-    const key = chordWheelLiveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The chord wheel's readout store, reporter and status hook (the shared readout store, #969). */
+export const CHORD_WHEEL_STATUS = createStatusStore(CHORD_WHEEL_NODE_ID, { absent: IDLE_CHORD_WHEEL_STATUS, keyOf: chordWheelLiveKey, field: 'live' });
+
+export const useChordWheelStatus = CHORD_WHEEL_STATUS.useStatus;
+
+/** The per-frame sink over the chord wheel node (to this store by default). */
+export const makeChordWheelReporter = CHORD_WHEEL_STATUS.makeReporter;
