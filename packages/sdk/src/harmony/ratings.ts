@@ -144,7 +144,9 @@ export function nextMoveToRate(
   { random = Math.random, avoid, first = fromTonic }: { random?: () => number; avoid?: { from: number; to: number }; first?: (move: { from: number; to: number }) => boolean } = {},
 ): { mode: RatingMode; from: number; to: number } {
   const all = movesOf(mode);
-  const unratedFirst = all.filter((m) => first(m) && !table[moveKey(mode, m.from, m.to)]);
+  const notAvoided = (m: { from: number; to: number }) => !avoid || m.from !== avoid.from || m.to !== avoid.to;
+  // The first set, while any of it but the move just shown is unrated ("Another move" must move on).
+  const unratedFirst = all.filter((m) => first(m) && notAvoided(m) && !table[moveKey(mode, m.from, m.to)]);
   const moves = unratedFirst.length ? unratedFirst : all;
   const count = (m: { from: number; to: number }) => table[moveKey(mode, m.from, m.to)]?.n ?? 0;
   const least = Math.min(...moves.map(count));

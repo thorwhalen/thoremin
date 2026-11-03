@@ -7,7 +7,7 @@
  * only says how the chords are laid out and played. The live readout ({@link ChordMapReadout})
  * is shown here and under the chosen row in the Instruments list.
  */
-import { TENSION_CHOICES, tensionChoiceName } from '@thoremin/sdk/harmony/tension';
+import { TENSION_SETTING, tensionSettingName } from '@thoremin/sdk/harmony/tension';
 import { dispatchDialPatch, dispatchDialSetIn, useDialsSettings } from '@thoremin/sdk-ui/dials';
 import { selectCls } from '@thoremin/sdk-ui/primitives';
 import { describeChordMapLive, useChordMapStatus } from '../app/chordMapStatus';
@@ -188,7 +188,7 @@ export function ChordMapControls() {
         </label>
       )}
       {layout === 'harmonic' && captions && (
-        <label className="flex items-center justify-between gap-2 text-xs" title={`What the words on each move say. ${captionSet('computed').name}: the notes it keeps, whether it turns darker or brighter, and how expected it is (after ${captionSet('computed').models.join(', ')}). ${captionSet('mine').name}: the words your ratings give the moves (Rate this move, below).`}>
+        <label className="flex items-center justify-between gap-2 text-xs" title={`What the words on each move say. ${captionSet('computed').name}: the notes it keeps, whether it turns darker or brighter, and how expected it is${captionTension === 'off' ? '' : ', and whether it resolves or opens'} (after ${[...captionSet('computed').models, ...(captionTension === 'off' ? [] : [tensionSettingName(captionTension)])].join(', ')}). ${captionSet('mine').name}: the words your ratings give the moves (Rate this move, below).`}>
           Move captions
           <select className={selectCls} value={captionSetId} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.captionSet', e.target.value)}>
             {CAPTION_SET_IDS.map((id) => (
@@ -200,13 +200,12 @@ export function ChordMapControls() {
         </label>
       )}
       {layout === 'harmonic' && captions && captionSetId === 'computed' && (
-        <label className="flex items-center justify-between gap-2 text-xs" title="Also say whether a move resolves (tension falls) or opens (tension rises), and by which model: the functional ladder, Lerdahl's tonal pitch space, the Krumhansl-Kessler profile, or your own ratings (Rate this move, below; the chords you have not rated by Lerdahl).">
+        <label className="flex items-center justify-between gap-2 text-xs" title="Also say whether a move resolves (tension falls) or opens (tension rises), and by which model: the functional ladder, Lerdahl's tonal pitch space, the Krumhansl-Kessler profile, or your own ratings (Rate this move, below; a chord whose move from home you have not rated, by Lerdahl).">
           Resolving or opening by
           <select className={selectCls} value={captionTension} disabled={!enabled} onChange={(e) => dispatchDialSetIn('chordMap.captionTension', e.target.value)}>
-            <option value="off">Not shown</option>
-            {TENSION_CHOICES.map((id) => (
+            {TENSION_SETTING.map((id) => (
               <option key={id} value={id}>
-                {tensionChoiceName(id)}
+                {id === 'off' ? 'Not shown' : tensionSettingName(id)}
               </option>
             ))}
           </select>

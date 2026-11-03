@@ -8,7 +8,7 @@
  */
 import { captionSet as captionSetOf, DEFAULT_CAPTION_PARTS, type CaptionSet, type CaptionSetId } from '@thoremin/sdk/harmony/captions';
 import type { RatingsTable } from '@thoremin/sdk/harmony/ratings';
-import { createTensionChooser, type TensionChoice, type TensionModel } from '@thoremin/sdk/harmony/tension';
+import { createTensionChooser, type TensionModel, type TensionSetting } from '@thoremin/sdk/harmony/tension';
 import { ahead, followCommit, idiomById, startFollow, type FollowCursor } from '@thoremin/sdk/harmony/idioms';
 import { keyOf } from '@thoremin/sdk/harmony/chord';
 import { keyName, type ScaleSpec } from '@thoremin/sdk/music/theory';
@@ -29,7 +29,7 @@ export interface PathFrame {
   captionSet: CaptionSetId;
   /** The computed captions' "resolving / opening" part and the tension model it reads (#920):
    *  `off` (the default) leaves the part out, as before. */
-  captionTension?: TensionChoice | 'off';
+  captionTension?: TensionSetting;
   trailSteps: number;
   /** The key in force (with the face's parallel): the idiom is realized in it. */
   spec: ScaleSpec;
@@ -68,7 +68,7 @@ export function createPathFollower(): PathFollower {
       const key = keyOf(spec);
       // Rebuilt when the set or the tension model changes, or (the player's own) when a new rating
       // arrives: the chooser hands back the same model until then.
-      const tension = captionTension === 'off' ? null : chooseTension(captionTension, ratings);
+      const tension = chooseTension(captionTension, ratings);
       if (captions?.id !== captionSet || captions.tension !== tension || (captionSet === 'mine' && captions.ratings !== ratings)) {
         const options = tension ? { ratings, tension, parts: [...DEFAULT_CAPTION_PARTS, 'direction' as const] } : { ratings };
         captions = { id: captionSet, ratings, tension, set: captionSetOf(captionSet, options) };

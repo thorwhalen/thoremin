@@ -46,7 +46,7 @@
  *
  * Off by default; pure and Node-safe.
  */
-import { TENSION_CHOICES } from '@thoremin/sdk/harmony/tension';
+import { TENSION_SETTING } from '@thoremin/sdk/harmony/tension';
 import { z } from 'zod';
 import { displayedUnit } from '@thoremin/sdk/view/frame_view';
 import { defineNode } from '@thoremin/dag';
@@ -184,7 +184,7 @@ const Params = z.object({
   captionSet: z.enum(CAPTION_SET_IDS).default('interval'),
   /** The computed captions' "resolving / opening" (#920): off, or the tension model it reads, a
    *  named one or the player's own (their ratings, the rest by Lerdahl's tonal pitch space). */
-  captionTension: z.enum(['off', ...TENSION_CHOICES]).default('off'),
+  captionTension: z.enum(TENSION_SETTING).default('off'),
   /** A named path (Pachelbel, the Romanesca, the circle of fifths...) drawn ahead of the chord in
    *  force as a ghost trail that follows the player along it (#713); `none` draws nothing. */
   idiom: z.enum(CHORD_MAP_IDIOMS).default('none'),
