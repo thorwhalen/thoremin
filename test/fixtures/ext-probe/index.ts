@@ -21,6 +21,7 @@ import { defineNode, type NodeDef } from '@thoremin/dag';
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
 import { defineExtension, dialSlice, overlayElementId, overlayPortName, transientPort, type OverlayElementImpl } from '@thoremin/sdk/instruments/extension';
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+import { PREFER_HIGHER_HAND } from '@thoremin/sdk/nodes/player_hands';
 import type { CategoryScores, SynthParams } from '@thoremin/sdk/nodes/domain';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
 import { BODY_SLOT_STATUS } from '@thoremin/sdk/sources/body_contract';
@@ -151,6 +152,8 @@ export const PROBE_SENSE_BRANCH = defineBranch({
 /** The probe's hush (#600 S18a): its id and the badge's reason. */
 export const PROBE_HUSH_ID = 'probe-hush';
 export const PROBE_HUSH_REASON = 'while the probe listens';
+/** Below this frequency the probe wants the higher hand when two are in view (#784; test-only). */
+export const PROBE_PREFERS_HIGHER_BELOW_HZ = 200;
 /** What the probe's `derive` was last told is implied (a test reads it). */
 export const probeDeriveSaw: { implied: string[] } = { implied: [] };
 
@@ -194,6 +197,8 @@ export const PROBE_EXTENSION = defineExtension({
   // two hands while its frequency is past 1 kHz (#600 S18a): two test-only switches.
   hushes: [{ id: PROBE_HUSH_ID, reason: PROBE_HUSH_REASON, while: (s) => (s.probeModel as ProbeModel | null | undefined)?.gain === 0 }],
   readsTwoHands: (s) => ((s.probe as Partial<ProbeDial> | undefined)?.freq ?? 0) > 1000,
+  // It wants the higher hand while its frequency is low (#784): the ASL plugin's declaration, as a switch.
+  prefersHand: (s) => (((s.probe as Partial<ProbeDial> | undefined)?.freq ?? Infinity) < PROBE_PREFERS_HIGHER_BELOW_HZ ? PREFER_HIGHER_HAND : undefined),
   dials: [
     dialSlice({
       key: 'probe',

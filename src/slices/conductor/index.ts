@@ -11,7 +11,8 @@
  * port; the loaded score is a transient (`scoreDoc`) the `score` node and the chord chart read.
  *
  * It hushes the instrument's own voices while it conducts (the score is the music: `hushes`), makes
- * its one-hand branch read both hands for the split with the hands alone (`readsTwoHands`), and
+ * its one-hand branch read both hands for the split with the hands alone (`readsTwoHands`), names
+ * the hand it reads so the hand model tracks that one when two are in view (`prefersHand`, #784), and
  * composes the body source while it reads the body (`toolDerive`, so an explicit branch set that
  * lists the conductor gets it too).
  *
@@ -24,7 +25,7 @@ import type { NodeDef } from '@thoremin/dag';
 import type { ScoreDoc } from '@thoremin/sdk/score/schema';
 import { conductorNode } from './nodes/conductor';
 import { orchestraNode } from './nodes/orchestra';
-import { conductorReadsTwoHands } from './nodes/conductor.schema';
+import { conductorHandPreference, conductorReadsTwoHands } from './nodes/conductor.schema';
 import { conductor } from './branches';
 import { CONDUCTOR_STORES } from './stores';
 import { CONDUCTOR_EXTENSION_ID } from './id';
@@ -92,6 +93,8 @@ export const CONDUCTOR_EXTENSION = defineExtension({
   stores: Object.values(CONDUCTOR_STORES),
   hushes: [{ id: 'conducting', reason: 'while conducting', while: (s) => on(dialOf(s)) }],
   readsTwoHands: (s) => conductorReadsTwoHands(dialOf(s)),
+  // Two hands in view and one looked for: the hand model is steered to the hand it reads (#784).
+  prefersHand: (s) => conductorHandPreference(dialOf(s)),
   derive: (s) => (conducting(dialOf(s)) ? [CONDUCTOR_BRANCH_ID] : []),
   // The body conductor reads the pose stream: the body source comes with him, also into an explicit
   // set that lists the conductor (only while it is on, not for a saved set naming an idle one).

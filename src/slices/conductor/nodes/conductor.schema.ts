@@ -7,9 +7,13 @@
 import { z } from 'zod';
 import { ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TEMPO_PRIORS, TRANSPORT_DEFAULTS, type LeadOffsets } from '@thoremin/ictus';
 import { CONDUCTOR_BODY_POINTS } from './conductor_body.schema';
+import { preferPlayerHand, type HandPreference, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
+
+/** The selfie camera reports the opposite hand label: on unless the input is a third-person video. */
+export const DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS = true;
 export const CONDUCTOR_POINTS = ['wrist', 'indexTip'] as const;
 export type ConductorPoint = (typeof CONDUCTOR_POINTS)[number];
 /** What the conductor leads (#187 PR 7): the score (and the orchestra), or the song
@@ -140,7 +144,7 @@ const Params = z.object({
   mirrorX: z.boolean().default(true),
   /** The mirrored webcam reports the opposite hand label (the same knob `hand-features`
    *  carries). Off for a recorded third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  mirrorHandedness: z.boolean().default(DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS),
   /** Which level a stroke marks (#376): `beat` (default), `half` (every other beat),
    *  `bar`, or `auto` (related to the score's marked tempo, held once chosen). */
   markLevel: z.enum(CONDUCTOR_MARK_LEVELS).default('beat'),
@@ -238,6 +242,33 @@ export function conductorReadsTwoHands(c: Partial<Params> | undefined): boolean 
   const beating = (c.hand ?? 'auto') === 'auto' ? 'right' : c.hand;
   const handsShape = (c.expression ?? 'same') !== 'body';
   return handsShape && shaping !== 'auto' && shaping !== beating;
+}
+
+/** The conductor's hand choice made definite: `auto` prefers the right (`pickHand`). */
+const definiteHand = (hand: ConductorHand | undefined): PlayerHand => (hand === 'left' ? 'left' : 'right');
+
+/**
+ * The ONE hand the conductor reads, in the player's terms (#784), or undefined when it reads none
+ * or two at once. Mirrors `pickHand` / `shapingHand` (`conductor_hands.ts`): the beating hand while
+ * the hands lead; reading the body or the dancer, the shaping hand while the hands shape (the named
+ * one, else the hand opposite an arm beating on a named side, else the conductor's hand).
+ */
+export function conductorReadHand(c: Partial<Params> | undefined): PlayerHand | undefined {
+  if (!c || c.enabled !== true || conductorReadsTwoHands(c)) return undefined;
+  const source = c.source ?? 'hands';
+  if (source === 'hands') return definiteHand(c.hand);
+  if ((c.expression ?? 'same') !== 'hands') return undefined;
+  if ((c.expressionHand ?? 'auto') !== 'auto') return definiteHand(c.expressionHand);
+  const armBeats = source === 'body' && (c.bodyPoint === 'impact' || c.bodyPoint === 'wrist') && (c.hand ?? 'auto') !== 'auto';
+  if (armBeats) return c.hand === 'right' ? 'left' : 'right';
+  return definiteHand(c.hand);
+}
+
+/** Which hand the conductor wants the hand model to track when two are in view (#784): the hand it
+ *  reads, as the raw label its mirror convention matches. */
+export function conductorHandPreference(c: Partial<Params> | undefined): HandPreference | undefined {
+  const hand = conductorReadHand(c);
+  return hand && preferPlayerHand(hand, c?.mirrorHandedness ?? DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS);
 }
 
 /**

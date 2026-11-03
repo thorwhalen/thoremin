@@ -146,6 +146,13 @@ describe('the probe reaches every pure contribution point', () => {
     expect(liveHandCount({ ...base, probe: { enabled: false, freq: 1500 } } as never, new Set(), null)).toBe(2);
   });
 
+  it('prefersHand (#784): the probe below 200 Hz wants the higher hand, folded into the live preference', async () => {
+    const { liveHandPreference } = await import('@/app/engine/liveApply');
+    const state = app.store.useControls.getState();
+    expect(liveHandPreference({ ...state, probe: { enabled: false, freq: 440 } } as never)).toBeUndefined();
+    expect(liveHandPreference({ ...state, probe: { enabled: false, freq: 100 } } as never)).toEqual({ kind: 'higher' });
+  });
+
   it('demands (#600 S17): a claim on a group the probe\'s branch declares composes it, and the probe\'s derive is told', () => {
     expect(app.graph.branchIdsFor({} as never)).not.toContain(PROBE_SENSE_BRANCH_ID);
     expect(probeDeriveSaw.implied).toEqual([]);

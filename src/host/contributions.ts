@@ -27,6 +27,7 @@ import { BRANCHES as CORE_BRANCHES } from '@/instruments/branches';
 import { CORE_CLASSES, registerInstrumentClasses } from '@/instruments/classes';
 import { CARVE_MODALITIES, registerCarveModalities } from '@thoremin/sdk/features/modalities';
 import type { CarveModality } from '@thoremin/sdk/enroll/modality';
+import type { HandPreference } from '@thoremin/sdk/nodes/player_hands';
 import { DEFAULT_MERGE_POOL_SIZES, type PoolSizes } from '@/nodes/mapping/synth_merge.schema';
 import { DEFAULT_CHORD_POOL_SIZE } from '@/nodes/mapping/chord_select.schema';
 import type { CategoryPoolSizes } from '@/nodes/output/canvas_overlay.schema';
@@ -115,6 +116,8 @@ export interface Contributions {
   hushes: readonly HushDecl[];
   /** Who may make a one-hand branch read two hands (#600 S18a). */
   readsTwoHands: readonly ((settings: Readonly<Record<string, unknown>>) => boolean)[];
+  /** Which hand a one-hand branch reads when two are in view (#784), per extension that says. */
+  prefersHand: readonly ((settings: Readonly<Record<string, unknown>>) => HandPreference | undefined)[];
 }
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
@@ -275,6 +278,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     slotCandidates: slotCandidatesOf(extensions),
     hushes: keyed('hush', extensions, (e) => e.hushes ?? [], (h) => h.id),
     readsTwoHands: extensions.flatMap((e) => (e.readsTwoHands ? [e.readsTwoHands] : [])),
+    prefersHand: extensions.flatMap((e) => (e.prefersHand ? [e.prefersHand] : [])),
   };
 }
 
