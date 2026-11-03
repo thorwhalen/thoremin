@@ -26,6 +26,7 @@
     "./namedCollection": "./src/namedCollection.ts",
     "./storage": "./src/storage.ts",
     "./audio/hub": "./src/audio/hub.ts",
+    "./audio/inputStage": "./src/audio/inputStage.ts",
     "./idbCollection": "./src/idbCollection.ts",
     "./primitives": "./src/primitives.tsx",
     "./tools": "./src/tools.ts",

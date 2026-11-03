@@ -5,6 +5,7 @@
  * from the bundle, and fails unless every module a page loads up front (its entry chunk and the
  * chunks that imports statically) is under one of {@link ALLOWED}: the games, the judge and its
  * statistics, the SDK's pure audio and timing modules, the audio-input hub and its browser half,
+ * this device's input-stage record (a vanilla store over the zodal localStorage provider),
  * and the page's own code (no Zod: the shipped lessons are built without it). So a page that reached the graph engine, React, the hot store, a
  * camera model or an extension fails here, by name, with the import chain that pulled it in.
  * It also prints each page's minified-by-the-build size, and fails past {@link BUDGET_BYTES}.
@@ -30,11 +31,19 @@ export const ALLOWED: readonly string[] = [
   'packages/stats/src/',
   'packages/sdk/src/audio/',
   'packages/sdk/src/timing/input_stage.ts',
+  // The output stage the browser reports (pure; the Audio timing page's loopback take subtracts it).
+  'packages/sdk/src/timing/output_stage.ts',
   // The song model and its note text (pure: arithmetic and a type import of the score schema).
   'packages/sdk/src/score/song.ts',
   'packages/sdk-ui/src/audio/',
   // The listening gate the hub asks (a dozen lines, no imports).
   'packages/sdk-ui/src/listening.ts',
+  // This device's input stage, the record the camera app shares (#881): a vanilla zustand store over
+  // the host's storage seam and the zodal localStorage provider, a few kilobytes and no Zod.
+  'packages/sdk-ui/src/storage.ts',
+  'node_modules/zustand/',
+  'node_modules/@zodal/store/',
+  'node_modules/@zodal/store-localstorage/',
 ];
 
 /**
@@ -48,12 +57,8 @@ export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; 
     allowed: [
       'packages/sound-mapper/src/',
       'packages/sdk-ui/src/namedCollection.ts',
-      'packages/sdk-ui/src/storage.ts',
       'packages/sdk/src/util/ids.ts',
       'node_modules/zod/',
-      'node_modules/zustand/',
-      'node_modules/@zodal/store/',
-      'node_modules/@zodal/store-localstorage/',
     ],
     // Zod is most of it (about 190 kB as rendered, before gzip); the app it guards against is megabytes.
     budgetBytes: 300_000,
@@ -66,9 +71,13 @@ export const PAGE_EXTRAS: Readonly<Record<string, { allowed: readonly string[]; 
  * stages and its game, 40 to 65 kB; what this guards against is the app (megabytes) leaking in.
  * Raised again to 90 kB when every page gained the import and export bar (`play/src/spec_bar.ts`,
  * its spec helpers and Vite's dynamic-import helper: about 11 kB rendered; formatcast, Zod and
- * the parsers stay behind its dynamic import). Vowels, the largest, is 82 kB.
+ * the parsers stay behind its dynamic import). Vowels, the largest, is 82 kB. Raised to 110 kB when
+ * every page began converting what it hears with this device's measured input stage (#881): the
+ * record the camera app shares, through the host's storage seam and the zodal localStorage provider
+ * (about 18 kB rendered: `@zodal/store` 6, its localStorage provider 4, the seam 4, the store 3,
+ * vanilla zustand 1); Play Along, the largest, is then 102 kB.
  */
-export const BUDGET_BYTES = 90_000;
+export const BUDGET_BYTES = 110_000;
 
 interface Chunk {
   file: string;

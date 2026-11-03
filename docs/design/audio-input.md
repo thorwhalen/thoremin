@@ -28,7 +28,7 @@ Every event carries the time of the AUDIO it describes (`frame`: the context sam
 | Sample voices | `packages/sdk/src/audio/sampler.ts` | one-shots started at an exact sample; fade-in part-way through and fade-out from an offset (the correction) |
 | Synthetic taps | `packages/sdk/src/audio/synthetic_taps.ts` | seeded modal-synthesis taps with known onsets and surfaces |
 | Input stage | `packages/sdk/src/timing/input_stage.ts` | `InputStage { seconds, source }` and the trust order |
-| Worklet, hub, sources, graph node | `src/audio/` (the worklet and the browser hub, `createBrowserAudioInput`, for any page), `src/app/audio/` (the app's hub over its engine context, the stored input stage), `packages/sdk-ui/src/audio/hub.ts`, `src/nodes/sources/audio_events*.ts` | below |
+| Worklet, hub, sources, graph node | `src/audio/` (the worklet and the browser hub, `createBrowserAudioInput`, for any page), `src/app/audio/` (the app's hub over its engine context), `packages/sdk-ui/src/audio/hub.ts`, `packages/sdk-ui/src/audio/inputStage.ts` (the stored input stage), `src/nodes/sources/audio_events*.ts` | below |
 
 ## Decisions
 
@@ -40,7 +40,7 @@ Every event carries the time of the AUDIO it describes (`frame`: the context sam
 
 **4. The microphone is opened once, with processing off.** `echoCancellation`, `noiseSuppression` and `autoGainControl` each add latency and smear transients; all three are off by default and a consumer may ask otherwise (the strictest-latency request wins; the hub reports the active set). The microphone opens in the app's one AudioContext (`useEngine`'s), so the output stage is the timing resource's, and only when a consumer asks: no permission prompt for a player who never used a sound instrument.
 
-**5. The input stage is a number with a source**, chosen by trust (`measured` > `loopback` > `tap` > `reported` > `prior`, never 0), stored per device (`src/app/audio/inputStage.ts`, with a setter lane A's calibration takes write through).
+**5. The input stage is a number with a source**, chosen by trust (`measured` > `loopback` > `tap` > `reported` > `prior`, never 0), stored per device (`@thoremin/sdk-ui/audio/inputStage`, #881: one record per origin, so the camera app, a slice and the standalone pages share it; the browser hub reads it by default, and `src/app/audio/inputStage.ts` re-exports it for the app). The loopback timing take writes it: the Audio timing page's Loopback mode plays clicks with the speaker on and no player, pairs the clicks' own onsets with their scheduled times (`estimateOffset`), and sets the stage in force plus that residual minus the output stage the browser reports (`inputStageFromLoopback`; `reportedOutputStage`, none when the browser reports nothing, which the take says).
 
 **6. Three sources, one slot.** `microphone`, `replay` (a decoded file through the same worklet: the Replay tool and the smoke) and `synthetic` (seeded taps from `synthetic_taps.ts`, with known onsets): `?audio.source=...`, as `?slot.source=synthetic-hands` is for the camera. A test never needs a microphone.
 

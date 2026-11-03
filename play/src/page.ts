@@ -4,8 +4,14 @@
  * reads, the runner (`./runner`) ticking the session every animation frame, the cues played by the
  * small synth, the canvas kept at the device's pixel ratio, and the Start / Stop / Again button.
  * A page says only which session to make, how to draw its view, and when it is over.
+ *
+ * The hub converts what it hears with this device's measured input stage, the same per-device
+ * record the camera app keeps (`@thoremin/sdk-ui/audio/inputStage`, #881: the browser hub's
+ * default), read at mount so the first take converts with it.
  */
-import type { AudioInputLease } from '@thoremin/sdk-ui/audio/hub';
+import type { AudioInputLease, MicConstraints } from '@thoremin/sdk-ui/audio/hub';
+import { hydrateInputStage } from '@thoremin/sdk-ui/audio/inputStage';
+import type { InputStage } from '@thoremin/sdk/timing/input_stage';
 import type { AnalyserSpec } from '@thoremin/sdk/audio/analysers';
 import { createBrowserAudioInput } from '@/audio/browser';
 import { playCue } from './cue_synth';
@@ -24,6 +30,8 @@ export interface GamePageOptions<V extends { notice?: string }> {
   over(view: V): boolean;
   /** Seconds between Start and the game's start (the context resumes, the microphone opens). */
   leadS?: number;
+  /** The microphone's processing for this page's lease (default: the hub's, all off). */
+  constraints?: MicConstraints;
 }
 
 export interface GamePage<V> {
@@ -34,12 +42,15 @@ export interface GamePage<V> {
   audio(): AudioContext | undefined;
   /** The page's AudioContext, made and resumed now (call it from a click or a touch). */
   ensureAudio(): Promise<AudioContext>;
+  /** The input stage the hub converts heard times with now. */
+  inputStage(): InputStage;
   stop(label?: string): void;
 }
 
 export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<V>): GamePage<V> {
   let ctx: AudioContext | undefined;
   const hub = createBrowserAudioInput({ audio: () => ctx });
+  void hydrateInputStage();
   let lease: AudioInputLease | null = null;
   let runner: ReturnType<typeof createRunner<V>> | null = null;
   let last: V | null = null;
@@ -61,7 +72,7 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
     await ensureAudio();
     hub.poke();
     lease?.release();
-    lease = hub.acquire({ analysers: [...o.analysers] });
+    lease = hub.acquire({ analysers: [...o.analysers], ...(o.constraints ? { constraints: o.constraints } : {}) });
     const audio = ctx!;
     const own = lease;
     runner = createRunner<V>(o.session(audio.currentTime + (o.leadS ?? 0.8), audio), {
@@ -99,7 +110,7 @@ export function mountGamePage<V extends { notice?: string }>(o: GamePageOptions<
   }
   requestAnimationFrame(frame);
 
-  const page: GamePage<V> = { view: () => last, mic: () => hub.status().state, audio: () => ctx, ensureAudio, stop };
+  const page: GamePage<V> = { view: () => last, mic: () => hub.status().state, audio: () => ctx, ensureAudio, inputStage: () => hub.inputStage(), stop };
   /** What the browser smoke reads (`smoke/tests/play_pages.smoke.ts`). */
   (window as unknown as { thoreminPlay: unknown }).thoreminPlay = page;
   return page;

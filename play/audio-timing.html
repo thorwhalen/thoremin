@@ -10,9 +10,11 @@
     <header>
       <a class="home" href="./"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z" fill="currentColor"/></svg>Home</a>
       <h1>Audio timing</h1>
+      <select id="mode" aria-label="Take"></select>
       <button id="start">Start</button>
-      <p class="hint">Clicks play: tap the table or clap on every one, firmly. Your device's offset is kept in this browser and used by Sing Along and Play Along. Headphones make it cleaner.</p>
+      <p class="hint" id="mode-hint"></p>
       <p class="hint" id="timing"></p>
+      <p class="hint" id="stage-line"></p>
     </header>
     <canvas id="stage"></canvas>
     <script type="module" src="./src/audio_timing.ts"></script>
