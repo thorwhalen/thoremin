@@ -175,6 +175,8 @@ export const PROBE_BRANCH = defineBranch({
   // A classifier on the category cues, and its classes' captions (#600 S10b).
   categories: [{ from: { node: PROBE_NODE_ID, port: 'reading' }, kind: 'classifier', priority: 5 }],
   categoryCaptions: [{ from: { node: PROBE_NODE_ID, port: 'captions' }, for: { node: PROBE_NODE_ID, port: 'reading' } }],
+  // It reads one hand (test-only), so its hand preference counts while it is composed (#784).
+  hands: 1,
 });
 
 /** A branch that joins the trunk (#600 S15): composed into every instrument, never derived or listed. */
@@ -197,7 +199,8 @@ export const PROBE_EXTENSION = defineExtension({
   // two hands while its frequency is past 1 kHz (#600 S18a): two test-only switches.
   hushes: [{ id: PROBE_HUSH_ID, reason: PROBE_HUSH_REASON, while: (s) => (s.probeModel as ProbeModel | null | undefined)?.gain === 0 }],
   readsTwoHands: (s) => ((s.probe as Partial<ProbeDial> | undefined)?.freq ?? 0) > 1000,
-  // It wants the higher hand while its frequency is low (#784): the ASL plugin's declaration, as a switch.
+  // It wants the higher hand while its frequency is low (#784): the ASL plugin's declaration, as a
+  // switch. Stated whether or not the probe is on: the host counts it only while its branch is.
   prefersHand: (s) => (((s.probe as Partial<ProbeDial> | undefined)?.freq ?? Infinity) < PROBE_PREFERS_HIGHER_BELOW_HZ ? PREFER_HIGHER_HAND : undefined),
   dials: [
     dialSlice({

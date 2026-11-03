@@ -116,8 +116,16 @@ export interface Contributions {
   hushes: readonly HushDecl[];
   /** Who may make a one-hand branch read two hands (#600 S18a). */
   readsTwoHands: readonly ((settings: Readonly<Record<string, unknown>>) => boolean)[];
-  /** Which hand a one-hand branch reads when two are in view (#784), per extension that says. */
-  prefersHand: readonly ((settings: Readonly<Record<string, unknown>>) => HandPreference | undefined)[];
+  /** Which hand a one-hand branch reads when two are in view (#784), per extension that says, with
+   *  its branches declaring one hand: the preference counts only while one of them is composed. */
+  prefersHand: readonly HandPreferenceDecl[];
+}
+
+/** An extension's hand preference (#784) and the one-hand branches it speaks for. */
+export interface HandPreferenceDecl {
+  extension: string;
+  branches: readonly string[];
+  prefers: (settings: Readonly<Record<string, unknown>>) => HandPreference | undefined;
 }
 
 /** Names an id is built from: no `.` (the port separator) and no `/` (the id separator). */
@@ -278,7 +286,7 @@ export function foldContributions(extensions: readonly Extension[]): Contributio
     slotCandidates: slotCandidatesOf(extensions),
     hushes: keyed('hush', extensions, (e) => e.hushes ?? [], (h) => h.id),
     readsTwoHands: extensions.flatMap((e) => (e.readsTwoHands ? [e.readsTwoHands] : [])),
-    prefersHand: extensions.flatMap((e) => (e.prefersHand ? [e.prefersHand] : [])),
+    prefersHand: extensions.flatMap((e) => (e.prefersHand ? [{ extension: e.id, branches: (e.branches ?? []).filter((b) => b.hands === 1).map((b) => b.id), prefers: e.prefersHand }] : [])),
   };
 }
 

@@ -4,10 +4,11 @@
  * (`stepHandPreference`) decides each frame's count from the previous frame's output, as
  * `webcam-hands` asks the `handCount` resource before it offers a frame.
  *
- * The simulation is the behaviour #480 measured, not MediaPipe: told to look for one hand with two
- * in view it holds the hand it tracks (the nearest to where it was, within `gate` frame heights)
- * and, with probability `switchPerFrame` a frame, loses it and takes whichever it finds (on the
- * conducting clip it switched about every second); told to look for two it returns every hand.
+ * The simulation is the behaviour #480 measured, not MediaPipe: told to look for one hand it holds
+ * the hand it tracks, also when a second one enters (the nearest to where it was, within `gate`
+ * frame heights), forgets it only when the count changes, and, with probability `switchPerFrame` a
+ * frame, loses it and takes whichever it finds (on the conducting clip it switched about every
+ * second); told to look for two it returns every hand.
  * So the numbers say what the rule does to which hand a reader gets, not what MediaPipe costs.
  *
  * Pure: frames in, numbers out (the CLI, `prefer_hand.ts`, loads the fixtures).
@@ -50,11 +51,12 @@ export function createOneHandLandmarker(options: Partial<OneHandLandmarkerOption
   const o = { ...ONE_HAND_LANDMARKER_DEFAULTS, ...options };
   const rand = seeded(o.seed);
   let tracked: { x: number; y: number } | null = null;
+  let configured: HandCount | null = null;
   return (frame, count) => {
-    if (count >= frame.hands.length) {
-      tracked = null; // it tracks them all; looking for one again, it takes whichever it finds
-      return [...frame.hands];
-    }
+    // A new count (`setOptions`) rebuilds the graph: whatever it tracked is forgotten. Otherwise a
+    // hand tracked alone stays tracked when a second one enters.
+    if (count !== configured) [configured, tracked] = [count, null];
+    if (count >= 2) return frame.hands.slice(0, count);
     let pick: Hand | undefined;
     if (tracked && rand() >= o.switchPerFrame) {
       let best = o.gate * frame.height;

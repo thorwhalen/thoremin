@@ -146,11 +146,13 @@ describe('the probe reaches every pure contribution point', () => {
     expect(liveHandCount({ ...base, probe: { enabled: false, freq: 1500 } } as never, new Set(), null)).toBe(2);
   });
 
-  it('prefersHand (#784): the probe below 200 Hz wants the higher hand, folded into the live preference', async () => {
+  it('prefersHand (#784): the probe below 200 Hz wants the higher hand, counted only while its one-hand branch is composed', async () => {
     const { liveHandPreference } = await import('@/app/engine/liveApply');
     const state = app.store.useControls.getState();
-    expect(liveHandPreference({ ...state, probe: { enabled: false, freq: 440 } } as never)).toBeUndefined();
-    expect(liveHandPreference({ ...state, probe: { enabled: false, freq: 100 } } as never)).toEqual({ kind: 'higher' });
+    expect(liveHandPreference({ ...state, probe: { enabled: true, freq: 440 } } as never, new Set())).toBeUndefined();
+    expect(liveHandPreference({ ...state, probe: { enabled: true, freq: 100 } } as never, new Set())).toEqual({ kind: 'higher' });
+    // Off, its branch is not composed: the preference it still states is ignored.
+    expect(liveHandPreference({ ...state, probe: { enabled: false, freq: 100 } } as never, new Set())).toBeUndefined();
   });
 
   it('demands (#600 S17): a claim on a group the probe\'s branch declares composes it, and the probe\'s derive is told', () => {
