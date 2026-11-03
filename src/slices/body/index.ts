@@ -58,6 +58,8 @@ export const bodySource = defineBranch({
   ],
   overlay: ['bodySkeleton'],
   demands: [...BODY_GROUP_IDS],
+  // The body model reads the camera's video (#869): composing this branch opens the camera.
+  camera: true,
 });
 
 export const bodyRoute = defineBranch({

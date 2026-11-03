@@ -37,6 +37,7 @@ const CANDIDATE_SOURCES: Record<string, string> = {
   'webcam-hands': 'src/nodes/sources/webcam_hands.ts',
   'synthetic-hands': 'src/nodes/sources/synthetic_hands.ts',
   'replay-hands': 'src/nodes/sources/replay_hands.ts',
+  'no-hands': 'src/nodes/sources/no_hands.ts',
 };
 
 describe('the source slot contract', () => {

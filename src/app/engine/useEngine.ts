@@ -24,7 +24,7 @@ import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { createAppRegistry } from '@/host/appRegistry';
 import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
-import { slotSelectionKey, sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '../graph';
+import { slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';
@@ -44,7 +44,8 @@ import { useTimingStatus, makeTimingReporter } from '../timing/timingStatus';
 import { makeStatusSinks, statusHooks } from '../host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
-import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount } from './liveApply';
+import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount, liveReadsCamera } from './liveApply';
+import { useToasts } from '../shell/toasts';
 import { useGestureStatus, makeGestureReporter } from '../gestures/gestureStatus';
 import { createGestureDispatcher } from '../gestures/gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
@@ -64,6 +65,41 @@ export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error';
  * camera keeps its original settle behavior.
  */
 const VIDEO_LOAD_TIMEOUT_MS = 15000;
+
+/** How long (ms) the "could not open the camera" toast stays up when an instrument switched to
+ *  one that reads it (#869). */
+const CAMERA_FAILURE_TOAST_MS = 8000;
+
+/**
+ * Resolve once `video` has its metadata (and start it playing), reject on an element error.
+ * A file clip (`fileUrl`) also rejects after {@link VIDEO_LOAD_TIMEOUT_MS}: a URL that returns 200
+ * but never delivers a playable stream fires neither event. The camera keeps its original
+ * "settle only on metadata" behaviour.
+ */
+function videoReady(video: HTMLVideoElement, fileUrl: string | null): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = fileUrl !== null ? setTimeout(() => reject(new Error(`Timed out loading video source: ${fileUrl}`)), VIDEO_LOAD_TIMEOUT_MS) : null;
+    video.onloadedmetadata = () => {
+      if (timer) clearTimeout(timer);
+      void video.play();
+      resolve();
+    };
+    // A bad clip URL (decode/CORS failure) surfaces as an error instead of hanging; onerror
+    // covers *errors*, the timer above covers *stalls*. The camera path effectively never fires.
+    video.onerror = () => {
+      if (timer) clearTimeout(timer);
+      reject(new Error(fileUrl !== null ? `Could not load video source: ${fileUrl}` : 'Camera video element error'));
+    };
+  });
+}
+
+/** Size the overlay's drawing buffer to the video's native resolution, so it renders at full
+ *  sharpness (CSS object-cover scales it); landmarks normalise by the same dimensions. */
+function sizeCanvasTo(canvas: HTMLCanvasElement | null, video: HTMLVideoElement): void {
+  if (!canvas) return;
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 720;
+}
 
 /** The recording phase, re-exported from its owner for existing importers. */
 export type { RecordingPhase } from '../recording/useRecordingController';
@@ -132,11 +168,56 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const handCount = useControls((s) => liveHandCount(s, demanded));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
+  // Whether anything reads the camera (#869), from the same readers: an instrument that only
+  // listens never opens it, and a switch to one that reads it opens it then (`requestCamera`).
+  const readsCamera = useControls((s) => liveReadsCamera(s, demanded));
+  const readsCameraRef = useRef(readsCamera);
+  readsCameraRef.current = readsCamera;
+  // Whether a video is there for the hand source to read: a file clip, or the camera once opened.
+  // An opened camera stays open for the session, so browsing instruments never asks again or
+  // reloads the hand model.
+  const videoOpenRef = useRef(false);
+  // Opens the camera into the live engine's <video>; set by the build effect, which owns the
+  // stream; null before it runs and after teardown. `cameraOpeningRef` holds a request in flight.
+  const openCameraRef = useRef<(() => Promise<boolean>) | null>(null);
+  const cameraOpeningRef = useRef<Promise<void> | null>(null);
+  /** The slot selection the graph is composed with: the caller's, with the default hand source
+   *  idled while no video is there to read (`sourceSelectionFor`). */
+  const composedSlots = () => sourceSelectionFor(slotsRef.current, { video: videoOpenRef.current });
 
   /** Re-wire the LIVE engine onto the current slots and branch set (`./liveApply`). The refs
    *  are read when the graph is composed and committed, so every caller passes the same ones. */
   const rewire = (engine: Engine, registry: NodeRegistry) =>
-    applyLive(engine, { selection: () => slotsRef.current, registry, live: () => engineRef.current, onRemoved: resetStatusesOf });
+    applyLive(engine, { selection: composedSlots, registry, live: () => engineRef.current, onRemoved: resetStatusesOf });
+
+  /**
+   * Open the camera when something reads it, the source slot is the camera's and it is not open
+   * yet, then re-wire so the hand source swaps in (#869). The engine keeps playing throughout; a
+   * camera that cannot open (refused, absent) is said in a toast and the instrument plays on
+   * without it, asking again the next time a reader appears.
+   */
+  const requestCamera = () => {
+    const open = openCameraRef.current;
+    const engine = engineRef.current;
+    const registry = registryRef.current;
+    if (!open || !engine || !registry || videoOpenRef.current || cameraOpeningRef.current) return;
+    if (!readsCameraRef.current || !sourceNeedsVideo(slotsRef.current, registry)) return;
+    cameraOpeningRef.current = open()
+      .then((opened) => {
+        if (!opened || engineRef.current !== engine) return;
+        videoOpenRef.current = true;
+        rewire(engine, registry);
+      })
+      .catch((e: unknown) => {
+        if (engineRef.current !== engine) return;
+        console.error('[thoremin] could not open the camera', e);
+        const why = e instanceof Error ? e.message : String(e);
+        useToasts.getState().push(`Could not open the camera (${why}). This instrument reads it; it plays on without it.`, CAMERA_FAILURE_TOAST_MS, 'error');
+      })
+      .finally(() => {
+        cameraOpeningRef.current = null;
+      });
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -165,14 +246,43 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         registryRef.current = registry;
         // A restored instrument that plays a lazy extension: start fetching its code now, beside
         // the camera and the hand model; the build below awaits the same (shared) load.
-        const prefetch = registry.pending(liveGraph(slotsRef.current, registry).spec.nodes.map((n) => n.type));
+        const prefetch = registry.pending(liveGraph(composedSlots(), registry).spec.nodes.map((n) => n.type));
         if (prefetch.length) void ensureLazyTypes(registry, prefetch).catch(() => undefined);
-        const needsVideo = sourceNeedsVideo(slotsRef.current, registry);
-        if (!needsVideo && source.kind === 'camera') {
+        // The camera, into the <video>: at boot when the instrument reads it, later (through
+        // `requestCamera`) when a switch makes something read it (#869). The stream is held in
+        // this run's `stream`, so cleanup stops whichever this run opened.
+        const openCamera = async (): Promise<boolean> => {
+          // 1280x720 16:9 at up to 60 fps, the front camera: why each, in
+          // `camera.ts` (#240). All `ideal` soft constraints: the camera returns the
+          // closest mode it supports and never fails.
+          const opened = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(), audio: false });
+          if (disposed) {
+            // Cleanup already ran (it did not see this stream), so stop it here.
+            opened.getTracks().forEach((t) => t.stop());
+            return false;
+          }
+          stream = opened;
+          video.srcObject = opened;
+          // Expose the raw camera stream for the pure-webcam recording stream (#88).
+          cameraStreamRef.current = opened;
+          await videoReady(video, null);
+          if (disposed) return false; // cleanup stops the stream
+          sizeCanvasTo(canvasRef.current, video);
+          // At boot the timing resource does not exist yet; it notes the stream when it does.
+          timing?.noteCamera(opened);
+          return true;
+        };
+        if (source.kind === 'camera') openCameraRef.current = openCamera;
+        // Whether to open it now: nothing to open for a finished-frame source (replay /
+        // synthetic produce their own frames), and nothing to open for an instrument whose
+        // branches and shell readers read no camera stream (a listening game).
+        const needsVideo = source.kind === 'camera' && sourceNeedsVideo(slotsRef.current, registry) && readsCameraRef.current;
+        if (source.kind === 'camera' && !needsVideo) {
           // Camera-free: leave the <video> element empty. Every reader of
           // `resources.video` guards on `readyState` (the overlay backdrop skips
           // the draw; the face branch never downloads its model without frames),
-          // so nothing needs to know the difference.
+          // and the default hand source gives way to `no-hands` while no video is
+          // there (`composedSlots`), so nothing needs to know the difference.
         } else if (source.kind === 'video') {
           // Camera-free (Stream Applier M-A): play a pre-recorded clip into the
           // same <video> the webcam would fill, so the overlays + palette run
@@ -192,62 +302,14 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           video.loop = true;
           video.muted = true;
           video.src = source.url;
-        } else {
-          // 1280x720 16:9 at up to 60 fps, the front camera: why each, in
-          // `camera.ts` (#240). All `ideal` soft constraints: the camera returns the
-          // closest mode it supports and never fails.
-          stream = await navigator.mediaDevices.getUserMedia({ video: cameraConstraints(), audio: false });
-          if (disposed) {
-            // Cleanup already ran (it saw stream === null), so stop it here.
-            stream.getTracks().forEach((t) => t.stop());
-            return;
-          }
-          video.srcObject = stream;
-          // Expose the raw camera stream for the pure-webcam recording stream (#88).
-          cameraStreamRef.current = stream;
+          await videoReady(video, source.url);
+        } else if (!(await openCamera())) {
+          return; // torn down while the camera opened: cleanup or `openCamera` stopped it
         }
-        // Nothing to wait for when there is no media: skip straight to building.
-        if (needsVideo || source.kind === 'video') await new Promise<void>((resolve, reject) => {
-          // File path only: a stalling clip fires neither event, so bound the
-          // wait and surface a timeout. The camera path (timer === null) keeps
-          // its original "settle only on metadata" behavior.
-          const timer =
-            source.kind === 'video'
-              ? setTimeout(
-                  () => reject(new Error(`Timed out loading video source: ${source.url}`)),
-                  VIDEO_LOAD_TIMEOUT_MS,
-                )
-              : null;
-          video.onloadedmetadata = () => {
-            if (timer) clearTimeout(timer);
-            void video.play();
-            resolve();
-          };
-          // A bad clip URL (decode/CORS failure) surfaces as an error instead of
-          // hanging; onerror covers *errors*, the timer above covers *stalls*.
-          // The camera path effectively never fires either.
-          video.onerror = () => {
-            if (timer) clearTimeout(timer);
-            reject(
-              new Error(
-                source.kind === 'video'
-                  ? `Could not load video source: ${source.url}`
-                  : 'Camera video element error',
-              ),
-            );
-          };
-        });
+        videoOpenRef.current = source.kind === 'video' || stream !== null;
         if (disposed) return; // cleanup stops the stream / releases the clip
 
-        // Size the canvas drawing buffer to the camera's native resolution so
-        // the overlay renders at full sharpness (CSS object-cover then scales it
-        // to fill the viewport). Landmarks normalize by the same video dims, so
-        // the overlay stays aligned at any resolution.
-        const canvas = canvasRef.current;
-        if (canvas) {
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-        }
+        sizeCanvasTo(canvasRef.current, video);
 
         const resources = resourcesRef.current;
         resources.video = video;
@@ -288,7 +350,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         let builtBranchKey = currentBranchKey();
         // A lazy extension the restored instrument plays is loaded (prefetched above) before the
         // engine is built; its failure only leaves it out: never a dead start.
-        const live = await composeLoaded(lazyDeps(() => slotsRef.current, registry, () => !disposed));
+        const live = await composeLoaded(lazyDeps(composedSlots, registry, () => !disposed));
         if (disposed || live === null) return;
         // The first graph has no predecessor, so its element set is written at once.
         useControls.getState().setGraphElements(live.elements);
@@ -336,6 +398,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           builtBranchKey = currentBranchKey();
           rewire(engine, registry);
         }
+        // Something may have come to read the camera during the model load (an instrument
+        // picked, a tool opened), while `requestCamera` had no engine to swap a source into.
+        requestCamera();
 
         // Bridge the face model's status + classified expression from the DAG
         // back to React for the indicator/readout (#65), throttled; a transition into
@@ -448,6 +513,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       frameHold?.dispose();
       frameHold = null;
       releaseTake();
+      openCameraRef.current = null;
+      videoOpenRef.current = false;
       cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
       // Symmetric to stopping camera tracks: pause a file clip so an aborted
@@ -484,7 +551,15 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
     const registry = registryRef.current;
     if (!engine || !registry) return;
     rewire(engine, registry);
+    // A selection back to the camera's source (a replay ended) may now need it opened.
+    requestCamera();
   }, [slotsKey]);
+
+  // Open the camera when something comes to read it (#869): an instrument switch, a dial, a tool.
+  // On mount this finds no engine yet and no-ops; the build effect opens it at boot instead.
+  useEffect(() => {
+    if (readsCamera) requestCamera();
+  }, [readsCamera]);
 
   // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
   // turns a capability on or off, a tool's feature demand). Same mechanism as the slot

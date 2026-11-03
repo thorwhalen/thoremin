@@ -3243,6 +3243,26 @@
     "params": []
   },
   {
+    "type": "no-hands",
+    "title": "No Hands",
+    "description": "The hand source while the camera is closed: an instrument that reads no camera stream emits no hands, and loads no hand model.",
+    "roles": [
+      "source"
+    ],
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "hands",
+        "kind": "hands-frame"
+      },
+      {
+        "name": "status",
+        "kind": "hands-status"
+      }
+    ],
+    "params": []
+  },
+  {
     "type": "one-euro",
     "title": "One-Euro Filter",
     "description": "Adaptive jitter smoothing for a noisy control value (smooth at rest, responsive when fast).",

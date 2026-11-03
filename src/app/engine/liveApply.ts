@@ -16,6 +16,9 @@ import { ALL_BRANCHES, branchIdsFor, branchIdsWithout, composeInstrumentGraph, t
 import { branchSetKey } from '@/instruments/derive';
 import { branchClosureIds, type Composed } from '@/instruments/compose';
 import { deriveHandCount, parseHandsOverride, type HandCount } from '@/instruments/hands';
+import { deriveReadsCamera, type CameraReadContext } from '@/instruments/camera';
+import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
+import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
@@ -47,6 +50,26 @@ const BRANCH_BY_ID = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
 const HANDS_OVERRIDE: HandCount | null = typeof location === 'undefined' ? null : parseHandsOverride(location.search);
 
 /**
+ * The live readers of the camera streams: the composed branches (the trunk and every
+ * requirement in) and what the shell reads, as the store says now. One reading for the hand
+ * count (#325) and for whether the camera is read at all (#869), so the two never disagree on
+ * who reads.
+ */
+function liveReaders(controls: ReturnType<typeof useControls.getState>, demanded: DemandedGroups): { branches: GraphBranch[]; ctx: CameraReadContext } {
+  const ids = branchClosureIds([TRUNK_ID, ...liveBranchIds(controls, demanded)], ALL_BRANCHES);
+  return {
+    branches: ids.flatMap((id) => BRANCH_BY_ID.get(id) ?? []),
+    ctx: {
+      demanded,
+      gesturesEnabled: controls.gestures?.enabled,
+      skeletonShown: controls.overlay?.landmarks?.show,
+      videoShown: controls.overlay?.video?.show,
+      twoHandsRead: CONTRIBUTIONS.readsTwoHands.some((reads) => reads(controls as unknown as Readonly<Record<string, unknown>>)),
+    },
+  };
+}
+
+/**
  * How many hands the hand model should look for right now (#325): what the live branch set
  * (requirements included) and the shell's hand readers need, unless the page says
  * `?hands=`. Read by `webcam-hands` through the host's `handCount` resource.
@@ -57,16 +80,17 @@ export function liveHandCount(
   override: HandCount | null = HANDS_OVERRIDE,
 ): HandCount {
   if (override) return override;
-  const ids = branchClosureIds([TRUNK_ID, ...liveBranchIds(controls, demanded)], ALL_BRANCHES);
-  return deriveHandCount(
-    ids.flatMap((id) => BRANCH_BY_ID.get(id) ?? []),
-    {
-      demanded,
-      gesturesEnabled: controls.gestures?.enabled,
-      skeletonShown: controls.overlay?.landmarks?.show,
-      twoHandsRead: CONTRIBUTIONS.readsTwoHands.some((reads) => reads(controls as unknown as Readonly<Record<string, unknown>>)),
-    },
-  );
+  const { branches, ctx } = liveReaders(controls, demanded);
+  return deriveHandCount(branches, ctx);
+}
+
+/**
+ * Whether the live instrument or the shell reads the camera right now (#869): the host opens
+ * the camera when this turns true, and never for an instrument that only listens.
+ */
+export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): boolean {
+  const { branches, ctx } = liveReaders(controls, demanded);
+  return deriveReadsCamera(branches, ctx);
 }
 
 /** The live branch set as a key, for "did it change since the build?". */
