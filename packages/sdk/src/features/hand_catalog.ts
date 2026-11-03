@@ -168,27 +168,10 @@ const GROUP_INVARIANCE: Record<string, readonly Invariance[]> = {
   'hand.palm.orientation': ['scale', 'position'],
 };
 
-/**
- * Group-level rest-jitter ceilings (#913; `FeatureDef.restJitter`), in the group's own units.
- * Image positions (fractions of the frame): on the real conductor's hands (`real_hands_choir`) a
- * hand at rest moves 0.04 % of the frame per frame (median; 0.08 % at the 90th percentile), while
- * a deliberate sweep moves about 1 % (`video_hand_sweep`) and a wave of a tenth of the frame at
- * one cycle a second about 1.5 %. 0.3 % sits four times above rest and three times below motion.
- * Joint angles are not listed: at rest they jitter as much as a position moves in a sweep.
- */
-const GROUP_REST_JITTER: Record<string, number> = {
-  'hand.position.raw': 0.003,
-};
-
-/** Fill the group defaults (invariance, rest jitter) where the feature doesn't label itself. */
-function withGroupDefaults<T extends { group: string; invariantTo?: readonly Invariance[]; restJitter?: number }>(f: T): T {
-  const invariantTo = f.invariantTo ?? GROUP_INVARIANCE[f.group];
-  const restJitter = f.restJitter ?? GROUP_REST_JITTER[f.group];
-  return {
-    ...f,
-    ...(invariantTo !== undefined ? { invariantTo } : {}),
-    ...(restJitter !== undefined ? { restJitter } : {}),
-  };
+/** Fill a group-default invariance where the feature doesn't label itself. */
+function withGroupInvariance<T extends { group: string; invariantTo?: readonly Invariance[] }>(f: T): T {
+  if (f.invariantTo !== undefined || GROUP_INVARIANCE[f.group] === undefined) return f;
+  return { ...f, invariantTo: GROUP_INVARIANCE[f.group] };
 }
 
 function positionFeatures(): HandFeature[] {
@@ -539,7 +522,7 @@ export const HAND_SIDE_FEATURES: readonly HandFeature[] = [
   ...orientationFeatures(),
   ...wholeFeatures(),
   ...distanceFeatures(),
-].map(withGroupDefaults);
+].map(withGroupInvariance);
 
 /** Two-hand relational feature templates (keyed `hand.pair.*`). */
 export const HAND_PAIR_FEATURES: readonly PairFeature[] = pairFeatures();

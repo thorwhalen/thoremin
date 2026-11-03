@@ -120,9 +120,6 @@ export interface NoiseEstimator {
   isWarm(id: string): boolean;
   /** The features seen so far. */
   features(): string[];
-  /** Drop what is known of `id`, so its next frames warm it again from scratch (#913: a warm-up
-   *  learned from motion). The frame count is not rewound. */
-  forget(id: string): void;
   snapshot(): NoiseSnapshot;
   reset(): void;
 }
@@ -218,9 +215,6 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
       return !!s && s.n >= o.warmupFrames;
     },
     features: () => [...stats.keys()],
-    forget(id) {
-      stats.delete(id);
-    },
     snapshot() {
       const sigma: Record<string, number> = {};
       const range: Record<string, number> = {};
