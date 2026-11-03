@@ -299,6 +299,30 @@ describe('the live listener', () => {
     expect(listener.push({}, 1e9 + 1)).toBeNull();
   });
 
+  it('says it is warming (cannot hear yet) until its noise unit is learned, and again after a reset (#954)', () => {
+    const take = takeOf('wave', { seed: 5 });
+    const listener = createGestureListener(model);
+    expect(listener.warming()).toBe(false); // nothing read yet
+    const said = take.frames.map((f) => {
+      const fired = listener.push(f.v, f.t);
+      return { warming: listener.warming(), fired: fired !== null };
+    });
+    expect(said[0].warming).toBe(true);
+    const warmAt = said.findIndex((x) => !x.warming);
+    expect(warmAt).toBeGreaterThan(0);
+    // Warm before the first wave (the take rests first), and never cold again while it listens.
+    expect(take.frames[warmAt].t).toBeLessThan(take.waves[0].startMs);
+    expect(said.slice(warmAt).every((x) => !x.warming)).toBe(true);
+    // No fire while warming; a frame with no hand says nothing either way.
+    expect(said.slice(0, warmAt).some((x) => x.fired)).toBe(false);
+    listener.push(null, 1e9);
+    expect(listener.warming()).toBe(false);
+    listener.reset();
+    expect(listener.warming()).toBe(false);
+    listener.push(take.frames[0].v, 2e9);
+    expect(listener.warming()).toBe(true);
+  });
+
   it('runs the matcher it is given (the #755 seam)', () => {
     let made = 0;
     const listener = createGestureListener(model, {

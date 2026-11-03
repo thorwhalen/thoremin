@@ -4,7 +4,8 @@
  * categorizer, and its gestures are there, three clicks from a cold load, under the held
  * categories: each with its repetitions drawn, its quality chip, Record more, Merge, Delete; a
  * fourth (a name, then Record a gesture) starts a gesture take, which Cancel returns from. A
- * saved categorizer's gestures are listed for binding in the Gestures tool's "Your categories".
+ * saved categorizer's gestures are listed for binding in the Gestures tool's "Your categories",
+ * which says why nothing fires while the listener warms (#954).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react';
@@ -17,6 +18,9 @@ import { handSessionStore } from '@thoremin/ext-faces/app/handSession';
 import { createCategorizerStore } from '@thoremin/sdk-ui/enroll/categorizers';
 import CategoryBindings from '@/app/enroll/CategoryBindings';
 import { setSavedCategoriesStore, useCategoryBinding } from '@/app/enroll/categoryBinding';
+import { createCategoryDispatcher, resetCategoryLive } from '@/app/enroll/categoryDispatch';
+import { GESTURES_WARMING_TEXT } from '@/app/enroll/CategoryBindings';
+import { waveTake } from '../helpers/wave_take';
 import { FACES } from '../helpers/extensions';
 import { withRecordedGesture } from '../helpers/gesture_categorizer';
 import { dialsStore } from '@/app/dials/settingsStore';
@@ -87,6 +91,26 @@ describe.runIf(FACES)('the Gestures section is reachable from the shell', () => 
     }, WAIT);
     expect(within(row).getByText('wave')).toBeTruthy();
     expect(within(row).getByText('not made yet')).toBeTruthy();
+    setSavedCategoriesStore(null);
+  }, 60_000);
+
+  it('says why nothing fires while the listener warms (#954), and stops saying it once it hears', async () => {
+    setSavedCategoriesStore(null);
+    resetCategoryLive();
+    const record = await createCategorizerStore(handModality).save('Waves', { categorizer: withRecordedGesture() });
+    await useCategoryBinding.getState().load();
+    await useCategoryBinding.getState().activate(record.id);
+    // The dispatcher as the app runs it, on a resting hand: its first frame is the listener's first.
+    const frames = waveTake({ seed: 3, waves: 0, restMs: 3000 }).frames;
+    let i = 0;
+    const d = createCategoryDispatcher({ isPreviewing: () => true, isHushed: () => false, readVector: () => ({ vector: frames[i].v, t: frames[i].t }) });
+    d.tick(frames[0].t);
+    render(<CategoryBindings />);
+    await waitFor(() => expect(screen.getByText(GESTURES_WARMING_TEXT)).toBeTruthy(), WAIT);
+    // A second at rest: the noise unit is learned, and the cue goes.
+    for (i = 1; i < frames.length; i++) d.tick(frames[i].t);
+    await waitFor(() => expect(screen.queryByText(GESTURES_WARMING_TEXT)).toBeNull(), WAIT);
+    resetCategoryLive();
     setSavedCategoriesStore(null);
   }, 60_000);
 });

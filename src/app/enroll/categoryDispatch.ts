@@ -69,6 +69,9 @@ export interface CategoryLive {
   committed: string | null;
   /** How many times each gesture fired since its set became active (#754), by gesture id. */
   gestureFires: Readonly<Record<string, number>>;
+  /** True while the gesture listener cannot hear yet (#954: its noise unit warms on the first
+   *  frames of a set made active, or after a hush), so the panel can say why nothing fires. */
+  gesturesWarming: boolean;
 }
 
 let live: CategoryLive | null = null;
@@ -212,7 +215,7 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       // camera) keeps its stamp and is read once, never as a second, motionless frame.
       const fired = frame ? listener?.push(projected, frame.t) ?? null : null;
       if (fired) gestureFires = { ...gestureFires, [fired.gesture]: (gestureFires[fired.gesture] ?? 0) + 1 };
-      live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current(), gestureFires };
+      live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current(), gestureFires, gesturesWarming: listener?.warming() ?? false };
       // An entry that completes while binding is off (a preview) is spent, not deferred.
       if (step.entered && enabled) fire(set, step.entered, categoryName(set.categories.model, step.entered));
       // So is a gesture's fire.

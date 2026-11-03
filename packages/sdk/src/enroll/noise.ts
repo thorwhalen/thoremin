@@ -145,6 +145,16 @@ export interface NoiseEstimator {
   reset(): void;
 }
 
+/**
+ * Whether `noise` is still warming on `vector`: some of `features` is in view (finite) and its
+ * estimate is not warm yet. A cold feature has no noise unit, so nothing measured in its units (a
+ * gesture's repetition) can be judged until it warms (#913). What a session says as `warming()`
+ * while recording, and a gesture listener while listening (#954).
+ */
+export function warmingOn(noise: Pick<NoiseEstimator, 'isWarm'>, features: readonly string[], vector: FeatureVector): boolean {
+  return features.some((id) => Number.isFinite(vector[id]) && !noise.isWarm(id));
+}
+
 interface Stat {
   last: number;
   lastT: number;

@@ -47,7 +47,7 @@ import {
   weightsFromNuisance,
   weightsFromSelection,
 } from './invariance';
-import { applyWeights, createNoiseEstimator, scaleWeights, type FreshFilter, type NoiseEstimator, type NoiseOptions } from './noise';
+import { applyWeights, createNoiseEstimator, scaleWeights, warmingOn, type FreshFilter, type NoiseEstimator, type NoiseOptions } from './noise';
 import { createStillPointSampler, type SamplerOptions, type StillPointSampler } from './sampler';
 import { createMotionSegmenter, type MotionSegmenter } from './gestures/segmenter';
 import type { FeatureVector, FeatureWeights, StillPoint, Trace, TrainedModel } from './types';
@@ -310,7 +310,7 @@ export function createSession(options: SessionOptions = {}): Session {
         const p = sampler.push(vector, tMs);
         if (p) points.get(active.id)!.push(p);
       } else if (segmenter) {
-        warming = activeFeatures.some((id) => Number.isFinite(vector[id]) && !noise.isWarm(id));
+        warming = warmingOn(noise, activeFeatures, vector);
         const trace = segmenter.push(vector, tMs);
         if (trace) traces.get(active.id)!.push(trace);
         // Between repetitions the hand is at rest, and those frames are noise like any other:

@@ -19,6 +19,10 @@
  * - **No reading, no frame.** A frame carrying under `minPresent` of the matched features (the
  *   hand left the shot) is not pushed; the matcher's own gap rule then abandons a repetition
  *   under way, as a hole in a trace must.
+ * - **It says when it cannot hear yet** (`warming()`, #954): while a matched feature in view has
+ *   no warm noise unit (a fresh listener, the first frames after a reset or a hush, a warm-up
+ *   redone because it learned motion), no repetition can be judged, so nothing fires. A host shows
+ *   it, so a gesture made then is not simply lost without a word.
  * - **A refractory period** after a fire (`refractoryMs`, the matcher's default): the hand
  *   settling after a wave is not a second gesture. With `tolerance`, a device's live tuning,
  *   never in the file (design section 5), and with no pref yet (a follow-up with #755).
@@ -33,7 +37,7 @@
  * Pure: vectors and times in, fires out; no clock of its own.
  */
 import { hasReading } from '../bind';
-import { createNoiseEstimator, type NoiseEstimator, type NoiseOptions } from '../noise';
+import { createNoiseEstimator, warmingOn, type NoiseEstimator, type NoiseOptions } from '../noise';
 import type { FeatureVector } from '../types';
 import { restCeilingOf } from '../../features/catalog';
 import { definedOnly } from '../../util/options';
@@ -73,6 +77,10 @@ export interface GestureListener {
   reset(): void;
   /** Whether the frames are a gesture's now. */
   inGesture(): boolean;
+  /** Whether the last frame read found a matched feature with no warm noise unit yet: nothing
+   *  can fire until it warms (hold still). False before any frame, after a reset, and on a frame
+   *  with no reading. */
+  warming(): boolean;
 }
 
 const dtwMatcher: MatcherFactory = (model, o) => createDtwMatcher({ model, ...o });
@@ -83,17 +91,24 @@ export function createGestureListener(model: GestureModel, options: GestureListe
   const noise = options.noise ?? createNoiseEstimator({ ...options.noiseOptions, restCeiling: options.noiseOptions?.restCeiling ?? restCeilingOf });
   const matcher = (options.matcher ?? dtwMatcher)(model, { noise, tolerance: o.tolerance, refractoryMs: o.refractoryMs });
   const features = { features: [...model.series.features] };
+  let warming = false;
   return {
     push(vector, tMs) {
-      if (!hasReading(features, vector, o.minPresent)) return null;
+      if (!hasReading(features, vector, o.minPresent)) {
+        warming = false;
+        return null;
+      }
       const r = matcher.push(vector!, tMs);
       if (!matcher.inGesture()) noise.push(vector!, tMs);
+      warming = warmingOn(noise, features.features, vector!);
       return r.fired;
     },
     reset() {
       matcher.reset();
       noise.reset();
+      warming = false;
     },
     inGesture: () => matcher.inGesture(),
+    warming: () => warming,
   };
 }
