@@ -1,24 +1,15 @@
 /**
  * The physical theremin's live status as the engine loop reports it: whether each hand is on its
  * antenna, the note and hertz, the volume. Human-rate and change-gated (the note to the cent, the
- * volume to the percent), a zustand store the editor section reads.
+ * volume to the percent), a zustand store the editor section reads. The store, its reporter and the
+ * status hook are the shared readout store's (`@thoremin/sdk-ui/statusStore`, #969).
  */
-import { create } from 'zustand';
-import type { OutputReader } from '@thoremin/sdk-ui/types';
+import { createStatusStore, type StatusState } from '@thoremin/sdk-ui/statusStore';
 import { IDLE_PHYSICAL_THEREMIN_STATUS, type PhysicalThereminStatus } from '../nodes/physical_theremin';
 import { noteReadout } from '../nodes/overlay/antennas';
+import { PHYSICAL_THEREMIN_NODE_ID } from '..';
 
-export interface PhysicalThereminStatusState {
-  live: PhysicalThereminStatus;
-  report(live: PhysicalThereminStatus): void;
-  reset(): void;
-}
-
-export const usePhysicalThereminStatus = create<PhysicalThereminStatusState>((set) => ({
-  live: IDLE_PHYSICAL_THEREMIN_STATUS,
-  report: (live) => set({ live }),
-  reset: () => set({ live: IDLE_PHYSICAL_THEREMIN_STATUS }),
-}));
+export type PhysicalThereminStatusState = StatusState<PhysicalThereminStatus, 'live'>;
 
 /** What to tell the player, per state. */
 export function describeThereminLive(live: PhysicalThereminStatus): string {
@@ -29,17 +20,14 @@ export function describeThereminLive(live: PhysicalThereminStatus): string {
   return `${note}, ${live.hz?.toFixed(0)} Hz, volume ${Math.round(live.volume * 100)}%${live.vibrato > 0.5 ? ', vibrato' : ''}.`;
 }
 
+/** Quantise what the view shows (the note to the cent, the volume to the percent). */
 const liveKey = (l: PhysicalThereminStatus): string =>
   `${l.enabled ? 1 : 0}|${l.pitchHand ? 1 : 0}|${l.volumeHand ? 1 : 0}|${l.midi === null ? '-' : Math.round(l.midi * 100)}|${Math.round(l.volume * 100)}|${l.vibrato > 0.5 ? 1 : 0}|${l.sounding ? 1 : 0}`;
 
-export function makeThereminReporter(engine: OutputReader, nodeId: string, store: Pick<PhysicalThereminStatusState, 'report'> = usePhysicalThereminStatus.getState()): () => void {
-  let lastKey = '';
-  return () => {
-    const status = engine.getOutput(nodeId, 'status') as PhysicalThereminStatus | undefined;
-    if (!status) return;
-    const key = liveKey(status);
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(status);
-  };
-}
+/** The theremin's readout store, reporter and status hook. */
+export const THEREMIN_STATUS = createStatusStore(PHYSICAL_THEREMIN_NODE_ID, { absent: IDLE_PHYSICAL_THEREMIN_STATUS, keyOf: liveKey, field: 'live' });
+
+export const usePhysicalThereminStatus = THEREMIN_STATUS.useStatus;
+
+/** The per-frame sink over the theremin node (to this store by default). */
+export const makeThereminReporter = THEREMIN_STATUS.makeReporter;
