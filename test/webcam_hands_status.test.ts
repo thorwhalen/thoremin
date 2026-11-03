@@ -8,7 +8,7 @@
  * MediaPipe is mocked (the pattern of `webcam_hands_count.test.ts`), the Worker is a fake that
  * answers the real worker protocol, and frames are driven through the pump's animation frame.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NodeContext } from '@thoremin/dag';
 import type { FromWorker, ToWorker, WorkerLike } from '@/nodes/sources/hand_runner';
 
@@ -50,20 +50,22 @@ let saved: Record<string, unknown> = {};
 let frames: (() => void)[] = [];
 const video = { readyState: 4, videoWidth: 1280, videoHeight: 720, currentTime: 0 };
 const ctx = { tick: 0, time: 0, dt: 0, resources: {} } as unknown as NodeContext;
-/** The most turns of the event loop to wait for the node to reach a state (a loaded machine
- *  needs more than an idle one; a state that never comes fails the expectation after). */
-const MAX_TURNS = 500;
-/** Let promises, the module loader and zero-delay timers run until `reached()` (`setTimeout` is
- *  fake; the loader's dynamic import settles on a real turn of the event loop, hence `setImmediate`). */
-/** Turn the event loop until `reached` holds; throws if it never does, so a slow runner fails here
- *  with a clear message, never later on an assertion about a state that was still on its way. */
+/** How long, in REAL milliseconds, to wait for the node to reach a state. The slow step is the
+ *  loader's dynamic import, which takes real time (a loaded runner needs more), so the budget is a
+ *  deadline, not a count of turns: 500 turns pass in about a millisecond. `performance` is real
+ *  (only `setTimeout` / `clearTimeout` are faked). */
+const SETTLE_MS = 5_000;
+/** Let promises, the module loader and zero-delay timers run until `reached()` (the loader's dynamic
+ *  import settles on a real turn of the event loop, hence `setImmediate`); throws when the deadline
+ *  passes, so a slow runner fails here, saying what it waited for, never later on an assertion about
+ *  a state still on its way. */
 const settleUntil = async (reached: () => boolean, what = 'the expected state'): Promise<void> => {
-  for (let i = 0; i < MAX_TURNS; i++) {
-    if (reached()) return;
+  const end = performance.now() + SETTLE_MS;
+  while (!reached()) {
+    if (performance.now() > end) throw new Error(`never reached ${what} within ${SETTLE_MS} ms`);
     await vi.advanceTimersByTimeAsync(0);
     await new Promise((r) => setImmediate(r));
   }
-  if (!reached()) throw new Error(`never reached ${what} in ${MAX_TURNS} turns`);
 };
 
 /** One camera frame: the video advances, then the pump's animation frame runs. */
@@ -73,6 +75,11 @@ const step = (): void => {
   frames = [];
   for (const cb of due) cb();
 };
+
+// Resolve the tasks-vision module once, so the first main-thread load pays no module resolution.
+beforeAll(async () => {
+  await import('@mediapipe/tasks-vision');
+});
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -103,9 +110,9 @@ describe('webcam-hands when its hand model stops', () => {
       await node.init!({ ...ctx, resources: { video, [HAND_RUNNER_RESOURCE_KEY]: 'worker' } } as NodeContext);
       // Until the model lands the source says it is loading (#922), with no hand.
       expect(node.process({}, ctx)).toMatchObject({ status: HANDS_STATUS.loading, hands: { hands: [] } });
-      await settleUntil(() => node.process({}, ctx).status !== HANDS_STATUS.loading);
+      await settleUntil(() => node.process({}, ctx).status !== HANDS_STATUS.loading, 'the worker loaded');
       step();
-      await settleUntil(() => out().hands.hands.length > 0);
+      await settleUntil(() => out().hands.hands.length > 0, 'a hand inferred');
       const before = out();
       expect(before.hands.hands).toHaveLength(1);
       expect(before.status).toBe(HANDS_STATUS.active);
@@ -114,14 +121,14 @@ describe('webcam-hands when its hand model stops', () => {
       let rejectLoad: (e: Error) => void = () => {};
       createFromOptions.mockImplementation(() => new Promise((_, reject) => (rejectLoad = reject)));
       FakeWorker.last!.onerror!(new Event('error'));
-      await settleUntil(() => createFromOptions.mock.calls.length > 0);
+      await settleUntil(() => createFromOptions.mock.calls.length > 0, 'the main-thread replacement asked for');
       const replacing = out();
       expect(replacing.status).toBe(HANDS_STATUS.replacing);
       expect(replacing.hands.hands).toEqual([]);
 
       createFromOptions.mockRejectedValue(new Error('offline'));
       rejectLoad(new Error('offline'));
-      await settleUntil(() => out().status === HANDS_STATUS.retrying);
+      await settleUntil(() => out().status === HANDS_STATUS.retrying, HANDS_STATUS.retrying.message);
       const retrying = out();
       expect(retrying.status).toBe(HANDS_STATUS.retrying);
       expect(retrying.status).not.toMatchObject({ message: expect.stringContaining('main thread') });
@@ -140,6 +147,11 @@ describe('webcam-hands when its hand model stops', () => {
       const failed = out();
       expect(failed.status).toBe(HANDS_STATUS.failed);
       expect(failed.hands.hands).toEqual([]);
+      // Failed is for good: no load is asked for after it.
+      const loadsAtFailure = createFromOptions.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(2 * MAIN_REPLACEMENT_RETRY_MS);
+      await settleUntil(() => true);
+      expect(createFromOptions).toHaveBeenCalledTimes(loadsAtFailure);
       node.dispose!();
     } finally {
       quiet.forEach((s) => s.mockRestore());
