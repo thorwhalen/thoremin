@@ -23,13 +23,16 @@
  * the follower keeps its lock across a missed detection and starts over by itself after
  * half a window without one, so a dancer who steps out and back does not carry a stale
  * tempo. A frame that is the same object as last tick (the engine ticking faster than
- * inference) is not a new sample. Time is the frame's capture stamp where it shares the engine's base
- * (`frameTime`), else the tick.
+ * inference) is not a new sample, and neither is a copy carrying the same capture stamp
+ * (`isFreshFrame`, #973): a recording written on every tick holds each camera frame on
+ * several lines, each parsed into its own object, and fed as new samples those copies
+ * turn the stride into a staircase at the tick rate. Time is the frame's capture stamp
+ * where it shares the engine's base (`frameTime`), else the tick.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { createPulseFollower, createPulseSelector, PULSE_DEFAULTS, PULSE_TRUSTED_CONFIDENCE, RHYTHM_PRIOR_KINDS, UNKNOWN_PULSE, type PulseFollower, type PulseState } from '@thoremin/ictus';
-import { BLM, type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { BLM, isFreshFrame, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 
 export const PULSE_CHANNELS = ['stride', 'head', 'hip', 'sway', 'yaw', 'trunk'] as const;
@@ -195,7 +198,7 @@ export const bodyPulseNode = defineNode<Params>({
           last = feedAll(ctx.time, () => NaN);
           return { pulse: last, channel: lastChannel };
         }
-        if (frame === lastFrame) return { pulse: last, channel: lastChannel };
+        if (!isFreshFrame(lastFrame, frame)) return { pulse: last, channel: lastChannel };
         lastFrame = frame;
         last = feedAll(captureTime(frame, ctx), (c) => {
           const v = pulseChannelValue(frame, c, p.minVisibility);
