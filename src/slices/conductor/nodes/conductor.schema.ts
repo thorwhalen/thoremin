@@ -201,6 +201,9 @@ const Params = z.object({
   /** Oscillator gains (build-time; see the header). */
   phaseGain: z.number().min(0).max(1).default(0.5),
   periodGain: z.number().min(0).max(1).default(0.4),
+  /** Let the struck instruments (air drum, bass, guitar, the chord map's strum) sound while a piece is conducted (#719):
+   *  off, they are hushed with the other voices, since conducting motions strike them too. */
+  strikesAlong: z.boolean().default(false),
 });
 type Params = z.infer<typeof Params>;
 

@@ -105,6 +105,19 @@ describe.runIf(CONDUCTOR)('Conductor: the tempo sense (prior) and the orchestra'
     expect(conductor().hudOnVideo.show).toBe(true);
   });
 
+  it('"let the struck instruments sound along" is off by default; its toggle writes conductor.strikesAlong (#719)', async () => {
+    render(<ConductorControls />);
+    const along = screen.getByLabelText('Let the struck instruments sound along') as HTMLInputElement;
+    expect(along.checked).toBe(false);
+    fireEvent.click(along);
+    await drain();
+    expect(conductor().strikesAlong).toBe(true);
+    expect(useControls.getState().conductor.strikesAlong).toBe(true);
+    fireEvent.click(along);
+    await drain();
+    expect(conductor().strikesAlong).toBe(false);
+  });
+
   it('the orchestra toggle shows its levels; the volume and a section level write the dial and the hot store', async () => {
     render(<ConductorControls />);
     expect(screen.queryByTestId('orchestra-volume')).toBeNull();

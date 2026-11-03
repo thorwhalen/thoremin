@@ -411,6 +411,7 @@
     "ritardRatio": 0.35,
     "servoBeats": 1,
     "source": "hands",
+    "strikesAlong": false,
     "tempoPrior": "none",
     "transport": {
       "droppedBelow": 0.2,
