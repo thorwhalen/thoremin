@@ -24,14 +24,17 @@ export const CAMERA_APP_CONTROLS_KEY = 'thoremin-controls';
 
 type CameraControls = { state?: { gamesPrefs?: Record<string, unknown> } };
 const CAMERA_APP = stored<CameraControls>(CAMERA_APP_CONTROLS_KEY, (v): v is CameraControls => typeof v === 'object' && v !== null);
-const finiteOr = (x: unknown, fallback: number | null) => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
+/** The sources of a measured offset, and its bound: the camera app's `gamesPrefs` schema (a page
+ *  never imports the slice, and a slice this build does not list is carried, never healed). */
+const MEASURED_SOURCES: readonly unknown[] = ['tap', 'loopback'];
+const MAX_OFFSET_S = 0.5;
+const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 
-/** The camera app's measured offset (its `gamesPrefs`, from a take: `source` other than `none`). */
+/** The camera app's measured offset (its `gamesPrefs`, from a take), or null. */
 export function cameraAppOffset(): StoredOffset | null {
   const p = CAMERA_APP.read()?.state?.gamesPrefs;
-  const offset = finiteOr(p?.offset, null);
-  if (!p || !p.source || p.source === 'none' || offset === null) return null;
-  return { offset, spread: finiteOr(p.spread, 0)!, at: typeof p.measuredAt === 'string' ? p.measuredAt : '' };
+  if (!p || !MEASURED_SOURCES.includes(p.source) || !finite(p.offset) || Math.abs(p.offset) > MAX_OFFSET_S) return null;
+  return { offset: p.offset, spread: finite(p.spread) ? p.spread : 0, at: typeof p.measuredAt === 'string' ? p.measuredAt : '' };
 }
 
 /** This page's offset; with none yet, the camera app's, adopted once (written as this page's). */
