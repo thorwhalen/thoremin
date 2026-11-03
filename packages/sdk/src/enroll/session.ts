@@ -35,7 +35,7 @@
  * Nothing here touches React, the DAG, MediaPipe or audio. The host pushes feature
  * vectors in and reads a model out.
  */
-import { ALL_FEATURES, FEATURE_BY_ID } from '../features/catalog';
+import { ALL_FEATURES, FEATURE_BY_ID, restCeilingOf } from '../features/catalog';
 import { buildHierarchy, cutAt, suggestK, type Hierarchy } from './cluster';
 import { trainModel } from './classify';
 import { cueFeatures, routineFeatures, samplingFor, type Cue } from './cue';
@@ -60,7 +60,8 @@ export interface SessionOptions {
   useDeclaredInvariance?: boolean;
   /** Passed through to every still-point sampler (dwell, held threshold, …). */
   sampler?: Omit<SamplerOptions, 'cue' | 'features' | 'noise'>;
-  /** The noise estimator's options. */
+  /** The noise estimator's options. Its `restCeiling` defaults to the catalog's (`restCeilingOf`,
+   *  #913: a hand's image positions); pass one that returns undefined to judge no warm-up. */
   noise?: NoiseOptions;
   /**
    * Nuisance weighting scale, in noise units: the demonstrated spread at which a
@@ -112,6 +113,10 @@ export interface Session {
   moved(): boolean;
   /** Whether the vector is currently held (the active sampler is in a dwell). */
   settling(): boolean;
+  /** True while the active GESTURE cue cannot judge a repetition (#913): an attended feature in
+   *  view has no noise unit yet (it just came into view, or its warm-up was judged to be motion
+   *  and is being done again). What a "hold still" nudge reads. False in any other cue. */
+  warming(): boolean;
   /** Whether the active sampler would emit a held pose (false right after one, until the
    *  player moves; false when idle). With `settling`, what a hold indicator shows. */
   armed(): boolean;
@@ -171,7 +176,7 @@ function meanOf(vectors: readonly FeatureVector[]): FeatureVector | undefined {
 
 export function createSession(options: SessionOptions = {}): Session {
   const o = { ...DEFAULTS, ...definedOnly(options) };
-  const noise = createNoiseEstimator(o.noise);
+  const noise = createNoiseEstimator({ restCeiling: restCeilingOf, ...o.noise });
   const groupOf = o.groupOf ?? defaultGroupOf;
   const allIds = o.allFeatureIds ?? defaultFeatureIds();
 
@@ -188,6 +193,8 @@ export function createSession(options: SessionOptions = {}): Session {
   let activeFeatures: string[] = [];
   let sampler: StillPointSampler | null = null;
   let segmenter: MotionSegmenter | null = null;
+  /** Whether the last frame of the active gesture cue showed an attended feature cold (#913). */
+  let warming = false;
   /** The last frame the active cue sampled. */
   let lastInCue: { v: FeatureVector; t: number } | null = null;
   /**
@@ -228,6 +235,7 @@ export function createSession(options: SessionOptions = {}): Session {
       active = cue;
       cuesSeen.set(cue.id, cue);
       activeFeatures = featuresFor(cue);
+      warming = false;
       points.delete(cue.id);
       frames.delete(cue.id);
       traces.delete(cue.id);
@@ -300,6 +308,7 @@ export function createSession(options: SessionOptions = {}): Session {
         const p = sampler.push(vector, tMs);
         if (p) points.get(active.id)!.push(p);
       } else if (segmenter) {
+        warming = activeFeatures.some((id) => Number.isFinite(vector[id]) && !noise.isWarm(id));
         const trace = segmenter.push(vector, tMs);
         if (trace) traces.get(active.id)!.push(trace);
         // Between repetitions the hand is at rest, and those frames are noise like any other:
@@ -321,6 +330,7 @@ export function createSession(options: SessionOptions = {}): Session {
       sampler = null;
       segmenter = null;
       activeFeatures = [];
+      warming = false;
     },
 
     addPoint(point) {
@@ -340,6 +350,7 @@ export function createSession(options: SessionOptions = {}): Session {
     baseline: () => meanOf(framesWhere('baseline')),
     moved: () => (sampler ?? segmenter)?.hasMoved() ?? false,
     settling: () => sampler?.isSettling() ?? false,
+    warming: () => (segmenter ? warming : false),
     armed: () => sampler?.isArmed() ?? false,
     built: () => hierarchy.size > 0 && hierarchy.size === vocabulary().length,
     sigma: (id) => noise.sigma(id),
@@ -440,6 +451,7 @@ export function createSession(options: SessionOptions = {}): Session {
       activeFeatures = [];
       sampler = null;
       segmenter = null;
+      warming = false;
       lastInCue = null;
       idle = null;
       lastIdle = null;

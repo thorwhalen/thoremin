@@ -43,7 +43,11 @@
  * held — so the sampler refuses to judge a feature until {@link NoiseEstimator.isWarm}.
  * A routine is data and need not start with a rest cue; this is what keeps that from
  * mattering for held poses. Not for a gesture: a hand first seen mid-wave warms on the
- * wave itself, so a gesture routine rests first (`gestures/rest.ts`, #857).
+ * wave itself, so a gesture routine rests first (`gestures/rest.ts`, #857), and a warm-up can
+ * be JUDGED when it completes (#913): given a `restCeiling` for a feature, a warm-up whose
+ * median ends above it was motion, not rest, so the feature goes cold and warms again, at most
+ * `maxRewarms` times (then the lowest warm-up seen is kept: a false alarm costs a second or
+ * two, never a feature that cannot warm).
  *
  * The clip and time constant are chosen together against one scenario: three seconds
  * of continuous motion (a player sweeping around looking for a face) must not leave
@@ -89,9 +93,17 @@ export interface NoiseOptions {
    * estimate (normalised by the gap it reads near zero) and take `tauMs` to recover.
    */
   maxGapMs?: number;
+  /**
+   * A feature's rest-jitter ceiling for the frame that completes its warm-up (#913), in its own
+   * units: above it, the warm-up was motion and is done again. Undefined (or NaN) = not judged.
+   * Default: none (every warm-up is kept, as before).
+   */
+  restCeiling?: (id: string, vector: FeatureVector) => number | undefined;
+  /** Warm-ups a feature may redo before the lowest one seen is kept (#913). */
+  maxRewarms?: number;
 }
 
-const DEFAULTS = { tauMs: 10000, clip: 2, rangeFloor: 0.01, warmupFrames: 30, maxGapMs: 500 };
+const DEFAULTS = { tauMs: 10000, clip: 2, rangeFloor: 0.01, warmupFrames: 30, maxGapMs: 500, maxRewarms: 2 };
 /** The estimator's defaults (a caller applying {@link effectiveSigma} to a unit of its own uses its `rangeFloor`). */
 export const NOISE_DEFAULTS: Readonly<typeof DEFAULTS> = DEFAULTS;
 
@@ -132,6 +144,9 @@ interface Stat {
   n: number;
   /** The warm-up differences (kept only until warm; the estimate is their median). */
   warm: number[];
+  /** Warm-ups redone because they ended above the rest ceiling (#913), and the lowest of them. */
+  rewarms: number;
+  best: number;
   lo: number;
   hi: number;
   /** Smallest non-zero per-frame step seen; Infinity until one is. */
@@ -156,6 +171,20 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
   const stats = new Map<string, Stat>();
   let frames = 0;
 
+  /** #913: a warm-up whose median (the raw estimate, before the floors) ends above the feature's
+   *  rest ceiling was motion: the feature goes cold and warms again, up to `maxRewarms` times,
+   *  after which the lowest warm-up seen stands. */
+  const judgeWarmup = (id: string, s: Stat, vector: FeatureVector): void => {
+    const ceiling = o.restCeiling?.(id, vector);
+    if (ceiling === undefined || !(s.sigma > ceiling)) return;
+    s.best = Math.min(s.best, s.sigma);
+    if (s.rewarms < o.maxRewarms) {
+      s.rewarms += 1;
+      s.n = 0;
+      s.sigma = 0;
+    } else s.sigma = s.best;
+  };
+
   return {
     push(vector, tMs) {
       let advanced = false;
@@ -164,7 +193,7 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
         if (!Number.isFinite(x)) continue;
         const s = stats.get(id);
         if (!s) {
-          stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, warm: [], lo: x, hi: x, step: Infinity });
+          stats.set(id, { last: x, lastT: tMs, sigma: 0, n: 0, warm: [], rewarms: 0, best: Infinity, lo: x, hi: x, step: Infinity });
           advanced = true;
           continue;
         }
@@ -193,7 +222,10 @@ export function createNoiseEstimator(options: NoiseOptions = {}): NoiseEstimator
         if (s.n <= o.warmupFrames) {
           s.warm.push(perFrame);
           s.sigma = median(s.warm);
-          if (s.n === o.warmupFrames) s.warm = [];
+          if (s.n === o.warmupFrames) {
+            s.warm = [];
+            judgeWarmup(id, s, vector);
+          }
           continue;
         }
         // Clip against the RAW estimate, not the range-floored one: the floor grows

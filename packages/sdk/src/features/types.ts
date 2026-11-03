@@ -85,6 +85,13 @@ export interface FeatureDef<Ctx> {
    *  a line; for glitch-free MUSICAL control, derive `sin(...)`/`cos(...)` of the
    *  angle in a Lab formula (both helpers ship in DEFAULT_HELPERS). */
   circular?: boolean;
+  /**
+   * The largest frame-to-frame jitter this feature shows while its part is held still, as a
+   * fraction of the PART'S OWN SIZE in the frame (a hand's extent for a hand's image position;
+   * the catalog turns it into the feature's units per vector, `restCeilingOf`). A noise warm-up
+   * above it was motion, not rest (#913). Absent = not judged.
+   */
+  restJitter?: number;
   controllability?: Controllability;
   /** One-line human description (surfaced in the catalog manual + lab tooltips). */
   description?: string;

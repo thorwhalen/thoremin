@@ -4,7 +4,7 @@
  *
  * The routine helpers are pinned on small routines; then the reason they exist, end to end: a
  * player who waves 200 ms after being asked loses waves when the gesture cue opens the routine
- * (fewer since the session forgets a warm-up learned from the wave, #913), and yields all five
+ * (fewer since the noise estimator redoes a warm-up learned from the wave, #913), and yields all five
  * once the rest is prepended (the runner asks for the rest first, and
  * the same player waves 200 ms after the gesture cue starts).
  */
@@ -103,8 +103,9 @@ describe('end to end: a player who waves 200 ms after being asked', () => {
   it('loses the first wave with the gesture cue first, and cuts all five with the rest prepended', () => {
     const bare = run([WAVE], 200);
     expect(bare.waveStart).toBe(0);
-    // The session's own guard (#913) forgets the unit the first wave taught and learns it again in
+    // The estimator's own guard (#913) redoes the warm-up the first wave taught and learns it again in
     // the pause, so the later waves are cut; the first, made while the hand was cold, never is.
+    expect(bare.traces.length).toBeGreaterThanOrEqual(3);
     expect(bare.traces.length).toBeLessThan(5);
     const rested = run(withRestBeforeGestures([WAVE]), 200);
     expect(rested.waveStart).toBeGreaterThan(2000);
