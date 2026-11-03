@@ -47,6 +47,22 @@ describe('hushOf: when the instrument goes quiet', () => {
     expect(hushOf({ conductor: { enabled: true } } as never, HUSHES)).toEqual({ hushVoices: true, muteAll: false, muteStrikes: true, claimed: false });
   });
 
+  it.runIf(CONDUCTOR)('with "sound along" the struck instruments play over a conducted piece; the voices stay hushed (#719)', () => {
+    expect(hushOf({ conductor: { enabled: true, strikesAlong: true } } as never, HUSHES)).toEqual({ hushVoices: true, muteAll: false, muteStrikes: false, claimed: false });
+    // The player's M and a tool's claim still silence them.
+    expect(hushOf({ muted: true, conductor: { enabled: true, strikesAlong: true } } as never, HUSHES).muteStrikes).toBe(true);
+    expect(hushOf({ hushedBy: ['trainer'], conductor: { enabled: true, strikesAlong: true } } as never, HUSHES).muteStrikes).toBe(true);
+  });
+
+  it('a hush lets the strikes sound only while EVERY hush in force allows it (#719)', () => {
+    const along = { id: 'a', reason: 'a', while: () => true, strikesAlong: () => true };
+    const strict = { id: 'b', reason: 'b', while: () => true };
+    const idle = { id: 'c', reason: 'c', while: () => false };
+    expect(hushOf({}, [along]).muteStrikes).toBe(false);
+    expect(hushOf({}, [along, strict]).muteStrikes).toBe(true);
+    expect(hushOf({}, [along, idle]).muteStrikes).toBe(false);
+  });
+
   it('the player\'s M silences the struck instruments too (muteStrikes), not only the voices', () => {
     expect(hushOf({ muted: true })).toEqual({ hushVoices: false, muteAll: true, muteStrikes: true, claimed: false });
   });

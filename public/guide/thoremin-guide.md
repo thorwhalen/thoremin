@@ -1853,7 +1853,7 @@ Turn on body tracking (the most expensive thing the app can run, so it is off un
 
 ### Conductor
 
-Switch conducting on, choose the piece, the orchestra and its parts, conduct with the hand or the body, where the loudness comes from, and how closely the score follows you.
+Switch conducting on, choose the piece, the orchestra and its parts, conduct with the hand or the body, where the loudness comes from, and how closely the score follows you. While you conduct, your own instrument is quiet so the score is the music; **Let the drum, bass and guitar sound along** keeps the struck air instruments playing over it, to drum along a piece (their hits land on the beat).
 
 <a id="settings--music"></a>
 

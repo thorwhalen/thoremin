@@ -91,7 +91,7 @@ export const CONDUCTOR_EXTENSION = defineExtension({
   ],
   transient: [transientPort<ScoreDoc>()('scoreDoc', 'score-doc')] as const,
   stores: Object.values(CONDUCTOR_STORES),
-  hushes: [{ id: 'conducting', reason: 'while conducting', while: (s) => on(dialOf(s)) }],
+  hushes: [{ id: 'conducting', reason: 'while conducting', while: (s) => on(dialOf(s)), strikesAlong: (s) => dialOf(s)?.strikesAlong === true }],
   readsTwoHands: (s) => conductorReadsTwoHands(dialOf(s)),
   // Two hands in view and one looked for: the hand model is steered to the hand it reads (#784).
   prefersHand: (s) => conductorHandPreference(dialOf(s)),

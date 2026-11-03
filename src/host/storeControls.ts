@@ -94,9 +94,10 @@ const Params = z.object({});
  *   not hear past.
  * - `muteStrikes` silences the struck instruments' schedulers (air drum, bass, guitar)
  *   in every one of those cases: an air instrument is the active instrument as much as a
- *   field voice is, and conducting motions strike it. (The cost: no drumming ALONG a
- *   conducted piece, though the air drum's timing magnet reads the conductor's time. If
- *   that is wanted, it is an explicit opt-in on the conductor, not a default.)
+ *   field voice is, and conducting motions strike it. The opt-in to drum ALONG a conducted
+ *   piece is the hush's own (`HushDecl.strikesAlong`, the conductor's `strikesAlong` dial, #719):
+ *   off by default; the air drum's timing magnet reads the conductor's time, and each struck
+ *   instrument already schedules its onsets with the output stage's lead.
  *
  * The player's `muted` itself is only read, never written, so a player who muted on
  * purpose stays muted when a hush lifts.
@@ -107,9 +108,13 @@ export function hushOf(
 ): { hushVoices: boolean; muteAll: boolean; muteStrikes: boolean; claimed: boolean } {
   const claimed = (c.hushedBy?.length ?? 0) > 0;
   // An extension's own music while it runs (the conductor's score: its `hushes`, #600 S18).
-  const conducting = hushes.some((h) => h.while(c as Readonly<Record<string, unknown>>));
+  const state = c as Readonly<Record<string, unknown>>;
+  const holding = hushes.filter((h) => h.while(state));
+  const conducting = holding.length > 0;
+  // The struck instruments sound along only if every hush in force allows it (#719).
+  const strikesHushed = holding.some((h) => h.strikesAlong?.(state) !== true);
   const muteAll = claimed || c.muted === true;
-  return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || conducting, claimed };
+  return { hushVoices: claimed || conducting, muteAll, muteStrikes: muteAll || strikesHushed, claimed };
 }
 
 /** A slice's default value, parsed once. */

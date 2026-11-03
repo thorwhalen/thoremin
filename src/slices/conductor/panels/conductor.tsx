@@ -174,6 +174,11 @@ export function ConductorControls({ sourceChooser = true }: { sourceChooser?: bo
         />
         Conduct the score
       </label>
+      {/* Drum along a conducted piece (#719): off by default, since conducting motions strike too. */}
+      <label className="flex items-center gap-2 text-xs" title="While a piece is conducted, the air drum, bass and guitar still sound (their strikes land on the beat with the output's lead). Off, they are quiet: conducting motions would strike them.">
+        <input type="checkbox" checked={c.strikesAlong === true} onChange={(e) => dispatchDialSetIn('conductor.strikesAlong', e.target.checked)} />
+        Let the drum, bass and guitar sound along
+      </label>
       {/* The beat ring on the video (#187; in the Overlay section until #600 S18c: the slice's own element). */}
       <label className="flex items-center gap-2 text-xs">
         <input
