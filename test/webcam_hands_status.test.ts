@@ -97,6 +97,9 @@ describe('webcam-hands when its hand model stops', () => {
       // `process` is synchronous here (it returns the cached frame), so a state can be polled.
       const out = (): Out => node.process({}, ctx) as Out;
       await node.init!({ ...ctx, resources: { video, [HAND_RUNNER_RESOURCE_KEY]: 'worker' } } as NodeContext);
+      // Until the model lands the source says it is loading (#922), with no hand.
+      expect(node.process({}, ctx)).toMatchObject({ status: HANDS_STATUS.loading, hands: { hands: [] } });
+      await settleUntil(() => node.process({}, ctx).status !== HANDS_STATUS.loading);
       step();
       await settleUntil(() => out().hands.hands.length > 0);
       const before = out();

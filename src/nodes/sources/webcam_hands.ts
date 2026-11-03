@@ -175,12 +175,15 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
 /**
  * The source's lifecycle as words (#737), one frozen object per state so a tick allocates none.
  *
- * There is no "loading" and no "could not load": `init()` awaits the runner, and the engine runs
- * no `process()` before init resolves (a failed init tears the node down), so the port only ever
- * speaks for a runner that exists. What it can say is what that runner goes through afterwards: a
- * dead worker's main-thread replacement loading, waiting to try again, or out of tries.
+ * Since #922 the model loads WITHOUT holding the graph: `init()` starts the load and returns, so
+ * the instrument starts at once (and a swap commits at once) and the port says `loading` until the
+ * runner exists, or `unavailable` when it could not be made (offline, no WebGL and no CPU path).
+ * After that it says what the runner goes through: a dead worker's main-thread replacement
+ * loading, waiting to try again, or out of tries.
  */
 export const HANDS_STATUS = {
+  loading: Object.freeze({ phase: 'loading', message: 'Loading the hand model' }),
+  unavailable: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model could not load (offline?); reload the page' }),
   replacing: Object.freeze({ phase: 'loading', message: 'The hand model is moving to the main thread' }),
   retrying: Object.freeze({ phase: 'loading', message: 'The hand model could not load; trying again' }),
   failed: Object.freeze({ phase: 'error', reason: 'error', message: 'The hand model stopped and could not load again (offline?); reload the page' }),
@@ -214,6 +217,8 @@ export const webcamHandsNode = defineNode<Params>({
   params: Params,
   make(p) {
     let runner: HandRunner | null = null;
+    /** Whether the model's load (#922: not awaited by `init`) failed. */
+    let unavailable = false;
     let latest: HandsFrame = EMPTY;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
@@ -281,26 +286,36 @@ export const webcamHandsNode = defineNode<Params>({
     };
 
     return {
-      async init(ctx: NodeContext) {
+      init(ctx: NodeContext) {
         video = ctx.resources.video as HTMLVideoElement | undefined;
         resources = ctx.resources;
         // Created looking for what the host wants now, so the first frames reconfigure nothing.
         numHands = wantedHands(resources, p.maxHands);
         const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
-        const loaded = await createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
+        // Not awaited (#922): the graph starts now, and `process` says `loading` meanwhile.
+        void createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
           loadMain: loadOnMain,
           worker: browserWorkerDeps(),
-        });
-        if (disposed) {
-          // Unmounted while loading — don't resurrect.
-          loaded.close();
-          return;
-        }
-        runner = loaded;
-        pump.start();
+        }).then(
+          (loaded) => {
+            if (disposed) {
+              // Unmounted while loading — don't resurrect.
+              loaded.close();
+              return;
+            }
+            runner = loaded;
+            pump.start();
+          },
+          (err: unknown) => {
+            if (disposed) return;
+            unavailable = true;
+            console.error('[thoremin] the hand model could not load', err);
+          },
+        );
       },
       process() {
-        const state = runner?.state?.() ?? 'running';
+        if (!runner) return { hands: EMPTY, status: unavailable ? HANDS_STATUS.unavailable : HANDS_STATUS.loading };
+        const state = runner.state?.() ?? 'running';
         // Not inferring (a dead worker being replaced, or out of tries): the last frame is stale,
         // so it is dropped rather than held. A held frame would keep a voice droning and a
         // skeleton drawn beside the overlay's "Hands: ... stopped" (#737).

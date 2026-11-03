@@ -78,8 +78,11 @@ describe('handsStatus', () => {
     expect(HANDS_STATUS.failed.phase).toBe('error');
     // Waiting to try again is not "moving to the main thread".
     expect(HANDS_STATUS.retrying.message).not.toContain('main thread');
-    // No "loading" or "could not load": init awaits the runner, so process() never runs before it.
-    expect(Object.keys(HANDS_STATUS).sort()).toEqual(['active', 'failed', 'ready', 'replacing', 'retrying']);
+    // Since #922 the model loads without holding the graph: `loading` until it lands, `unavailable`
+    // when it cannot be made.
+    expect(Object.keys(HANDS_STATUS).sort()).toEqual(['active', 'failed', 'loading', 'ready', 'replacing', 'retrying', 'unavailable']);
+    expect(HANDS_STATUS.loading.phase).toBe('loading');
+    expect(HANDS_STATUS.unavailable.phase).toBe('error');
   });
 });
 

@@ -36,6 +36,7 @@ import { featureDemandResource } from '@thoremin/sdk-ui/featureDemand';
 import { useRecordingController } from '../recording/useRecordingController';
 import { tagOverlayResource } from '../tagging/runtime';
 import { useFaceStatus, makeFaceReporter } from '../face/faceStatus';
+import { makeHandsReporter, useHandsStatus } from '../hands/handsStatus';
 import { installDebugHandle } from './debugHandle';
 import { latencyProbeRequested } from '@/latency/param';
 import { createTimingResource } from '../timing/resource';
@@ -341,6 +342,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // back to React for the indicator/readout (#65), throttled; a transition into
         // 'error' surfaces a toast once.
         const reportFace = makeFaceReporter(engine);
+        // The hand model's status for the camera status column (#922), when it changes.
+        const reportHands = makeHandsReporter(engine);
         // Gesture dispatch (#129): the classifier's per-hand poses feed the dispatcher
         // (fresh timing state per engine run) every frame, which turns held-pose
         // TRANSITIONS into command dispatches; the status store is written only when a
@@ -404,7 +407,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
           // No `resources` here: #192 made the Applier take them from the engine, so the
           // two can never be different objects. Passing one was harmless at runtime (it
           // was the same reference) but it was a type error nothing could see — see below.
-          sinks: [...latencySinks, toMs(reportFace), toMs(reportGesture), toMs(reportCategory), toMs(reportTiming), toMs(extensionSinks)],
+          sinks: [...latencySinks, toMs(reportFace), () => reportHands(), toMs(reportGesture), toMs(reportCategory), toMs(reportTiming), toMs(extensionSinks)],
           shouldStop: () => disposed,
           onError: (err) => {
             // Same disposition `runEngineLoop` had: log and keep going. A degenerate
@@ -434,6 +437,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       engineRef.current = null;
       registryRef.current = null;
       useFaceStatus.getState().reset();
+      useHandsStatus.getState().reset();
       resetLiveVector();
       useGestureStatus.getState().reset();
       useTimingStatus.getState().reset();

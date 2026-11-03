@@ -1,5 +1,6 @@
 /**
- * TimingChip — the camera status line (step 0 of the 2026-10-05 timing plan): what the
+ * TimingChip — the camera status line (step 0 of the 2026-10-05 timing plan; the hand model's
+ * state since #922, `../hands/handsStatus`): what the
  * timing resource measured, in one short line under the face chip, and the warnings a
  * player must act on ("audio interrupted: tap to resume", an output stage this browser
  * cannot report, an output that glitched in the last minute (#240), a camera delivering
@@ -14,6 +15,7 @@ import { useTimingStatus } from './timingStatus';
 import { describeTiming } from './describe';
 import { useControls } from '../store';
 import { latencyHintInForce, useLatencyHintInEffect } from './audioPrefs';
+import { handsNote, useHandsStatus } from '../hands/handsStatus';
 
 export default function TimingChip() {
   const reading = useTimingStatus((s) => s.reading);
@@ -21,14 +23,21 @@ export default function TimingChip() {
   // only when the running context took the hint.
   const boxTicked = useControls((s) => s.audioPrefs.lowLatency);
   const hintInForce = useLatencyHintInEffect((s) => latencyHintInForce(s.hint));
-  if (!reading) return null;
-  const { line, warnings } = describeTiming(reading, { lowLatencyAudio: boxTicked && hintInForce });
-  if (!line && warnings.length === 0) return null;
+  // The hand model's state (#922), here because a player with the overlay hidden reads only this.
+  const hands = useHandsStatus((s) => handsNote(s.status));
+  const handsFailed = useHandsStatus((s) => s.status?.phase === 'error');
+  const { line, warnings } = reading ? describeTiming(reading, { lowLatencyAudio: boxTicked && hintInForce }) : { line: '', warnings: [] as string[] };
+  if (!line && warnings.length === 0 && !hands) return null;
   return (
     <div data-timing-chip className="pointer-events-none absolute left-3 top-[4.75rem] flex max-w-[min(90vw,32rem)] flex-col gap-1">
       {line && (
         <div className="flex items-center gap-1.5 rounded-full bg-black/40 px-2 py-0.5 text-[9px] uppercase tracking-widest text-white/60 backdrop-blur" title="Camera and audio timing: delivered frame rate, capture-stamped frames, the frame's age at the decision, the audio output stage">
           {line}
+        </div>
+      )}
+      {hands && (
+        <div data-hands-status className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest backdrop-blur ${handsFailed ? 'bg-rose-500/85 text-white' : 'bg-black/40 text-white/70'}`}>
+          {hands}
         </div>
       )}
       {warnings.map((w) => (

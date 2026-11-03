@@ -57,6 +57,8 @@ async function start(hands: { n: unknown } | null, maxHands = 2) {
   const resources: Record<string, unknown> = { video };
   if (hands) resources[HAND_COUNT_RESOURCE_KEY] = () => hands.n;
   await node.init!({ tick: 0, time: 0, dt: 0, resources } as unknown as NodeContext);
+  // The model loads without holding the graph (#922): let it land.
+  await flush();
   return node;
 }
 
@@ -155,6 +157,7 @@ describe('where the hand model runs (#326)', () => {
   it('runs on the main thread when asked for a worker the platform cannot host', async () => {
     const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU', runner: 'worker' }));
     await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    await flush();
     expect(createFromOptions).toHaveBeenCalledTimes(1); // the main thread's landmarker
     step();
     expect(landmarker.detectForVideo).toHaveBeenCalledTimes(1);
@@ -184,6 +187,7 @@ describe('webcam-hands on the worker path, end to end (#326)', () => {
     try {
       const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU', runner: 'worker' }));
       await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+      await flush();
       expect(createFromOptions).not.toHaveBeenCalled(); // nothing loads on the main thread
       step();
       await flush();
@@ -200,5 +204,70 @@ describe('webcam-hands on the worker path, end to end (#326)', () => {
       Object.assign(g, saved);
       info.mockRestore();
     }
+  });
+});
+
+describe('the hand model loads without holding the graph (#922)', () => {
+  const ctx = { tick: 0, time: 0, dt: 1 / 30, resources: {} } as unknown as NodeContext;
+
+  it('init returns before the model lands; the source says loading, then ready', async () => {
+    let land: (lm: typeof landmarker) => void = () => {};
+    createFromOptions.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)));
+    const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU' }));
+    await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    expect(node.process({}, ctx)).toMatchObject({ status: { phase: 'loading' }, hands: { hands: [] } });
+    await flush(); // the fileset resolves, then the landmarker is asked for
+    expect(node.process({}, ctx)).toMatchObject({ status: { phase: 'loading' } });
+    land(landmarker);
+    await flush();
+    expect(node.process({}, ctx)).toMatchObject({ status: { phase: 'ready' } });
+    node.dispose?.();
+  });
+
+  it('a model that cannot load says so on the port, and the graph keeps running', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    createFromOptions.mockImplementation(async () => {
+      throw new Error('offline');
+    });
+    const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU' }));
+    await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    await flush();
+    await flush();
+    expect(node.process({}, ctx)).toMatchObject({ status: { phase: 'error' }, hands: { hands: [] } });
+    createFromOptions.mockImplementation(async () => landmarker);
+    error.mockRestore();
+    node.dispose?.();
+  });
+
+  it('disposed while loading, the landed model is closed, never used', async () => {
+    let land: (lm: typeof landmarker) => void = () => {};
+    createFromOptions.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)));
+    landmarker.close.mockClear();
+    const node = webcamHandsNode.make(webcamHandsNode.params.parse({ delegate: 'CPU' }));
+    await node.init!({ tick: 0, time: 0, dt: 0, resources: { video } } as unknown as NodeContext);
+    await flush();
+    node.dispose?.();
+    land(landmarker);
+    await flush();
+    expect(landmarker.close).toHaveBeenCalled();
+  });
+});
+
+describe('the instrument boots before the hand model lands (#922)', () => {
+  it('an engine with the webcam hands inits and ticks at once, the status loading until the model is there', async () => {
+    const { Engine, createRegistry } = await import('@thoremin/dag');
+    let land: (lm: typeof landmarker) => void = () => {};
+    createFromOptions.mockImplementationOnce(() => new Promise((resolve) => (land = resolve)));
+    const spec = { nodes: [{ id: 'cam', type: 'webcam-hands', params: { delegate: 'CPU' } }], edges: [] };
+    const engine = new Engine(spec, createRegistry([webcamHandsNode] as never), { resources: { video } });
+    await engine.init();
+    engine.tick(0);
+    expect(engine.getOutput('cam', 'status')).toMatchObject({ phase: 'loading' });
+    await flush();
+    land(landmarker);
+    await flush();
+    engine.tick(1 / 30);
+    expect(engine.getOutput('cam', 'status')).toMatchObject({ phase: 'ready' });
+    engine.dispose();
   });
 });
