@@ -11,8 +11,8 @@ import { provideAudioInput, type ContextLike } from '@thoremin/sdk-ui/audio/hub'
 
 export type { AudioInputHub, AudioInputLease, AudioSourceKind, HubStatus, LeaseEvent } from '@thoremin/sdk-ui/audio/hub';
 
-/** The resources key the `audio-events` node reads the hub from. */
-export const AUDIO_INPUT_RESOURCE_KEY = 'audioInput';
+/** The resources key the `audio-events` node reads the hub from: its contract owns it. */
+export { AUDIO_INPUT_RESOURCE_KEY } from '@/nodes/sources/audio_events.schema';
 
 let output: { audio(): AudioContext | undefined; destination(): AudioNode | undefined } = { audio: () => undefined, destination: () => undefined };
 

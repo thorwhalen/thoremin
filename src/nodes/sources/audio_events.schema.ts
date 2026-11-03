@@ -14,6 +14,14 @@ import type { InputStage } from '@thoremin/sdk/timing/input_stage';
 
 export const AUDIO_EVENTS_NODE = 'audio-events';
 
+/**
+ * The `ctx.resources` key the host puts the audio-input hub under, and which the node declares in
+ * its `reads` (`NodeDef.reads`, #974): the node is the hub's reader, so a headless run that
+ * composes it without a hub fails at init (`runHeadless` checks declared reads) rather than
+ * recording a source that emitted nothing. The live host always provides it (`src/app/audio`).
+ */
+export const AUDIO_INPUT_RESOURCE_KEY = 'audioInput';
+
 export const AnalyserSpecSchema = z.object({
   name: z.string().min(1),
   id: z.string().min(1).optional(),
@@ -35,7 +43,7 @@ export type AudioEventsParams = z.infer<typeof AudioEventsParamsSchema>;
 /** One event on the `events` port. */
 export type TimedAudioEvent = AudioEvent & { source: string; t: number };
 
-/** The slice of the hub the node reads (`resources.audioInput`); a test passes a fake. */
+/** The slice of the hub the node reads (`resources[AUDIO_INPUT_RESOURCE_KEY]`); a test passes a fake. */
 export interface AudioInputLike {
   acquire(req: { analysers: readonly z.infer<typeof AnalyserSpecSchema>[]; constraints?: Record<string, boolean>; source?: AudioEventsParams['source'] }): {
     drain(): { source: string; event: AudioEvent }[];

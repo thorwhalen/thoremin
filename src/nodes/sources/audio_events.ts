@@ -1,21 +1,30 @@
 /**
  * `audio-events` (source; browser, or headless with a fake hub): the audio thread's events,
  * drained once per tick (`docs/design/audio-input.md`, "the slow path"). Its lease on the
- * audio-input hub (`resources.audioInput`) runs the analysers named in its params; the
+ * audio-input hub (`resources[AUDIO_INPUT_RESOURCE_KEY]`) runs the analysers named in its params; the
  * microphone opens when the first such node (or other consumer) is composed and closes with the
  * last. Outputs every event of the tick with its engine time, the latest input level, and the
  * hub's state (so an overlay can say "waiting for sound" or "microphone refused").
  *
- * With no hub (a headless run, a test without one) it emits nothing and says `unavailable`.
+ * It declares the hub in its `reads` (#974), so `runHeadless` refuses a graph holding it with no
+ * hub. A host that does not check (a plain `Engine`, a test driving the node itself) still gets
+ * a defined node: with no hub it emits nothing and says `unavailable`.
+ *
+ * Whether the microphone opens needs no host-side derivation, unlike the camera (#869, #960): the
+ * camera is opened by the host for every reader of one shared `<video>`, so the host must derive
+ * whether anything composed reads it; the microphone is opened by its reader, this node's lease,
+ * acquired in `init` and released in `dispose`, so it is open exactly while a composed node reads
+ * it.
  */
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { AUDIO_EVENTS_NODE, AudioEventsParamsSchema, stampToEngineTime, type AudioEventsParams, type AudioInputLike, type TimedAudioEvent } from './audio_events.schema';
+import { AUDIO_EVENTS_NODE, AUDIO_INPUT_RESOURCE_KEY, AudioEventsParamsSchema, stampToEngineTime, type AudioEventsParams, type AudioInputLike, type TimedAudioEvent } from './audio_events.schema';
 export * from './audio_events.schema';
 
 export const audioEventsNode = defineNode<AudioEventsParams>({
   type: AUDIO_EVENTS_NODE,
   roles: ['source'],
+  reads: [AUDIO_INPUT_RESOURCE_KEY],
   title: 'Audio events',
   description: 'Microphone (or replayed / synthetic sound) analysed on the audio thread: onsets, recognised sounds, level, pitch, stamped in engine time.',
   inputs: [],
@@ -31,7 +40,7 @@ export const audioEventsNode = defineNode<AudioEventsParams>({
     let level = 0;
     return {
       init(ctx: NodeContext) {
-        hub = ctx.resources.audioInput as AudioInputLike | undefined;
+        hub = ctx.resources[AUDIO_INPUT_RESOURCE_KEY] as AudioInputLike | undefined;
         lease = hub?.acquire({
           analysers: p.analysers,
           source: p.source,

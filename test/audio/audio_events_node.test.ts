@@ -1,6 +1,9 @@
 /** The `audio-events` source node over a fake hub: drained per tick, stamped in engine time, released on dispose. */
 import { describe, expect, it } from 'vitest';
-import { audioEventsNode, stampToEngineTime, type AudioInputLike } from '@/nodes/sources/audio_events';
+import { readsResource, runHeadless } from '@thoremin/dag';
+import { audioEventsNode, stampToEngineTime, AUDIO_EVENTS_NODE, AUDIO_INPUT_RESOURCE_KEY, type AudioInputLike } from '@/nodes/sources/audio_events';
+import { createCoreRegistry } from '@/nodes/index';
+import { AUDIO_INPUT_RESOURCE_KEY as APP_KEY } from '@/app/audio';
 import type { AudioEvent } from '@thoremin/sdk/audio/types';
 
 function fakeHub() {
@@ -49,5 +52,17 @@ describe('audio-events node', () => {
     const ctx = { tick: 1, time: 0, dt: 0, resources: {} };
     h.init?.(ctx);
     expect(h.process({}, ctx)).toEqual({ events: [], level: 0, status: 'unavailable' });
+  });
+
+  it('declares the hub it reads, so a headless run without one fails at init (#974)', async () => {
+    const registry = createCoreRegistry();
+    expect(APP_KEY).toBe(AUDIO_INPUT_RESOURCE_KEY);
+    expect(readsResource(registry, AUDIO_EVENTS_NODE, AUDIO_INPUT_RESOURCE_KEY)).toBe(true);
+    const spec = { nodes: [{ id: 'mic', type: AUDIO_EVENTS_NODE }], edges: [] };
+    await expect(runHeadless(spec, registry, { ticks: 1 })).rejects.toThrow(/node "mic" \(audio-events\) reads "audioInput"/);
+    const { hub, state } = fakeHub();
+    const { engine } = await runHeadless(spec, registry, { ticks: 2, resources: { [AUDIO_INPUT_RESOURCE_KEY]: hub } });
+    expect(state.acquired).toHaveLength(1);
+    expect(engine.getOutput('mic', 'status')).toBe('live');
   });
 });
