@@ -13,6 +13,7 @@ import { audioEventsNode } from './sources/audio_events';
 import { replaySourceNode } from './sources/replay';
 import { replaySourceTimedNode } from './sources/replay_timed';
 import { replayHandsNode } from './sources/replay_hands';
+import { noHandsNode } from './sources/no_hands';
 import { handFeaturesNode } from './features/hand_features';
 import { handsDwellNode } from './features/hands_dwell';
 import { faceFeaturesNode } from './features/face_features';
@@ -46,6 +47,7 @@ export {
 } from './sources/state_generator';
 export type { StateGeneratorSpec, StateGeneratorInput, StateGeneratorParams } from './sources/state_generator';
 export { replayHandsNode } from './sources/replay_hands';
+export { noHandsNode, NO_HANDS_TYPE } from './sources/no_hands';
 export { BODY_SLOT_CONTRACT, BODY_SLOT_OUTPUT, BODY_SLOT_STATUS } from './sources/body_contract';
 export {
   SOURCE_SLOT_CONTRACT,
@@ -87,6 +89,7 @@ export const CORE_NODES = [
   replaySourceNode,
   replaySourceTimedNode,
   replayHandsNode,
+  noHandsNode,
   handFeaturesNode,
   handsDwellNode,
   faceFeaturesNode,

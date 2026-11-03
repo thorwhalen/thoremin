@@ -75,7 +75,7 @@ Two things worth knowing:
 [Get an API key](https://aistudio.google.com/app/apikey)
 
 
-## Nodes (65)
+## Nodes (66)
 
 ### Inputs (sources)
 _Where signals enter the graph._
@@ -159,6 +159,14 @@ Replays a recorded hand-landmark stream, one frame per tick. Camera-free and det
 - **in:** —
 - **out:** hands:hands-frame, status:hands-status
 - **params:** frames (array=[]), loop (boolean=false)
+
+#### `no-hands` — No Hands
+The hand source while the camera is closed: an instrument that reads no camera stream emits no hands, and loads no hand model.
+
+- **roles:** source
+- **in:** —
+- **out:** hands:hands-frame, status:hands-status
+- **params:** —
 
 #### `synthetic-body` — Synthetic Body
 Camera-free animated full-body skeleton (bounce / sway / arms / steps) for tests & demos.

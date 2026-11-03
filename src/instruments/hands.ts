@@ -83,13 +83,23 @@ export interface HandCountContext {
 }
 
 /**
+ * Whether the shell reads the hands, whatever the instrument composes: a live claim on a hand
+ * group (the Lab, the Trainer, a bound categorizer), the hand gestures, and the skeleton overlay
+ * drawing them. The one list of the shell's hand readers: the hand count asks it with the skeleton
+ * counted only as the policy says (`skeletonSeesAllHands`), the camera (#869,
+ * `./camera.ts`) with the skeleton counted, since a skeleton shown needs a camera to draw from.
+ */
+export function shellReadsHands(ctx: HandCountContext = {}, { skeleton = true }: { skeleton?: boolean } = {}): boolean {
+  return demandWantsHands(ctx.demanded ?? new Set()) || ctx.gesturesEnabled === true || (skeleton && ctx.skeletonShown === true);
+}
+
+/**
  * How many hands the model should look for, given the COMPOSED branches (requirements
  * included) and what the shell reads. The largest need wins; a one-hand need and the
  * skeleton go through `policy`.
  */
 export function deriveHandCount(branches: readonly GraphBranch[], ctx: HandCountContext = {}, policy: HandCountPolicy = HAND_COUNT_POLICY): HandCount {
-  const tools = demandWantsHands(ctx.demanded ?? new Set()) || ctx.gesturesEnabled === true;
-  if (tools || ctx.twoHandsRead === true || (ctx.skeletonShown === true && policy.skeletonSeesAllHands)) return ALL_HANDS;
+  if (shellReadsHands(ctx, { skeleton: policy.skeletonSeesAllHands }) || ctx.twoHandsRead === true) return ALL_HANDS;
   let need: HandCount = 1;
   for (const b of branches) {
     const h = branchHands(b);

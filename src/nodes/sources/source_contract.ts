@@ -31,7 +31,7 @@
  */
 import type { PortSpec, Role } from '@thoremin/dag';
 import type { SlotContract } from '../slot_contract';
-import { HandsFrameSchema } from '@thoremin/sdk/nodes/domain';
+import { HandsFrameSchema, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import type { LoadStatus } from '@thoremin/lazy';
 
 /**
@@ -58,6 +58,13 @@ export const SOURCE_SLOT_INPUTS: readonly PortSpec[] = [];
  *  wires it to the overlay whichever candidate fills the slot, so the contract lists it. */
 export type HandsStatus = LoadStatus;
 export const SOURCE_SLOT_STATUS: PortSpec = { name: 'status', kind: 'hands-status' };
+/**
+ * The frame a hand source emits with no hand to give: a real, well-defined "no hands in view"
+ * (what `webcam-hands` emits before its first inference), never `undefined`, which the port's
+ * schema exists to catch. Shared by `replay-hands` with nothing to replay and `no-hands`.
+ */
+export const EMPTY_HANDS_FRAME: HandsFrame = { width: 640, height: 480, hands: [] };
+
 /** What a scripted or replayed hand source says: nothing to wait for. */
 export const SCRIPTED_HANDS_STATUS: HandsStatus = Object.freeze({ phase: 'ready', message: 'Scripted hands' });
 

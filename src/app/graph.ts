@@ -29,6 +29,7 @@
 import type { GraphSpec, NodeRegistry, Role } from '@thoremin/dag';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
+import { NO_HANDS_TYPE } from '@/nodes/sources/no_hands.schema';
 import { BODY_SLOT_CONTRACT } from '@/nodes/sources/body_contract';
 import { EXPRESSION_SLOT_CONTRACT } from '@/nodes/features/expression_contract';
 import type { SlotContract } from '@/nodes/slot_contract';
@@ -110,7 +111,9 @@ const CORE_SLOTS: Record<string, SlotDef> = {
   source: {
     role: 'source',
     default: 'webcam-hands',
-    candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands'],
+    // `no-hands` is the host's while the camera is closed (#869, `sourceSelectionFor`); a URL may
+    // choose it too, to run any instrument with the hand source switched off.
+    candidates: ['webcam-hands', 'synthetic-hands', 'replay-hands', NO_HANDS_TYPE],
     contract: SOURCE_SLOT_CONTRACT,
   },
   // The second camera branch (#186): the shell declares the slot and its contract; the body
@@ -172,6 +175,20 @@ export function parseSlotSelection(search: string): SlotSelection {
  */
 export function sourceNeedsVideo(selection?: SlotSelection, registry?: NodeRegistry): boolean {
   return resolveSlot('source', selection, registry) === SLOTS.source.default;
+}
+
+/**
+ * The selection the host composes with, given whether a camera video is there to read (#869).
+ * With none (the camera not opened, because nothing composed reads it), the DEFAULT hand source
+ * gives way to `no-hands`, so the graph loads no hand model and waits on no camera; once the
+ * camera opens, the selection is the caller's again and the engine swaps `webcam-hands` in
+ * live. A source the selection CHOSE (`?slot.source=synthetic-hands`, a replay) is a host
+ * override and is kept either way: it reads no camera, and it is how a run is verified without one.
+ */
+export function sourceSelectionFor(selection: SlotSelection, { video }: { video: boolean }): SlotSelection {
+  const chosen = selection.source;
+  if (video || (chosen !== undefined && chosen !== SLOTS.source.default)) return selection;
+  return { ...selection, source: NO_HANDS_TYPE };
 }
 
 /** A stable string for a selection, so React effects can depend on it by value. */

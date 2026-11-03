@@ -18,47 +18,11 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
-import { useThoreminEngine } from '@/app/engine/useEngine';
-import { DEFAULT_SOURCE } from '@/app/engine/sourceSpec';
-import { sourceNeedsVideo, NO_SLOTS, type SlotSelection } from '@/app/graph';
+import { sourceNeedsVideo, NO_SLOTS } from '@/app/graph';
 import { createAppRegistry } from '@/nodes/browser';
-import { readLiveVector } from '@/app/enroll/liveVector';
 import { useHandsStatus } from '@/app/hands/handsStatus';
 import { SCRIPTED_HANDS_STATUS } from '@/nodes/sources/source_contract';
-
-/**
- * Engine time, in ms, as seen by the live feature tap — 0 before the first tick.
- *
- * This is a deliberately end-to-end observable: `LiveVectorTap` is attached to the
- * engine and only fires from inside `engine.tick()`, so a rising value proves the whole
- * path ran — clock -> Applier -> tick -> nodes -> tap. A hook that constructed an engine
- * and never drove it leaves this at 0, which is exactly the regression these tests are
- * for.
- */
-const tickTime = () => readLiveVector()?.t ?? 0;
-
-/** A camera that is not there: every request rejects, as on a webcam-less machine. */
-function stubMissingCamera() {
-  const getUserMedia = vi.fn(() => Promise.reject(new DOMException('Requested device not found', 'NotFoundError')));
-  Object.defineProperty(navigator, 'mediaDevices', {
-    value: { getUserMedia },
-    configurable: true,
-  });
-  return getUserMedia;
-}
-
-/** Mounts the hook and exposes what it reported. */
-function Harness({ slots, seen }: { slots: SlotSelection; seen: { status?: string; error?: string | null } }) {
-  const { videoRef, canvasRef, status, error } = useThoreminEngine(DEFAULT_SOURCE, slots);
-  seen.status = status;
-  seen.error = error;
-  return (
-    <>
-      <video ref={videoRef} />
-      <canvas ref={canvasRef} />
-    </>
-  );
-}
+import { Harness, stubMissingCamera, tickTime } from './helpers/engine_boot';
 
 afterEach(() => {
   cleanup();
