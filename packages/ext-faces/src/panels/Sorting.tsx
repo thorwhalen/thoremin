@@ -23,6 +23,7 @@ import { NEUTRAL_TARGET, QUALITY_DEFAULTS, type CategoryQuality } from '@thoremi
 import { reproducibilityOf, reproducibilityScore } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags } from '@thoremin/sdk/enroll/everyday';
 import { SortingMap } from './SortingMap';
+import { MergeSelect, NameInput, mergeActions } from './RowControls';
 import type { FaceSessionState } from '../app/sessionStore';
 import type { CarvedCategory, SortingView } from '../lib/carving';
 
@@ -251,12 +252,6 @@ function ChecksChip({ c, s }: { c: CarvedCategory; s: FaceSessionState }) {
 
 function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: number; grid: GridApi }) {
   const w = useWords();
-  const [text, setText] = useState(c.label);
-  useEffect(() => setText(c.label), [c.label]);
-  const commit = () => {
-    if (text.trim() && text.trim() !== c.label) grid.s.rename(c.id, text);
-    else setText(c.label);
-  };
   const others = grid.view.categories.filter((x) => x.id !== c.id);
   const quality = grid.view.quality.categories.find((q) => q.id === c.id);
   const hint = grid.view.hints.get(c.id);
@@ -273,39 +268,23 @@ function CategoryRow({ c, n, grid }: { key?: string; c: CarvedCategory; n: numbe
         <span className="w-4 shrink-0 text-center text-[10px] font-bold text-white/50" title={n <= SORTING_DEFAULTS.keyedCategories ? `Press ${n} to move the selected holds here` : undefined}>
           {n}
         </span>
-        <input
-          aria-label={`Name of ${c.label}`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setText(c.label);
-          }}
-          className="min-w-0 flex-1 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-white outline-none focus:bg-white/20"
-        />
+        <NameInput value={c.label} label={`Name of ${c.label}`} onRename={(text) => grid.s.rename(c.id, text)} />
         <span className="shrink-0 text-[10px] text-white/50">{c.size} held</span>
         {quality && <QualityChip q={quality} view={grid.view} />}
         <ChecksChip c={c} s={grid.s} />
-        <select
-          aria-label={`Change ${c.label}`}
-          value=""
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === 'split') grid.s.split(c.id);
-            else if (v.startsWith('merge:')) grid.s.merge(c.id, v.slice('merge:'.length));
-          }}
+        <MergeSelect
+          label={`Change ${c.label}`}
+          placeholder="More"
+          actions={[
+            { id: 'split', text: 'Split in two', disabled: c.size < 2, run: () => grid.s.split(c.id) },
+            ...mergeActions(
+              [...others.map((o) => ({ id: o.id, label: o.label || o.id })), ...(others.length > 0 ? [{ id: NEUTRAL_BIN, label: 'Neutral' }] : [])],
+              (into) => grid.s.merge(c.id, into),
+              (t) => `Merge into ${t.label}`,
+            ),
+          ]}
           className="w-14 shrink-0 rounded bg-white/10 text-[10px] text-white/70"
-        >
-          <option value="">More</option>
-          <option value="split" disabled={c.size < 2}>
-            Split in two
-          </option>
-          {others.map((o) => (
-            <option key={o.id} value={`merge:${o.id}`}>{`Merge into ${o.label || o.id}`}</option>
-          ))}
-          {others.length > 0 && <option value={`merge:${NEUTRAL_BIN}`}>Merge into Neutral</option>}
-        </select>
+        />
       </div>
       <p className="text-[10px] text-white/40">{sourceText(c, w.one)}</p>
       {hint && (

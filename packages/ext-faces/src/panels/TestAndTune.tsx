@@ -9,6 +9,10 @@
  * burst named for it) and the **everyday check** (a minute of doing nothing in particular,
  * counting accidental fires); and one **size** dial per category.
  *
+ * #954 brings the categorizer's moving gestures in: Trying lists them with their fires (and says
+ * while the listener warms), the quiz asks them beside the categories (a fire answers), and the
+ * everyday check counts their fires; a missed gesture offers Record more of it.
+ *
  * Rendering only: the actions are the session store's (`../app/sessionStore.ts`) and the test
  * store's (`../app/testStore.ts`); what a tuning means is `@thoremin/sdk/enroll/live`.
  */
@@ -26,7 +30,8 @@ import { NEUTRAL_TARGET } from '@thoremin/sdk/enroll/quality';
 import { NEUTRAL_BIN } from '@thoremin/sdk/enroll/categorizer';
 import { QUIZ_DEFAULTS, reproducibilityOf, summarizeQuiz, type QuizTrial } from '@thoremin/sdk/enroll/quiz';
 import { everydayFlags, everydayResult } from '@thoremin/sdk/enroll/everyday';
-import { liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
+import { checkLabels, checkTargets, liveModel, sizeOf, TUNING_BOUNDS, type LiveModel, type LiveReading, type Tuning } from '@thoremin/sdk/enroll/live';
+import { gesturePrompt, LISTEN_WARMING_SAY } from '@thoremin/sdk-ui/enroll/gestureWords';
 
 const btn = 'rounded-md border border-white/15 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/90 transition hover:bg-white/20 disabled:opacity-40';
 const primary = 'rounded-md border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-40';
@@ -132,6 +137,34 @@ function Readout({ test, live }: { test: FaceTestState; live: LiveModel }) {
             : `Distance to the nearest category: ${r.distance.toFixed(1)}; beyond ${r.radius.toFixed(1)} a ${w.one} is none of these${taught ? `, as is one nearer your Neutral ${w.many}` : ''}.`}
         </p>
       )}
+      <GesturesTried test={test} live={live} />
+    </div>
+  );
+}
+
+/** Trying's gestures (#954): each with how often it fired, the last one lit; the warming cue. */
+function GesturesTried({ test, live }: { test: FaceTestState; live: LiveModel }) {
+  const names = live.gestures?.names ?? [];
+  if (names.length === 0) return null;
+  return (
+    <div className="space-y-0.5" data-faces-gestures-tried>
+      {test.gesturesWarming && (
+        <p role="status" className="text-[10px] text-amber-200" data-faces-gestures-warming>
+          {LISTEN_WARMING_SAY}
+        </p>
+      )}
+      <ul className="space-y-0.5">
+        {names.map((g) => {
+          const n = test.gestureFires[g.id] ?? 0;
+          const last = test.lastGesture === g.id;
+          return (
+            <li key={g.id} className="flex items-center gap-2 text-[10px]" data-faces-gesture-fires={n}>
+              <span className={`w-24 shrink-0 truncate ${last ? 'font-semibold text-emerald-200' : 'text-white/60'}`}>{g.label || g.id}</span>
+              <span className="text-white/50">{n > 0 ? `made ${n}x` : 'not made yet'}</span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -238,10 +271,12 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
   const t = useStore(test);
   const s = useStore(session);
   const q = t.quiz;
-  const label = (id: string | null) => (id ? live.model.categories.find((c) => c.id === id)?.label || id : '');
+  const labels = checkLabels(live);
+  const gestureIds = new Set((live.gestures?.names ?? []).map((g) => g.id));
+  const label = (id: string | null) => (id ? labels.get(id) || id : '');
   const start = () =>
     t.startQuiz(live, {
-      onDone: (trials) => session.getState().setChecks({ quiz: summarizeQuiz(trials, new Map(live.model.categories.map((c) => [c.id, c.label])), new Date().toISOString()) }),
+      onDone: (trials) => session.getState().setChecks({ quiz: summarizeQuiz(trials, labels, new Date().toISOString()) }),
     });
   const speech = promptSpeech();
   const [spoken, setSpoken] = useState(speech?.enabled() ?? false);
@@ -268,7 +303,7 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
   if (!q) {
     return (
       <div className="flex items-start gap-2">
-        <button type="button" className={btn} onClick={start} disabled={live.model.categories.length === 0}>
+        <button type="button" className={btn} onClick={start} disabled={labels.size === 0}>
           Quiz me
         </button>
         {sayIt}
@@ -278,12 +313,14 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
   }
   const step = q.step;
   if (step.kind !== 'done') {
+    // A gesture is made once, never held: its prompt says so and has no hold bar.
+    const askedGesture = step.kind === 'ask' && gestureIds.has(step.categoryId);
     return (
       <div className="space-y-1" data-faces-quiz={step.kind}>
         <p className="text-base font-bold text-white" role="status" aria-live="polite">
-          {step.kind === 'ask' ? `Make: ${label(step.categoryId)}` : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
+          {step.kind === 'ask' ? (askedGesture ? gesturePrompt(label(step.categoryId)) : `Make: ${label(step.categoryId)}`) : step.kind === 'relax' ? 'Relax...' : 'Starting...'}
         </p>
-        {step.kind === 'ask' && (
+        {step.kind === 'ask' && !askedGesture && (
           <span className="block h-1.5 overflow-hidden rounded bg-white/10" title="Held so far">
             <span className="block h-full bg-emerald-400" style={{ width: `${Math.round(Math.min(1, step.heldMs / QUIZ_DEFAULTS.holdMs) * 100)}%` }} />
           </span>
@@ -307,10 +344,11 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
     <div className="space-y-1.5" data-faces-quiz="done">
       <h4 className={heading}>Quiz result</h4>
       <ul className="space-y-1">
-        {live.model.categories.map((c) => {
+        {checkTargets(live).map((c) => {
           // By id AND name: a re-cut (or a merge into Neutral) can give a freed id to another face.
           const r = reproducibilityOf(result, c);
           if (!r) return null;
+          const gesture = c.kind === 'gesture';
           return (
             <li key={c.id} className="flex flex-wrap items-center gap-2 text-[11px] text-white/80" data-faces-quiz-result={c.id}>
               <span className="w-24 shrink-0 truncate font-semibold">{c.label || c.id}</span>
@@ -326,13 +364,14 @@ function QuizBox({ session, test, live }: { session: StoreApi<FaceSessionState>;
                   className={btn}
                   onClick={() => {
                     t.stop();
-                    s.startMerge('samples', { burstName: c.label });
+                    if (gesture) s.recordMoreGesture(c.id);
+                    else s.startMerge('samples', { burstName: c.label });
                   }}
                 >
                   {`Record more ${c.label || c.id}`}
                 </button>
               )}
-              {r.misses > 0 && live.model.categories.length > 1 && (
+              {!gesture && r.misses > 0 && live.model.categories.length > 1 && (
                 <button
                   type="button"
                   className={btn}
@@ -385,9 +424,11 @@ function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionSta
   const t = useStore(test);
   const s = useStore(session);
   const e = t.everyday;
+  const labels = checkLabels(live);
+  const gestures = new Set((live.gestures?.names ?? []).map((g) => g.id));
   const start = () =>
     t.startEveryday(live, {
-      onDone: (check, at) => session.getState().setChecks({ everyday: everydayResult(check, at, new Map(live.model.categories.map((c) => [c.id, c.label])), new Date().toISOString()) }),
+      onDone: (check, at) => session.getState().setChecks({ everyday: everydayResult(check, at, labels, new Date().toISOString()) }),
     });
   if (!e) {
     return (
@@ -404,7 +445,7 @@ function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionSta
     return (
       <div className="space-y-1" data-faces-everyday="running">
         <p className="text-sm font-semibold text-white" role="status" aria-live="polite">{`Talk, look around, play normally: ${Math.floor(e.elapsedMs / 1000)} s of ${Math.round(e.durationMs / 1000)} s`}</p>
-        <p className="text-[10px] text-white/50">{fired.length === 0 ? 'Nothing has fired yet.' : `Fired so far: ${fired.map(([id, n]) => `${live.model.categories.find((c) => c.id === id)?.label || id} ${n}`).join(', ')}`}</p>
+        <p className="text-[10px] text-white/50">{fired.length === 0 ? 'Nothing has fired yet.' : `Fired so far: ${fired.map(([id, n]) => `${labels.get(id) || id} ${n}`).join(', ')}`}</p>
         <button type="button" className={btn} onClick={() => t.stopCheck()}>
           Stop the check
         </button>
@@ -421,7 +462,7 @@ function EverydayBox({ session, test, live }: { session: StoreApi<FaceSessionSta
         <ul className="space-y-0.5">
           {flags.map((f) => (
             <li key={f.categoryId} className="text-[11px] text-amber-200" data-faces-everyday-flag={f.categoryId}>
-              {`"${f.label}" fired ${f.fires} ${f.fires === 1 ? 'time' : 'times'} while you did other things (${f.perMinute.toFixed(1)} a minute): make it bigger, set its size above 1, or merge it.`}
+              {`"${f.label}" fired ${f.fires} ${f.fires === 1 ? 'time' : 'times'} while you did other things (${f.perMinute.toFixed(1)} a minute): ${gestures.has(f.categoryId) ? 'record it bigger, or delete it' : 'make it bigger, set its size above 1, or merge it'}.`}
             </li>
           ))}
         </ul>

@@ -67,14 +67,17 @@ describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
     // Another take of the scripted wave, as the merged live vector the dispatcher reads.
     const take = waveTake({ seed: 9, waves: over.waves ?? 1, restMs: over.restMs ?? 2000 });
     const ticks = over.ticksPerFrame ?? 1;
+    /** Per frame, whether the live reading said the listener was warming. */
+    const warming: boolean[] = [];
     take.frames.forEach((f, i) => {
       vector = f.v;
       t = f.t;
       hush = over.hushAt?.(i) ?? false;
       for (let k = 0; k < ticks; k++) d.tick(f.t + (k * FRAME_MS) / ticks);
+      warming.push(readCategoryLive()?.gesturesWarming ?? false);
     });
     await new Promise((r) => setTimeout(r, 0));
-    return { dispatched, notes, take };
+    return { dispatched, notes, take, warming };
   }
 
   it('one wave runs the bound command once, with its args', async () => {
@@ -114,6 +117,18 @@ describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
     expect(take.waves).toHaveLength(5);
     expect(dispatched.length).toBeGreaterThanOrEqual(3);
     expect(dispatched.length).toBeLessThan(take.waves.length);
+  });
+
+  it('the reading says the listener is warming at the start and again after a hush, never while it hears (#954)', async () => {
+    const inSecond = (i: number) => i >= 120 && i < 150;
+    const { warming } = await play({ waves: 5, hushAt: inSecond });
+    expect(warming[0]).toBe(true);
+    const warm = warming.indexOf(false);
+    expect(warm).toBeGreaterThan(0);
+    // Warm before the hush; after it the listener warms afresh, and says so.
+    expect(warming.slice(warm, 120).every((w) => !w)).toBe(true);
+    expect(warming[150]).toBe(true);
+    expect(warming.at(-1)).toBe(false);
   });
 
   it('the binding survives the tool re-saving the categorizer (carried by gesture id and name)', async () => {

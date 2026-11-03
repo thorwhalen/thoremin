@@ -1,7 +1,7 @@
 /**
  * The strangers switch (#385 E5) and the grid's one-line summary, in the modality's words: what a
  * face (a hand shape, a pose) nobody taught reads as, and what Neutral holds. Moved out of
- * `./FaceSessionPanel.tsx` (#754), which re-exports the words.
+ * `./FaceSessionPanel.tsx` (#754), which imports them.
  */
 import type { CategorizerStrangers } from '@thoremin/sdk/enroll/categorizer';
 import { faceModality } from '@thoremin/sdk/features/modalities/face';
@@ -23,9 +23,6 @@ export function strangersText({ one, many }: Pick<ModalityWords, 'one' | 'many'>
     },
   };
 }
-
-/** The face's (#385 E5). */
-export const STRANGERS_TEXT = strangersText(faceModality.words);
 
 /** One line saying how many categories there are and what Neutral holds. */
 export function strangersSummary(view: SortingView, { one, many }: Pick<ModalityWords, 'one' | 'many'> = faceModality.words): string {

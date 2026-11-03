@@ -14,7 +14,8 @@
  *
  * A carved categorizer's moving GESTURES (#754: recorded in its tool's Gestures section) are listed
  * under its categories and bound the same way; a gesture's command runs each time it is made (an
- * event), where a category's runs on entering it.
+ * event), where a category's runs on entering it. While the listener cannot hear yet (its noise
+ * unit warming, #954) the list says so, since a gesture made then is not heard.
  *
  * The section sits at the TOP of the panel, so *Save and bind* lands on it with no scroll.
  * The live readout polls `readCategoryLive()` at UI rate while the section is mounted,
@@ -23,6 +24,7 @@
  */
 import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
+import { LISTEN_WARMING_SAY } from '@thoremin/sdk-ui/enroll/gestureWords';
 import CommandBindingFields from '../gestures/CommandBindingFields';
 import { useTools } from '../tools/toolsStore';
 import { modalityById } from '@thoremin/sdk/features/modalities';
@@ -201,6 +203,11 @@ export default function CategoryBindings() {
             <div className="space-y-2" data-category-gestures>
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-white/50">Gestures</h4>
               <p className="text-[10px] leading-snug text-white/45">Making a gesture runs its command once, each time you make it.</p>
+              {live?.gesturesWarming && (
+                <p role="status" className="rounded-md bg-amber-500/10 px-2 py-1 text-[10px] leading-snug text-amber-100" data-gestures-warming>
+                  {LISTEN_WARMING_SAY}
+                </p>
+              )}
               <ul className="space-y-2">
                 {active.gestures.names.map((g) => {
                   const name = g.label.trim() || g.id;

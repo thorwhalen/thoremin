@@ -28,6 +28,13 @@ import { BODY_FEATURES } from './body_catalog';
 /** The body groups a pose take records (see the module header for what is left out). */
 export const BODY_POSE_GROUPS: readonly string[] = ['body.angle', 'body.dir', 'body.pos', 'body.shape'];
 
+/** The groups a body's moving gesture is a path through (#954): its positions (the wrists, the
+ *  ankles, the hips and the head in the frame, and the wrists' rise), all of them, absolute ones
+ *  included: a gesture is WHERE a part goes, matched position and scale invariant, so where the
+ *  player stands is still not what it is. Already claimed with the pose ({@link BODY_POSE_GROUPS}),
+ *  so recording one composes nothing new. */
+export const BODY_GESTURE_GROUPS: readonly string[] = ['body.pos'];
+
 /** Features of the claimed groups that encode WHERE the player is, not the pose: every one
  *  whose declared invariances do not include `position`. */
 export const BODY_POSE_OMIT: readonly string[] = BODY_FEATURES.filter(

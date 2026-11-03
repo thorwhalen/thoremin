@@ -42,8 +42,10 @@ export {
   gestureSpace,
   gestureIds,
   gestureTraces,
+  playableGestures,
   toStoredTrace,
   type GestureSectionOptions,
+  type PlayableGestures,
   type GestureSpace,
 } from './file';
 export {
@@ -57,6 +59,6 @@ export {
   type TraceQuality,
 } from './quality';
 export { gestureEveryday, type GestureEverydayOptions } from './everyday';
-export { addGestureTraces, deleteGesture, dropGestureTrace, mergeGestures, renameGesture, type AddTracesOptions, type GestureEdit } from './edit';
+export { addGestureTraces, deleteGesture, dropGestureTrace, framesRefusal, mergeGestures, renameGesture, takeRoomRefusal, TAKE_ROOM_DEFAULTS, type AddTracesOptions, type GestureEdit } from './edit';
 export { createGestureListener, GESTURE_LISTEN_DEFAULTS, type GestureListener, type GestureListenerOptions, type MatcherFactory } from './listen';
 export { GESTURE_PATHS, type GesturePath, type GesturePathName } from './paths';

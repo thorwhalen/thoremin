@@ -26,7 +26,7 @@
 import type { CarveModality, ModalityWords, NuisanceCueSpec, Skeleton } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
 import { BODY_FEATURES } from '../body_catalog';
-import { BODY_POSE_FEATURE_IDS, BODY_POSE_GROUPS, BODY_POSE_MIN_COVERAGE, bodyPoseCollects } from '../body_groups';
+import { BODY_GESTURE_GROUPS, BODY_POSE_FEATURE_IDS, BODY_POSE_GROUPS, BODY_POSE_MIN_COVERAGE, bodyPoseCollects } from '../body_groups';
 import { BODY_MIRROR, mirrorBodyVector } from '../body_mirror';
 import { buildBodyCtx } from '../catalog';
 import type { BodyFrame } from '../../nodes/domain';
@@ -194,6 +194,9 @@ export const bodyModality: CarveModality = {
   words: BODY_WORDS,
   groups: BODY_POSE_GROUPS,
   collects: () => bodyPoseCollects(),
+  // A body's gesture (#954) is the path of its parts in the frame (a wave of the arm, a step), as
+  // a hand's is (#754): every position, none omitted, matched position and scale invariant.
+  gestureCollects: () => ({ groups: [...BODY_GESTURE_GROUPS], omit: [] }),
   /** The pose keys, or null when none is finite (no body in view). */
   read(vector: FeatureVector): FeatureVector | null {
     let seen = false;

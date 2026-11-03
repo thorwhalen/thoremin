@@ -18,6 +18,7 @@ import {
   createMotionSegmenter,
   deleteGesture,
   dropGestureTrace,
+  framesRefusal,
   gestureModelFromCategorizer,
   gestureQuality,
   gestureSpace,
@@ -28,7 +29,7 @@ import {
   renameGesture,
   type GestureEdit,
 } from '@thoremin/sdk/enroll/gestures';
-import { CATEGORIZER_FORMAT, CATEGORIZER_VERSION, exportCategorizer, importCategorizer, PersonalCategorizerSchema, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
+import { CATEGORIZER_FORMAT, CATEGORIZER_VERSION, exportCategorizer, gestureFrameCount, importCategorizer, MAX_GESTURE_FRAMES, PersonalCategorizerSchema, type PersonalCategorizer } from '@thoremin/sdk/enroll/categorizer';
 import { rekeyBindings } from '@thoremin/sdk/enroll/bind';
 import { createNoiseEstimator, scaleWeights, type NoiseEstimator } from '@thoremin/sdk/enroll/noise';
 import { rowJson } from '@thoremin/sdk/util/json';
@@ -195,6 +196,32 @@ describe('the Gestures section: its verbs', () => {
   });
 });
 
+describe('the frame bound holds on save, as at the import door (#954)', () => {
+  const frames = gestureFrameCount(WITH.gestures);
+  const again = cutTraces('wave', takeOf('wave', { seed: 2, waves: 2 })).traces;
+
+  it('record more is refused, with the reason, when it would grow the section past the bound', () => {
+    const r = addGestureTraces(WITH, again, { ...OPTS, into: 'gesture-1', maxFrames: frames });
+    expect(r).toMatchObject({ ok: false });
+    expect(!r.ok && r.error).toMatch(/more than the \d+ a saved file can carry; drop or delete some repetitions first/);
+    // So is a new gesture.
+    expect(addGestureTraces(WITH, again.map((t) => ({ ...t, gesture: 'push' })), { ...OPTS, maxFrames: frames })).toMatchObject({ ok: false });
+    // Under the default (the import door's), the same take is accepted, and what it saves re-imports.
+    const c = ok(addGestureTraces(WITH, again, { ...OPTS, into: 'gesture-1' }));
+    expect(importCategorizer(exportCategorizer(c)).ok).toBe(true);
+  });
+
+  it('an edit that does not grow the section passes, so a record already over the bound can be trimmed', () => {
+    const over = frames - 1;
+    expect(framesRefusal(WITH.gestures, WITH.gestures, over)).toBeNull();
+    expect(dropGestureTrace(WITH, 'gesture-1', 'wave-5#3')).toMatchObject({ ok: true });
+    expect(framesRefusal(WITH.gestures, ok(deleteGesture(WITH, 'gesture-1')).gestures, over)).toBeNull();
+    expect(framesRefusal(undefined, WITH.gestures, over)).toMatch(/drop or delete/);
+    expect(framesRefusal(undefined, WITH.gestures)).toBeNull();
+    expect(frames).toBeLessThan(MAX_GESTURE_FRAMES);
+  });
+});
+
 describe('a gesture binding across a save (rekeyBindings)', () => {
   const targets = (c: PersonalCategorizer) => ({ categories: c.categories, gestures: c.gestures?.items ?? [] });
   const bindings = { 'cat-1': { command: 'a' }, 'gesture-1': { command: 'wave.cmd' }, 'gesture-2': { command: 'circle.cmd' } };
@@ -270,6 +297,30 @@ describe('the live listener', () => {
     expect(fires.length).toBeLessThan(take.waves.length);
     expect(listener.push(null, 1e9)).toBeNull();
     expect(listener.push({}, 1e9 + 1)).toBeNull();
+  });
+
+  it('says it is warming (cannot hear yet) until its noise unit is learned, and again after a reset (#954)', () => {
+    const take = takeOf('wave', { seed: 5 });
+    const listener = createGestureListener(model);
+    expect(listener.warming()).toBe(false); // nothing read yet
+    const said = take.frames.map((f) => {
+      const fired = listener.push(f.v, f.t);
+      return { warming: listener.warming(), fired: fired !== null };
+    });
+    expect(said[0].warming).toBe(true);
+    const warmAt = said.findIndex((x) => !x.warming);
+    expect(warmAt).toBeGreaterThan(0);
+    // Warm before the first wave (the take rests first), and never cold again while it listens.
+    expect(take.frames[warmAt].t).toBeLessThan(take.waves[0].startMs);
+    expect(said.slice(warmAt).every((x) => !x.warming)).toBe(true);
+    // No fire while warming; a frame with no hand says nothing either way.
+    expect(said.slice(0, warmAt).some((x) => x.fired)).toBe(false);
+    listener.push(null, 1e9);
+    expect(listener.warming()).toBe(false);
+    listener.reset();
+    expect(listener.warming()).toBe(false);
+    listener.push(take.frames[0].v, 2e9);
+    expect(listener.warming()).toBe(true);
   });
 
   it('runs the matcher it is given (the #755 seam)', () => {

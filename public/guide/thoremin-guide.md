@@ -1421,7 +1421,7 @@ Run commands without touching the screen. Bind a hand pose, or any group you tau
 
 **Your categories**
 
-*Your categories* binds each group of a saved model to a command: entering the group fires the command. A model's movements (the gestures recorded in [Your hand shapes](#tools-hand-shapes)) are listed under its groups: a movement runs its command once each time you make it. Commands that could lose your work (saving over an instrument) are not allowed here.
+*Your categories* binds each group of a saved model to a command: entering the group fires the command. A model's movements (the gestures recorded in [Your hand shapes](#tools-hand-shapes)) are listed under its groups: a movement runs its command once each time you make it. Just after you choose a model, or after the Trainer has hushed the instrument, the list says it is getting ready to listen: hold still for a moment, since a movement made before then is not heard. Commands that could lose your work (saving over an instrument) are not allowed here.
 
 
 <a id="tools-hand-shapes"></a>
@@ -1450,6 +1450,8 @@ A saved shape model can be the air guitar's chords ([Air Guitar](#instruments-ai
 Under the groups, the **Gestures** section keeps movements of your hand: a wave, a circle, a push. Type a name and press *Record a gesture*. Hold your hand still while a ring fills (it learns how much your hand wanders at rest), then do the movement as many times as it asks, letting your hand come to rest between each one. It stops by itself when it has them; *Stop and keep them* keeps the ones done so far.
 
 Each gesture shows each of its repetitions as a small drawing of the path, and dots for how alike they are and how far from your other gestures. When one repetition is unlike the others, *Drop the odd one* removes it; the small x on a drawing drops any one. *Record more* adds repetitions, *Merge into* puts two gestures together, and the name can be changed in place. Undo and redo work as for the groups. If a gesture passes through one of your shapes for long enough to also fire it, a line says so when you record it.
+
+*Test with my hand* hears the gestures too: each one says how many times you made it (after a moment of holding still, while it gets ready to listen). *Quiz me* asks for your gestures beside your shapes, and a movement started after the prompt answers it; the *Everyday check* counts a gesture each time it fires by accident.
 
 A saved gesture appears in [Gestures](#tools-gestures), *Your categories*, under the groups: bound to a command, it runs that command once each time you make the movement.
 
@@ -1538,6 +1540,7 @@ Each box is one part of the instrument; the lines show where its numbers come fr
 1. Open Tools, then Your poses, then Record my poses.
 2. Do the three short demonstrations (closer and further, a step aside, a slight turn), then each pose, held for a moment.
 3. Sort and name the groups. The conductor can use them to start, hold and stop.
+4. Under the groups, name a gesture (a wave of the arm) and record it a few times: it can fire a command too.
 
 The same tool as [Your faces](#tools-faces), for your body. It needs most of your body in view, otherwise it says "Cannot see you".
 
@@ -1548,6 +1551,10 @@ Tick *Left and right are the same pose* before you record if one arm up should b
 **Use them**
 
 A pose model can start, hold and cut off the [Conductor](#tools-conductor). In the editor, the Pose categorizer section chooses which model an instrument plays.
+
+**Gestures: movements, not poses**
+
+Under the groups, the **Gestures** section keeps movements of your body, such as a wave of the arm or a step to the side, exactly as in [Your hand shapes](#tools-hand-shapes): type a name, press *Record a gesture*, stand still while a ring fills, then do the movement as many times as it asks, coming to rest between each one. *Test with my body*, *Quiz me* and the *Everyday check* hear them too, and a saved one can be bound to a command in [Gestures](#tools-gestures).
 
 Its settings: [Pose categorizer](#settings--pose-categorizer).
 
