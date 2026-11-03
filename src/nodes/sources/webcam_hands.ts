@@ -27,9 +27,15 @@
  * thread as its automatic fallback. The host may override the param through
  * `ctx.resources.handRunner` (`?hands.runner=`). Either way the frame pump on this thread
  * stamps every frame, so a result always carries its own frame's capture time.
+ *
+ * The runner is a `lazyResource` (`@thoremin/lazy`, #922, as `webcam-body` holds its landmarker):
+ * requested from `process()`, so the graph starts (and a swap commits) without waiting for the
+ * model; the pump starts once it is held; a load that lands after `dispose()` is closed on arrival;
+ * a failed load is tried again on the same policy as a dead worker's replacement.
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
+import { lazyResource, type LoadResult, type LoadStatus } from '@thoremin/lazy';
 import { SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS, type HandsStatus } from './source_contract';
 import { acquireFramePump, stampToTiming } from './frame_pump';
 import type { NodeContext } from '@thoremin/dag';
@@ -41,6 +47,8 @@ import {
   canHostHandWorker,
   createHandRunner,
   HandRunnerChoiceSchema,
+  MAIN_REPLACEMENT_RETRIES,
+  MAIN_REPLACEMENT_RETRY_MS,
   type HandLandmarkerLike,
   type HandResult,
   type HandRunner,
@@ -175,11 +183,11 @@ function browserWorkerDeps(): WorkerRunnerDeps | undefined {
 /**
  * The source's lifecycle as words (#737), one frozen object per state so a tick allocates none.
  *
- * Since #922 the model loads WITHOUT holding the graph: `init()` starts the load and returns, so
- * the instrument starts at once (and a swap commits at once) and the port says `loading` until the
- * runner exists, or `unavailable` when it could not be made (offline, no WebGL and no CPU path).
- * After that it says what the runner goes through: a dead worker's main-thread replacement
- * loading, waiting to try again, or out of tries.
+ * Since #922 the model loads WITHOUT holding the graph, so the instrument starts at once (and a
+ * swap commits at once): the port says `loading` until the runner exists, `retrying` while a failed
+ * load waits to be tried again, and `unavailable` once it is out of tries (offline, no WebGL and no
+ * CPU path). After that it says what the runner goes through: a dead worker's main-thread
+ * replacement loading, waiting to try again, or out of tries.
  */
 export const HANDS_STATUS = {
   loading: Object.freeze({ phase: 'loading', message: 'Loading the hand model' }),
@@ -201,6 +209,19 @@ export function handsStatus(state: HandRunnerState, handsInView: boolean): Hands
   return handsInView ? HANDS_STATUS.active : HANDS_STATUS.ready;
 }
 
+/** The reason a failed load gives while it will be tried again (`LoadResult.retry`). */
+const RETRYING_REASON = 'retrying';
+
+/**
+ * What the hand source says before its runner is held (#922), from its `lazyResource`'s status:
+ * waiting to try a failed load again, out of tries (or a load that broke), else loading. Pure.
+ */
+export function handsLoadStatus(load: LoadStatus): HandsStatus {
+  if (load.phase === 'unavailable' && load.reason === RETRYING_REASON) return HANDS_STATUS.retrying;
+  if (load.phase === 'unavailable' || load.phase === 'error') return HANDS_STATUS.unavailable;
+  return HANDS_STATUS.loading;
+}
+
 /** Where to run: the host's override when it gives a valid one, else the param. */
 export function runnerChoice(resources: Record<string, unknown>, param: HandRunnerChoice): HandRunnerChoice {
   const parsed = HandRunnerChoiceSchema.safeParse(resources[HAND_RUNNER_RESOURCE_KEY]);
@@ -216,9 +237,6 @@ export const webcamHandsNode = defineNode<Params>({
   outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: Params,
   make(p) {
-    let runner: HandRunner | null = null;
-    /** Whether the model's load (#922: not awaited by `init`) failed. */
-    let unavailable = false;
     let latest: HandsFrame = EMPTY;
     let disposed = false;
     let video: HTMLVideoElement | undefined;
@@ -227,6 +245,36 @@ export const webcamHandsNode = defineNode<Params>({
     let numHands = p.maxHands;
     let reconfiguring = false;
     let countFixed = false;
+    /** Loads that failed so far: tried again `MAIN_REPLACEMENT_RETRIES` times, as a dead worker's
+     *  replacement is, then the source says it is unavailable. */
+    let failures = 0;
+
+    /** A runner's result, now (main thread) or when the worker answers: the latest frame,
+     *  with the timing of the frame it ran on. */
+    const onResult = ({ result, width, height, stamp }: HandResult): void => {
+      if (!disposed) latest = { ...resultToHandsFrame(result, width, height), ...stampToTiming(stamp) };
+    };
+
+    const runner = lazyResource<HandRunner>({
+      load: async (): Promise<LoadResult<HandRunner>> => {
+        // Created looking for what the host wants now, so the first frames reconfigure nothing.
+        numHands = wantedHands(resources, p.maxHands);
+        const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
+        try {
+          const deps = { loadMain: loadOnMain, worker: browserWorkerDeps() };
+          return { resource: await createHandRunner(runnerChoice(resources, p.runner), options, onResult, deps) };
+        } catch (err) {
+          failures += 1;
+          const retry = failures <= MAIN_REPLACEMENT_RETRIES;
+          console.error(`[thoremin] the hand model could not load${retry ? `; trying again in ${MAIN_REPLACEMENT_RETRY_MS} ms` : ''}`, err);
+          return { resource: null, reason: retry ? RETRYING_REASON : 'error', retry };
+        }
+      },
+      unload: (r) => r.close(),
+      retryDelayMs: MAIN_REPLACEMENT_RETRY_MS,
+      label: 'hand model',
+      log: (m) => console.warn(`[thoremin] ${m}`),
+    });
 
     /** Follow the host's count on the live landmarker. True while a change is in flight
      *  (the frame is then offered again on the next animation frame). */
@@ -239,7 +287,7 @@ export const webcamHandsNode = defineNode<Params>({
       const before = numHands;
       // A landmarker closed (or replaced) before the change runs is left alone: `setOptions`
       // would rebuild a graph on it that nothing ever frees.
-      const live = (): boolean => !disposed && runner === lm;
+      const live = (): boolean => !disposed && runner.current() === lm;
       // Through a resolved promise, so a synchronous throw lands in the same catch.
       Promise.resolve()
         .then(() => (live() ? lm.setNumHands(want) : undefined))
@@ -270,52 +318,28 @@ export const webcamHandsNode = defineNode<Params>({
     const pump = acquireFramePump(
       () => video,
       (stamp, v) => {
-        if (!runner || followHandCount(runner)) return false;
+        const lm = runner.current();
+        if (!lm || followHandCount(lm)) return false;
         // The held-frame option (#842): keep each frame that is really inferred (not the ones a
         // busy worker drops), by its stamp, for the overlay to draw. Snapshotted in this callback,
         // like the model's own.
         const hold = resources[FRAME_HOLD_RESOURCE_KEY] as FrameHold<ImageBitmap> | undefined;
-        return runner.offer(v, stamp, hold && ((video, s) => holdFrame(hold, video, s.tMs / 1000)));
+        return lm.offer(v, stamp, hold && ((video, s) => holdFrame(hold, video, s.tMs / 1000)));
       },
     );
 
-    /** A runner's result, now (main thread) or when the worker answers: the latest frame,
-     *  with the timing of the frame it ran on. */
-    const onResult = ({ result, width, height, stamp }: HandResult): void => {
-      if (!disposed) latest = { ...resultToHandsFrame(result, width, height), ...stampToTiming(stamp) };
-    };
-
     return {
       init(ctx: NodeContext) {
+        // Cheap: the shared <video> and the host's resources. The model is requested by `process`.
         video = ctx.resources.video as HTMLVideoElement | undefined;
         resources = ctx.resources;
-        // Created looking for what the host wants now, so the first frames reconfigure nothing.
-        numHands = wantedHands(resources, p.maxHands);
-        const options = { wasmBase: TASKS_VISION_WASM_BASE, modelUrl: MODEL_URL, delegate: resolveDelegate(p.delegate), numHands };
-        // Not awaited (#922): the graph starts now, and `process` says `loading` meanwhile.
-        void createHandRunner(runnerChoice(resources, p.runner), options, onResult, {
-          loadMain: loadOnMain,
-          worker: browserWorkerDeps(),
-        }).then(
-          (loaded) => {
-            if (disposed) {
-              // Unmounted while loading — don't resurrect.
-              loaded.close();
-              return;
-            }
-            runner = loaded;
-            pump.start();
-          },
-          (err: unknown) => {
-            if (disposed) return;
-            unavailable = true;
-            console.error('[thoremin] the hand model could not load', err);
-          },
-        );
       },
       process() {
-        if (!runner) return { hands: EMPTY, status: unavailable ? HANDS_STATUS.unavailable : HANDS_STATUS.loading };
-        const state = runner.state?.() ?? 'running';
+        runner.request();
+        const lm = runner.current();
+        if (!lm) return { hands: EMPTY, status: handsLoadStatus(runner.status()) };
+        pump.start();
+        const state = lm.state?.() ?? 'running';
         // Not inferring (a dead worker being replaced, or out of tries): the last frame is stale,
         // so it is dropped rather than held. A held frame would keep a voice droning and a
         // skeleton drawn beside the overlay's "Hands: ... stopped" (#737).
@@ -325,8 +349,8 @@ export const webcamHandsNode = defineNode<Params>({
       dispose() {
         disposed = true;
         pump.stop();
-        runner?.close();
-        runner = null;
+        // Closes a held runner, and one that lands later on arrival.
+        runner.dispose();
       },
     };
   },
