@@ -37,7 +37,7 @@
 import { create } from 'zustand';
 import { createLeadCalibration, type LeadCalibration, type LeadCalibrationResult } from '@thoremin/ictus';
 import { clickPlan, type Click } from '@thoremin/sdk/enroll';
-import { type BodyFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type BodyFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
@@ -147,7 +147,10 @@ export function cancelLeadTake(): void {
  * The per-frame sink: while a take is listening, every NEW body frame goes to the
  * calibration at the time the conductor would read it (`frameTime`: the capture stamp in
  * real time at speed 1, else the engine's time); at the end of the take the result is
- * stored, or the take is refused when a click was dropped meanwhile.
+ * stored, or the take is refused when a click was dropped meanwhile. New is
+ * `isFreshFrame` (#973): not the object seen last, nor a copy carrying its capture stamp,
+ * which a replayed per-tick recording delivers and which, as a sample of its own, puts a
+ * still frame inside every stroke and moved the learned lag by 4.5 ms.
  */
 export function makeLeadCalibrationSink(
   engine: OutputReader,
@@ -159,7 +162,7 @@ export function makeLeadCalibrationSink(
 ): (nowMs: number) => void {
   let take: LeadTake | null = null;
   let cal: LeadCalibration | null = null;
-  let lastFrame: unknown = undefined;
+  let lastFrame: BodyFrame | undefined;
   return (nowMs) => {
     const s = read();
     if (s.phase !== 'listening' || !s.take) {
@@ -174,7 +177,7 @@ export function makeLeadCalibrationSink(
     }
     const now = nowMs / 1000;
     const body = engine.getOutput(nodeId, 'body') as BodyFrame | undefined;
-    if (body && body !== lastFrame && cal) {
+    if (body && isFreshFrame(lastFrame, body) && cal) {
       lastFrame = body;
       const t = captureTime(body, { time: now, resources: resources() });
       if (t >= take.startT) cal.push(bodyChannelFrame(body, t, take.side));
