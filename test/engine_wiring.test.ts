@@ -142,7 +142,7 @@ describe('the slot selection reaches the graph', () => {
     expect(c).toMatch(/const live = await composeLoaded\(lazyDeps\(composedSlots,\s*registry,\s*\(\) => !disposed\)\)/);
     // ...the selection the caller passed, with the default hand source idled while no camera is
     // open (#869): a selection that skipped this would load the hand model with nothing to read.
-    expect(c).toMatch(/const composedSlots = \(\) => sourceSelectionFor\(slotsRef\.current, \{ video: videoOpenRef\.current \}\)/);
+    expect(c).toMatch(/const composedSlots = \(\) => \{[^}]*videoOpenRef\.current && readsCameraRef\.current;\s*return sourceSelectionFor\(slotsRef\.current, \{ video: handsLiveRef\.current \}\)/);
     expect(code(liveApply)).toMatch(/compose: \(without\) => liveGraph\(selection\(\),\s*registry,\s*without\)/);
     expect(c).toMatch(/new Engine\(\s*live\.spec,\s*registry/);
   });

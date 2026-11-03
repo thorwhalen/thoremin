@@ -79,9 +79,7 @@ export function liveHandCount(
   demanded = featureDemandResource(),
   override: HandCount | null = HANDS_OVERRIDE,
 ): HandCount {
-  if (override) return override;
-  const { branches, ctx } = liveReaders(controls, demanded);
-  return deriveHandCount(branches, ctx);
+  return liveCameraReading(controls, demanded, override).handCount;
 }
 
 /**
@@ -89,8 +87,23 @@ export function liveHandCount(
  * the camera when this turns true, and never for an instrument that only listens.
  */
 export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): boolean {
+  return liveCameraReading(controls, demanded).readsCamera;
+}
+
+/** Both answers from one reading of the readers: what the host's store selector asks on every
+ *  store change, so the branch closure is computed once, not once per answer. */
+export interface CameraReading {
+  handCount: HandCount;
+  readsCamera: boolean;
+}
+
+export function liveCameraReading(
+  controls: ReturnType<typeof useControls.getState>,
+  demanded = featureDemandResource(),
+  override: HandCount | null = HANDS_OVERRIDE,
+): CameraReading {
   const { branches, ctx } = liveReaders(controls, demanded);
-  return deriveReadsCamera(branches, ctx);
+  return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, ctx) };
 }
 
 /** The live branch set as a key, for "did it change since the build?". */

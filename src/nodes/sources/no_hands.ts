@@ -16,13 +16,9 @@
  */
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
-import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS, type HandsStatus } from './source_contract';
+import { EMPTY_HANDS_FRAME, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS, type HandsStatus } from './source_contract';
 import { NO_HANDS_TYPE } from './no_hands.schema';
 export { NO_HANDS_TYPE };
-
-/** The frame it always emits: no hand in view (what `replay-hands` emits with nothing to replay). */
-const EMPTY: HandsFrame = { width: 640, height: 480, hands: [] };
 
 /** What the overlay hears: off, with the reason for anyone who reads it. */
 const CAMERA_CLOSED: HandsStatus = Object.freeze({ phase: 'off', message: 'Camera closed: nothing reads it' });
@@ -35,5 +31,5 @@ export const noHandsNode = defineNode({
   inputs: [],
   outputs: [SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS],
   params: z.object({}),
-  process: () => ({ hands: EMPTY, status: CAMERA_CLOSED }),
+  process: () => ({ hands: EMPTY_HANDS_FRAME, status: CAMERA_CLOSED }),
 });

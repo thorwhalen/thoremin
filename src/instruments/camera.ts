@@ -15,9 +15,13 @@
  *    reading (declared `hands`, else inferred from an edge out of the trunk's hand nodes);
  *  - a composed branch that runs a camera model of its own: the face and body sources declare
  *    `camera: true` (`GraphBranch.camera`);
- *  - the shell, through the hand count's context ({@link HandCountContext}): a live claim on a
- *    group any camera model measures (the Lab, the Trainer, a bound categorizer, a carve take),
- *    the hand gestures, the hand skeleton overlay; plus the video backdrop, which IS the camera.
+ *  - the shell: its hand readers ({@link shellReadsHands}, the hand count's one list: a hand
+ *    claim, the gestures, the skeleton), a claim on a face or body group (the Lab, the Trainer,
+ *    a bound categorizer, a carve take), and the video backdrop, which IS the camera.
+ *
+ * A hand instrument's voices are never the trunk's: the mapping slot lives in `field-voices`
+ * (composed while `handMap.maxGain > 0`) and every other instrument in a branch of its own, each
+ * reading the hand stream by an edge, so {@link branchHands} counts it.
  *
  * A face or body claim also composes its source branch (by the branch's `demands`), so it is
  * counted twice over; the claim is read here directly anyway, so the answer never depends on a
@@ -27,8 +31,8 @@
  * Pure: no store, no engine, no React.
  */
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
-import { demandWantsBody, demandWantsFace, demandWantsHands } from '@thoremin/sdk/features/sources';
-import { branchHands, type HandCountContext } from './hands';
+import { demandWantsBody, demandWantsFace } from '@thoremin/sdk/features/sources';
+import { branchHands, shellReadsHands, type HandCountContext } from './hands';
 
 /** What the shell reads of the camera, beside the instrument's branches: the hand count's
  *  readers, plus the video backdrop. */
@@ -45,14 +49,7 @@ export function branchReadsCamera(branch: GraphBranch): boolean {
 /** Whether the shell reads the camera, whatever the instrument composes. */
 export function shellReadsCamera(ctx: CameraReadContext = {}): boolean {
   const demanded = ctx.demanded ?? new Set<string>();
-  return (
-    ctx.videoShown === true ||
-    ctx.gesturesEnabled === true ||
-    ctx.skeletonShown === true ||
-    demandWantsHands(demanded) ||
-    demandWantsFace(demanded) ||
-    demandWantsBody(demanded)
-  );
+  return ctx.videoShown === true || shellReadsHands(ctx) || demandWantsFace(demanded) || demandWantsBody(demanded);
 }
 
 /**

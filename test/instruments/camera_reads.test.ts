@@ -13,6 +13,8 @@ import { useControls } from '@/app/store';
 import { TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 import { FACE_GROUP_IDS, BODY_GROUP_IDS, HAND_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { defineBranch } from '@thoremin/sdk/instruments/branch';
+import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
+import { seedSettings } from '../../scripts/stability/lib_run';
 
 const byId = new Map(ALL_BRANCHES.map((b) => [b.id, b]));
 /** The composed branches for `ids`: the trunk and every requirement in, as the host reads them. */
@@ -95,6 +97,29 @@ describe('liveReadsCamera (the host\'s reading of the hot store)', () => {
 
   it('an instrument that only listens does not', () => {
     expect(liveReadsCamera(listening(), new Set())).toBe(false);
+  });
+
+  it('the hand voices read it with the video and the skeleton hidden: they are a branch, never the trunk', () => {
+    // The review's scenario: a hand theremin with nothing drawn from the camera still plays from it.
+    const s = listening();
+    expect(liveReadsCamera({ ...s, handMap: { ...s.handMap, maxGain: initial.handMap.maxGain } }, new Set())).toBe(true);
+  });
+
+  it('every seed this build ships that plays from a camera reads it with the video and skeleton hidden', () => {
+    const silent = (st: ReturnType<typeof useControls.getState>) => ({
+      ...st,
+      overlay: { ...st.overlay, video: { ...st.overlay.video, show: false }, landmarks: { ...st.overlay.landmarks, show: false } },
+      gestures: { ...st.gestures, enabled: false },
+    });
+    for (const seed of SEED_INSTRUMENTS) {
+      useControls.setState(initial, true);
+      useControls.getState().applySettings(seedSettings(seed.name));
+      const st = useControls.getState();
+      // A seed whose voices the camera drives: a hand voice, a face mapping, or any composed
+      // branch that reads it. The listening games (lab build) compose none, and are the exception.
+      if ((st as unknown as Record<string, { enabled?: boolean }>).games?.enabled) continue;
+      expect(liveReadsCamera(silent(st), new Set()), seed.name).toBe(true);
+    }
   });
 
   it('a face mapping, the video, the skeleton, gestures or a tool\'s claim each make it read', () => {

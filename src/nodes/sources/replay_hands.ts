@@ -33,16 +33,10 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import { HandsFrameSchema, type HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { SCRIPTED_HANDS_STATUS, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS } from './source_contract';
+import { EMPTY_HANDS_FRAME, SCRIPTED_HANDS_STATUS, SOURCE_SLOT_OUTPUT, SOURCE_SLOT_STATUS } from './source_contract';
 
-/**
- * What a source with nothing to replay emits. **Not** `undefined`: the contract
- * says this port always carries a frame, and "no hands detected" is a real,
- * well-defined frame that the whole downstream graph already handles (it is what
- * `webcam-hands` emits before its first inference). Emitting nothing instead
- * would be the exact failure `PortSpec.schema` exists to catch.
- */
-const EMPTY: HandsFrame = { width: 640, height: 480, hands: [] };
+/** What a source with nothing to replay emits: the contract's empty frame. */
+const EMPTY = EMPTY_HANDS_FRAME;
 
 import { HAND_REPLAY_RESOURCE_KEY, type HandReplay } from './replay_hands.schema';
 export { HAND_REPLAY_RESOURCE_KEY, type HandReplay };

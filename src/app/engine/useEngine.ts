@@ -44,7 +44,8 @@ import { useTimingStatus, makeTimingReporter } from '../timing/timingStatus';
 import { makeStatusSinks, statusHooks } from '../host/contributions';
 import { ensureLazyTypes } from './extensionLoad';
 import { composeLoaded } from './lazyApply';
-import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveGraph, liveHandCount, liveReadsCamera } from './liveApply';
+import { applyLive, currentBranchKey, lazyDeps, liveBranchIds, liveCameraReading, liveGraph } from './liveApply';
+import { useShallow } from 'zustand/react/shallow';
 import { useToasts } from '../shell/toasts';
 import { useGestureStatus, makeGestureReporter } from '../gestures/gestureStatus';
 import { createGestureDispatcher } from '../gestures/gestureDispatch';
@@ -165,12 +166,12 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   const branchKey = useControls((s) => branchSetKey(liveBranchIds(s, demanded)));
   // How many hands the hand model looks for (#325), read by `webcam-hands` through the
   // `handCount` resource on each frame; a change reconfigures the live model, never the graph.
-  const handCount = useControls((s) => liveHandCount(s, demanded));
+  // And whether anything reads the camera at all (#869), from the same reading: an instrument
+  // that only listens never opens it, and a switch to one that reads it opens it then
+  // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders.
+  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, demanded)));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
-  // Whether anything reads the camera (#869), from the same readers: an instrument that only
-  // listens never opens it, and a switch to one that reads it opens it then (`requestCamera`).
-  const readsCamera = useControls((s) => liveReadsCamera(s, demanded));
   const readsCameraRef = useRef(readsCamera);
   readsCameraRef.current = readsCamera;
   // Whether a video is there for the hand source to read: a file clip, or the camera once opened.
@@ -181,9 +182,16 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // stream; null before it runs and after teardown. `cameraOpeningRef` holds a request in flight.
   const openCameraRef = useRef<(() => Promise<boolean>) | null>(null);
   const cameraOpeningRef = useRef<Promise<void> | null>(null);
+  // Whether the hand source has been live (its model loaded) since the camera opened: it then
+  // stays live, so browsing instruments never reloads the model.
+  const handsLiveRef = useRef(false);
   /** The slot selection the graph is composed with: the caller's, with the default hand source
-   *  idled while no video is there to read (`sourceSelectionFor`). */
-  const composedSlots = () => sourceSelectionFor(slotsRef.current, { video: videoOpenRef.current });
+   *  idled until a video is there AND something reads it (`sourceSelectionFor`): a camera opened
+   *  for a reader the player switched away from during the permission prompt loads no model. */
+  const composedSlots = () => {
+    handsLiveRef.current ||= videoOpenRef.current && readsCameraRef.current;
+    return sourceSelectionFor(slotsRef.current, { video: handsLiveRef.current });
+  };
 
   /** Re-wire the LIVE engine onto the current slots and branch set (`./liveApply`). The refs
    *  are read when the graph is composed and committed, so every caller passes the same ones. */
@@ -206,7 +214,10 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .then((opened) => {
         if (!opened || engineRef.current !== engine) return;
         videoOpenRef.current = true;
-        rewire(engine, registry);
+        // The player may have switched back to an instrument that reads nothing while the
+        // browser asked: the camera stays open (it does for the session), but the hand model
+        // is swapped in only for a reader. The next reader re-wires (`readsCamera` effect).
+        if (readsCameraRef.current) rewire(engine, registry);
       })
       .catch((e: unknown) => {
         if (engineRef.current !== engine) return;
@@ -515,6 +526,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       releaseTake();
       openCameraRef.current = null;
       videoOpenRef.current = false;
+      handsLiveRef.current = false;
       cameraStreamRef.current = null;
       stream?.getTracks().forEach((t) => t.stop());
       // Symmetric to stopping camera tracks: pause a file clip so an aborted
@@ -558,7 +570,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // Open the camera when something comes to read it (#869): an instrument switch, a dial, a tool.
   // On mount this finds no engine yet and no-ops; the build effect opens it at boot instead.
   useEffect(() => {
-    if (readsCamera) requestCamera();
+    if (!readsCamera) return;
+    const engine = engineRef.current;
+    const registry = registryRef.current;
+    // Open it, or, when it opened during a switch away and the hand source was left idle, wire
+    // the hand source in now.
+    if (videoOpenRef.current && engine && registry) rewire(engine, registry);
+    else requestCamera();
   }, [readsCamera]);
 
   // Re-wire the LIVE engine when the branch set changes (an instrument switch, a dial that
