@@ -19,12 +19,12 @@
  * status reporters (`makeFaceReporter` and its siblings, beside their stores), and the take's
  * lifecycle (`./recording/useRecordingController`).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
-import { createAppRegistry } from '@/host/appRegistry';
+import { createAppRegistry, declaredAppRegistry } from '@/host/appRegistry';
 import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
 import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
-import { slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
+import { cameraNodes, slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
 import type { NodeRegistry } from '@thoremin/dag';
@@ -52,6 +52,8 @@ import { createGestureDispatcher } from '../gestures/gestureDispatch';
 import { createCategoryDispatcher, resetCategoryLive } from '../enroll/categoryDispatch';
 import { installCategoryDemand, useCategoryBinding } from '../enroll/categoryBinding';
 import { cameraConstraints } from './camera';
+import { watchCameraRetry } from './cameraRetry';
+import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { HAND_REPLAY_RESOURCE_KEY, useReplay } from '../replay/replayStore';
 import { latencyHintFor, noteLatencyHintInEffect } from '../timing/audioPrefs';
 import { AUDIO_INPUT_RESOURCE_KEY, audioInput, provideAudioOutput } from '../audio';
@@ -168,8 +170,11 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // `handCount` resource on each frame; a change reconfigures the live model, never the graph.
   // And whether anything reads the camera at all (#869), from the same reading: an instrument
   // that only listens never opens it, and a switch to one that reads it opens it then
-  // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders.
-  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, demanded)));
+  // (`requestCamera`). Compared field by field, so an unchanged reading never re-renders. A
+  // camera model counts by its node's own declaration, a slot node as THIS selection fills it
+  // (#960: `?slot.body=synthetic-body` reads no camera).
+  const nodes = useMemo(() => cameraNodes(slots, declaredAppRegistry()), [slotsKey]);
+  const { handCount, readsCamera } = useControls(useShallow((s) => liveCameraReading(s, nodes, { demanded })));
   const handCountRef = useRef(handCount);
   handCountRef.current = handCount;
   const readsCameraRef = useRef(readsCamera);
@@ -182,6 +187,14 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
   // stream; null before it runs and after teardown. `cameraOpeningRef` holds a request in flight.
   const openCameraRef = useRef<(() => Promise<boolean>) | null>(null);
   const cameraOpeningRef = useRef<Promise<void> | null>(null);
+  // Armed by the refusal of a request the player caused (#960): the uninstall of the watch that
+  // asks again when the permission is granted, or once when the page is shown again
+  // (`./cameraRetry`); null otherwise.
+  const cameraRetryRef = useRef<(() => void) | null>(null);
+  const disarmCameraRetry = () => {
+    cameraRetryRef.current?.();
+    cameraRetryRef.current = null;
+  };
   // Whether the hand source has been live (its model loaded) since the camera opened: it then
   // stays live, so browsing instruments never reloads the model.
   const handsLiveRef = useRef(false);
@@ -202,9 +215,13 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
    * Open the camera when something reads it, the source slot is the camera's and it is not open
    * yet, then re-wire so the hand source swaps in (#869). The engine keeps playing throughout; a
    * camera that cannot open (refused, absent) is said in a toast and the instrument plays on
-   * without it, asking again the next time a reader appears.
+   * without it. It is asked for again (#960) the next time a reader appears, and on the events
+   * after which a refusal may have turned (`watchCameraRetry`: the permission granted, the page
+   * shown once). Those retries are `quiet`: the toast was said once, and only the refusal of a
+   * request the player caused arms a fresh watch, so a retry's own refusal never re-arms one and
+   * nothing prompts in a loop. Reads only refs, so a closure from any render does the same.
    */
-  const requestCamera = () => {
+  const requestCamera = ({ quiet = false }: { quiet?: boolean } = {}) => {
     const open = openCameraRef.current;
     const engine = engineRef.current;
     const registry = registryRef.current;
@@ -214,6 +231,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .then((opened) => {
         if (!opened || engineRef.current !== engine) return;
         videoOpenRef.current = true;
+        disarmCameraRetry();
         // The player may have switched back to an instrument that reads nothing while the
         // browser asked: the camera stays open (it does for the session), but the hand model
         // is swapped in only for a reader. The next reader re-wires (`readsCamera` effect).
@@ -222,6 +240,9 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       .catch((e: unknown) => {
         if (engineRef.current !== engine) return;
         console.error('[thoremin] could not open the camera', e);
+        if (quiet) return;
+        disarmCameraRetry();
+        cameraRetryRef.current = watchCameraRetry(() => requestCamera({ quiet: true }));
         const why = e instanceof Error ? e.message : String(e);
         useToasts.getState().push(`Could not open the camera (${why}). This instrument reads it; it plays on without it.`, CAMERA_FAILURE_TOAST_MS, 'error');
       })
@@ -323,7 +344,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         sizeCanvasTo(canvasRef.current, video);
 
         const resources = resourcesRef.current;
-        resources.video = video;
+        resources[VIDEO_RESOURCE_KEY] = video;
         resources.canvas = canvasRef.current;
         resources.window = window;
         resources.controls = () => useControls.getState();
@@ -526,6 +547,7 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
       frameHold = null;
       releaseTake();
       openCameraRef.current = null;
+      disarmCameraRetry();
       videoOpenRef.current = false;
       handsLiveRef.current = false;
       cameraStreamRef.current = null;

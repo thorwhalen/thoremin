@@ -54,6 +54,20 @@ export function createAppRegistry(extensions: readonly Extension[] = CONTRIBUTIO
   return registry;
 }
 
+let declared: NodeRegistry | undefined;
+
+/**
+ * One app registry, built on first use, for reading what node types DECLARE (ports, roles, the
+ * host resources they read) without an engine: what the host asks before it has built one, such
+ * as whether the composed instrument reads the camera (#960). A declaration is static, the same in
+ * every registry built from this extension list; a lazy extension's types read as declaring
+ * nothing until loaded here, which is why a camera model may not be lazy
+ * (`test/instruments/camera_reads.test.ts`).
+ */
+export function declaredAppRegistry(): NodeRegistry {
+  return (declared ??= createAppRegistry());
+}
+
 /** {@link createAppRegistry} with every lazy extension's nodes loaded: for the scripts and tests
  *  that list or run every node (the catalog, the golden graphs). The app never needs it. */
 export async function loadedAppRegistry(extensions: readonly Extension[] = CONTRIBUTIONS.extensions): Promise<NodeRegistry> {

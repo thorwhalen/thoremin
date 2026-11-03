@@ -26,7 +26,8 @@
  * One output may fan OUT to several inputs (webcam→features & overlay); only fan-IN to a
  * single input port is disallowed, which is why every voice goes through `synth-merge`.
  */
-import type { GraphSpec, NodeRegistry, Role } from '@thoremin/dag';
+import { readsResource, type GraphSpec, type NodeRegistry, type Role } from '@thoremin/dag';
+import type { CameraNodes } from '@/instruments/camera';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { NO_HANDS_TYPE } from '@/nodes/sources/no_hands.schema';
@@ -189,6 +190,23 @@ export function sourceSelectionFor(selection: SlotSelection, { video }: { video:
   const chosen = selection.source;
   if (video || (chosen !== undefined && chosen !== SLOTS.source.default)) return selection;
   return { ...selection, source: NO_HANDS_TYPE };
+}
+
+/**
+ * What the camera derivation (`deriveReadsCamera`) needs to know of the nodes, for a selection
+ * and the registry the graph is built against (#960): each slot resolved as the host composes it
+ * while the camera is closed (the default hand source idled by {@link sourceSelectionFor}, since
+ * it reads the camera only for the hand stream's readers, which the derivation counts itself),
+ * and each node type's own `reads` declaration. So `?slot.body=synthetic-body` reads no camera,
+ * and a camera model placed by any branch or slot does.
+ */
+export function cameraNodes(selection: SlotSelection, registry: NodeRegistry): CameraNodes {
+  return {
+    slots: resolveSlots(sourceSelectionFor(selection, { video: false }), registry),
+    // A lazy type not loaded yet (`undefined`) reads as nothing: no camera model may be lazy
+    // (`test/instruments/camera_reads.test.ts`), so for the video that answer is exact.
+    reads: (type, key) => readsResource(registry, type, key) === true,
+  };
 }
 
 /** A stable string for a selection, so React effects can depend on it by value. */

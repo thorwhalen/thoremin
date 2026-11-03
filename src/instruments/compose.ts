@@ -39,7 +39,7 @@
  * otherwise move them. Pure and Node-safe: no engine, no DOM.
  */
 import type { EdgeSpec, GraphSpec, NodeSpec } from '@thoremin/dag';
-import type { CategoryKind, GraphBranch, VoiceRole } from '@thoremin/sdk/instruments/branch';
+import type { BranchNode, CategoryKind, GraphBranch, VoiceRole } from '@thoremin/sdk/instruments/branch';
 
 export interface MergeTarget {
   /** The merge node's id in the composed graph. */
@@ -164,6 +164,13 @@ function structurallyEqual(a: unknown, b: unknown): boolean {
 
 const portKey = (p: { node: string; port: string }): string => `${p.node}.${p.port}`;
 
+/** The node type a branch node resolves to: its own `type`, or what its slot holds in `slots`;
+ *  undefined (or empty) for a slot nothing fills. The composer's rule, shared with the camera
+ *  derivation (`./camera.ts`), so both read a slot node alike. */
+export function branchNodeType(node: BranchNode, slots: Readonly<Record<string, string>> = {}): string | undefined {
+  return node.type ?? (node.slot !== undefined ? slots[node.slot] : undefined);
+}
+
 /**
  * The branch ids `ids` compose to, requirements included, in library order; unknown ids are
  * dropped (this is the facet and validation helper, and a stale id in a saved record must not
@@ -188,7 +195,7 @@ export function composeGraph(
   const nodes = new Map<string, { spec: NodeSpec; owner: string }>();
   for (const b of branches) {
     for (const n of b.nodes) {
-      const type = n.type ?? opts.slots?.[n.slot as string];
+      const type = branchNodeType(n, opts.slots);
       if (!type) {
         throw new ComposeError(`branch "${b.id}": node "${n.id}" fills slot "${n.slot}" but no type was resolved for it`);
       }

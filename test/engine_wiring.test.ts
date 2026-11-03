@@ -161,6 +161,7 @@ describe('the slot selection reaches the graph', () => {
     expect(c).toMatch(/rewire\(engine, registry\);\s*(\/\/[^\n]*\s*)*requestCamera\(\);\s*\}, \[\s*slotsKey\s*\]\)/);
     // ...and on a change of the branch SET (an instrument switch, a dial that adds a
     // capability, a tool's feature demand): the instruments-as-graphs ADR, PR 3.
+    // ...and asks for no camera there (#960 review: a request per branch change could prompt).
     expect(c).toMatch(/rewire\(engine, registry\);\s*\}, \[\s*branchKey\s*\]\)/);
     // A change during the model load (no engine yet) is reconciled once after init, for
     // the branch set as for the slots.

@@ -142,13 +142,6 @@ export const GraphBranchSchema = z.object({
    * with an edge out of the hand stream counts as reading both, and one without as none.
    */
   hands: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
-  /**
-   * Whether this branch runs a camera model of its own (the face, the body: #869). A branch that
-   * reads the trunk's hand stream reads the camera too, which {@link hands} (declared or inferred)
-   * already says, so only a source branch declares this. The host opens the camera only while
-   * a composed branch or a shell reader reads it (`src/instruments/camera.ts`).
-   */
-  camera: z.boolean().optional(),
 });
 export type GraphBranch = z.infer<typeof GraphBranchSchema>;
 export type GraphBranchInput = z.input<typeof GraphBranchSchema>;

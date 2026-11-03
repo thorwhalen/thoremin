@@ -26,7 +26,7 @@ import {
   type HandPreferenceOptions,
   type ObservedHands,
 } from '@/instruments/hands';
-import { deriveReadsCamera, type CameraReadContext } from '@/instruments/camera';
+import { deriveReadsCamera, type CameraNodes, type CameraReadContext } from '@/instruments/camera';
 import type { GraphBranch } from '@thoremin/sdk/instruments/branch';
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import type { HandPreference } from '@thoremin/sdk/nodes/player_hands';
@@ -99,15 +99,27 @@ export function liveHandCount(
   demanded = featureDemandResource(),
   override: HandCount | null = HANDS_OVERRIDE,
 ): HandCount {
-  return liveCameraReading(controls, demanded, override).handCount;
+  if (override !== null) return override;
+  const { branches, ctx } = liveReaders(controls, demanded);
+  return deriveHandCount(branches, ctx);
+}
+
+/** What a live camera reading may be told instead of its defaults. */
+export interface CameraReadingOptions {
+  /** The live feature demand; default the host's. */
+  demanded?: DemandedGroups;
+  /** The `?hands=` override; default this page's. */
+  override?: HandCount | null;
 }
 
 /**
  * Whether the live instrument or the shell reads the camera right now (#869): the host opens
- * the camera when this turns true, and never for an instrument that only listens.
+ * the camera when this turns true, and never for an instrument that only listens. `nodes` are
+ * the slots and node declarations branch nodes resolve through (#960: `cameraNodes` for the
+ * host's own selection and registry).
  */
-export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, demanded = featureDemandResource()): boolean {
-  return liveCameraReading(controls, demanded).readsCamera;
+export function liveReadsCamera(controls: ReturnType<typeof useControls.getState>, nodes: CameraNodes, demanded = featureDemandResource()): boolean {
+  return liveCameraReading(controls, nodes, { demanded }).readsCamera;
 }
 
 /** Both answers from one reading of the readers: what the host's store selector asks on every
@@ -119,11 +131,11 @@ export interface CameraReading {
 
 export function liveCameraReading(
   controls: ReturnType<typeof useControls.getState>,
-  demanded = featureDemandResource(),
-  override: HandCount | null = HANDS_OVERRIDE,
+  nodes: CameraNodes,
+  { demanded = featureDemandResource(), override = HANDS_OVERRIDE }: CameraReadingOptions = {},
 ): CameraReading {
   const { branches, ctx } = liveReaders(controls, demanded);
-  return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, ctx) };
+  return { handCount: override ?? deriveHandCount(branches, ctx), readsCamera: deriveReadsCamera(branches, nodes, ctx) };
 }
 
 /** Which hand the live instrument's one-hand readers want when two are in view (#784), if any:

@@ -32,6 +32,7 @@
  * skeleton element (and any panel readout) can say "loading" / "needs the camera"
  * / "failed" without knowing this node.
  */
+import { READS_VIDEO, VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { z } from 'zod';
 import { acquireFramePump, stampToTiming } from '@thoremin/sdk/sources/frame_pump';
 import { defineNode } from '@thoremin/dag';
@@ -137,6 +138,8 @@ const hasFrames = (video: HTMLVideoElement | undefined): boolean =>
 export const webcamBodyNode = defineNode<Params>({
   type: 'webcam-body',
   roles: ['source'],
+  // A camera model: the host opens the camera while a composed node reads the video (#960).
+  reads: READS_VIDEO,
   title: 'Webcam Body',
   description:
     'MediaPipe PoseLandmarker full-body pose (33 landmarks) from the shared webcam. Lazy-loaded, off by default.',
@@ -195,11 +198,11 @@ export const webcamBodyNode = defineNode<Params>({
     return {
       init(ctx: NodeContext) {
         // Cheap: capture the shared <video> and any injected loader. No download.
-        video = ctx.resources.video as HTMLVideoElement | undefined;
+        video = ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined;
         factory = ctx.resources.createBodyLandmarker as BodyLandmarkerFactory | undefined;
       },
       process(_inputs, ctx: NodeContext) {
-        video = (ctx.resources.video as HTMLVideoElement | undefined) ?? video;
+        video = (ctx.resources[VIDEO_RESOURCE_KEY] as HTMLVideoElement | undefined) ?? video;
         const getControls = ctx.resources.controls as BodyControlsGetter | undefined;
         const controls = getControls?.();
         // No per-tick gate (the instruments-as-graphs ADR, §3.5): this node is in the graph

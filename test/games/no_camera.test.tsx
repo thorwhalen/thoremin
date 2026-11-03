@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, waitFor, act } from '@testing-library/react';
-import { NO_SLOTS } from '@/app/graph';
+import { NO_SLOTS, cameraNodes } from '@/app/graph';
+import { createAppRegistry } from '@/host/appRegistry';
 import { useControls } from '@/app/store';
 import { liveReadsCamera } from '@/app/engine/liveApply';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
@@ -32,7 +33,7 @@ describe.runIf(GAMES)('the listening games and the camera', () => {
   for (const seed of GAME_SEEDS) {
     it(`${seed} reads no camera`, () => {
       load(seed);
-      expect(liveReadsCamera(useControls.getState(), new Set())).toBe(false);
+      expect(liveReadsCamera(useControls.getState(), cameraNodes(NO_SLOTS, createAppRegistry()), new Set())).toBe(false);
     });
   }
 

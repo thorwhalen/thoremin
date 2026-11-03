@@ -35,6 +35,7 @@
  * look-ahead is measured separately (offline, by the headless script) and added in
  * the report, not hidden in this number.
  */
+import { VIDEO_RESOURCE_KEY } from '@thoremin/sdk/sources/video';
 import { listeningRefusal } from '@thoremin/sdk-ui/listening';
 import { LatencyProbe, STAGES, type LatencySnapshot, type ProbeFrame } from '@/latency/probe';
 import { formatSummary, summarize, type Summary } from '@/latency/stats';
@@ -255,7 +256,7 @@ function resourceAudioContext(resources: Record<string, unknown>): AudioContext 
 
 /** The camera's video element, from the engine resources; undefined before it exists. */
 function resourceVideo(resources: Record<string, unknown>): HTMLVideoElement | undefined {
-  const video = resources.video;
+  const video = resources[VIDEO_RESOURCE_KEY];
   return isObject(video) && 'srcObject' in video ? (video as unknown as HTMLVideoElement) : undefined;
 }
 
