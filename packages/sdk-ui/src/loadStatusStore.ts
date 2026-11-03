@@ -8,43 +8,24 @@
  * or an `off` status with the node's own words). This factory is that shape once, so the next
  * heavy node gets its readout from one call.
  *
- * The host builds a hook's sink once per engine (`src/app/extensions/index.ts`), while a node
- * may leave the graph and come back many times under it. The reporter's change gate remembers
- * the last status it reported, so after a reset to absent it would swallow a returning node's
- * first status when that status is the one it left with (an orchestra removed and re-added
- * still `unavailable` would read "Orchestra off"). The store therefore counts its resets, and
- * the hook's sink rebuilds its reporter when the count has moved.
+ * Since #969 it is the load-status case of the general readout store (`./statusStore`): the same
+ * store, reporter and hook (with the reset-count rebuild that keeps a returning node's status from
+ * being swallowed by the change gate), keyed by the load-status vocabulary's own change key.
  *
  * It lives here and not beside `makeLoadStatusReporter` in `@thoremin/lazy`, because that
  * package is pure and Node-safe with no vendor library, and the store is a React hook (zustand).
  * A store with more than the status (the face's label and scores, throttled, with a toast) is
  * its own store: it reads another port shape and reports on its own cadence.
  */
-import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
-import { makeLoadStatusReporter } from '@thoremin/lazy/status';
-import type { OutputReader, StatusHook } from './types';
+import { loadStatusKey } from '@thoremin/lazy/status';
+import { createStatusStore, type StatusState, type StatusStore } from './statusStore';
 
 /** The store's state: the node's latest status, or `absent` before the first report. */
-export interface LoadStatusState<S extends LoadStatus | null = LoadStatus | null> {
-  status: S;
-  report(status: LoadStatus): void;
-  reset(): void;
-}
+export type LoadStatusState<S extends LoadStatus | null = LoadStatus | null> = StatusState<S>;
 
 /** What {@link createLoadStatusStore} returns. */
-export interface LoadStatusStore<S extends LoadStatus | null = LoadStatus | null> {
-  /** The zustand store (a React hook; `getState()` outside React). */
-  useStatus: UseBoundStore<StoreApi<LoadStatusState<S>>>;
-  /** The per-frame sink: the node's `status`, reported to `store` (this store by default) when
-   *  its phase, reason, message or progress changed. */
-  makeReporter(engine: OutputReader, store?: Pick<LoadStatusState<S>, 'report'>): () => void;
-  /** The status hook the engine host runs: the reporter, and back to absent when the node
-   *  leaves the graph or the engine goes. Its sink starts afresh after every reset, so a node
-   *  that comes back with the status it left with is reported again. Spread it to add to
-   *  `reset` or `onRemoved`. */
-  statusHook: StatusHook;
-}
+export type LoadStatusStore<S extends LoadStatus | null = LoadStatus | null> = StatusStore<S>;
 
 export interface LoadStatusStoreOptions {
   /** The status before the engine has reported (and after teardown). Null when omitted. */
@@ -61,33 +42,5 @@ export interface LoadStatusStoreOptions {
 export function createLoadStatusStore(nodeId: string): LoadStatusStore<LoadStatus | null>;
 export function createLoadStatusStore(nodeId: string, options: { absent: LoadStatus }): LoadStatusStore<LoadStatus>;
 export function createLoadStatusStore(nodeId: string, { absent = null }: LoadStatusStoreOptions = {}): LoadStatusStore<LoadStatus | null> {
-  let resets = 0;
-  const useStatus = create<LoadStatusState>((set) => ({
-    status: absent,
-    report: (status) => set({ status }),
-    reset: () => {
-      resets += 1;
-      set({ status: absent });
-    },
-  }));
-  const reset = () => useStatus.getState().reset();
-  const makeReporter = (engine: OutputReader, store: Pick<LoadStatusState, 'report'> = useStatus.getState()) =>
-    makeLoadStatusReporter(engine, store, nodeId);
-  /** The hook's sink: this store's reporter, rebuilt (its change gate cleared) after a reset. */
-  const makeResettingReporter = (engine: OutputReader) => {
-    let seen = resets;
-    let report = makeReporter(engine);
-    return () => {
-      if (seen !== resets) {
-        seen = resets;
-        report = makeReporter(engine);
-      }
-      report();
-    };
-  };
-  return {
-    useStatus,
-    makeReporter,
-    statusHook: { nodeId, make: (engine) => makeResettingReporter(engine), onRemoved: reset, reset },
-  };
+  return createStatusStore<LoadStatus | null>(nodeId, { absent, keyOf: loadStatusKey });
 }

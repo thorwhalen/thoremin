@@ -53,6 +53,68 @@ export function withActive(status: LoadStatus, active: boolean, activeMessage?: 
   return { ...status, phase: 'active', message: activeMessage ?? status.message };
 }
 
+/** What a reader of node outputs offers: the engine, or a stub in a test. */
+export interface OutputReader {
+  getOutput(nodeId: string, port: string): unknown;
+}
+
+/**
+ * When a status is worth reporting (#969): `keyOf` is what a readout shows, so a status whose key
+ * is unchanged is not reported again. `throttle` is for a readout with a counter that moves at
+ * frame rate (MIDI's sounding notes): a change in its `keyOf` alone, with the main key unchanged,
+ * reports at most once per `ms`, while a change in the main key reports at once.
+ */
+export interface StatusGateOptions<T> {
+  keyOf: (status: T) => string;
+  throttle?: { ms: number; keyOf: (status: T) => string };
+}
+
+/** The change gate of {@link StatusGateOptions}: true when `status`, seen at `nowMs`, should be
+ *  reported. Stateful (it remembers the last report); pure over its arguments otherwise. */
+export function makeStatusGate<T>({ keyOf, throttle }: StatusGateOptions<T>): (status: T, nowMs: number) => boolean {
+  let lastKey: string | undefined;
+  let lastPaced: string | undefined;
+  let lastAt = -Infinity;
+  return (status, nowMs) => {
+    const key = keyOf(status);
+    const paced = throttle ? throttle.keyOf(status) : undefined;
+    if (key === lastKey && (paced === lastPaced || nowMs - lastAt < (throttle?.ms ?? 0))) return false;
+    lastKey = key;
+    lastPaced = paced;
+    lastAt = nowMs;
+    return true;
+  };
+}
+
+/** What {@link makeStatusReporter} reads and how it gates. */
+export interface StatusReporterOptions<T> extends StatusGateOptions<T> {
+  /** The node's output port the status is read from. `status` by default. */
+  port?: string;
+}
+
+/**
+ * The per-frame sink that mirrors one node's status port into a store (#969, generalised from
+ * {@link makeLoadStatusReporter}): it reads the port, skips an absent output, and reports only what
+ * the gate lets through, so a readout never re-renders at frame rate for a status it already shows.
+ * Pure over the reader and the store. `nowMs` is read only by a throttle.
+ */
+export function makeStatusReporter<T>(
+  engine: OutputReader,
+  store: { report(status: T): void },
+  nodeId: string,
+  { port = 'status', ...gate }: StatusReporterOptions<T>,
+): (nowMs?: number) => void {
+  const changed = makeStatusGate(gate);
+  return (nowMs = 0) => {
+    const status = engine.getOutput(nodeId, port) as T | undefined;
+    if (!status) return;
+    if (changed(status, nowMs)) store.report(status);
+  };
+}
+
+/** What a load-status readout shows: the phase, reason, message and progress. */
+export const loadStatusKey = (s: LoadStatus): string => `${s.phase}|${s.reason ?? ''}|${s.message}|${s.progress ?? ''}`;
+
 /**
  * The per-frame sink that mirrors a heavy node's `status` output into a store (#600 S14: lifted
  * from the generative layer's reporter, which the orchestra's reused): it reports only when the
@@ -60,17 +122,9 @@ export function withActive(status: LoadStatus, active: boolean, activeMessage?: 
  * unchanged phase. Pure over the reader.
  */
 export function makeLoadStatusReporter(
-  engine: { getOutput(nodeId: string, port: string): unknown },
+  engine: OutputReader,
   store: { report(status: LoadStatus): void },
   nodeId: string,
 ): () => void {
-  let lastKey = '';
-  return () => {
-    const s = engine.getOutput(nodeId, 'status') as LoadStatus | undefined;
-    if (!s) return;
-    const key = `${s.phase}|${s.reason ?? ''}|${s.message}|${s.progress ?? ''}`;
-    if (key === lastKey) return;
-    lastKey = key;
-    store.report(s);
-  };
+  return makeStatusReporter(engine, store, nodeId, { keyOf: loadStatusKey });
 }
