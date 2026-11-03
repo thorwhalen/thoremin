@@ -181,7 +181,13 @@ function stampOf(frame: unknown): { t: number; tOrigin: unknown } | null {
   return typeof t === 'number' ? { t, tOrigin } : null;
 }
 
-/** The same camera frame offered again: the same object, or the same stamp and origin. */
+/**
+ * The same camera frame offered again: the same object, or the same stamp and origin. Deliberately
+ * NOT the SDK's `isFreshFrame` (#964): for an UNSTAMPED frame the two rules are opposite. There the
+ * same object is no new frame; here an unstamped frame is never a re-offer, even the same object,
+ * because a re-offer keeps the vector's time at the frame's FIRST tick, and a placeholder or
+ * synthetic source that emits one object every tick would freeze its vectors' time.
+ */
 function sameFrame(a: unknown, b: unknown): boolean {
   const sa = stampOf(a);
   const sb = stampOf(b);

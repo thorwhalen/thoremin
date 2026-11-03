@@ -26,10 +26,10 @@ const hand = (handedness: Hand['handedness'], wristY = 300): Hand => ({ handedne
 const R = hand('Right');
 const L = hand('Left');
 const RIGHT: HandPreference = { kind: 'label', handedness: 'Right' };
-const { escalateAfterS, settleAfterS, probeEveryS, absentForS, framePeriodS, maxFrameS } = HAND_PREFERENCE_OPTIONS;
-/** A duration in frames of an unstamped stream, each counted for the assumed (30 fps) period. */
-const framesOf = (seconds: number): number => Math.round(seconds / framePeriodS);
-const escalateAfterFrames = framesOf(escalateAfterS);
+const { escalateAfterS, minEscalateFrames, settleAfterS, probeEveryS, absentForS, framePeriodS, maxFrameS } = HAND_PREFERENCE_OPTIONS;
+/** The frames of an unstamped stream (each counted for the assumed 30 fps period) that reach `seconds`. */
+const framesOf = (seconds: number): number => Math.ceil(seconds / framePeriodS - 1e-6);
+const escalateAfterFrames = Math.max(framesOf(escalateAfterS), minEscalateFrames);
 const settleAfterFrames = framesOf(settleAfterS);
 const probeEveryFrames = framesOf(probeEveryS);
 
@@ -51,6 +51,8 @@ function run(
 const times = <T>(n: number, x: T): T[] => Array.from({ length: n }, () => x);
 /** Frames stamped at `fps`, from `t0`. */
 const stamped = (hands: readonly (readonly Hand[])[], fps: number, t0 = 0): ObservedHands[] => hands.map((h, i) => ({ hands: h, t: t0 + i / fps }));
+/** The index of the first frame at which the count is `count` (-1: never). */
+const firstAt = (counts: readonly HandCount[], count: HandCount): number => counts.indexOf(count);
 
 describe('preferredHand', () => {
   it('picks by raw label, or the hand whose wrist is highest in the image', () => {
@@ -150,19 +152,45 @@ describe('stepHandPreference', () => {
     expect(later.at(-1)).toBe(2);
   });
 
-  it('keeps the frame counts it had before #964 on an unstamped (30 fps) stream', () => {
-    expect([escalateAfterFrames, settleAfterFrames, probeEveryFrames]).toEqual([3, 10, 90]);
-  });
+  // A real 30 fps camera's intervals scatter around 33.3 ms: steady a little fast and a little slow.
+  for (const periodMs of [33.2, 33.5]) {
+    it(`escalates on the 3rd wrong frame, settles on the 10th and probes on the 90th of a ${periodMs} ms camera, as before #964`, () => {
+      const fps = 1000 / periodMs;
+      // RIGHT preferred: one wanted frame, three wrong (escalate), ten of the wanted hand alone (settle).
+      const label = run(stamped([[R], ...times(3, [L]), ...times(10, [R])], fps), RIGHT).counts;
+      expect(firstAt(label, 2)).toBe(3);
+      expect(label.lastIndexOf(2)).toBe(12);
+      expect(label.at(-1)).toBe(1);
+      // The higher hand: found (look), settled after ten, then the next look on the 90th frame.
+      const higher = run(stamped([[], [lone], ...times(10, [lone]), ...times(90, [lone])], fps), PREFER_HIGHER_HAND).counts;
+      expect(higher.slice(0, 2)).toEqual([1, 2]);
+      expect(higher[10]).toBe(2);
+      expect(higher[11]).toBe(1);
+      expect(higher[100]).toBe(1);
+      expect(higher[101]).toBe(2);
+    });
+  }
 
-  it('times its thresholds by the stamps: at 60 fps it escalates after the same time, twice the frames', () => {
+  it('times its thresholds by the stamps: at 60 fps it escalates after the same time, in more frames', () => {
     const fps = 60;
-    const n = Math.round(escalateAfterS * fps);
+    const n = Math.round(escalateAfterS * fps); // 5 frames at 60 fps, where 30 fps takes 3
+    expect(n).toBeGreaterThan(escalateAfterFrames);
     // A frame of the wanted hand first, so every wrong frame counts for its own 1/60 s.
     const { counts } = run(stamped([[R], ...times(n, [L])], fps), RIGHT);
     expect(counts.at(-2)).toBe(1);
     expect(counts.at(-1)).toBe(2);
-    expect(n).toBe(2 * escalateAfterFrames);
   });
+
+  // A label flicker is a frame or two whatever the camera: on a slow one those frames last as long as
+  // escalateAfterS, so the frame count holds them (minEscalateFrames).
+  for (const fps of [15, 10]) {
+    it(`holds one hand through a one- or two-frame label flicker at ${fps} fps, and escalates on ${minEscalateFrames} wrong frames`, () => {
+      expect(run(stamped([[R], [L], [R]], fps), RIGHT).counts).toEqual([1, 1, 1]);
+      expect(run(stamped([[R], [L], [L], [R]], fps), RIGHT).counts).toEqual([1, 1, 1, 1]);
+      const sustained = run(stamped([[R], ...times(minEscalateFrames, [L])], fps), RIGHT).counts;
+      expect(firstAt(sustained, 2)).toBe(minEscalateFrames);
+    });
+  }
 
   it('looks every probeEveryS on a loaded 15 fps camera too, not every 90 frames', () => {
     const fps = 15;

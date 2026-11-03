@@ -29,9 +29,10 @@
  * and drops back to one once only the wanted hand is in view: tracking two hands with two in view
  * costs no search (the search is paid only while fewer are tracked than looked for), so the
  * escalation costs the search only while the wanted hand is out of view. The thresholds are seconds
- * read from the frames' capture stamps ({@link HAND_PREFERENCE_OPTIONS}, #964), so the policy reacts
- * as fast on a 60 fps camera as on a loaded 15 fps one, a label flicker of a frame or two moves
- * nothing, and a lone hand that blinks out of tracking for a frame is not taken for a new one.
+ * read from the frames' capture stamps ({@link HAND_PREFERENCE_OPTIONS}, #964), so a 60 fps camera and a
+ * loaded 15 fps one settle and probe on the same clock; escalating also needs `minEscalateFrames` wrong
+ * frames, so a label flicker of a frame or two moves nothing at any frame rate; and a lone hand that
+ * blinks out of tracking for a frame is not taken for a new one.
  * No preference is the derived count exactly.
  *
  * Pure: no store, no engine, no React.
@@ -154,6 +155,9 @@ export interface HandPreferenceOptions {
   /** Seconds the tracked hand must be the wrong one before looking for two: a raw label flickers
    *  for a frame now and then on a single hand. */
   escalateAfterS: number;
+  /** And consecutive wrong frames, whatever their seconds: on a slow camera `escalateAfterS` is one
+   *  or two frames, which a flicker lasts. */
+  minEscalateFrames: number;
   /** Seconds with only the wanted hand in view (frames with no hand neither count nor break the
    *  run) before looking for one again. */
   settleAfterS: number;
@@ -173,20 +177,26 @@ export interface HandPreferenceOptions {
   maxFrameS: number;
 }
 
-/** About a tenth of a second to escalate, a third to settle, a look every three seconds: at 30 fps,
- *  3, 10 and 90 frames, the frame counts before #964. A hand is found after a fifth of a second
- *  with none; a frame counts for at most a tenth (a 10 fps camera's period). */
+/** A duration reached on the `frames`-th frame of a 30 fps camera however its stamps jitter: half a
+ *  frame short of `frames` periods (a real camera's intervals scatter around 33.3 ms). */
+const atFrame = (frames: number): number => (frames - 0.5) * DEFAULT_FRAME_PERIOD_S;
+
+/** About a tenth of a second to escalate, a third to settle, a look every three seconds: on a 30 fps
+ *  camera the 3, 10 and 90 frames of before #964; never escalating on fewer than those 3 frames, so
+ *  at 15 fps escalating takes a fifth of a second. A hand is found after a fifth of a second with
+ *  none; a frame counts for at most a tenth (a 10 fps camera's period). */
 export const HAND_PREFERENCE_OPTIONS: Readonly<HandPreferenceOptions> = Object.freeze({
-  escalateAfterS: 0.1,
-  settleAfterS: 1 / 3,
-  probeEveryS: 3,
+  escalateAfterS: atFrame(3),
+  minEscalateFrames: 3,
+  settleAfterS: atFrame(10),
+  probeEveryS: atFrame(90),
   absentForS: 0.2,
   framePeriodS: DEFAULT_FRAME_PERIOD_S,
   maxFrameS: 0.1,
 });
 
 /** A microsecond, below any capture stamp's resolution: a sum of frame periods that lands on a
- *  threshold in exact arithmetic reaches it in floating point too (90 x 1/30 sums to 2.999...). */
+ *  threshold in exact arithmetic reaches it in floating point too (6 x 1/30 sums to 0.1999...). */
 const TIME_EPSILON_S = 1e-6;
 
 /** Whether `elapsed` seconds have reached `threshold`. */
@@ -205,6 +215,8 @@ export interface HandPreferenceState {
   readonly count: HandCount;
   /** Seconds toward the next change: of the wrong hand at one hand, of only the wanted hand at two. */
   readonly run: number;
+  /** The frames in that run. */
+  readonly runFrames: number;
   /** Seconds of judged frames at one hand since the last look (for a preference one hand cannot judge). */
   readonly sinceProbe: number;
   /** Seconds with no hand in view since one was last seen; infinite before any hand (or after the
@@ -218,7 +230,7 @@ export interface HandPreferenceState {
 
 /** The state before any frame: the derived count, nothing counted, no hand seen. */
 export function initialHandPreferenceState(count: HandCount = 1): HandPreferenceState {
-  return { count, run: 0, sinceProbe: 0, absent: Infinity };
+  return { count, run: 0, runFrames: 0, sinceProbe: 0, absent: Infinity };
 }
 
 /** What one frame says at one hand: the tracked hand is the wanted one, another, or one hand
@@ -241,6 +253,12 @@ function frameSeconds(last: ObservedHands | undefined, frame: ObservedHands, opt
   return Math.min(stampInterval(last, frame) ?? options.framePeriodS, options.maxFrameS);
 }
 
+/** No run in progress. */
+const NO_RUN: Pick<HandPreferenceState, 'run' | 'runFrames'> = Object.freeze({ run: 0, runFrames: 0 });
+
+/** The run with one more frame of `dt` seconds. */
+const extendRun = (state: HandPreferenceState, dt: number): Pick<HandPreferenceState, 'run' | 'runFrames'> => ({ run: state.run + dt, runFrames: state.runFrames + 1 });
+
 /** A new frame observed: the state's frame and absence moved on (the runs are the caller's). */
 function observe(state: HandPreferenceState, frame: ObservedHands, dt: number): HandPreferenceState {
   return { ...state, frame, absent: frame.hands.length === 0 ? state.absent + dt : 0 };
@@ -249,7 +267,7 @@ function observe(state: HandPreferenceState, frame: ObservedHands, dt: number): 
 /**
  * The next count, given the DERIVED count, the one-hand readers' preference and the hand source's
  * last frame (#784). Only a derived count of one with a preference is ever raised; anything else
- * passes through and clears the runs. At one hand: `escalateAfterS` of the wrong hand (or, for a
+ * passes through and clears the runs. At one hand: `escalateAfterS` and `minEscalateFrames` of the wrong hand (or, for a
  * preference one hand cannot judge, `probeEveryS` of judged frames, or a hand found after
  * `absentForS` with none) ask for two. At two: `settleAfterS` with only the wanted hand in view ask
  * for one again. Each new frame counts for its own interval ({@link frameSeconds}).
@@ -264,7 +282,8 @@ export function stepHandPreference(
   const fresh = frame !== undefined && isFreshFrame(state.frame, frame);
   const dt = fresh ? frameSeconds(state.frame, frame, options) : 0;
   if (derived !== 1 || !preference) {
-    // No frame at all is a source that is not running: whatever it tracks next, it chose afresh.
+    // Pass through: the derived count, the runs cleared. The absence still follows the frames, and
+    // a read with no frame sets it to infinite, so the next hand counts as one found.
     const absent = !frame ? Infinity : fresh ? observe(state, frame, dt).absent : state.absent;
     return { ...initialHandPreferenceState(derived), frame, absent };
   }
@@ -274,18 +293,19 @@ export function stepHandPreference(
   const seen = observe(state, frame, dt);
   if (state.count === 1) {
     const verdict = judgeTracked(frame.hands, preference);
-    if (verdict === 'none') return { ...seen, run: 0 };
+    if (verdict === 'none') return { ...seen, ...NO_RUN };
     if (verdict === 'unknown') {
       // A hand found after none is the landmarker's choice being made: look at once, then now and then.
       const found = reached(state.absent, options.absentForS);
       const sinceProbe = state.sinceProbe + dt;
-      return found || reached(sinceProbe, options.probeEveryS) ? { ...seen, count: ALL_HANDS, run: 0, sinceProbe: 0 } : { ...seen, run: 0, sinceProbe };
+      return found || reached(sinceProbe, options.probeEveryS) ? { ...seen, ...NO_RUN, count: ALL_HANDS, sinceProbe: 0 } : { ...seen, ...NO_RUN, sinceProbe };
     }
-    const run = verdict === 'wrong' ? state.run + dt : 0;
-    return reached(run, options.escalateAfterS) ? { ...seen, count: ALL_HANDS, run: 0, sinceProbe: 0 } : { ...seen, run };
+    const next = verdict === 'wrong' ? extendRun(state, dt) : NO_RUN;
+    const escalate = reached(next.run, options.escalateAfterS) && next.runFrames >= options.minEscalateFrames;
+    return escalate ? { ...seen, ...NO_RUN, count: ALL_HANDS, sinceProbe: 0 } : { ...seen, ...next };
   }
   const only = onlyWantedInView(frame.hands, preference);
   if (only === null) return seen;
-  const run = only ? state.run + dt : 0;
-  return reached(run, options.settleAfterS) ? { ...seen, count: 1, run: 0, sinceProbe: 0 } : { ...seen, run };
+  const next = only ? extendRun(state, dt) : NO_RUN;
+  return reached(next.run, options.settleAfterS) ? { ...seen, ...NO_RUN, count: 1, sinceProbe: 0 } : { ...seen, ...next };
 }

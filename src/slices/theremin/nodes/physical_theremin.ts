@@ -17,7 +17,7 @@
 import { z } from 'zod';
 import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
-import { isFreshFrame, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
+import { DEFAULT_FRAME_PERIOD_S, isFreshFrame, type Hand, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor } from '@thoremin/sdk/nodes/player_hands';
 import { DEFAULT_PHYSICAL_THEREMIN, PhysicalThereminSchema, type PhysicalThereminSettings } from '../schema';
 import {
@@ -195,7 +195,7 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
         const frame = inputs.hands as HandsFrame | undefined;
         if (frame && isFreshFrame(lastFrame, frame)) {
           const t = typeof frame.t === 'number' ? frame.t : ctx.time;
-          const dt = lastT === null ? 1 / 30 : t - lastT;
+          const dt = lastT === null ? DEFAULT_FRAME_PERIOD_S : t - lastT;
           lastT = t;
           lastFrame = frame;
           const mirror = s.mirrorHandedness;
