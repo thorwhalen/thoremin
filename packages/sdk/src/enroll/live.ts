@@ -39,7 +39,10 @@
  * Pure: no timers, no React. The test store polls a source and feeds {@link LiveReader.push}.
  *
  * In the SDK since #371 (it was the faces extension's `lib/live.ts`): the host's category
- * dispatcher reads a bound categorizer through the same live model the tool tests it with.
+ * dispatcher reads a bound categorizer through the same live model the tool tests it with. Since
+ * #954 the live model carries the categorizer's moving gestures too (`gestures`, derived once per
+ * gestures section), and `checkTargets` names what the quiz and the everyday check ask for and
+ * count: its categories and its gestures.
  */
 import { z } from 'zod';
 import { createCategoryTracker, trainModel, type CategoryTracker } from './classify';
@@ -48,6 +51,7 @@ import { liveMargin, type LiveMargin } from './quality';
 import type { FeatureVector, TrainedModel } from './types';
 import { createReader, inView, isNeutralLabel, type CarveModality } from './modality';
 import { faceModality } from '../features/modalities/face';
+import { playableGestures, type PlayableGestures } from './gestures/file';
 
 /** The face's proxies of camera distance, in order of preference (both bigger when closer). */
 export const DISTANCE_PROXIES: readonly string[] = faceModality.nuisance.distance ?? [];
@@ -275,6 +279,30 @@ export interface LiveModel {
   /** Whether a projected vector shows the part well enough to read (#382: a body needs most of
    *  the features its categories were taught on; a face or a hand, any one). */
   inView(vector: FeatureVector): boolean;
+  /** The categorizer's moving gestures as played (#954: Trying, the quiz and the everyday check
+   *  hear them on the projected vector), or null. The same object while the gestures are unchanged,
+   *  whatever the tuning. */
+  gestures: PlayableGestures | null;
+}
+
+/** What the checks ask for and count, by id: the held categories, then the gestures (#954). */
+export interface CheckTarget {
+  id: string;
+  label: string;
+  kind: 'category' | 'gesture';
+}
+
+/** Every check target of `live`, categories first. */
+export function checkTargets(live: Pick<LiveModel, 'model' | 'gestures'>): CheckTarget[] {
+  return [
+    ...live.model.categories.map((c) => ({ id: c.id, label: c.label, kind: 'category' as const })),
+    ...(live.gestures?.names ?? []).map((g) => ({ id: g.id, label: g.label, kind: 'gesture' as const })),
+  ];
+}
+
+/** Each check target's name, by id (what a quiz or everyday result keeps). */
+export function checkLabels(live: Pick<LiveModel, 'model' | 'gestures'>): Map<string, string> {
+  return new Map(checkTargets(live).map((t) => [t.id, t.label]));
 }
 
 export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuning> = {}, options: ModalityOption = {}): LiveModel {
@@ -300,6 +328,7 @@ export function liveModel(categorizer: PersonalCategorizer, tuning: Partial<Tuni
     // A mirrored categorizer reads each frame on the side nearer its categories (#382).
     project: createReader(modality, { hand: categorizer.hand ?? 'either', mirror: categorizer.mirror === true }, derived),
     inView: (vector) => inView(modality, vector, derived.features),
+    gestures: playableGestures(categorizer),
   };
 }
 

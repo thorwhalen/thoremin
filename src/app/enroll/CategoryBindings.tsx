@@ -24,6 +24,7 @@
  */
 import { useEffect, useState } from 'react';
 import { categoryName } from '@thoremin/sdk/enroll';
+import { LISTEN_WARMING_SAY } from '@thoremin/sdk/enroll/gestures';
 import CommandBindingFields from '../gestures/CommandBindingFields';
 import { useTools } from '../tools/toolsStore';
 import { modalityById } from '@thoremin/sdk/features/modalities';
@@ -36,8 +37,9 @@ import { readCategoryLive, type CategoryLive } from './categoryDispatch';
 const POLL_MS = 150;
 
 /** Why no gesture fires while the listener's noise unit warms (#954): a set made active mid-move,
- *  or the first movement after a hush, is otherwise lost without a word. */
-export const GESTURES_WARMING_TEXT = 'Getting ready to listen: hold still for a moment. A gesture made before then is not heard.';
+ *  or the first movement after a hush, is otherwise lost without a word. The SDK's words, which
+ *  the carve tool's Trying says too. */
+export const GESTURES_WARMING_TEXT = LISTEN_WARMING_SAY;
 
 function useCategoryLive(): CategoryLive | null {
   const [live, setLive] = useState<CategoryLive | null>(() => readCategoryLive());

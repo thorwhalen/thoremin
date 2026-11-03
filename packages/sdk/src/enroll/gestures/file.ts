@@ -224,3 +224,30 @@ export function gestureModelFromCategorizer(
   const { features, weights, shapes } = gestureSpace(c);
   return buildGestureModel(gestureTraces(c), { ...options, features, weights, shapes });
 }
+
+/** A categorizer's gestures as a host plays them: the matcher's model and each gesture's name. */
+export interface PlayableGestures {
+  model: GestureModel;
+  names: readonly { id: string; label: string }[];
+}
+
+/** One derivation per `gestures` section (the section objects are immutable: an edit makes a new
+ *  one). A live model is re-made on every tuning change; the matcher's model must not be, both for
+ *  its cost (a DTW per pair of repetitions) and so a listener kept by model identity stays warm. */
+const playableMemo = new WeakMap<CategorizerGestures, PlayableGestures>();
+
+/**
+ * The gestures of `c` as a host plays them (#954: the carve tool's live test and the category
+ * dispatcher alike), or null when it has none: the derived model ({@link
+ * gestureModelFromCategorizer}) and the names by id. The same object for the same section.
+ */
+export function playableGestures(c: Pick<PersonalCategorizer, 'gestures'>): PlayableGestures | null {
+  const section = c.gestures;
+  if (!section || section.items.length === 0) return null;
+  let out = playableMemo.get(section);
+  if (!out) {
+    out = { model: gestureModelFromCategorizer(c), names: section.items.map((g) => ({ id: g.id, label: g.label })) };
+    playableMemo.set(section, out);
+  }
+  return out;
+}

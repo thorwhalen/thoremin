@@ -53,6 +53,10 @@ export const GESTURE_LISTEN_DEFAULTS = {
   tolerance: MATCHER_DEFAULTS.tolerance,
 } as const;
 
+/** What a host says while a listener is `warming()` (#954): the carve tool's Trying and the
+ *  Gestures tool's Your categories say the same. */
+export const LISTEN_WARMING_SAY = 'Getting ready to listen: hold still for a moment. A gesture made before then is not heard.';
+
 /** Makes the matcher a listener runs (the #755 seam). */
 export type MatcherFactory = (model: GestureModel, options: { noise: NoiseEstimator; tolerance: number; refractoryMs: number }) => WindowMatcher;
 

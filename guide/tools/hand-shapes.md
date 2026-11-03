@@ -18,5 +18,7 @@ Under the groups, the **Gestures** section keeps movements of your hand: a wave,
 
 Each gesture shows each of its repetitions as a small drawing of the path, and dots for how alike they are and how far from your other gestures. When one repetition is unlike the others, *Drop the odd one* removes it; the small x on a drawing drops any one. *Record more* adds repetitions, *Merge into* puts two gestures together, and the name can be changed in place. Undo and redo work as for the groups. If a gesture passes through one of your shapes for long enough to also fire it, a line says so when you record it.
 
+*Test with my hand* hears the gestures too: each one says how many times you made it (after a moment of holding still, while it gets ready to listen). *Quiz me* asks for your gestures beside your shapes, and a movement started after the prompt answers it; the *Everyday check* counts a gesture each time it fires by accident.
+
 A saved gesture appears in [Gestures](tool:gestures), *Your categories*, under the groups: bound to a command, it runs that command once each time you make the movement.
 :::
