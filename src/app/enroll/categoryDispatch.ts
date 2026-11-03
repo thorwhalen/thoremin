@@ -77,6 +77,12 @@ export function readCategoryLive(): CategoryLive | null {
   return live;
 }
 
+/** One read of the live vector: the vector and its camera frame's stamp in ms. */
+export interface LiveFrame {
+  vector: FeatureVector;
+  t: number;
+}
+
 /** The injectable seams (tests swap all of them; the app uses the defaults). */
 export interface CategoryDispatcherDeps {
   getActive(): SavedCategories | null;
@@ -86,7 +92,9 @@ export interface CategoryDispatcherDeps {
   holdMs(): number;
   /** True while something (a trainer) has the instrument hushed. */
   isHushed(): boolean;
-  readVector(): FeatureVector | null;
+  /** The latest live vector and its CAMERA FRAME's stamp (ms; `readLiveVector`'s `t`), which a
+   *  re-offered frame repeats: the gesture listener reads frames, not ticks. */
+  readVector(): LiveFrame | null;
   hasCommand(id: string): boolean;
   commandTitle(id: string): string;
   isBindable(id: string): boolean;
@@ -111,7 +119,10 @@ function defaultDeps(): CategoryDispatcherDeps {
     isPreviewing: () => useTools.getState().open === CATEGORY_PANEL_TOOL,
     holdMs: () => useCategoryBinding.getState().holdMs,
     isHushed: () => useControls.getState().hushedBy.length > 0,
-    readVector: () => readLiveVector()?.vector ?? null,
+    readVector: () => {
+      const r = readLiveVector();
+      return r ? { vector: r.vector, t: r.t } : null;
+    },
     hasCommand: (id) => registry.has(id),
     commandTitle: (id) => registry.get(id)?.title ?? id,
     isBindable: isGestureBindable,
@@ -139,6 +150,8 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
   let gestureModel: GestureModel | null = null;
   let listener: GestureListener | null = null;
   let gestureFires: Record<string, number> = {};
+  /** Whether the last tick ran (a set, not hushed, on or previewing): the stop is an edge. */
+  let running = false;
 
   /** Run the binding of `id` (a category's entry, or a gesture's fire), named `label`. */
   const fire = (set: SavedCategories, id: string, label: string, args: (binding: CategoryBinding) => unknown = (b) => b.args) => {
@@ -169,11 +182,17 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
       const set = deps.getActive();
       const enabled = deps.isEnabled();
       if (!set || deps.isHushed() || !(enabled || deps.isPreviewing())) {
-        edge?.reset();
-        listener?.reset();
+        // Once, on the edge into the stop: nothing is pushed while stopped, so the next run starts
+        // from a reset edge and a listener that warms up afresh (judged against its rest ceiling).
+        if (running) {
+          edge?.reset();
+          listener?.reset();
+        }
+        running = false;
         live = null;
         return;
       }
+      running = true;
       if (set.categories.model !== model || !edge) {
         model = set.categories.model;
         const minPresent = presenceFor(set.categories.read);
@@ -192,11 +211,14 @@ export function createCategoryDispatcher(overrides: Partial<CategoryDispatcherDe
         listener = gm && gm.gestures.length > 0 ? deps.listen(gm) : null;
         gestureFires = {};
       }
-      const raw = deps.readVector();
-      const projected = raw ? project(raw) : null;
+      const frame = deps.readVector();
+      const projected = frame ? project(frame.vector) : null;
+      // The held categories' hold runs on the tick's clock...
       const step = edge.push(projected && tune ? tune(projected) : projected, nowMs);
-      // A gesture is heard on the projected vector (the tuning is the held categories').
-      const fired = listener?.push(projected, nowMs) ?? null;
+      // ...a gesture is heard on the projected vector (the tuning is the held categories') at its
+      // camera frame's stamp: a frame re-offered on a later tick (a 60 Hz loop over a 30 fps
+      // camera) keeps its stamp and is read once, never as a second, motionless frame.
+      const fired = frame ? listener?.push(projected, frame.t) ?? null : null;
       if (fired) gestureFires = { ...gestureFires, [fired.gesture]: (gestureFires[fired.gesture] ?? 0) + 1 };
       live = { model, scores: toCategoryScores(model, step.reading), committed: edge.current(), gestureFires };
       // An entry that completes while binding is off (a preview) is spent, not deferred.

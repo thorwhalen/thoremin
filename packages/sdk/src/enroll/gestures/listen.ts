@@ -9,12 +9,19 @@
  *
  * - **Its own noise estimate.** The matcher segments in noise units, measured on frames that are
  *   NOT a gesture's (`WindowMatcher.inGesture`), exactly as the session fed its estimate while
- *   the take was recorded. A fresh listener warms up on the first frames it sees.
+ *   the take was recorded. A fresh listener warms up on the first frames it sees, and judges that
+ *   warm-up as the session does (#913, `restCeiling`: the catalog's `restCeilingOf` by default),
+ *   so a set made active while the hand moves, or a listener reset mid-gesture, redoes a warm-up
+ *   that learned motion as jitter instead of going deaf.
+ * - **Frames, not ticks.** `tMs` must be the camera frame's stamp: a frame re-offered on a later
+ *   tick (a 60 Hz loop over a 30 fps camera) carries the same stamp and is read once (the
+ *   estimator skips a zero step, the segmenter a repeated stamp), never as a still second frame.
  * - **No reading, no frame.** A frame carrying under `minPresent` of the matched features (the
  *   hand left the shot) is not pushed; the matcher's own gap rule then abandons a repetition
  *   under way, as a hole in a trace must.
- * - **A refractory period** after a fire (`refractoryMs`): the hand settling after a wave is not
- *   a second gesture. A device's live tuning, never in the file (design section 5).
+ * - **A refractory period** after a fire (`refractoryMs`, the matcher's default): the hand
+ *   settling after a wave is not a second gesture. With `tolerance`, a device's live tuning,
+ *   never in the file (design section 5), and with no pref yet (a follow-up with #755).
  *
  * ## The seam for the causal matcher (#755)
  *
@@ -26,15 +33,15 @@
  * Pure: vectors and times in, fires out; no clock of its own.
  */
 import { hasReading } from '../bind';
-import { createNoiseEstimator, type NoiseEstimator } from '../noise';
+import { createNoiseEstimator, type NoiseEstimator, type NoiseOptions } from '../noise';
 import type { FeatureVector } from '../types';
+import { restCeilingOf } from '../../features/catalog';
 import { definedOnly } from '../../util/options';
 import { createDtwMatcher, MATCHER_DEFAULTS, type GestureFire, type GestureModel, type WindowMatcher } from './matcher';
 
 export const GESTURE_LISTEN_DEFAULTS = {
-  /** After a fire, no other for this long (ms): longer than a hand takes to settle after a
-   *  repetition, shorter than the pause the take asks for between two. */
-  refractoryMs: 500,
+  /** The matcher's hold-off after a fire (`MATCHER_DEFAULTS.refractoryMs`, the one default). */
+  refractoryMs: MATCHER_DEFAULTS.refractoryMs,
   /** The share of the matched features a frame must carry to be read at all. Half: a hand at the
    *  edge of the frame loses a fingertip or two, not its path. */
   minPresent: 0.5,
@@ -49,8 +56,12 @@ export interface GestureListenerOptions {
   refractoryMs?: number;
   minPresent?: number;
   tolerance?: number;
-  /** The noise estimate to segment in (a fresh one by default). */
+  /** The noise estimate to segment in (by default a fresh one, made with `noiseOptions`). */
   noise?: NoiseEstimator;
+  /** The fresh estimate's options. Its `restCeiling` defaults to the catalog's (`restCeilingOf`,
+   *  #913), as a session's does, also when passed as undefined; pass one that returns undefined to
+   *  judge no warm-up. Ignored when `noise` is given. */
+  noiseOptions?: NoiseOptions;
   /** The matcher (default: rung 1, `createDtwMatcher`). */
   matcher?: MatcherFactory;
 }
@@ -69,7 +80,7 @@ const dtwMatcher: MatcherFactory = (model, o) => createDtwMatcher({ model, ...o 
 /** A listener for `model`'s gestures (see the module header). */
 export function createGestureListener(model: GestureModel, options: GestureListenerOptions = {}): GestureListener {
   const o = { ...GESTURE_LISTEN_DEFAULTS, ...definedOnly(options) };
-  const noise = options.noise ?? createNoiseEstimator();
+  const noise = options.noise ?? createNoiseEstimator({ ...options.noiseOptions, restCeiling: options.noiseOptions?.restCeiling ?? restCeilingOf });
   const matcher = (options.matcher ?? dtwMatcher)(model, { noise, tolerance: o.tolerance, refractoryMs: o.refractoryMs });
   const features = { features: [...model.series.features] };
   return {

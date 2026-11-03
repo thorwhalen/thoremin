@@ -21,6 +21,9 @@ import { FACES } from './helpers/extensions';
 import { waveTake } from './helpers/wave_take';
 import { withRecordedGesture } from './helpers/gesture_categorizer';
 
+/** The scripted take's frame period (30 fps). */
+const FRAME_MS = 1000 / 30;
+
 async function saved(bindings: Record<string, { command: string; args?: Record<string, unknown> }>) {
   const store = createCategorizerStore(handModality, { provider: createInMemoryProvider<CategorizerRecord>([], { idField: 'id', searchFields: ['name'] }) });
   const record = await store.save('Shapes and a wave', { categorizer: withRecordedGesture(), bindings });
@@ -30,11 +33,19 @@ async function saved(bindings: Record<string, { command: string; args?: Record<s
 describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
   beforeEach(() => resetCategoryLive());
 
-  async function play(over: { enabled?: boolean; hushed?: boolean; bindable?: boolean; waves?: number } = {}) {
+  /** `ticksPerFrame`: engine ticks per camera frame (the app's 60 Hz loop over a 30 fps camera
+   *  re-offers each frame, under its own stamp, on a second tick); `restMs`: the rest before the
+   *  first wave (0: the set becomes active while the hand already waves); `hushAt`: frames in
+   *  which a trainer hushes the instrument. */
+  async function play(
+    over: { enabled?: boolean; hushed?: boolean; bindable?: boolean; waves?: number; ticksPerFrame?: number; restMs?: number; hushAt?: (frame: number) => boolean } = {},
+  ) {
     const { record } = await saved({ 'gesture-1': { command: 'chord.next', args: { by: 1 } } });
     const set = playable(record);
     expect(set.gestures?.names).toEqual([{ id: 'gesture-1', label: 'wave' }]);
     let vector: FeatureVector | null = null;
+    let t = 0;
+    let hush = false;
     const dispatched: { command: string; args: unknown }[] = [];
     const notes: string[] = [];
     const d = createCategoryDispatcher({
@@ -42,8 +53,8 @@ describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
       isEnabled: () => over.enabled ?? true,
       isPreviewing: () => true,
       holdMs: () => 0,
-      isHushed: () => over.hushed ?? false,
-      readVector: () => vector,
+      isHushed: () => (over.hushed ?? false) || hush,
+      readVector: () => (vector ? { vector, t } : null),
       hasCommand: () => true,
       commandTitle: (id) => id,
       isBindable: () => over.bindable ?? true,
@@ -54,13 +65,16 @@ describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
       notify: (m) => notes.push(m),
     });
     // Another take of the scripted wave, as the merged live vector the dispatcher reads.
-    const take = waveTake({ seed: 9, waves: over.waves ?? 1, restMs: 2000 });
-    for (const f of take.frames) {
+    const take = waveTake({ seed: 9, waves: over.waves ?? 1, restMs: over.restMs ?? 2000 });
+    const ticks = over.ticksPerFrame ?? 1;
+    take.frames.forEach((f, i) => {
       vector = f.v;
-      d.tick(f.t);
-    }
+      t = f.t;
+      hush = over.hushAt?.(i) ?? false;
+      for (let k = 0; k < ticks; k++) d.tick(f.t + (k * FRAME_MS) / ticks);
+    });
     await new Promise((r) => setTimeout(r, 0));
-    return { dispatched, notes };
+    return { dispatched, notes, take };
   }
 
   it('one wave runs the bound command once, with its args', async () => {
@@ -77,6 +91,29 @@ describe.runIf(FACES)('a bound gesture fires its command on the event', () => {
     const gated = await play({ bindable: false });
     expect(gated.dispatched).toEqual([]);
     expect(gated.notes[0]).toMatch(/needs confirmation and cannot be fired hands-free/);
+  });
+
+  it('a 60 Hz loop over a 30 fps camera reads each frame once: every wave still fires once', async () => {
+    const { dispatched, take } = await play({ waves: 3, ticksPerFrame: 2 });
+    expect(dispatched).toHaveLength(take.waves.length);
+  });
+
+  it('a set made active while the hand already waves hears the later waves', async () => {
+    // No rest first: the listener's warm-up lands on motion, is judged against the rest ceiling
+    // and redone, instead of learning the wave as jitter and going deaf.
+    const { dispatched, take } = await play({ waves: 6, restMs: 0 });
+    expect(dispatched.length).toBeGreaterThanOrEqual(take.waves.length - 2);
+  });
+
+  it('a hush mid-take silences the hushed wave and the listener hears again after it', async () => {
+    // A trainer hushes over the second wave's frames (2 s rest, 1 s waves, 1 s pauses, 30 fps).
+    // The listener is reset once, on the hush's edge, and warms up afresh after it: the pause
+    // after the hush is exactly its warm-up, so the wave right after may fall in it; the rest fire.
+    const inSecond = (i: number) => i >= 120 && i < 150;
+    const { dispatched, take } = await play({ waves: 5, hushAt: inSecond });
+    expect(take.waves).toHaveLength(5);
+    expect(dispatched.length).toBeGreaterThanOrEqual(3);
+    expect(dispatched.length).toBeLessThan(take.waves.length);
   });
 
   it('the binding survives the tool re-saving the categorizer (carried by gesture id and name)', async () => {

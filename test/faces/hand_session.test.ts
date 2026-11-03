@@ -225,6 +225,7 @@ describe('Your hand shapes: a bound command', () => {
 
     // The live vector is the MERGED one (`hand.right.*`); the dispatcher reads it through the hand.
     let vector: FeatureVector | null = null;
+    let t = 0;
     const dispatched: string[] = [];
     const d = createCategoryDispatcher({
       getActive: () => useCategoryBinding.getState().active,
@@ -232,7 +233,7 @@ describe('Your hand shapes: a bound command', () => {
       isPreviewing: () => false,
       holdMs: () => 0,
       isHushed: () => false,
-      readVector: () => vector,
+      readVector: () => (vector ? { vector, t } : null),
       hasCommand: () => true,
       commandTitle: (id) => id,
       isBindable: () => true,
@@ -245,7 +246,8 @@ describe('Your hand shapes: a bound command', () => {
     const hold = (shape: string, frames: number, t0: number) => {
       for (let f = 0; f < frames; f++) {
         vector = handsFrameVector(syntheticHandShapeFrame(shape, t0 + f), { mirrorHandedness: false });
-        d.tick(1000 + (t0 + f) * 33);
+        t = 1000 + (t0 + f) * 33;
+        d.tick(t);
       }
     };
     hold('rest', 20, 0);
@@ -256,7 +258,8 @@ describe('Your hand shapes: a bound command', () => {
     hold('rest', 20, 40);
     for (let f = 0; f < 20; f++) {
       vector = handsFrameVector(syntheticHandShapeFrame('fist', 60 + f), { mirrorHandedness: true });
-      d.tick(1000 + (60 + f) * 33);
+      t = 1000 + (60 + f) * 33;
+      d.tick(t);
     }
     expect(Object.keys(vector!).some((k) => k.startsWith('hand.left.'))).toBe(true);
     expect(dispatched).toEqual(['transport.toggle', 'transport.toggle']);

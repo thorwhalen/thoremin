@@ -46,7 +46,7 @@ function harness(bindings: SavedCategories['categories']['bindings'], over: Part
     isPreviewing: () => previewing,
     holdMs: () => 0,
     isHushed: () => hushed,
-    readVector: () => vector,
+    readVector: () => (vector ? { vector, t } : null),
     hasCommand: (id) => id !== 'gone',
     commandTitle: (id) => id.toUpperCase(),
     isBindable: (id) => id !== 'instrument.load',

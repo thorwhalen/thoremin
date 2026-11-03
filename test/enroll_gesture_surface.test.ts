@@ -177,6 +177,22 @@ describe('the Gestures section: its verbs', () => {
     expect(Object.keys(c.gestures!.weights).sort()).toEqual(POSITION.slice(0, 2).sort());
     expect(mergeGestures(WITH, 'gesture-1', 'gesture-1')).toMatchObject({ ok: false });
   });
+
+  it('merge refuses two gestures measured on too few shared features, saying why', () => {
+    // gesture-1 on the first half of the positions, gesture-2 on the rest: nothing shared.
+    const half = Math.floor(POSITION.length / 2);
+    const split = (lo: number, hi: number) => (g: NonNullable<PersonalCategorizer['gestures']>['items'][number]) => ({
+      ...g,
+      features: POSITION.slice(lo, hi),
+      traces: g.traces.map((t) => ({ ...t, rows: t.rows.map((r) => r.slice(lo, hi)) })),
+    });
+    const apart = { ...WITH, gestures: { ...WITH.gestures!, items: [split(0, half)(WITH.gestures!.items[0]), split(half, POSITION.length)(WITH.gestures!.items[1])] } };
+    const r = mergeGestures(apart, 'gesture-2', 'gesture-1');
+    expect(r).toMatchObject({ ok: false });
+    expect(!r.ok && r.error).toMatch(/not measured on the same features/);
+    // The share is an option: with none required the rows are pooled (as holes).
+    expect(mergeGestures(apart, 'gesture-2', 'gesture-1', { minShared: 0 })).toMatchObject({ ok: true });
+  });
 });
 
 describe('a gesture binding across a save (rekeyBindings)', () => {
@@ -233,6 +249,17 @@ describe('the live listener', () => {
     const listener = createGestureListener(model);
     const fires = take.frames.flatMap((f) => listener.push(f.v, f.t) ?? []);
     expect(fires.map((f) => f.gesture)).toEqual(Array(take.waves.length).fill('gesture-1'));
+  });
+
+  it('a listener started while the hand already moves hears the later repetitions (its warm-up judged, #913)', () => {
+    const take = takeOf('wave', { seed: 5, waves: 6, restMs: 0 });
+    const fires = (options: Parameters<typeof createGestureListener>[1]) => {
+      const listener = createGestureListener(model, options);
+      return take.frames.flatMap((f) => listener.push(f.v, f.t) ?? []).length;
+    };
+    expect(fires({})).toBeGreaterThanOrEqual(take.waves.length - 2);
+    // With no ceiling the warm-up learns the wave as jitter: the listener is all but deaf.
+    expect(fires({ noiseOptions: { restCeiling: () => undefined } })).toBeLessThan(fires({}));
   });
 
   it('a frame without the hand is not read, and a long refractory period swallows the next repetition', () => {

@@ -137,8 +137,12 @@ export const MATCHER_DEFAULTS = {
   position: true,
   /** ...and at any size (the size is reported as the variation instead). */
   scale: true,
-  /** No extra hold-off: the segmenter already spaces two segments by its closing quiet. */
-  refractoryMs: 0,
+  /** After a fire, no other for this long (ms): longer than a hand takes to settle after a
+   *  repetition, shorter than the pause a take asks for between two. The segmenter already spaces
+   *  two fires by `minTraceMs` plus its closing quiet (620 ms at its defaults), so this only bites
+   *  under a shorter segmentation. The one default: the live listener (`listen.ts`) inherits it.
+   *  Like `tolerance`, a device's live tuning that no pref exposes yet (a follow-up with #755). */
+  refractoryMs: 500,
 } as const;
 
 export interface GestureModelOptions {
