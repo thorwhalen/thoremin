@@ -55,6 +55,20 @@ export interface AudioInputLike {
 }
 
 /**
+ * A hub that hears nothing (#974): every lease drains empty and the hub reads `silent`. What a
+ * headless run of a graph that composes `audio-events` provides, so the node's declared read is
+ * satisfied by a real (if silent) input rather than exempted from the check.
+ */
+export function silentAudioInput(): AudioInputLike {
+  return {
+    acquire: () => ({ drain: () => [], release: () => {} }),
+    status: () => ({ state: 'silent', sampleRate: null }),
+    inputStage: () => ({ seconds: 0, source: 'prior' }),
+    contextTime: () => null,
+  };
+}
+
+/**
  * Engine time of a sound stamped at context `frame`: the tick's engine time, minus how long ago
  * on the context clock it was stamped, minus the input stage (it reached the microphone that much
  * earlier). Pure, for the node and its tests.

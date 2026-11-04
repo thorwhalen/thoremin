@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_FLUTE } from '@thoremin/ext-air/dials';
 import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
@@ -17,7 +17,6 @@ import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/l
 import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { fingeringSamples, fluteTake } from './synthetic_flute';
 import { AIR } from '../helpers/extensions';
-import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air flute in the default graph', () => {
   it('wires the dial, both models, the octave shift, the hands, the face and the voice — the #249 guard', () => {
@@ -51,7 +50,7 @@ describe.runIf(AIR)('air flute in the default graph', () => {
       checkReads: DEFAULT_GRAPH_READS,
       ticks: take.length,
       nominalDt: 1 / 30,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls: () => ({ right: voice, left: voice, airFlute: { ...DEFAULT_AIR_FLUTE, enabled: true, breath: 'always', mirrorHandedness: false }, airFluteFingerModel: model }),
       },
       recordOnly: ['merge.params'],

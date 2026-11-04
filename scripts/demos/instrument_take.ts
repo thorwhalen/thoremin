@@ -30,7 +30,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runHeadless } from '@thoremin/dag';
 import { loadedAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
@@ -41,7 +41,6 @@ import { TRUE_STICK_LENGTH } from '../air/lib_synthetic_grip';
 import { bassTake } from '../../test/air/synthetic_bass';
 import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, starterKitPads } from '../../test/air/synthetic_drums';
 import { enrolSamples, guitarTake } from '../../test/air/synthetic_guitar';
-import { DEFAULT_GRAPH_READS } from '../../test/helpers/headless';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -66,7 +65,7 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
     checkReads: DEFAULT_GRAPH_READS,
     ticks: frames.length,
     nominalDt: 1 / FPS,
-    resources: {
+    resources: { ...defaultGraphResources(),
       controls,
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
       createPluckSink: () => ({ play: () => {}, close: () => {} }),

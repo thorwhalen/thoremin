@@ -13,14 +13,13 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_PADS_SET, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import { loadStream } from '../helpers/fixtures';
 import { AIR } from '../helpers/extensions';
-import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('drum pads in the default graph', () => {
   it('wires the dial and the hits to the overlay, and the hits to the scheduler (the #245 guard)', () => {
@@ -55,7 +54,7 @@ describe.runIf(AIR)('drum pads in the default graph', () => {
       checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls,
         createDrumSink: () => ({ play: (sound: string, _v: number, _w: number, touch?: { radial?: number }) => void played.push({ sound, radial: touch?.radial ?? NaN }), close: () => {} }),
       },

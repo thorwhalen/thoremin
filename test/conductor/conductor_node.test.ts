@@ -20,10 +20,9 @@ import { replayNode, runHeadless } from '@thoremin/dag';
 import { SCORE_VOICE_ID_BASE, type HandsFrame, type SynthParams } from '@/nodes';
 import { conductorNode, DEFAULT_CONDUCTOR_DIAL } from '@/slices/conductor/nodes/conductor';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { loadStream } from '../helpers/fixtures';
 import { CONDUCTOR } from '../helpers/extensions';
-import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 const FPS = 30;
 const frames = loadStream('conducting_44', 'src.hands') as HandsFrame[];
@@ -195,7 +194,7 @@ describe.runIf(CONDUCTOR)('conductor mode in the real default graph (replayed ha
       checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
-      resources: { controls },
+      resources: { ...defaultGraphResources(), controls },
       recordOnly: ['score.params', 'merge.params', 'conductor.beat', 'conductor.time'],
     });
     const score = recorder.values('score.params') as SynthParams[];
@@ -220,7 +219,7 @@ describe.runIf(CONDUCTOR)('conductor mode in the real default graph (replayed ha
       checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
-      resources: { controls },
+      resources: { ...defaultGraphResources(), controls },
       recordOnly: ['score.params'],
     });
     const score = recorder.values('score.params') as SynthParams[];

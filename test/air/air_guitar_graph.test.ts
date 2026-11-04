@@ -9,14 +9,13 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { guitarVoicing, parseChordName } from '@thoremin/sdk/music/guitar';
 import { enrolSamples, guitarTake } from './synthetic_guitar';
 import { AIR } from '../helpers/extensions';
-import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air guitar in the default graph', () => {
   it('wires the dial, the model, the octave shift, the hands and the strums — the #249 guard', () => {
@@ -52,7 +51,7 @@ describe.runIf(AIR)('air guitar in the default graph', () => {
       checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls: () => ({ right: voice, left: voice, airGuitar: { ...DEFAULT_AIR_GUITAR, enabled: true, mirrorHandedness: false }, airGuitarModel: model }),
         createPluckSink: () => ({ play: (midi: number, velocity: number) => void (velocity > 0 && played.push(midi)), close: () => {} }),
       },

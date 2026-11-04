@@ -78,7 +78,8 @@ export interface EngineOptions {
    * turns it ON, so a host (a replay, a test, a script) that forgets to provide a declared
    * resource fails at init rather than running a graph whose source silently emits nothing.
    * `{ omit: [...] }` checks every key but those, for a host that leaves one out on purpose (a
-   * headless run of the production graph, whose camera models idle with no video).
+   * headless run of the production graph, whose camera models idle with no video). A key holding
+   * `undefined` is missing; one holding `null` is provided (a host's deliberate "none").
    */
   checkReads?: boolean | { omit: readonly string[] };
   log?: (msg: string) => void;

@@ -9,12 +9,11 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_BASS } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { bassTake } from './synthetic_bass';
 import { AIR, hasExtension } from '../helpers/extensions';
-import { DEFAULT_GRAPH_READS } from '../helpers/headless';
 
 describe.runIf(AIR)('air bass in the default graph', () => {
   it('wires the dial, the hands, the scale and the notes — the #249 guard', () => {
@@ -49,7 +48,7 @@ describe.runIf(AIR)('air bass in the default graph', () => {
         checkReads: DEFAULT_GRAPH_READS,
         ticks: frames.length,
         nominalDt: 1 / FPS,
-        resources: {
+        resources: { ...defaultGraphResources(),
           controls,
           createPluckSink: () => ({ play: (midi: number) => void played.push(midi), close: () => {} }),
         },

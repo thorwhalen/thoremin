@@ -16,13 +16,12 @@
  */
 import { runHeadless } from '@thoremin/dag';
 import { loadedAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import type { PadId, Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { TRUE_STICK_LENGTH } from './lib_synthetic_grip';
 import { DRUM_SCRIPT, DRUM_TAKE_FPS, drumTake, scoreTake, starterKitPads, type DrumStroke, type DrumTakeOptions } from '../../test/air/synthetic_drums';
-import { DEFAULT_GRAPH_READS } from '../../test/helpers/headless';
 
 const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sound: 'sine' } as const;
 
@@ -35,7 +34,7 @@ async function play(pads: Pads, options: DrumTakeOptions) {
     checkReads: DEFAULT_GRAPH_READS,
     ticks: take.frames.length,
     nominalDt: 1 / DRUM_TAKE_FPS,
-    resources: {
+    resources: { ...defaultGraphResources(),
       controls: () => ({ right: voice, left: voice, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, hand: 'right', pads, stickLength: TRUE_STICK_LENGTH } }),
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
       createPluckSink: () => ({ play: () => {}, close: () => {} }),

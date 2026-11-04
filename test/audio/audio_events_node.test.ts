@@ -5,6 +5,7 @@ import { audioEventsNode, stampToEngineTime, AUDIO_EVENTS_NODE, AUDIO_INPUT_RESO
 import { createCoreRegistry } from '@/nodes/index';
 import { AUDIO_INPUT_RESOURCE_KEY as APP_KEY } from '@/app/audio';
 import type { AudioEvent } from '@thoremin/sdk/audio/types';
+import { defaultGraphResources } from '@/app/graph';
 
 function fakeHub() {
   const queue: { source: string; event: AudioEvent }[] = [];
@@ -64,5 +65,15 @@ describe('audio-events node', () => {
     const { engine } = await runHeadless(spec, registry, { ticks: 2, resources: { [AUDIO_INPUT_RESOURCE_KEY]: hub } });
     expect(state.acquired).toHaveLength(1);
     expect(engine.getOutput('mic', 'status')).toBe('live');
+  });
+
+  it("a headless run of the default graph's resources provides a silent hub, so a listening build's graph inits (#974 review)", async () => {
+    // The lab build composes the games' `audio-events` node into `defaultGraph`; its headless runs
+    // spread `defaultGraphResources()`, which must satisfy the declared read with a hub that hears nothing.
+    const registry = createCoreRegistry();
+    const spec = { nodes: [{ id: 'mic', type: AUDIO_EVENTS_NODE }], edges: [] };
+    const { engine } = await runHeadless(spec, registry, { ticks: 2, resources: defaultGraphResources() });
+    expect(engine.getOutput('mic', 'events')).toEqual([]);
+    expect(engine.getOutput('mic', 'status')).toBe('silent');
   });
 });
