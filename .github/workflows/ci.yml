@@ -60,6 +60,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
             ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_DAW_DEPLOY_KEY }}
 
       - name: Install (lockfile-exact)
         run: npm ci
@@ -72,6 +73,15 @@ jobs:
 
       - name: Test the listening-games slice the camera build leaves out (docs/design/apps.md)
         run: npm run test:lab
+
+      # The gated DAW app (enlace_apps/thoremin-daw) builds the camera app with extensions.daw.json:
+      # its guide entries, its manifest and the song slice under that list, then its own build with
+      # the daw's code kept out of the initial chunks.
+      - name: Test and build the gated DAW app's extension list (extensions.daw.json)
+        run: |
+          npm run test:daw
+          npm run build:daw
+          THOREMIN_EXTENSIONS=extensions.daw.json npm run check:lazy
 
       # The node catalog (docs/CATALOG.md, public/catalog.json, public/manual.html) is generated
       # from the node registry and committed; a change to a node, a port or a param that did not
@@ -122,6 +132,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
             ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_DAW_DEPLOY_KEY }}
 
       - name: Install (lockfile-exact)
         run: npm ci
@@ -160,6 +171,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
             ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_DAW_DEPLOY_KEY }}
 
       - name: Install (lockfile-exact)
         run: npm ci

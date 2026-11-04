@@ -15,9 +15,9 @@ That is about **$87/month** at $0.006/minute before any included allowance, and 
 
 ## Private repositories: how CI reads the plugins
 
-`package.json` pins `@thoremin/ext-asl` and `@thoremin/ext-draw` as git dependencies and the lockfile resolves them to `git+ssh://`. npm tries a public tarball first and clones over ssh after a 404, so a private dependency needs an ssh key on the machine that installs. `GITHUB_TOKEN` reaches only its own repository.
+`package.json` pins `@thoremin/ext-asl`, `@thoremin/ext-draw` and `@thoremin/ext-daw` (thorwhalen/thoremin-daw, which only the gated DAW app's manifest lists, but which every `npm ci` installs) as git dependencies and the lockfile resolves them to `git+ssh://`. npm tries a public tarball first and clones over ssh after a 404, so a private dependency needs an ssh key on the machine that installs. `GITHUB_TOKEN` reaches only its own repository.
 
-Every job that runs `npm ci` loads read-only deploy keys through `webfactory/ssh-agent` (pinned by commit), which maps each key to its repository by the key's comment (`git@github.com:thorwhalen/<repo>.git`). Secrets, one key per repository: `THOREMIN_ASL_DEPLOY_KEY` and `THOREMIN_AR_DEPLOY_KEY` here; those two plus `THOREMIN_DEPLOY_KEY` on the two plugin repositories, whose CI runs inside a thoremin checkout. To rotate one: `ssh-keygen` with that comment, `gh repo deploy-key add` (no write access), `gh secret set` on each repository that uses it, delete the key file. Jobs without secrets (a fork, Dependabot) cannot install.
+Every job that runs `npm ci` loads read-only deploy keys through `webfactory/ssh-agent` (pinned by commit), which maps each key to its repository by the key's comment (`git@github.com:thorwhalen/<repo>.git`). Secrets, one key per repository: `THOREMIN_ASL_DEPLOY_KEY`, `THOREMIN_AR_DEPLOY_KEY` and `THOREMIN_DAW_DEPLOY_KEY` here; those two plus `THOREMIN_DEPLOY_KEY` on the two plugin repositories, whose CI runs inside a thoremin checkout. To rotate one: `ssh-keygen` with that comment, `gh repo deploy-key add` (no write access), `gh secret set` on each repository that uses it, delete the key file. Jobs without secrets (a fork, Dependabot) cannot install.
 
 ---
 

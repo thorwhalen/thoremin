@@ -59,6 +59,9 @@ export const MUSIC = hasExtension('music-context');
 /** The listening games slice (#866): Sing Along, Play Along Lessons, Match the Note and the timing take. */
 export const GAMES = hasExtension('audio-games');
 
+/** The DAW extension (thorwhalen/thoremin-daw): only the gated DAW app's build lists it (`extensions.daw.json`). */
+export const DAW = hasExtension('daw');
+
 
 /** The repository root: the nearest directory at or above the working directory holding
  *  `extensions.json`, so running vitest from a subdirectory (`--root ..`) still finds it. (Not
