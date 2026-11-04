@@ -23,5 +23,11 @@
     "id": "drawn",
     "title": "Drawn instruments",
     "blurb": "Draw shapes in the air with a pinch and play them: closed shapes become drums, open ones strings."
+  },
+  {
+    "id": "daw",
+    "title": "DJ instruments",
+    "blurb": "Play over a song and shape it with your hands: sweep a filter, repeat a beat, loop a bar, shift the key.",
+    "extension": "daw"
   }
 ]

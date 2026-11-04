@@ -14,6 +14,11 @@
  *   npm run guide:media -- --only "Air Drum"  just those (`home`, instrument names or `tool:<id>`)
  *   npm run guide:media -- --port 4392 --no-clips
  *
+ * A page marked `extension: <id>` (an extension only some builds list, `scripts/lib_guide.ts`) is
+ * photographed from a build that lists it: name its config and manifest, after building it.
+ *   npm run build:daw && npm run guide:media -- --config vite.daw.config.ts --manifest extensions.daw.json --only "DJ deck"
+ * Pages of extensions the manifest (default `extensions.json`) does not list are skipped.
+ *
  * The scenes' knobs are data (`smoke/guide_scenes.json`): per instrument or `tool:<id>` entry, `ms` (settle
  * time before the picture), `body` (add the synthetic body), `query` (extra query), `clip`, `clipMs`.
  */
@@ -33,6 +38,8 @@ const opt = (n, d) => (args.includes(`--${n}`) ? args[args.indexOf(`--${n}`) + 1
 const PORT = Number(opt('port', '4392'));
 const ONLY = args.flatMap((a, i) => (args[i - 1] === '--only' ? [a] : []));
 const CLIPS = !flag('no-clips');
+const CONFIG = opt('config', undefined);
+const LISTED = new Set(JSON.parse(readFileSync(join(ROOT, opt('manifest', 'extensions.json')), 'utf8')).extensions.map((e) => e.id));
 const OUT = join(ROOT, 'public', 'guide', 'pics');
 const VIEW = { width: 960, height: 600 };
 const JPEG_QUALITY = 68;
@@ -43,15 +50,17 @@ const scenes = existsSync(join(ROOT, 'smoke', 'guide_scenes.json')) ? JSON.parse
 const SCENE_DEFAULT = { ms: 3500, body: false, query: '', clip: false, clipMs: 3500 };
 
 const dir = (d) => join(ROOT, 'guide', d);
-const instruments = readdirSync(dir('instruments')).filter((f) => f.endsWith('.md')).map((f) => front(join(dir('instruments'), f)).seed);
-const tools = readdirSync(dir('tools')).filter((f) => f.endsWith('.md')).map((f) => front(join(dir('tools'), f)).tool);
+/** The pages this build has: an entry marked for an extension the manifest does not list is left out. */
+const pagesOf = (d) => readdirSync(dir(d)).filter((f) => f.endsWith('.md')).map((f) => front(join(dir(d), f))).filter((m) => !m.extension || LISTED.has(m.extension));
+const instruments = pagesOf('instruments').map((m) => m.seed);
+const tools = pagesOf('tools').map((m) => m.tool);
 const wanted = (key) => ONLY.length === 0 || ONLY.includes(key);
 
 mkdirSync(OUT, { recursive: true });
 
 // The built app, served the way CI serves it; stopped however this script ends (#732), and
 // refused when the port already answers (another worktree's build, #728).
-const preview = await startPreview(PORT).catch((e) => {
+const preview = await startPreview(PORT, { configFile: CONFIG }).catch((e) => {
   console.error(`guide:media: ${e.message}`);
   process.exit(1);
 });

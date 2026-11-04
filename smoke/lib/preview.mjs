@@ -22,7 +22,8 @@
  * folder is refused at once.
  *
  * The config is the repo's own `vite.config.ts`, found from `root` as the CLI finds it, so `base`
- * and `build.outDir` are the ones the build used.
+ * and `build.outDir` are the ones the build used; `configFile` names another build's (the gated
+ * DAW app's `vite.daw.config.ts`, built by `npm run build:daw`).
  *
  * A port that already answers is refused first (#728): it would be another worktree's build, and
  * the script would photograph that one. `strictPort` alone misses a server bound to the other
@@ -50,18 +51,19 @@ const answers = (url) => fetch(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_
 
 /**
  * `vite preview` of the built bundle on `port`, in this process. Resolves to `{ url, stop }` once
- * it listens; `stop()` closes the server (async, idempotent).
+ * it listens; `stop()` closes the server (async, idempotent). `configFile` (root-relative) serves
+ * another build than the default one.
  */
-export async function startPreview(port) {
+export async function startPreview(port, { configFile } = {}) {
   const origin = `http://localhost:${port}`;
   if (await answers(origin)) {
     throw new Error(`something already listens on port ${port} (another worktree's preview?). Stop it or pass --port <free port>.`);
   }
-  const server = await preview({ root: ROOT, logLevel: 'warn', preview: { port, strictPort: true } });
+  const server = await preview({ root: ROOT, logLevel: 'warn', preview: { port, strictPort: true }, ...(configFile ? { configFile: resolve(ROOT, configFile) } : {}) });
   const built = resolve(server.config.root, server.config.build.outDir, 'index.html');
   if (!existsSync(built)) {
     await server.close();
-    throw new Error(`no built app at ${built}: run npm run build first`);
+    throw new Error(`no built app at ${built}: run ${configFile ? `vite build --config ${configFile}` : 'npm run build'} first`);
   }
   return { url: `${origin}${server.config.base}${APP_PAGE}`, stop: () => server.close() };
 }
