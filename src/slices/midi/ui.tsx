@@ -14,21 +14,11 @@ import { provideMidiSinkFactory } from './nodes/midi_out';
 // starts) and imported only when output is first enabled: nothing MIDI ships in the main chunk.
 provideMidiSinkFactory(async (opts) => (await import('./app/midi_engine')).openWebMidiSink(opts));
 
-const nowMs = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-
 export const MIDI_UI: ExtensionUi = {
   id: 'midi-output',
   panels: [{ instrumentId: 'midi', section: 'MIDI', Controls: MidiControls, Readout: () => null, readoutOn: () => false }],
-  statusHooks: [
-    // The store's hook, its throttle paced on the page clock rather than the engine's tick time.
-    {
-      ...MIDI_STATUS.statusHook,
-      make: (engine, resources) => {
-        const report = MIDI_STATUS.statusHook.make(engine, resources);
-        return () => report(nowMs());
-      },
-    },
-  ],
+  // The store's own hook: the host passes it the tick's time in ms, which paces its throttle.
+  statusHooks: [MIDI_STATUS.statusHook],
   onMount: [],
   // #168 Q3: with its mute dial off, M quiets only the local monitor; the notes still flow.
   stillSounding: [

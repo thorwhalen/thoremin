@@ -53,4 +53,21 @@ describe.runIf(MIDI)('the slice\'s status hook (#600 S13: it was a hand-wired re
     hook.reset();
     expect(useMidiStatus.getState().status).toEqual(ABSENT_MIDI_STATUS);
   });
+
+  it('is the store\'s own hook, paced on the tick time the host passes: the counter to 250 ms (#983)', () => {
+    const [hook] = MIDI_UI.statusHooks;
+    expect(hook).toBe(MIDI_STATUS.statusHook);
+    const engine = stubEngine();
+    const on: MidiStatus = { ...ABSENT_MIDI_STATUS, phase: 'ready', supported: true, ports: ['IAC'], portName: 'IAC' };
+    engine.outputs['midiOut.status'] = on;
+    hook.reset();
+    const sink = hook.make(engine, () => ({}));
+    sink(1000);
+    expect(useMidiStatus.getState().status.activeNotes).toBe(on.activeNotes);
+    engine.outputs['midiOut.status'] = { ...on, activeNotes: 3 };
+    sink(1249);
+    expect(useMidiStatus.getState().status.activeNotes).toBe(on.activeNotes);
+    sink(1250);
+    expect(useMidiStatus.getState().status.activeNotes).toBe(3);
+  });
 });

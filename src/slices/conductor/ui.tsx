@@ -14,7 +14,7 @@ import { CONDUCTOR_TOOL } from './tool';
 import { CONDUCTOR_EXTENSION_ID } from './id';
 import ConductorPanel from './panels/ConductorPanel';
 import { ConductorControls } from './panels/conductor';
-import { makeConductorReporter, useConductorStatus, ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID } from './app/conductorStatus';
+import { CONDUCTOR_STATUS } from './app/conductorStatus';
 import { makeLeadCalibrationSink } from './app/conductorLead';
 import { ORCHESTRA_STATUS } from './app/orchestraStatus';
 import { startScoreLoader } from './app/scoreLoader';
@@ -44,12 +44,7 @@ export const CONDUCTOR_UI: ExtensionUi = {
     },
   ],
   statusHooks: [
-    {
-      nodeId: CONDUCTOR_NODE_ID,
-      make: (engine) => makeConductorReporter(engine),
-      onRemoved: () => useConductorStatus.getState().report(ABSENT_CONDUCTOR_LIVE),
-      reset: () => useConductorStatus.getState().reset(),
-    },
+    CONDUCTOR_STATUS.statusHook,
     {
       // A "Learn my timing" take (#427): the body frames against the click, while one runs.
       nodeId: 'camBody',

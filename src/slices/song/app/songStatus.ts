@@ -13,12 +13,19 @@
  * It also closes the transport's loop: a song that plays to its end, or that the browser
  * refused to start (`reason: 'autoplay'`), turns `songPlaying` back off, so the next press
  * of Play is a fresh start rather than a no-op.
+ *
+ * The store is not the status-store factory's: it holds four readouts from two nodes and its
+ * reporter carries the transport's edges. It takes the factory's reset count instead (#983):
+ * the hook's sink, {@link makeSongStatusSink}, starts afresh after every reset, so a player that
+ * leaves the graph and comes back with the status it left with is shown again rather than staying
+ * absent behind a change gate that still remembers it.
  */
 import { SONG_PLAYER } from '@thoremin/sdk/instruments/trunk';
 import { create } from 'zustand';
 import type { LoadStatus } from '@thoremin/lazy';
 import type { MusicalTime, PaceMode, PaceState, ServoMode, ServoState } from '@thoremin/ictus';
 import type { OutputReader } from '@thoremin/sdk-ui/types';
+import { createResetCount } from '@thoremin/sdk-ui/statusStore';
 
 export const SONG_NODE_ID = SONG_PLAYER;
 /** The pace controller's id in the `song-pace` branch. */
@@ -66,13 +73,19 @@ export interface SongStatusState {
   reset(): void;
 }
 
+/** The store's resets, counted so the hook's sink starts afresh after each one. */
+const songResets = createResetCount();
+
 export const useSongStatus = create<SongStatusState>((set) => ({
   status: ABSENT_SONG_STATUS,
   live: ABSENT_SONG_LIVE,
   pace: null,
   servo: null,
   report: (status, live, pace = null, servo = null) => set({ status, live, pace, servo }),
-  reset: () => set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null, servo: null }),
+  reset: () => {
+    songResets.bump();
+    set({ status: ABSENT_SONG_STATUS, live: ABSENT_SONG_LIVE, pace: null, servo: null });
+  },
 }));
 
 /** The engine the reporter reads, so a playback session reads the player's position at the tick
@@ -142,4 +155,14 @@ export function makeSongReporter(
     lastKey = key;
     store.report(s, live, pace, servo);
   };
+}
+
+/**
+ * The status hook's sink: {@link makeSongReporter} into {@link useSongStatus}, rebuilt after every
+ * reset of the store (the node left the graph, the engine went), so its change gate and its
+ * transport edge start afresh. A rebuilt reporter that finds the song still ended calls `onEnded`
+ * once more, which only turns an already stopped transport off.
+ */
+export function makeSongStatusSink(engine: OutputReader, onEnded: () => void, onSeeked: (id: number) => void): (nowMs: number) => void {
+  return songResets.rebuilding(() => makeSongReporter(engine, useSongStatus.getState(), onEnded, onSeeked));
 }

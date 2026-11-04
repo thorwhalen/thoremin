@@ -8,7 +8,7 @@
  * change of what the readout shows, and a status hook wiring the two into the engine host. They
  * differ in the status type, in the key that says what changed, in the state's field name (`status`
  * or `live`) and, for MIDI, in a throttle on a counter that moves at frame rate. This factory is
- * that shape once; the change gate itself is `makeStatusReporter` in `@thoremin/lazy/status`, pure.
+ * that shape once; the change gate itself is `makeStatusReporter` in `@thoremin/sdk/status/gate`, pure.
  *
  * The host builds a hook's sink once per engine (`src/app/extensions/index.ts`), while a node may
  * leave the graph and come back many times under it. The reporter's change gate remembers the last
@@ -16,12 +16,16 @@
  * when that status is the one it left with. The store therefore counts its resets, and the hook's
  * sink rebuilds its reporter when the count has moved.
  *
- * A readout with something besides one node's status (the face's label and scores, read from three
- * nodes, with a toast) is its own store. A readout with one more step (a custom reset, a clock of
- * its own) composes over what this returns: spread `statusHook` and replace the member.
+ * A readout of several ports of its one node (the conductor's) passes `read`. A readout with
+ * something besides one node's status (the face's label and scores, read from three nodes, with a
+ * toast; the song's player and pace controller, with its transport's edges) is its own store, and
+ * takes the reset count alone ({@link createResetCount}). A readout with one more step on reset
+ * (the generative layer pauses its transport) composes over what this returns: spread `statusHook`
+ * and replace the member. Its sink needs no clock of its own: the host passes it the tick's time
+ * in ms, which paces a throttled readout (MIDI's).
  */
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
-import { makeStatusReporter, type StatusGateOptions, type StatusSink, type StatusThrottle } from '@thoremin/lazy/status';
+import { makeStatusReporter, type StatusReporterOptions, type StatusSink, type StatusThrottle } from '@thoremin/sdk/status/gate';
 import type { OutputReader, StatusHook } from './types';
 
 /** The store's state: the node's latest status under `field` (`status` by default), or `absent`
@@ -48,7 +52,7 @@ export interface StatusStore<T, F extends string = 'status', Timed extends boole
 }
 
 /** How {@link createStatusStore} reads, gates and holds a status. */
-export interface StatusStoreOptions<T> extends StatusGateOptions<NonNullable<T>> {
+export interface StatusStoreOptions<T> extends StatusReporterOptions<NonNullable<T>> {
   /** The status before the engine has reported, after the node leaves and after teardown. */
   absent: T;
   /** The state's field the status is kept under: `status` when omitted. */
@@ -64,6 +68,8 @@ type Timed<T> = StatusStoreOptions<T> & { throttle: StatusThrottle<NonNullable<T
  *
  * @param nodeId - the node whose `status` output is mirrored.
  * @param options.absent - what the store holds before any report.
+ * @param options.read - how the status is read off the engine: the node's `status` port when
+ *   omitted; a readout of several of its node's ports (the conductor's) assembles it here.
  * @param options.keyOf - what the readout shows, as a string: a status with an unchanged key is not
  *   reported again (quantise here what the view rounds).
  * @param options.throttle - for a counter that moves at frame rate: a change in its own key alone
@@ -78,7 +84,7 @@ export function createStatusStore<T, F extends string>(nodeId: string, options: 
 export function createStatusStore<T>(nodeId: string, options: StatusStoreOptions<T>): StatusStore<T, string, boolean> {
   const { absent, field = 'status', ...gate } = options;
   type State = StatusState<T, string>;
-  let resets = 0;
+  const resets = createResetCount();
   const holding = (status: T) => ({ [field]: status }) as Partial<State>;
   const useStatus = create<State>(
     (set) =>
@@ -86,7 +92,7 @@ export function createStatusStore<T>(nodeId: string, options: StatusStoreOptions
         ...holding(absent),
         report: (status: NonNullable<T>) => set(holding(status)),
         reset: () => {
-          resets += 1;
+          resets.bump();
           set(holding(absent));
         },
       }) as State,
@@ -94,21 +100,44 @@ export function createStatusStore<T>(nodeId: string, options: StatusStoreOptions
   const reset = () => useStatus.getState().reset();
   const makeReporter = (engine: OutputReader, store: Pick<StatusActions<T>, 'report'> = useStatus.getState()) =>
     makeStatusReporter<NonNullable<T>>(engine, store, nodeId, gate);
-  /** The hook's sink: this store's reporter, rebuilt (its change gate cleared) after a reset. */
-  const makeResettingReporter = (engine: OutputReader) => {
-    let seen = resets;
-    let report = makeReporter(engine);
-    return (nowMs: number) => {
-      if (seen !== resets) {
-        seen = resets;
-        report = makeReporter(engine);
-      }
-      report(nowMs);
-    };
-  };
   return {
     useStatus,
     makeReporter,
-    statusHook: { nodeId, make: (engine) => makeResettingReporter(engine), onRemoved: reset, reset },
+    statusHook: { nodeId, make: (engine) => resets.rebuilding(() => makeReporter(engine)), onRemoved: reset, reset },
+  };
+}
+
+/** A store's reset count, and the sinks it rebuilds: see {@link createResetCount}. */
+export interface ResetCount {
+  /** Count one reset (the store's `reset` calls it). */
+  bump(): void;
+  /** A sink that runs `make()`'s and builds it afresh when the count has moved since. */
+  rebuilding(make: () => (nowMs: number) => void): (nowMs: number) => void;
+}
+
+/**
+ * The reset-count rebuild every status store's hook needs (#967, #983): the host builds a hook's
+ * sink once per engine, so a sink holding a change gate (or any other memory of what it reported)
+ * must start afresh after its store is reset to absent, or a node that comes back with the status
+ * it left with is swallowed. {@link createStatusStore} uses it; a store of another shape (the
+ * song's, with four fields and its own edge detectors) bumps it in its own `reset`.
+ */
+export function createResetCount(): ResetCount {
+  let resets = 0;
+  return {
+    bump: () => {
+      resets += 1;
+    },
+    rebuilding: (make) => {
+      let seen = resets;
+      let sink = make();
+      return (nowMs) => {
+        if (seen !== resets) {
+          seen = resets;
+          sink = make();
+        }
+        sink(nowMs);
+      };
+    },
   };
 }

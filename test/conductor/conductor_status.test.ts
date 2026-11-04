@@ -55,3 +55,28 @@ describe.runIf(CONDUCTOR)('makeConductorReporter', () => {
     expect(conductorLiveKey(a)).not.toBe(conductorLiveKey({ ...a, enabled: false }));
   });
 });
+
+describe.runIf(CONDUCTOR)('the conductor status hook (#983)', () => {
+  it('reports a conductor removed and re-added with the same reading, after removal and after reset', async () => {
+    const { CONDUCTOR_UI } = await import('@/slices/conductor/ui');
+    const { ABSENT_CONDUCTOR_LIVE, CONDUCTOR_NODE_ID, useConductorStatus } = await import('@/slices/conductor/app/conductorStatus');
+    const hook = CONDUCTOR_UI.statusHooks.find((h) => h.nodeId === CONDUCTOR_NODE_ID);
+    expect(hook).toBeDefined();
+    const running = { time: time({ state: 'running', tempo: 70, beat: 2, beatInBar: 2, confidence: 0.5, anchors: 3 }), dynamics: 0.4, enabled: true };
+    let outputs: Record<string, unknown> = running;
+    const sink = hook!.make({ getOutput: (n: string, port: string) => (n === CONDUCTOR_NODE_ID ? outputs[port] : undefined) }, () => ({}));
+    sink(0);
+    const shown = useConductorStatus.getState().live;
+    expect(shown).toMatchObject({ enabled: true, state: 'running', beat: 2 });
+    hook!.onRemoved();
+    outputs = {};
+    sink(1);
+    expect(useConductorStatus.getState().live).toBe(ABSENT_CONDUCTOR_LIVE);
+    outputs = running;
+    sink(2);
+    expect(useConductorStatus.getState().live).toEqual(shown);
+    hook!.reset();
+    sink(3);
+    expect(useConductorStatus.getState().live).toEqual(shown);
+  });
+});

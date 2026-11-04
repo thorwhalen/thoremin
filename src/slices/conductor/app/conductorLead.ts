@@ -43,7 +43,7 @@ import { clickPlayer } from '@thoremin/sdk-ui/enroll/click';
 import { appFeatureDemand } from '@thoremin/sdk-ui/featureDemand';
 import { BODY_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { bodyChannelFrame, conductorBodyJoints, type BodySide, type ConductorBodyPoint } from '../nodes/conductor_body';
-import type { OutputReader } from './conductorStatus';
+import type { OutputReader } from '@thoremin/sdk-ui/types';
 
 /** The take: a bar's count-in, then four bars of clicks (16 strokes), after a lead-in to
  *  stand back. The tempo is the loaded piece's marked one inside `minBpm..maxBpm`, else

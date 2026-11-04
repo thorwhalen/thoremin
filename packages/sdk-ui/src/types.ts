@@ -20,8 +20,8 @@
 import type { ComponentType } from 'react';
 
 /** The one thing a status hook reads: a node output by id and port (the engine, or a test double). */
-export type { OutputReader } from '@thoremin/lazy/status';
-import type { OutputReader } from '@thoremin/lazy/status';
+export type { OutputReader } from '@thoremin/sdk/status/gate';
+import type { OutputReader } from '@thoremin/sdk/status/gate';
 
 export interface ExtensionPanel {
   /** The instrument id (`drum`), as in the library's instrument table. */
