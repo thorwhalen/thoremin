@@ -54,6 +54,6 @@ export function withActive(status: LoadStatus, active: boolean, activeMessage?: 
 }
 
 /** What a load-status readout shows: the phase, reason, message and progress. The change key of
- *  every load-status reporter and store (`makeLoadStatusReporter` in `@thoremin/sdk/status/gate`,
+ *  every load-status reporter and store (`makeStatusReporter` in `@thoremin/sdk/status/gate`,
  *  `createLoadStatusStore` in `@thoremin/sdk-ui/loadStatusStore`); the gate itself is the SDK's. */
 export const loadStatusKey = (s: LoadStatus): string => `${s.phase}|${s.reason ?? ''}|${s.message}|${s.progress ?? ''}`;

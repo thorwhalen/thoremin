@@ -3,7 +3,7 @@
  *
  * The hand source, the generative layer and the orchestra each kept the same three pieces: a
  * zustand store `{ status, report, reset }`, a per-frame reporter over one node id
- * (`makeLoadStatusReporter`, which reports only on a change), and a status hook wiring the two
+ * (the change-gated reporter, which reports only on a change), and a status hook wiring the two
  * into the engine host. They differed only in the node id and in what "absent" reads as (null,
  * or an `off` status with the node's own words). This factory is that shape once, so the next
  * heavy node gets its readout from one call.
@@ -12,7 +12,7 @@
  * store, reporter and hook (with the reset-count rebuild that keeps a returning node's status from
  * being swallowed by the change gate), keyed by the load-status vocabulary's own change key.
  *
- * It lives here and not beside `makeLoadStatusReporter` in `@thoremin/sdk/status/gate`, because
+ * It lives here and not beside the gate in `@thoremin/sdk/status/gate`, because
  * that module is pure and Node-safe with no vendor library, and the store is a React hook (zustand).
  * A store with more than the status (the face's label and scores, throttled, with a toast) is
  * its own store: it reads another port shape and reports on its own cadence.

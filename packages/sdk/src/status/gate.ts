@@ -9,11 +9,9 @@
  * Why here: the gate is generic over any status type, so it does not belong in the lazy-loading
  * package, whose subject is loading a heavy resource and the `LoadStatus` vocabulary it reports
  * in; and it is pure (no React, no store library), so it belongs in the pure SDK rather than in
- * `@thoremin/sdk-ui`, whose status-store factory builds on it. The load-status case
- * (`makeLoadStatusReporter`) is here too: `@thoremin/sdk` depends on `@thoremin/lazy`, so lazy
- * cannot build on this module; lazy keeps only its vocabulary's change key, `loadStatusKey`.
+ * `@thoremin/sdk-ui`, whose status-store factory builds on it. A load-status readout is this gate
+ * keyed by the lazy package's `loadStatusKey`.
  */
-import { loadStatusKey, type LoadStatus } from '@thoremin/lazy/status';
 
 /** What a reader of node outputs offers: the engine, or a stub in a test. */
 export interface OutputReader {
@@ -73,7 +71,7 @@ export function makeStatusGate<T>({ keyOf, throttle }: StatusGateOptions<T>): (s
 
 /**
  * The per-frame sink that mirrors one node's `status` port into a store (#969, generalised from
- * {@link makeLoadStatusReporter}): it reads the port (or what `read` assembles), skips an absent output, and reports only what
+ * the load-status reporter of #600 S14): it reads the port (or what `read` assembles), skips an absent output, and reports only what
  * the gate lets through, so a readout never re-renders at frame rate for a status it already shows.
  * Pure over the reader and the store. A throttled reporter's sink takes the tick's time (by type).
  */
@@ -99,18 +97,4 @@ export function makeStatusReporter<T>(engine: OutputReader, store: { report(stat
     if (!status) return;
     if (changed(status, nowMs)) store.report(status);
   };
-}
-
-/**
- * The per-frame sink that mirrors a heavy node's `status` output into a store (#600 S14: lifted
- * from the generative layer's reporter, which the orchestra's reused): it reports only when the
- * phase, reason, message or progress changed, so a readout never re-renders at frame rate for an
- * unchanged phase. Pure over the reader.
- */
-export function makeLoadStatusReporter(
-  engine: OutputReader,
-  store: { report(status: LoadStatus): void },
-  nodeId: string,
-): () => void {
-  return makeStatusReporter(engine, store, nodeId, { keyOf: loadStatusKey });
 }

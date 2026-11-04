@@ -50,7 +50,7 @@ const FACE_NODES = { status: 'camFace', expression: 'faceExpr', played: 'exprCho
  * Build the per-frame sink that bridges the face model's status and classified expression from
  * the DAG back to React for the indicator and readout (#65), throttled so the bars don't
  * re-render 60×/s. A transition into `error` surfaces a toast once. Pure over the reader (the
- * `makeLoadStatusReporter` shape), so it is testable with a stub engine.
+ * `makeStatusReporter` shape), so it is testable with a stub engine.
  *
  * @param now - the frame time in MILLISECONDS (the host converts the clock's seconds).
  */
