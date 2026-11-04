@@ -34,8 +34,11 @@ function importSpecifiers(src: string): string[] {
   return ts.preProcessFile(src, true, true).importedFiles.map((f) => f.fileName);
 }
 
-/** `@scope/name/sub` -> `@scope/name`; `name/sub` -> `name`. */
-const packageOf = (spec: string): string => spec.split('/').slice(0, spec.startsWith('@') ? 2 : 1).join('/');
+/** `@scope/name/sub` -> `@scope/name`; `name/sub` -> `name`; a query (`pkg?url`) is not part of the name. */
+const packageOf = (spec: string): string => {
+  const bare = spec.replace(/\?.*$/, '');
+  return bare.split('/').slice(0, bare.startsWith('@') ? 2 : 1).join('/');
+};
 
 const packages = readdirSync(PACKAGES_ROOT, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(join(PACKAGES_ROOT, d.name, 'package.json')))

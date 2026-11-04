@@ -17,5 +17,7 @@ Every effect has a control in the DAW section and a command in the palette (Ctrl
 :::
 
 :::details Good to know
+Play a starter loop from the Loop library in the DAW section with the song: it starts on the next bar, in time. The loops have their own commands in the palette: type "Loops:" (and "Looper:" for the loop tracks).
+
 Pick the DJ deck before you load the song. If a song was already loaded, reload the page, then load it again: the DAW section says when the song is not going through the deck. Switching to another instrument resets the deck's bar, and the song keeps playing.
 :::

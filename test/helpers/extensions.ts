@@ -91,16 +91,24 @@ export function extensionSourceDir(moduleSpec: string): string {
   }
 }
 
+/** The manifests of the builds that are deployed: the public app's and the gated DAW app's. */
+export const DEPLOYED_MANIFESTS = ['extensions.json', 'extensions.daw.json'] as const;
+
 /**
- * The source directories of the extensions the SHIPPED manifest (`extensions.json`) lists,
+ * The source directories of the extensions a deployed build lists ({@link DEPLOYED_MANIFESTS}),
  * whatever this run's `THOREMIN_EXTENSIONS` says: the static guards (write path, layering,
  * command firewall, boundary) scan these, so moving an extension (into a package, say) moves
- * what they scan instead of leaving them green over nothing.
+ * what they scan instead of leaving them green over nothing, and an extension only the gated app
+ * serves is held to the same rules.
  */
-export const SHIPPED_EXTENSION_DIRS: readonly { id: string; dir: string }[] = readExtensionEntries(join(ROOT, 'extensions.json')).map((e) => ({
-  id: e.id,
-  dir: extensionSourceDir(e.module),
-}));
+export const SHIPPED_EXTENSION_DIRS: readonly { id: string; dir: string }[] = [
+  ...new Map(
+    DEPLOYED_MANIFESTS.flatMap((m) => readExtensionEntries(join(ROOT, m))).map((e) => {
+      const dir = extensionSourceDir(e.module);
+      return [dir, { id: e.id, dir }] as const;
+    }),
+  ).values(),
+];
 
 /**
  * Every extension source directory there is: the shipped ones, plus any in-tree

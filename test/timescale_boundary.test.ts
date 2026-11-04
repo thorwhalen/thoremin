@@ -160,6 +160,12 @@ describe('every node that makes real-time output honours the boundary', () => {
       'song-player': 'src/slices/song/nodes/song_player.ts',
       // The drawn pieces' voice (thorwhalen/thoremin-ar).
       'drawn-voice': 'node_modules/@thoremin/ext-draw/src/nodes/drawn_voice.ts',
+      // The DAW extension's (thorwhalen/thoremin-daw), listed only by the gated app's manifest
+      // (extensions.daw.json, so `npm run test:daw` runs this file).
+      'daw-song-chain': 'node_modules/@thoremin/ext-daw/src/nodes/daw_song_chain.ts',
+      'daw-fx': 'node_modules/@thoremin/ext-daw/src/nodes/daw_fx.ts',
+      'daw-looper': 'node_modules/@thoremin/ext-daw/src/nodes/daw_looper.ts',
+      'daw-loops': 'node_modules/@thoremin/ext-daw/src/nodes/daw_loops.ts',
     };
     const missingFile = synthNodes.map((d) => d.type).filter((t) => !(t in files));
     expect(

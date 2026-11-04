@@ -90,6 +90,12 @@ Switch between shaping (a pinch draws or moves a piece) and playing (the fingert
 
 Switch the deck on and see where it is: the tempo, the bar and beat, whether the song is going through the deck, and what each effect is doing. **Bar 1 here** makes the beat you are hearing the first of a bar; **Bar -1 beat** and **Bar +1 beat** move the bar by one beat. Set the tempo the deck keeps when no song leads, the beats in a bar, and what the clock follows. Under Transforms: a control for every effect (the equalizer's kills, the echo and Echo out, a held beat repeat, the brake, the key, the loop), **Lock** (keep the effects as they are and free your hands), **Cancel all** (every effect off at once), and Hands: which hand works the filter and which the beat repeat, or neither.
 
+**Looper**: up to four loop tracks, recorded from the song or the microphone. One button records, then plays, then overdubs; **Stop**, **Undo**, **Redo**, **Clear** and **Rev** (reverse) do what they say, and a take always starts and ends on a bar line, even when you press a little early or late.
+
+**Loop library**: your loops and three starter loops (drums, bass, keys). **Import** a WAV or AIFF loop and pick how it is read (its tempo and bar count, with x2 and /2 when the reading is twice too fast or slow). **Play** starts a loop on the next bar, in time with the song or the deck's tempo; choose how it follows the tempo (stretch, keeping its pitch; slice, for drums; repitch, like a turntable). Export a loop as **WAV**, as **MIDI** (when it has notes), or **For GarageBand** (the files and the steps to bring it in), rename it, or delete it.
+
+**Output**: send the sound to another audio output, in Chrome only (other browsers: use your computer's sound settings). A virtual audio device is something you install yourself.
+
 :::end-extension
 ## Physical theremin {#physical-theremin}
 
