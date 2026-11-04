@@ -16,7 +16,7 @@
  */
 import { runHeadless } from '@thoremin/dag';
 import { loadedAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import type { PadId, Pads } from '@thoremin/sdk/nodes/music/drum_pads';
@@ -31,9 +31,10 @@ async function play(pads: Pads, options: DrumTakeOptions) {
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames: take.frames };
   const { recorder } = await runHeadless(g, registry, {
+    checkReads: DEFAULT_GRAPH_READS,
     ticks: take.frames.length,
     nominalDt: 1 / DRUM_TAKE_FPS,
-    resources: {
+    resources: { ...defaultGraphResources(),
       controls: () => ({ right: voice, left: voice, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, hand: 'right', pads, stickLength: TRUE_STICK_LENGTH } }),
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
       createPluckSink: () => ({ play: () => {}, close: () => {} }),

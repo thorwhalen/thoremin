@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph, branchIdsFor, composeInstrumentGraph } from '@/app/graph';
+import { defaultGraph, branchIdsFor, composeInstrumentGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { SEED_INSTRUMENTS } from '@/app/dials/instruments';
 import { settingsFromLayer } from '@/app/library/derive';
 import { DEFAULT_CHORD_MAP } from '@thoremin/ext-harmony/dials';
@@ -94,9 +94,10 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     g.nodes.find((n) => n.id === 'cam')!.params = { frames };
     const played: number[] = [];
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls: () => ({ right: VOICE, left: VOICE, chordMap: { ...DEFAULT_CHORD_MAP, enabled: true, mirrorHandedness: false, ...chordMap } }),
         createPluckSink: () => ({ play: (midi: number, velocity: number) => void (velocity > 0 && played.push(midi)), close: () => {} }),
       },
@@ -121,9 +122,10 @@ describe.runIf(HARMONY)('the chord map in the default graph', () => {
     const g = defaultGraph({ source: 'replay-hands' }, registry);
     g.nodes.find((n) => n.id === 'cam')!.params = { frames };
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
-      resources: { controls: () => ({ right: VOICE, left: VOICE, chordMap: { ...DEFAULT_CHORD_MAP, enabled: true, mirrorHandedness: false } }) },
+      resources: { ...defaultGraphResources(), controls: () => ({ right: VOICE, left: VOICE, chordMap: { ...DEFAULT_CHORD_MAP, enabled: true, mirrorHandedness: false } }) },
       recordOnly: ['chordSel.chord'],
     });
     const shown = recorder.values('chordSel.chord') as number[][];

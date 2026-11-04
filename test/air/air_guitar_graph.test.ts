@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { emptyVocabulary, trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
@@ -48,9 +48,10 @@ describe.runIf(AIR)('air guitar in the default graph', () => {
     const played: number[] = [];
     const voice = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
     await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: frames.length,
       nominalDt: 1 / 30,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls: () => ({ right: voice, left: voice, airGuitar: { ...DEFAULT_AIR_GUITAR, enabled: true, mirrorHandedness: false }, airGuitarModel: model }),
         createPluckSink: () => ({ play: (midi: number, velocity: number) => void (velocity > 0 && played.push(midi)), close: () => {} }),
       },

@@ -28,6 +28,8 @@
  */
 import { readsResource, type GraphSpec, type NodeRegistry, type Role } from '@thoremin/dag';
 import type { CameraNodes } from '@/instruments/camera';
+import { READS_VIDEO } from '@thoremin/sdk/sources/video';
+import { AUDIO_INPUT_RESOURCE_KEY, silentAudioInput } from '@/nodes/sources/audio_events.schema';
 import { MAPPING_SLOT_CONTRACT } from '@/nodes/mapping/mapping_contract';
 import { SOURCE_SLOT_CONTRACT } from '@/nodes/sources/source_contract';
 import { NO_HANDS_TYPE } from '@/nodes/sources/no_hands.schema';
@@ -313,4 +315,22 @@ export function composeInstrumentGraph(
 /** The full graph: every branch. The selection swaps node types inside it (see SLOTS). */
 export function defaultGraph(selection?: SlotSelection, registry?: NodeRegistry): GraphSpec {
   return composeInstrumentGraph(ALL_BRANCH_IDS, selection, registry).spec;
+}
+
+/**
+ * What a headless run of `defaultGraph` leaves out of `resources` on purpose (#974): the camera's
+ * video. Every branch is composed, the face and body camera models among them, and a test or
+ * script feeds the hands through a replay in the source slot, so those models idle with no camera.
+ * Every other declared read is still checked: `runHeadless(defaultGraph(...), registry,
+ * { checkReads: DEFAULT_GRAPH_READS, resources: { ...defaultGraphResources(), ... } })`.
+ */
+export const DEFAULT_GRAPH_READS = Object.freeze({ omit: READS_VIDEO });
+
+/**
+ * The resources a headless run of `defaultGraph` needs besides the caller's own (#974): a silent
+ * audio input, because a build that lists a listening slice (the lab build's games) composes an
+ * `audio-events` node, which declares it reads the hub. Spread first, so a caller's own wins.
+ */
+export function defaultGraphResources(): Record<string, unknown> {
+  return { [AUDIO_INPUT_RESOURCE_KEY]: silentAudioInput() };
 }

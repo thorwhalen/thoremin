@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_BASS } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
 import { bassTake } from './synthetic_bass';
@@ -45,9 +45,10 @@ describe.runIf(AIR)('air bass in the default graph', () => {
       const played: number[] = [];
       const controls = () => ({ right: voice, left: voice, airBass: { ...DEFAULT_AIR_BASS, enabled, mirrorHandedness: false } });
       const { recorder } = await runHeadless(g, registry, {
+        checkReads: DEFAULT_GRAPH_READS,
         ticks: frames.length,
         nominalDt: 1 / FPS,
-        resources: {
+        resources: { ...defaultGraphResources(),
           controls,
           createPluckSink: () => ({ play: (midi: number) => void played.push(midi), close: () => {} }),
         },

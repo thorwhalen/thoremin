@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_DRUM } from '@thoremin/ext-air/dials';
 import { loadStream } from '../helpers/fixtures';
@@ -54,10 +54,11 @@ describe.runIf(AIR)('air drum in the default graph', () => {
       const played: string[] = [];
       const controls = () => ({ ...baseControls(), airDrum: { ...DEFAULT_AIR_DRUM, enabled, mirrorHandedness: false } });
       const { recorder } = await runHeadless(g, registry, {
+        checkReads: DEFAULT_GRAPH_READS,
         ticks,
         nominalDt: 1 / FPS,
         // No WebAudio in Node: the injected sink needs none (the synth stays silent).
-        resources: {
+        resources: { ...defaultGraphResources(),
           controls,
           createDrumSink: () => ({ play: (sound: string) => void played.push(sound), close: () => {} }),
         },

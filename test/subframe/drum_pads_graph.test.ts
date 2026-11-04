@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import type { DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { DEFAULT_PADS_SET, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
@@ -51,9 +51,10 @@ describe.runIf(AIR)('drum pads in the default graph', () => {
     const controls = () => ({ right: voice, left: { ...voice, sound: 'triangle' as const }, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, mirrorHandedness: false, pads, offPad: 'nearest' as const } });
     const played: { sound: string; radial: number }[] = [];
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks,
       nominalDt: 1 / FPS,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls,
         createDrumSink: () => ({ play: (sound: string, _v: number, _w: number, touch?: { radial?: number }) => void played.push({ sound, radial: touch?.radial ?? NaN }), close: () => {} }),
       },

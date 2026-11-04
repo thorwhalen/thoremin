@@ -30,7 +30,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runHeadless } from '@thoremin/dag';
 import { loadedAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import type { HandsFrame } from '@/nodes';
 import { DEFAULT_AIR_BASS, DEFAULT_AIR_DRUM, DEFAULT_AIR_GUITAR } from '@thoremin/ext-air/dials';
 import { generateScale } from '@thoremin/sdk/music/theory';
@@ -62,9 +62,10 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
   const g = defaultGraph({ source: 'replay-hands' }, registry);
   g.nodes.find((n) => n.id === 'cam')!.params = { frames };
   const { recorder } = await runHeadless(g, registry, {
+    checkReads: DEFAULT_GRAPH_READS,
     ticks: frames.length,
     nominalDt: 1 / FPS,
-    resources: {
+    resources: { ...defaultGraphResources(),
       controls,
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
       createPluckSink: () => ({ play: () => {}, close: () => {} }),

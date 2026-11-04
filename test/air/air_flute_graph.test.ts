@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { runHeadless } from '@thoremin/dag';
 import { createAppRegistry } from '@/nodes/browser';
-import { defaultGraph } from '@/app/graph';
+import { defaultGraph, DEFAULT_GRAPH_READS, defaultGraphResources } from '@/app/graph';
 import { DEFAULT_AIR_FLUTE } from '@thoremin/ext-air/dials';
 import { FLUTE_VOICE_ID } from '@thoremin/ext-air/nodes/air_flute';
 import type { SynthParams } from '@thoremin/sdk/nodes/domain';
@@ -47,9 +47,10 @@ describe.runIf(AIR)('air flute in the default graph', () => {
     g.nodes.find((n) => n.id === 'cam')!.params = { frames: take.map((x) => x.frame) };
     const voice = { root: 0, type: 'major', octaves: 2, baseOctave: 3, sound: 'sine' } as const;
     const { recorder } = await runHeadless(g, registry, {
+      checkReads: DEFAULT_GRAPH_READS,
       ticks: take.length,
       nominalDt: 1 / 30,
-      resources: {
+      resources: { ...defaultGraphResources(),
         controls: () => ({ right: voice, left: voice, airFlute: { ...DEFAULT_AIR_FLUTE, enabled: true, breath: 'always', mirrorHandedness: false }, airFluteFingerModel: model }),
       },
       recordOnly: ['merge.params'],

@@ -50,6 +50,8 @@ interface BuiltNode {
   inputDefaults: Map<string, unknown>;
   /** incoming edges, grouped by target input port. */
   incoming: Map<string, { node: string; port: string; delayed?: boolean }>;
+  /** The host resources its type declares it reads ({@link NodeDef.reads}), for {@link EngineOptions.checkReads}. */
+  reads: readonly string[];
 }
 
 export interface EngineOptions {
@@ -67,6 +69,19 @@ export interface EngineOptions {
    * end-to-end runs get the check for free.
    */
   validatePorts?: boolean;
+  /**
+   * Check, before any node's `init` (and before an {@link Engine.applyGraph} touches the running
+   * graph), that every resource a node declares it reads ({@link NodeDef.reads}) is in
+   * `resources`, throwing with the node, its type and the missing key named. Off by default:
+   * a live host may fill a resource only once it has acquired it (the camera's video once the
+   * camera opens), and it reads the declarations itself to decide what to acquire. `runHeadless`
+   * turns it ON, so a host (a replay, a test, a script) that forgets to provide a declared
+   * resource fails at init rather than running a graph whose source silently emits nothing.
+   * `{ omit: [...] }` checks every key but those, for a host that leaves one out on purpose (a
+   * headless run of the production graph, whose camera models idle with no video). A key holding
+   * `undefined` is missing; one holding `null` is provided (a host's deliberate "none").
+   */
+  checkReads?: boolean | { omit: readonly string[] };
   log?: (msg: string) => void;
 }
 
@@ -159,6 +174,8 @@ export class Engine {
   private hasDelayedEdges = false;
   private nominalDt: number;
   private validatePorts: boolean;
+  /** {@link EngineOptions.checkReads} resolved: null when off, else the keys it leaves out. */
+  private readsOmitted: ReadonlySet<string> | null;
   private log?: (msg: string) => void;
 
   /** Kept so {@link applyGraph} can re-resolve node types without the caller re-supplying it. */
@@ -186,6 +203,8 @@ export class Engine {
     this.resourcesObject = opts.resources ?? {};
     this.nominalDt = opts.nominalDt ?? 1 / 60;
     this.validatePorts = opts.validatePorts ?? false;
+    const reads = opts.checkReads ?? false;
+    this.readsOmitted = reads === false ? null : new Set(reads === true ? [] : reads.omit);
     this.log = opts.log;
     this.registry = registry;
     this.spec = spec;
@@ -276,6 +295,15 @@ export class Engine {
 
     // 1. PLAN — throws before anything is mutated.
     const { nodes, order, fresh, kept, hasDelayed } = compile(next, registry, previous);
+    if (this.readsOmitted) {
+      try {
+        this.checkDeclaredReads(nodes.values(), this.readsOmitted);
+      } catch (err) {
+        // Nothing was init'd yet: release what PLAN built, the running graph is untouched.
+        for (const id of fresh) disposeQuietly(nodes.get(id)!, this.log);
+        throw err;
+      }
+    }
 
     // 2. PREPARE — init the new instances while the old graph keeps ticking.
     if (this.started) {
@@ -373,6 +401,7 @@ export class Engine {
   }
 
   private async initAll(): Promise<void> {
+    if (this.readsOmitted) this.checkDeclaredReads(this.nodes.values(), this.readsOmitted);
     const ctx = this.makeContext(this.lastTime, 0);
     // Snapshot the order: an applyGraph awaits `initPromise` before committing,
     // but iterating a snapshot means a future change to that ordering cannot
@@ -443,6 +472,25 @@ export class Engine {
           `"${port}" at tick ${this.tickIndex}: ${detail}`,
       );
     }
+  }
+
+  /**
+   * Declared reads (see {@link EngineOptions.checkReads}). Every missing resource of every node
+   * is named in one error, so a host that forgot two learns both at once. A resource counts as
+   * provided when its key holds a value (`undefined` is not one).
+   */
+  private checkDeclaredReads(nodes: Iterable<BuiltNode>, omit: ReadonlySet<string>): void {
+    const missing: string[] = [];
+    for (const node of nodes) {
+      for (const key of node.reads) {
+        if (!omit.has(key) && this.resourcesObject[key] === undefined) missing.push(`node "${node.id}" (${node.type}) reads "${key}"`);
+      }
+    }
+    if (missing.length === 0) return;
+    throw new Error(
+      `Engine: a declared host resource is not in resources: ${missing.join('; ')}. ` +
+        'Provide it, or pass checkReads: { omit: [key] } for a host that omits it on purpose.',
+    );
   }
 
   private gatherInputs(node: BuiltNode): PortValues {
@@ -583,6 +631,7 @@ function compile(
         outputSchemas,
         inputDefaults,
         incoming: new Map(),
+        reads: def.reads ?? [],
       });
       fresh.push(n.id);
     }
