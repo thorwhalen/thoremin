@@ -33,7 +33,7 @@ export const DAW_OUT_DIR = path.resolve(__dirname, 'enlace_apps', 'thoremin-daw'
  *  guide picture, `public/guide/pics/dj-deck.jpg`). */
 export const DAW_HEAD = {
   title: 'thoremin DAW',
-  description: 'Thoremin with a DJ deck: play over a song and shape it with your hands.',
+  description: 'Thoremin with the DAW extension.',
   themeColor: '#4c1d95',
   image: 'guide/pics/dj-deck.jpg',
 };
