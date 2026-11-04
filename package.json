@@ -49,7 +49,7 @@
     "@mediapipe/tasks-vision": "1.1.1",
     "@tailwindcss/vite": "^4.1.14",
     "@thoremin/ext-asl": "github:thorwhalen/thoremin-asl#d2b5a897540269e9902da8c696c3c930faa38c08",
-    "@thoremin/ext-daw": "github:thorwhalen/thoremin-daw#e498abf3e2bdc7f9083c774cd783eeee9a7091aa",
+    "@thoremin/ext-daw": "github:thorwhalen/thoremin-daw#c95719dc754e376bed14f93fd9d3ec77a48c47c1",
     "@thoremin/ext-draw": "github:thorwhalen/thoremin-ar#e18581316f915be91eb35b0496269c590f31fe83",
     "@tonejs/midi": "^2.0.28",
     "@types/three": "^0.186.0",
