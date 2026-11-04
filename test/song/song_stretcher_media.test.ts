@@ -211,6 +211,19 @@ describe.runIf(SONG)('the media-element stretcher', () => {
     expect(param(gain, 'gain').calls).toEqual([['target', 0.4, 2, 0.03]]);
   });
 
+  it('offers no key shift, formant shift or loop (#976): each answers false and changes nothing', async () => {
+    const { el, s } = setup();
+    const p = s.load('a.mp3');
+    el.fire('canplay');
+    await p;
+    expect(s.setSemitones(3)).toBe(false);
+    expect(s.setFormant({ semitones: 2 })).toBe(false);
+    expect(s.setLoop(1, 2)).toBe(false);
+    expect(s.setLoop(0, null)).toBe(false);
+    expect(el.playbackRate).toBe(1);
+    expect(el.currentTime).toBe(0);
+  });
+
   it('dispose abandons a load, empties the element and disconnects its nodes', async () => {
     const { el, s, source, fader, gain } = setup();
     const p = s.load('a.mp3');

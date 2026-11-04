@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/slices/song/app/song_stretcher', () => ({
   createMediaElementStretcher: (...a: unknown[]) => {
     h.element(...a);
-    return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, position: () => 42, playing: () => true, ended: () => false, dispose() {} };
+    return { load: async () => {}, play() {}, pause() {}, setRate() {}, setVolume() {}, setSemitones: () => false, setFormant: () => false, setLoop: () => false, position: () => 42, playing: () => true, ended: () => false, dispose() {} };
   },
 }));
 import { createSignalsmithStretcherWith, type SignalsmithFactory } from '@/slices/song/app/song_stretcher_signalsmith';
@@ -238,6 +238,75 @@ describe.runIf(SONG)('the Signalsmith stretcher', () => {
     expect(f.schedules.at(-1)).toMatchObject({ active: true, input: 0 });
   });
 
+  it('shifts the key and the formants through schedule() (#976), carried over to the next song', async () => {
+    const f = fakes();
+    const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });
+    // Before any song: kept, and scheduled with the load.
+    expect(s.setSemitones!(-3)).toBe(true);
+    await s.load('blob:x');
+    expect(f.schedules.at(-1)).toMatchObject({ active: false, input: 0, semitones: -3, loopStart: 0, loopEnd: 0 });
+    s.play();
+    f.ctx.currentTime = 1;
+    expect(s.setSemitones!(5)).toBe(true);
+    expect(f.schedules.at(-1)).toEqual({ semitones: 5, output: 1 });
+    expect(s.setFormant!({ semitones: 2, compensation: true })).toBe(true);
+    expect(f.schedules.at(-1)).toMatchObject({ semitones: 5, formantSemitones: 2, formantCompensation: true, formantBaseHz: 0, output: 1 });
+    // The pitch moves, the time map does not: the rate alone advances the song.
+    f.ctx.currentTime = 2;
+    expect(s.position()).toBeCloseTo(2, 9);
+    // Nonsense is refused and changes nothing.
+    const n = f.schedules.length;
+    expect(s.setSemitones!(Number.NaN)).toBe(false);
+    expect(s.setFormant!({ semitones: 1, baseHz: -5 })).toBe(false);
+    expect(f.schedules).toHaveLength(n);
+    // A new song keeps the key and the formants.
+    await s.load('blob:y');
+    expect(f.schedules.at(-1)).toMatchObject({ semitones: 5, formantSemitones: 2, formantCompensation: true });
+  });
+
+  it('loops between two song times (#976): the worklet gets loopStart/loopEnd and position() wraps as it reads', async () => {
+    const f = fakes(10);
+    const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });
+    // Nothing loaded: nothing to loop.
+    expect(s.setLoop!(1, 2)).toBe(false);
+    await s.load('blob:x');
+    s.play();
+    f.ctx.currentTime = 1;
+    expect(s.setLoop!(1, 3)).toBe(true);
+    expect(f.schedules.at(-1)).toEqual({ loopStart: 1, loopEnd: 3, output: 1 });
+    f.ctx.currentTime = 3.5;
+    // 1 + 2.5 s = 3.5, past the end: wrapped forward to 1.5.
+    expect(s.position()).toBeCloseTo(1.5, 9);
+    f.ctx.currentTime = 6.25;
+    expect(s.position()).toBeCloseTo(1 + (5.25 % 2), 9);
+    expect(s.playing()).toBe(true);
+    // Ended where the read is (1 + 6 s wrapped = 1): the song goes on from there, unlooped.
+    f.ctx.currentTime = 7;
+    expect(s.setLoop!(0, null)).toBe(true);
+    expect(f.schedules.at(-1)).toEqual({ loopStart: 0, loopEnd: 0, output: 7 });
+    f.ctx.currentTime = 9;
+    expect(s.position()).toBeCloseTo(3, 9);
+  });
+
+  it('a loop set behind the read moves the read into it at once, in the worklet too; a bad range is refused; a load clears it', async () => {
+    const f = fakes(10);
+    const s = createSignalsmithStretcher({ audioContext: f.ctx as never, destination: {} as never });
+    await s.load('blob:x');
+    s.play();
+    f.ctx.currentTime = 5;
+    expect(s.setLoop!(1, 2)).toBe(true);
+    expect(f.schedules.at(-1)).toMatchObject({ loopStart: 1, loopEnd: 2, input: 1, output: 5 });
+    expect(s.position()).toBeCloseTo(1, 9);
+    const n = f.schedules.length;
+    for (const [a, b] of [[2, 2], [3, 1], [-1, 2], [Number.NaN, 2], [1, Number.NaN]] as const) expect(s.setLoop!(a, b), `${a}..${b}`).toBe(false);
+    expect(f.schedules).toHaveLength(n);
+    // An end past the song's end loops to the end.
+    expect(s.setLoop!(8, 20)).toBe(true);
+    expect(f.schedules.at(-1)).toMatchObject({ loopStart: 8, loopEnd: 10 });
+    await s.load('blob:y');
+    expect(f.schedules.at(-1)).toMatchObject({ loopStart: 0, loopEnd: 0 });
+  });
+
   it('falls back to the media element when the worklet never says it is ready (WebAssembly refused inside it)', async () => {
     vi.useFakeTimers();
     try {
@@ -260,5 +329,9 @@ describe.runIf(SONG)('the Signalsmith stretcher', () => {
     await s.load('blob:x');
     expect(h.element).toHaveBeenCalledTimes(1);
     expect(s.position()).toBe(42);
+    // The element has no key shift, formant shift or loop: the fallback says so (#976).
+    expect(s.setSemitones!(2)).toBe(false);
+    expect(s.setFormant!({ semitones: 1 })).toBe(false);
+    expect(s.setLoop!(1, 2)).toBe(false);
   });
 });

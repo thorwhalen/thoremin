@@ -134,6 +134,7 @@
     "./audio/analysers": "./src/audio/analysers.ts",
     "./audio/processor": "./src/audio/processor.ts",
     "./audio/kit": "./src/audio/kit.ts",
+    "./audio/stretcher": "./src/audio/stretcher.ts",
     "./timing/audio": "./src/timing/audio.ts",
     "./timing/clock_map": "./src/timing/clock_map.ts",
     "./timing/gain_ramp": "./src/timing/gain_ramp.ts",

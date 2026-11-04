@@ -5,6 +5,16 @@
  * `src/nodes` imports this module.
  */
 import { type SongGrid } from '@thoremin/ictus';
+import type { Stretcher, StretcherFactory } from '@thoremin/sdk/audio/stretcher';
+
+/**
+ * The song's stretcher seam (#976) is the SDK's, `@thoremin/sdk/audio/stretcher`: the
+ * {@link Stretcher} contract, its factory, and the resource a host or an extension sets to wrap or
+ * replace the factory (`ctx.resources.createStretcher`, read when a song loads; the module header
+ * there says how). Re-exported here so the slice's existing imports keep working.
+ */
+export type { Stretcher, StretcherFactory, StretcherFormant, StretcherOptions } from '@thoremin/sdk/audio/stretcher';
+export { SONG_STRETCHER_RESOURCE } from '@thoremin/sdk/audio/stretcher';
 
 /** The song as the instrument sees it: one stable object per loaded file. Never
  *  persisted (the object URL dies with the page; the grid is re-tracked on load). */
@@ -44,42 +54,6 @@ export interface SongSeek {
   positionS: number;
 }
 
-/** How a song is played at a rate, pitch preserved. */
-export interface Stretcher {
-  /** Load a song by URL. Resolves when playable, rejects when it cannot be decoded. */
-  load(url: string): Promise<void>;
-  /** Start (or resume) playback; from the start when the song had ended. */
-  play(): void;
-  pause(): void;
-  /** Playback rate, pitch preserved; 1 = the song's own tempo. */
-  setRate(rate: number): void;
-  /** The song's level, 0..1. Absent for a provider's player that offers no volume (an iframe with
-   *  no API), which nothing of ours can silence, the player's mute included (#939). */
-  setVolume?(volume: number): void;
-  /** Ramp the fader (separate from the volume) to `level` (0..1) over `seconds`; 0 seconds
-   *  is immediate (#366: the conductor's hold fades the song). Absent = cuts only. */
-  fade?(level: number, seconds: number): void;
-  /** The rate actually playing, when the player rounds what it is asked (a provider's own
-   *  rates); absent = the rate asked. */
-  appliedRate?(): number;
-  /** The song's length as the player knows it now, when the handle's was not known at load (a
-   *  provider's player learns it after it starts). */
-  durationS?(): number;
-  /** Position on the SONG's timeline, seconds: the audio leaving the stretcher now. */
-  position(): number;
-  /** Move to a position on the song's timeline, seconds (#187 PR 7: the conductor's cue). */
-  seek?(position: number): void;
-  playing(): boolean;
-  ended(): boolean;
-  /** True after the browser refused the last `play()` (an autoplay policy: WebKit wants
-   *  a gesture per media element); cleared by the next `play()`. */
-  blocked?(): boolean;
-  /** Called from inside a user gesture (the Play button's click) so a later `play()`
-   *  from the engine tick is allowed; a no-op where nothing needs unlocking. */
-  unlock?(): void;
-  dispose(): void;
-}
-
 /** The live stretchers, so a click can unlock them (see {@link unlockSongPlayback}). */
 export const LIVE = new Set<Stretcher>();
 
@@ -93,14 +67,6 @@ export const LIVE = new Set<Stretcher>();
 export function unlockSongPlayback(): void {
   for (const s of LIVE) s.unlock?.();
 }
-
-
-export interface StretcherOptions {
-  audioContext: AudioContext;
-  destination: AudioNode;
-}
-
-export type StretcherFactory = (opts: StretcherOptions) => Stretcher;
 
 /** Which default stretcher the node's `stretcher` param asks for. */
 export type StretcherKind = 'signalsmith' | 'element';
@@ -119,8 +85,9 @@ export function provideStretcherLoader(next: StretcherLoader | null): StretcherL
   return was;
 }
 
-/** The installed loader, or null in a host that installed none (a headless test injects
- *  `ctx.resources.createStretcher` instead). */
+/** The installed loader, or null in a host that installed none (a headless test, or a host with a
+ *  factory of its own, sets `ctx.resources.createStretcher` instead: the seam, which wins over
+ *  this loader). */
 export function installedStretcherLoader(): StretcherLoader | null {
   return stretcherLoader;
 }
