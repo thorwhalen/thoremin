@@ -15,6 +15,13 @@
  * `(manual:)`, `(app:)`; the builder resolves them and FAILS on a target that does not exist.
  * A picture is attached by name, not written: `pics/<slug>.jpg` (instruments), `pics/tool-<id>.jpg`
  * (tools), `pics/home.jpg` (the home page), plus `.webm` clips of the same name.
+ *
+ * An extension that only some builds list (the gated DAW app's, `extensions.daw.json`) has its
+ * entries marked, and the guide is built for one extension list ({@link GuideOptions}): a page with
+ * `extension: <id>` in its front matter, an area with `"extension": "<id>"` in `areas.json`, and a
+ * block of any page between `:::extension <id>` and `:::end-extension` (a section of settings.md)
+ * are left out unless the list names that id. The committed `public/guide/` is built for
+ * `extensions.json`, so the public app's guide never describes an extension it does not ship.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,6 +32,25 @@ export interface Area {
   id: string;
   title: string;
   blurb: string;
+  /** The extension this area belongs to, when only some builds list it. */
+  extension?: string;
+}
+
+/** Which build the guide describes. */
+export interface GuideOptions {
+  /** The ids of the extensions the build lists; default: `extensions.json`'s (the public build). */
+  extensions?: readonly string[];
+}
+
+/** The ids `extensions.json` lists: the public build's, which the committed `public/guide/` describes. */
+export function shippedExtensionIds(root: string): string[] {
+  const manifest = JSON.parse(readFileSync(join(root, 'extensions.json'), 'utf8')) as { extensions: { id: string }[] };
+  return manifest.extensions.map((e) => e.id);
+}
+
+/** Keep the `:::extension <id>` ... `:::end-extension` blocks of a listed extension (markers dropped), drop the others. */
+export function filterExtensionBlocks(md: string, listed: ReadonlySet<string>): string {
+  return md.replace(/^:::extension ([\w-]+)[ \t]*\n([\s\S]*?)^:::end-extension[ \t]*(?:\n|$)/gm, (_all, id: string, inner: string) => (listed.has(id) ? inner : ''));
 }
 
 interface Source {
@@ -86,20 +112,28 @@ const FREE_ORDER = ['conduct-and-dance.html', 'teach-it-yourself.html', 'setting
 
 const listMd = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.md')).sort() : []);
 
-/** Build the whole guide from `root` (the repo root), reading `guide/` and `public/guide/pics/`. */
-export function buildGuide(root: string): Built {
+/** Build the whole guide from `root` (the repo root), reading `guide/` and `public/guide/pics/`, for
+ *  the build `options` names (the public one by default). */
+export function buildGuide(root: string, options: GuideOptions = {}): Built {
+  const listed = new Set(options.extensions ?? shippedExtensionIds(root));
+  /** Whether an entry marked with `extension` belongs to this build. */
+  const inBuild = (extension: string | string[] | undefined): boolean => !str(extension) || listed.has(str(extension));
   const problems: string[] = [];
   const guideDir = join(root, 'guide');
   const mediaDir = join(root, 'public', 'guide', 'pics');
   const hasMedia = (name: string): boolean => existsSync(join(mediaDir, name));
   const media = new Set<string>();
 
-  const areas = JSON.parse(readFileSync(join(guideDir, 'areas.json'), 'utf8')) as Area[];
+  const areas = (JSON.parse(readFileSync(join(guideDir, 'areas.json'), 'utf8')) as Area[]).filter((a) => inBuild(a.extension));
 
-  const read = (rel: string): Source => parseSource(rel, readFileSync(join(guideDir, rel), 'utf8'));
-  const seeds = listMd(join(guideDir, 'instruments')).map((f) => read(`instruments/${f}`));
-  const tools = listMd(join(guideDir, 'tools')).map((f) => read(`tools/${f}`));
-  const free = listMd(guideDir).map(read);
+  const read = (rel: string): Source => {
+    const source = parseSource(rel, readFileSync(join(guideDir, rel), 'utf8'));
+    return { ...source, body: filterExtensionBlocks(source.body, listed) };
+  };
+  const ofBuild = (s: Source): boolean => inBuild(s.meta.extension);
+  const seeds = listMd(join(guideDir, 'instruments')).map((f) => read(`instruments/${f}`)).filter(ofBuild);
+  const tools = listMd(join(guideDir, 'tools')).map((f) => read(`tools/${f}`)).filter(ofBuild);
+  const free = listMd(guideDir).map(read).filter(ofBuild);
 
   // The targets a link may name.
   const seedBySlug = new Map(seeds.map((s) => [guideSlug(str(s.meta.seed)), s]));

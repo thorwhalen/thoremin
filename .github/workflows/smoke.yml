@@ -82,6 +82,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.THOREMIN_ASL_DEPLOY_KEY }}
             ${{ secrets.THOREMIN_AR_DEPLOY_KEY }}
+            ${{ secrets.THOREMIN_DAW_DEPLOY_KEY }}
 
       - name: Install the app (lockfile-exact)
         run: npm ci

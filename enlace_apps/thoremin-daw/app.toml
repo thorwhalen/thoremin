@@ -1,0 +1,25 @@
+# thoremin-daw: the camera instruments with the DAW extension. Pure frontend, like thoremin.
+#
+# A THIRD app from the thoremin repo, the funfon pattern (enlace_apps/funfon): this app dir is
+# nested in the repo under `enlace_apps/`, and the build walks up to the repo root, where the whole
+# checkout is. It builds thoremin's own entries with `extensions.daw.json` (the camera build's
+# extensions plus @thoremin/ext-daw, a private git dependency pinned by commit) instead of
+# `extensions.json`, so the DAW's code is served only here, never in the public thoremin app.
+display_name = "thoremin DAW"
+description = "Thoremin with the DAW extension."
+
+# Gated: access control at the platform edge (enlace_auth), no accounts in the app. "@admins" is
+# the platform admins (admin_emails_env), so no address is committed here.
+access = "protected:user"
+allowed_users = ["@admins"]
+
+# `npm run build:daw` (vite.daw.config.ts) writes straight into this app dir's frontend/,
+# gitignored by the repo's bare `frontend/` rule. It never touches thoremin's own frontend/.
+frontend_dir = "frontend"
+
+# deploy.py injects VITE_PUBLIC_BASE=/thoremin-daw/ from the app dir's name.
+[build]
+cwd = "../.."
+env_vars = ["VITE_PUBLIC_BASE"]
+install = "npm ci --no-audit --no-fund --no-progress"
+build = "npm run build:daw"

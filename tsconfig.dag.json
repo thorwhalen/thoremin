@@ -18,6 +18,7 @@
     "packages/ext-harmony/src",
     "node_modules/@thoremin/ext-asl/src",
     "node_modules/@thoremin/ext-draw/src",
+    "node_modules/@thoremin/ext-daw/src",
     "packages/ext-faces/src",
     "packages/ext-patcher/src",
     "src/instruments",
@@ -55,6 +56,7 @@
     "packages/ext-air/src/**/*.tsx",
     "packages/ext-harmony/src/**/*.tsx",
     "node_modules/@thoremin/ext-asl/src/**/*.tsx",
+    "node_modules/@thoremin/ext-daw/src/**/*.tsx",
     "packages/ext-faces/src/**/*.tsx",
     "packages/ext-patcher/src/**/*.tsx"
   ]

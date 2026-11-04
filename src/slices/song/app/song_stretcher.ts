@@ -7,6 +7,9 @@
  * its quality holds within about 0.5x to 2x, which is the node's clamp (research map
  * §6.1). Browser-only (a DOM element), so the node imports this module dynamically on
  * first need and Node tests inject their own stretcher instead.
+ *
+ * It offers no key shift, formant shift or loop (#976, the seam's optional members): a media
+ * element has none of them, so those answer false and the caller degrades.
  */
 import type { Stretcher, StretcherFactory } from '../nodes/song_player.schema';
 import { rampGain } from '@thoremin/sdk/timing/gain_ramp';
@@ -107,6 +110,9 @@ export const createMediaElementStretcher: StretcherFactory = ({ audioContext, de
     },
     playing: () => !el.paused && !el.ended,
     ended: () => el.ended,
+    setSemitones: () => false,
+    setFormant: () => false,
+    setLoop: () => false,
     dispose() {
       pending?.();
       el.pause();

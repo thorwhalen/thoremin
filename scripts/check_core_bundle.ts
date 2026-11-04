@@ -26,6 +26,8 @@ import { AIR_EXTENSION } from '@thoremin/ext-air';
 import { HARMONY_EXTENSION } from '@thoremin/ext-harmony';
 import { ASL_EXTENSION } from '@thoremin/ext-asl';
 import { DRAWN_EXTENSION } from '@thoremin/ext-draw';
+// Not in extensions.json: the gated DAW app's (extensions.daw.json). Listed so core never carries its identifiers either.
+import { DAW_EXTENSION } from '@thoremin/ext-daw';
 import { FACES_EXTENSION } from '@thoremin/ext-faces';
 import { PATCHER_EXTENSION } from '@thoremin/ext-patcher';
 import { MIDI_EXTENSION } from '../src/slices/midi';
@@ -43,7 +45,7 @@ import { PROBE_EXTENSION } from '../test/fixtures/ext-probe/index';
 import { PROBE_LAZY_EXTENSION } from '../test/fixtures/ext-probe/lazy_stub';
 import { CORE_MANIFEST, readExtensionEntries } from '../vite.extensions';
 
-const SHIPPED: readonly Extension[] = [AIR_EXTENSION, HARMONY_EXTENSION as unknown as Extension, ASL_EXTENSION, DRAWN_EXTENSION as unknown as Extension, FACES_EXTENSION, PATCHER_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension, TRAINER_EXTENSION as unknown as Extension, PHYSICAL_THEREMIN_EXTENSION as unknown as Extension, GAMES_EXTENSION as unknown as Extension, MUSIC_CONTEXT_EXTENSION as unknown as Extension];
+const SHIPPED: readonly Extension[] = [AIR_EXTENSION, HARMONY_EXTENSION as unknown as Extension, ASL_EXTENSION, DRAWN_EXTENSION as unknown as Extension, FACES_EXTENSION, PATCHER_EXTENSION, MIDI_EXTENSION as unknown as Extension, GENERATIVE_EXTENSION as unknown as Extension, SONG_EXTENSION as unknown as Extension, BODY_EXTENSION as unknown as Extension, CONDUCTOR_EXTENSION as unknown as Extension, LAB_EXTENSION as unknown as Extension, TRAINER_EXTENSION as unknown as Extension, PHYSICAL_THEREMIN_EXTENSION as unknown as Extension, GAMES_EXTENSION as unknown as Extension, MUSIC_CONTEXT_EXTENSION as unknown as Extension, DAW_EXTENSION as unknown as Extension];
 
 if (readExtensionEntries(CORE_MANIFEST).length !== 0) throw new Error(`${CORE_MANIFEST} must list no extensions`);
 const shippedIds = readExtensionEntries('extensions.json').map((e) => e.id);

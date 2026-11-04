@@ -19,8 +19,13 @@
  * `provideStretcherLoader`) by default, loaded the first time a song
  * needs it, which falls back by itself to the browser's own media element (`playbackRate`
  * with `preservesPitch`, `../app/song_stretcher`) where the worklet cannot start; the
- * `stretcher` param picks the element outright; a host's own comes through
- * `ctx.resources.createStretcher` (the tests). Like
+ * `stretcher` param picks the element outright. A host's or an extension's own factory comes
+ * through `ctx.resources.createStretcher` ({@link SONG_STRETCHER_RESOURCE}), the song's STRETCHER
+ * SEAM (#976; the contract is `@thoremin/sdk/audio/stretcher`): it may wrap or replace the
+ * default factory (the DAW extension wraps it to put the song through its own chain), its
+ * `destination` is where the song goes (the master bus), and it is read when a song loads: the
+ * first song this node plays makes the stretcher, which then plays every later song until the
+ * node is disposed, so a factory set after that waits for the next node. The tests set it too. Like
  * every audio node it is a no-op without an `AudioContext` (created on the player's
  * first tap), and it says where it is on `status` in the shared lazy-loading vocabulary:
  * `off` with no song, `unavailable` before the audio starts, `loading` while the element
@@ -52,8 +57,9 @@ import type { NodeContext } from '@thoremin/dag';
 import type { LoadStatus } from '@thoremin/lazy';
 import { songTimeAt, songTimeOfBeat, EMPTY_SONG_GRID, type MusicalTime, type SongGrid } from '@thoremin/ictus';
 import { type SongHandle, type Stretcher, LIVE, installedStretcherLoader, unlockSongPlayback } from './song_player.schema';
-import { type StretcherOptions, type StretcherFactory } from './song_player.schema';
-export type { StretcherOptions, StretcherFactory } from './song_player.schema';
+import { type StretcherOptions, type StretcherFactory, SONG_STRETCHER_RESOURCE } from './song_player.schema';
+export type { StretcherOptions, StretcherFactory, StretcherFormant } from './song_player.schema';
+export { SONG_STRETCHER_RESOURCE } from './song_player.schema';
 export { unlockSongPlayback } from './song_player.schema';
 export type { SongHandle, Stretcher } from './song_player.schema';
 
@@ -206,10 +212,11 @@ export const songPlayerNode = defineNode<Params>({
     let fading: { t0: number } | null = null;
     let faded = false;
 
-    /** The stretcher, once there is one; starts the default loading on first need. */
+    /** The stretcher, once there is one; starts the default loading on first need. The seam
+     *  (`ctx.resources.createStretcher`) is read here, when the first song needs a stretcher. */
     const stretcherFor = (ctx: NodeContext, audio: StretcherOptions, songId: string): Stretcher | null => {
       if (stretcher || starting || failed) return stretcher;
-      const injected = ctx.resources.createStretcher as StretcherFactory | undefined;
+      const injected = ctx.resources[SONG_STRETCHER_RESOURCE] as StretcherFactory | undefined;
       if (injected) {
         stretcher = injected(audio);
         LIVE.add(stretcher);

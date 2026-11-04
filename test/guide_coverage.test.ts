@@ -9,7 +9,9 @@
  *
  * The data comes from the registries themselves (the seeds, the tool lists, the editor's
  * contributed sections), so nothing is listed here that the app could drift from. Runs only on
- * the shipped build: the core-alone build lists fewer seeds, tools and sections.
+ * the shipped build: the core-alone build lists fewer seeds, tools and sections. A build that lists
+ * more (the gated DAW app's, `extensions.daw.json`) is covered by the entries marked for its extra
+ * extensions (`extension:`, `scripts/lib_guide.ts`), which the public guide leaves out.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,6 +25,7 @@ import { guideSlug } from '@/app/guide/links';
 import { INSTRUMENT_CLASSES } from '@/instruments/classes';
 import extensions from '../extensions.json';
 import { hasExtension } from './helpers/extensions';
+import { EXTENSIONS } from '@/extensions';
 
 const ROOT = join(__dirname, '..');
 const SHIPPED = extensions.extensions.every((e) => hasExtension(e.id));
@@ -35,7 +38,8 @@ export const SHELL_CONTROLS = ['record', 'annotations'] as const;
 const HOW = 'See skills/thoremin-dev-guide/SKILL.md ("Adding an entry").';
 
 describe.runIf(SHIPPED)('the player guide covers everything a player can find', () => {
-  const built = buildGuide(ROOT);
+  // The guide as this run's build describes it (its extension list), for what a player can find.
+  const built = buildGuide(ROOT, { extensions: EXTENSIONS.map((e) => e.id) });
 
   it('builds with no problems (links resolve, front matter is complete)', () => {
     expect(built.problems).toEqual([]);
@@ -94,6 +98,8 @@ describe.runIf(SHIPPED)('the player guide covers everything a player can find', 
   });
 
   it('is what the sources build: public/guide is up to date', () => {
+    // The committed guide is the public build's (extensions.json), whatever this run lists.
+    const built = buildGuide(ROOT);
     const dir = join(ROOT, 'public', 'guide');
     const css = readFileSync(join(ROOT, 'guide', 'guide.css'), 'utf8');
     const files = new Map<string, string>([...built.pages, ['guide.css', css], ...buildExports(built, { css })]);

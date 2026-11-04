@@ -38,11 +38,20 @@
  * and the load hangs. The browser smoke (`smoke/tests/conduct_recording.smoke.ts`) is the
  * guard; it caught exactly that.
  *
+ * Pitch, formants and loop points (#976, the optional members of the `Stretcher` seam) are
+ * Signalsmith `schedule()` fields, which persist in the worklet's time map until changed:
+ * `semitones` (a key shift, independent of the rate), `formantSemitones` / `formantCompensation` /
+ * `formantBaseHz`, and `loopStart` / `loopEnd` (song seconds; the worklet wraps the read forward
+ * from the end to the start, and both equal disables the loop). The time map honours the loop:
+ * `position()` wraps the way the worklet does, so the song player's `songTime` wraps with it. The
+ * pitch and the formants carry over to the next song; a load clears the loop.
+ *
  * Where its worklet cannot start (no AudioWorklet, WebAssembly refused by a policy), it
- * hands every call to the media element stretcher instead, so a song always plays.
+ * hands every call to the media element stretcher instead, so a song always plays (without
+ * pitch, formant or loop: the element answers false to those).
  * Browser-only, like the element: the node imports this module dynamically on first need.
  */
-import type { Stretcher, StretcherFactory, StretcherOptions } from '../nodes/song_player.schema';
+import type { Stretcher, StretcherFactory, StretcherFormant, StretcherOptions } from '../nodes/song_player.schema';
 import { createMediaElementStretcher } from './song_stretcher';
 import { rampGain } from '@thoremin/sdk/timing/gain_ramp';
 
@@ -56,11 +65,27 @@ async function loadSignalsmith(): Promise<SignalsmithFactory> {
   return mod.default;
 }
 
+/** The `schedule()` fields this adapter sets (the package README; the package ships no types).
+ *  A field left out keeps its last scheduled value. */
+interface SignalsmithChange {
+  active?: boolean;
+  input?: number;
+  output?: number;
+  rate?: number;
+  semitones?: number;
+  formantSemitones?: number;
+  formantCompensation?: boolean;
+  formantBaseHz?: number;
+  /** Song seconds; the read wraps forward from `loopEnd` to `loopStart`. Equal = no loop. */
+  loopStart?: number;
+  loopEnd?: number;
+}
+
 /** The slice of Signalsmith's node this adapter uses (the package ships no types). */
 interface StretchNode extends AudioNode {
   /** An AudioWorkletNode's: fired once when its processor threw, after which it renders silence. */
   onprocessorerror?: ((ev: Event) => void) | null;
-  schedule(change: { active?: boolean; input?: number; output?: number; rate?: number }): unknown;
+  schedule(change: SignalsmithChange): unknown;
   /** The trailing array is a transfer list: the package posts those buffers instead of copying them. */
   addBuffers(channels: Float32Array[], transfer?: ArrayBufferLike[]): Promise<number>;
   dropBuffers(): Promise<unknown>;
@@ -124,13 +149,28 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
   let volume = 1;
   let wanted = false;
   let disposed = false;
+  /** The key shift and the formants: the stretcher's, carried over from song to song. */
+  let semitones = 0;
+  let formant: Required<StretcherFormant> = { semitones: 0, compensation: false, baseHz: 0 };
+  /** The song's loop, song seconds; cleared by a load. */
+  let loop: { start: number; end: number } | null = null;
   /** The adapter's time map: the input at context time `posAt`, advancing at `rate` while
    *  wanted (see the header). */
   let pos = 0;
   let posAt = 0;
 
   const now = () => audioContext.currentTime;
-  const raw = (): number => (wanted ? pos + (now() - posAt) * rate : pos);
+  /** The time map's position, wrapped forward into the loop past its end, as the worklet reads. */
+  const raw = (): number => {
+    const p = wanted ? pos + (now() - posAt) * rate : pos;
+    if (!loop || p < loop.end) return p;
+    const len = loop.end - loop.start;
+    return loop.start + ((p - loop.start) % len);
+  };
+  /** The pitch fields of a schedule. */
+  const pitchFields = (): SignalsmithChange => ({ semitones, formantSemitones: formant.semitones, formantCompensation: formant.compensation, formantBaseHz: formant.baseHz });
+  /** The loop fields of a schedule (both 0: no loop). */
+  const loopFields = (): SignalsmithChange => ({ loopStart: loop?.start ?? 0, loopEnd: loop?.end ?? 0 });
   const anchor = (p: number) => {
     pos = p;
     posAt = now();
@@ -253,7 +293,9 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
         }
         current();
         duration = seconds;
-        n.schedule({ active: false, input: 0, output: now() });
+        // A new song: no loop; the key shift and the formants carry over.
+        loop = null;
+        n.schedule({ active: false, input: 0, output: now(), ...pitchFields(), ...loopFields() });
         anchor(0);
       } catch (e) {
         // The processor died under this load: the media element has (or is loading) the song.
@@ -307,6 +349,38 @@ export function createSignalsmithStretcherWith(audio: StretcherOptions, load: ()
       if (!node || !Number.isFinite(p) || p < 0) return;
       node.schedule({ input: p, output: now() });
       anchor(p);
+    },
+    setSemitones(st) {
+      if (fallback) return fallback.setSemitones?.(st) ?? false;
+      if (!Number.isFinite(st)) return false;
+      semitones = st;
+      // Kept for the next load when no worklet holds a song yet.
+      node?.schedule({ semitones, output: now() });
+      return true;
+    },
+    setFormant(f) {
+      if (fallback) return fallback.setFormant?.(f) ?? false;
+      if (!Number.isFinite(f.semitones) || (f.baseHz !== undefined && !(Number.isFinite(f.baseHz) && f.baseHz >= 0))) return false;
+      formant = { semitones: f.semitones, compensation: f.compensation ?? false, baseHz: f.baseHz ?? 0 };
+      node?.schedule({ ...pitchFields(), output: now() });
+      return true;
+    },
+    setLoop(startS, endS) {
+      if (fallback) return fallback.setLoop?.(startS, endS) ?? false;
+      if (!node || duration <= 0) return false;
+      // The loop ends at the song's end at the latest.
+      const end = endS === null ? null : Math.min(endS, duration);
+      if (end !== null && !(Number.isFinite(startS) && Number.isFinite(end) && startS >= 0 && end > startS)) return false;
+      // The position heard now (wrapped by the old loop), then the same position under the new
+      // one: a position already past the new end moves into the loop at once, in the worklet too
+      // (which, left alone, would step back one loop length per block).
+      const at = position();
+      loop = end === null ? null : { start: startS, end };
+      anchor(at);
+      const into = raw();
+      anchor(into);
+      node.schedule({ ...loopFields(), ...(into !== at ? { input: into } : {}), output: now() });
+      return true;
     },
     playing: () => (fallback ? fallback.playing() : wanted && !ended()),
     ended: () => (fallback ? fallback.ended() : ended()),

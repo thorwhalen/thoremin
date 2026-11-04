@@ -3,6 +3,7 @@
 /* An extension installed from node_modules (its own repository) is not scanned by default:
    name it so its panels keep their classes (docs/design/lazy-extensions.md). */
 @source "../node_modules/@thoremin/ext-asl/src";
+@source "../node_modules/@thoremin/ext-daw/src";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
