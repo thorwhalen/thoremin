@@ -1600,6 +1600,11 @@
         "default": 0.2
       },
       {
+        "name": "signEvidence",
+        "type": "number",
+        "default": 0.02
+      },
+      {
         "name": "midiDwellS",
         "type": "number",
         "default": 0.08
@@ -4082,6 +4087,11 @@
         "name": "letterDwellS",
         "type": "number",
         "default": 0.2
+      },
+      {
+        "name": "letterEvidence",
+        "type": "number",
+        "default": 0.02
       },
       {
         "name": "sound",

@@ -53,6 +53,7 @@ import { defineNode } from '@thoremin/dag';
 import type { NodeContext } from '@thoremin/dag';
 import { createChordRenderer } from '@thoremin/sdk/music/chord_render';
 import { createChordFollower, type ChordFollower } from '@thoremin/sdk/harmony/chord_in';
+import { labelMargin } from '@thoremin/sdk/util/commit_gate';
 import { CLOCKS, createBeatQuantizer, createClockReader, type BeatSource } from '@thoremin/sdk/harmony/clock';
 import { chordName, diatonicChords as keyChords, keyOf, pitchClasses, type Chord } from '@thoremin/sdk/harmony/chord';
 import { arousalOf, createLevelTracker, createRestBaseline, parallelSpec, valenceOf, VALENCE_LEVELS, type LevelTracker } from '@thoremin/sdk/harmony/affect';
@@ -232,8 +233,14 @@ const Params = z.object({
    *  the microphone hears (a guitar, a piano, a band), or a signed letter A..G (ASL's reading). */
   follow: z.enum(CHORD_MAP_FOLLOW).default('hands'),
   /** With signs: seconds a letter must be read before its chord is the harmony (a passing
-   *  shape between two letters passes). */
+   *  shape between two letters passes); with `signEvidence`, the longest wait. */
   signDwellS: z.number().min(0).max(1).default(0.2),
+  /** With signs: a letter the reader is sure of commits sooner, once its score above the
+   *  reader's threshold, summed over the seconds it is read, reaches this (0 = the dwell alone;
+   *  `util/commit_gate`). 0.02 is 0.1 s of a reading 0.2 over the threshold: on the real signer's
+   *  letters in flow, the chord comes 0.1 s sooner (p90 367 to 233 ms), and a conductor's hand
+   *  read as a weak letter still plays nothing. */
+  signEvidence: z.number().min(0).max(0.2).default(0.02),
   /** With MIDI: seconds a new chord must be held before it is the harmony (passing tones pass). */
   midiDwellS: z.number().min(0).max(0.5).default(0.08),
   /** With the microphone: seconds a new chord must be heard before it is the harmony (a strum's
@@ -596,9 +603,10 @@ export const chordMapNode = defineNode<Params>({
         }
         if (c.follow === 'midi' || c.follow === 'audio' || c.follow === 'signs') {
           const dwell = c.follow === 'midi' ? c.midiDwellS : c.follow === 'audio' ? c.audioDwellS : c.signDwellS;
-          const fKey = `${c.follow}|${dwell}`;
+          const evidence = c.follow === 'signs' ? c.signEvidence : 0;
+          const fKey = `${c.follow}|${dwell}|${evidence}`;
           if (!follower || followerKey !== fKey) {
-            follower = createChordFollower({ dwellS: dwell });
+            follower = createChordFollower({ dwellS: dwell, evidence });
             followerKey = fKey;
           }
           // The held notes are first matched against the map's own chords exactly (a pentatonic's
@@ -609,8 +617,9 @@ export const chordMapNode = defineNode<Params>({
             heard = exact ? follower.pushChord(exact, now) : follower.push(held, now);
           } else if (c.follow === 'signs') {
             // A letter names the key's chord spelled on it; any other shape keeps the harmony.
-            const letter = signs?.present && isLetter(signs.label) ? signs.label : null;
-            heard = follower.pushChord(letter ? (keyChords(keyOf(spec))[letterDegree(spec, letter)] ?? null) : null, now);
+            // A reading kept through a lost frame (`held`) times nothing: the letter being timed starts over.
+            const letter = signs?.present && !signs.held && isLetter(signs.label) ? signs.label : null;
+            heard = follower.pushChord(letter ? (keyChords(keyOf(spec))[letterDegree(spec, letter)] ?? null) : null, now, labelMargin(signs));
           } else {
             // Only a clear reading counts: loud enough, close to a chord, and clearly that one.
             const match = audio?.available && audio.sounding && audio.chroma.length === 12 ? matchChord({ bins: audio.chroma, energy: 1 }, ownScale ? { qualities: [...CHROMA_QUALITIES, 'sus2', 'sus4', 'maj6'] } : {}) : null;

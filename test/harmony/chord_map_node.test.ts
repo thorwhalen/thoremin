@@ -519,6 +519,26 @@ describe('the chord-map node, chords from signs', () => {
     expect(playSigns(() => undefined).at(-1)!.out.status.signs).toBe('waiting');
   });
 
+  it("a letter the reader is sure of lights its chord sooner; a marginal reading waits for the dwell, a kept one plays nothing", () => {
+    // Readings as the ASL reader gives them: scores, its threshold, and `held` over lost frames.
+    const firstLit = (score: number, extra: Record<string, unknown> = { floor: 0.45 }, config: Record<string, unknown> = {}) => {
+      const h = chordMapNode.make(chordMapNode.params.parse({}));
+      const frames = chordMapTake({ duration: 1, chordAt: () => null, otherAt: () => ({ x: 0.85, y: 0.5 }) });
+      const t0 = frames[0]!.t!;
+      for (const fr of frames) {
+        const signs = { present: true, label: 'F', labels: LABELS, scores: LABELS.map((l) => (l === 'F' ? score : 0)), ...extra };
+        const out = h.process({ hands: fr, config: { ...ON, follow: 'signs', ...config }, spec: D_MAJOR, octaveShift: 0, signs }, { time: fr.t!, dt: 1 / 30, tick: 0, resources: {} } as never) as unknown as Out;
+        if (out.status.chord === 'F#m') return Math.round((fr.t! - t0) * 30);
+      }
+      return -1;
+    };
+    expect(firstLit(0.95)).toBe(2); // 0.5 over the threshold: two frames after the first
+    expect(firstLit(0.48)).toBe(6); // just over: the 0.2 s dwell
+    expect(firstLit(0.95, {})).toBe(6); // a reader that gives no threshold: the dwell alone
+    expect(firstLit(0.95, { floor: 0.45, held: true })).toBe(-1); // kept over lost frames: times nothing
+    expect(firstLit(0.95, { floor: 0.45 }, { signEvidence: 0 })).toBe(6); // evidence off
+  });
+
   it('the other hand plays the melody over the signed chord', () => {
     const outs = playSigns(() => 'A', { melody: true });
     expect(at(outs, 1).status.chord).toBe('A');
