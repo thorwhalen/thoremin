@@ -539,6 +539,11 @@
         "default": true
       },
       {
+        "name": "vocabulary",
+        "type": "enum(auto | letters | all)",
+        "default": "auto"
+      },
+      {
         "name": "minConfidence",
         "type": "number",
         "default": 0.45

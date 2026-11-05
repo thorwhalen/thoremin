@@ -49,13 +49,13 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Chord Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Chord Wheel | conducting | 13.3 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | ASL Chords | signs-gaps | 23.9 | 0.39 | 0.00 | 1 | 0 | 1 | 1300 (1667) | 1/8 | 0 |
-| ASL Chords | signs-flow | 28.0 | 0.22 | 0.00 | 0 | 0 | 0 | 267 (267) | 0/9 | 0 |
+| ASL Chords | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 267 (333) | 0/9 | 0 |
 | ASL Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Sign Map | signs-gaps | 41.0 | 0.16 | 0.00 | 0 | 0 | 1 | 1567 (3400) | 3/8 | 0 |
-| Sign Map | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 1267 (3100) | 1/9 | 0 |
+| Sign Map | signs-gaps | 41.0 | 0.23 | 0.00 | 0 | 0 | 1 | 1333 (1700) | 1/8 | 0 |
+| Sign Map | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 267 (367) | 0/9 | 0 |
 | Sign Map | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Sign Wheel | signs-gaps | 38.1 | 0.08 | 0.00 | 0 | 0 | 1 | 1500 (3333) | 3/8 | 0 |
-| Sign Wheel | signs-flow | 28.1 | 0.22 | 0.00 | 0 | 0 | 0 | 1200 (3033) | 1/9 | 0 |
+| Sign Wheel | signs-gaps | 38.1 | 0.16 | 0.00 | 0 | 0 | 1 | 1267 (1633) | 1/8 | 0 |
+| Sign Wheel | signs-flow | 28.1 | 0.15 | 0.00 | 0 | 0 | 0 | 233 (300) | 0/9 | 0 |
 | Sign Wheel | choir | 19.8 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Conduct the Chords | conducting | 11.6 | 1.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Conduct the Chords | choir | 14.2 | 0.54 | 0.00 | 0 | 0 | 0 | - | - | 0 |

@@ -64,7 +64,7 @@ const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sou
 
 // ---- Run ------------------------------------------------------------------------------
 
-async function run(frames: HandsFrame[], controls: () => Record<string, unknown>, port: string): Promise<unknown[]> {
+async function run(frames: HandsFrame[], controls: () => Record<string, unknown>, port: string, fps = FPS): Promise<unknown[]> {
   // `defaultGraph` names every branch, a lazy extension's too: load them all.
   const registry = await loadedAppRegistry();
   const g = defaultGraph({ source: 'replay-hands' }, registry);
@@ -72,7 +72,7 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
   const { recorder } = await runHeadless(g, registry, {
     checkReads: DEFAULT_GRAPH_READS,
     ticks: frames.length,
-    nominalDt: 1 / FPS,
+    nominalDt: 1 / fps,
     resources: { ...defaultGraphResources(),
       controls,
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
@@ -95,14 +95,18 @@ async function recordedTake(id: string): Promise<Record<string, unknown>> {
   const ui = recordingSettings(id);
   const spec = (side: 'Right' | 'Left') => ({ ...(ui[`${side.toLowerCase()}Spec`] as object ?? voice), sound: ui[`sound${side}`] ?? 'sine' });
   const controls = () => ({ right: spec('Right'), left: spec('Left'), [which]: ui[which], airGuitarModel: ui.airGuitarModel });
-  const events = await run(frames, controls, `${which}.notes`);
+  // The take's own frame rate (its camera's), so the engine clock matches the recorded one.
+  const fps = records.length > 1 ? (records.length - 1) / (records[records.length - 1]!.t - records[0]!.t) : FPS;
+  const events = await run(frames, controls, `${which}.notes`, fps);
+  // The app logs a port only when it changes, so two identical note lists in a row count once:
+  // a lower bound on what played live.
   const live = recordingStream(id, 'app')
     .filter((r) => (r as unknown as { key: string }).key === `${which}.notes` && r.t >= from && r.t < to)
     .reduce((n, r) => n + ((r.value as unknown[]) ?? []).length, 0);
   const width = (frames[0] as { width?: number })?.width ?? W;
   const height = (frames[0] as { height?: number })?.height ?? H;
-  console.log(`${id} (${label}): ${events.length} notes replayed, ${live} played live`);
-  return { instrument: label, recording: id, from, fps: FPS, width, height, frames, overlay: frames.map(() => ({})), events, liveNotes: live };
+  console.log(`${id} (${label}): ${events.length} notes replayed, ${live} played live (at least)`);
+  return { instrument: label, recording: id, from, fps, width, height, frames, overlay: frames.map(() => ({})), events, liveNotes: live };
 }
 
 async function main(): Promise<void> {

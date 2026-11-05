@@ -84,9 +84,9 @@ describe.runIf(HAS_RECORDINGS)('real sessions replay to what the app computed li
         if (JSON.stringify(livePoses[i]) === JSON.stringify(poses)) poseAgree++;
       });
       expect(compared).toBeGreaterThan(ticks.length * 0.9);
-      // The landmarks are kept to 0.1 px and the logged features to 1e-4, so a value can move by a
-      // few thousandths where a feature divides two short distances (a pinch, a finger's
-      // closeness); a code change moves far more, and on far more ticks.
+      // The landmarks are kept to 0.01 px (world 1e-5 m) and the logged features to 1e-4, so a
+      // value can move by a few thousandths where a feature divides two short distances (a pinch,
+      // a finger's closeness); a code change moves far more, and on far more frames.
       diffs.sort((a, b) => a - b);
       const p99 = diffs[Math.floor(diffs.length * 0.99)]!;
       expect(p99, 'the 99th percentile frame').toBeLessThan(2e-3);

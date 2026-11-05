@@ -8,7 +8,8 @@
  * (`describe.runIf(HAS_RECORDINGS)`). Only numbers measured on them are committed. Where the
  * checkout is, in order:
  *
- * 1. `$THOREMIN_RECORDINGS_DIR` (the `recordings/` folder itself);
+ * 1. `$THOREMIN_RECORDINGS_DIR` (the `recordings/` folder itself; set to a missing path, it
+ *    throws rather than skipping);
  * 2. a `thoremin-recordings/recordings/` folder beside this checkout or beside any of its
  *    ancestors, which finds the usual sibling layout from a git worktree too.
  *
@@ -24,7 +25,11 @@ import type { StreamRecord } from '@thoremin/dag';
 
 function findRecordingsDir(): string | null {
   const env = process.env.THOREMIN_RECORDINGS_DIR;
-  if (env) return existsSync(env) ? env : null;
+  if (env) {
+    // Set but wrong is a mistake to say, not a reason to skip every test that reads it.
+    if (!existsSync(env)) throw new Error(`THOREMIN_RECORDINGS_DIR=${env} does not exist`);
+    return env;
+  }
   let dir = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
   for (;;) {
     const candidate = join(dirname(dir), 'thoremin-recordings', 'recordings');

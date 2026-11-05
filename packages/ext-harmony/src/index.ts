@@ -163,9 +163,9 @@ export const HARMONY_EXTENSION = defineExtension({
     // Signs steer (the sign-harmony lane): fingerspell a letter A..G and the wheel goes to that
     // letter's chord, its wedges showing the moves from there. Requires the ASL plugin (its
     // reader on, its own chords off: the wheel plays them).
-    { name: 'Sign Wheel', patch: { ...SILENT_THEREMIN, right: { root: 2, type: 'major' }, faceChord: { voicing: 'voiceLed' }, asl: { enabled: true, chords: false }, chordWheel: { enabled: true, steer: 'signs' } }, requires: ['asl-signs'] },
+    { name: 'Sign Wheel', patch: { ...SILENT_THEREMIN, right: { root: 2, type: 'major' }, faceChord: { voicing: 'voiceLed' }, asl: { enabled: true, chords: false, vocabulary: 'letters' }, chordWheel: { enabled: true, steer: 'signs' } }, requires: ['asl-signs'] },
     // A signed letter lights its chord on the map, and the other hand plays the melody over it.
-    { name: 'Sign Map', patch: { ...SILENT_THEREMIN, right: { root: 2, type: 'major' }, faceChord: { voicing: 'voiceLed' }, asl: { enabled: true, chords: false }, chordMap: { enabled: true, follow: 'signs', melodyNotes: 'tilt' } }, requires: ['asl-signs'] },
+    { name: 'Sign Map', patch: { ...SILENT_THEREMIN, right: { root: 2, type: 'major' }, faceChord: { voicing: 'voiceLed' }, asl: { enabled: true, chords: false, vocabulary: 'letters' }, chordMap: { enabled: true, follow: 'signs', melodyNotes: 'tilt' } }, requires: ['asl-signs'] },
     { name: 'Chord Map Strum', patch: { ...SILENT_THEREMIN, right: { root: 0, type: 'major' }, chordMap: { enabled: true, play: 'strum' } } },
   ],
   derive: (s) => {
