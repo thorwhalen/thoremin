@@ -544,7 +544,7 @@ Hands → ASL signs: the fingerspelled alphabet and a few common words, a score 
 - **roles:** feature
 - **in:** hands:hands-frame, config:asl-config
 - **out:** reading:asl-reading, signs:category-scores, status:load-status
-- **params:** enabled (boolean=false), motion (boolean=true), minConfidence (number=0.45), smoothing (number=0.12), chords (boolean=false), holdChord (boolean=true)
+- **params:** enabled (boolean=false), motion (boolean=true), vocabulary (enum(auto | letters | all)="auto"), minConfidence (number=0.45), smoothing (number=0.12), chords (boolean=false), holdChord (boolean=true)
 
 #### `sign-chord` — Sign Chord
 ASL letters A..G → the diatonic chord of the key whose root has that letter name (accidentals of the key applied), voiced and rendered like the face chords.

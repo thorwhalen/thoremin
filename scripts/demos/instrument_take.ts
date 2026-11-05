@@ -19,6 +19,13 @@
  * - `guitar`: four chord shapes enrolled from the synthetic hand (`test/air/synthetic_guitar.ts`),
  *   then a take that changes chord every two seconds while the other hand strums.
  *
+ * - `--recording <id> [--from s] [--to s]`: instead of a synthetic hand, the player's own take
+ *   from the private recordings dataset (`test/helpers/recordings.ts`, `thoremin-recordings`):
+ *   its real hand frames, with the instrument's dial, the scale and the enrolled guitar model as
+ *   the player had them. The instrument is the take's (air bass or air guitar). The events the
+ *   app played live are counted beside the replayed ones, so the demo also shows what today's
+ *   code would have played on that take. Output stays in the app-data dir (never committed).
+ *
  * Writes `{instrument, fps, width, height, frames, overlay, events}`: the hands frames (to
  * draw), per-frame overlay data (the stick, the neck, the chord held) and the node's
  * events on the engine clock (drum hits, or note events), which `offline_audio.ts`
@@ -41,6 +48,7 @@ import { TRUE_STICK_LENGTH } from '../air/lib_synthetic_grip';
 import { bassTake } from '../../test/air/synthetic_bass';
 import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, starterKitPads } from '../../test/air/synthetic_drums';
 import { enrolSamples, guitarTake } from '../../test/air/synthetic_guitar';
+import { recordingMeta, recordingSegment, recordingSettings, recordingStream } from '../../test/helpers/recordings';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -48,7 +56,7 @@ function arg(name: string, fallback: string): string {
 }
 
 const instrument = arg('instrument', 'drums');
-const out = arg('out', join(dataRoot(), 'demos', 'round3', `${instrument}.take.json`));
+const out = arg('out', join(dataRoot(), 'demos', 'round3', `${arg('recording', '') || instrument}.take.json`));
 const FPS = 30;
 const W = 640;
 const H = 480;
@@ -56,7 +64,7 @@ const voice = { root: 4, type: 'minorPentatonic', octaves: 2, baseOctave: 2, sou
 
 // ---- Run ------------------------------------------------------------------------------
 
-async function run(frames: HandsFrame[], controls: () => Record<string, unknown>, port: string): Promise<unknown[]> {
+async function run(frames: HandsFrame[], controls: () => Record<string, unknown>, port: string, fps = FPS): Promise<unknown[]> {
   // `defaultGraph` names every branch, a lazy extension's too: load them all.
   const registry = await loadedAppRegistry();
   const g = defaultGraph({ source: 'replay-hands' }, registry);
@@ -64,7 +72,7 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
   const { recorder } = await runHeadless(g, registry, {
     checkReads: DEFAULT_GRAPH_READS,
     ticks: frames.length,
-    nominalDt: 1 / FPS,
+    nominalDt: 1 / fps,
     resources: { ...defaultGraphResources(),
       controls,
       createDrumSink: () => ({ play: () => {}, close: () => {} }),
@@ -75,9 +83,38 @@ async function run(frames: HandsFrame[], controls: () => Record<string, unknown>
   return (recorder.values(port) as unknown[][]).flat();
 }
 
+/** The player's own take, replayed (`--recording`). */
+async function recordedTake(id: string): Promise<Record<string, unknown>> {
+  const label = recordingMeta(id).instrument.label;
+  const which = ({ 'air bass': 'airBass', 'air guitar': 'airGuitar' } as Record<string, string>)[label];
+  if (!which) throw new Error(`--recording replays an air bass or air guitar take; ${id} is ${label}`);
+  const from = Number(arg('from', '0'));
+  const to = Number(arg('to', 'Infinity'));
+  const records = recordingSegment(id, 'hands', from, to);
+  const frames = records.map((r) => r.value as HandsFrame);
+  const ui = recordingSettings(id);
+  const spec = (side: 'Right' | 'Left') => ({ ...(ui[`${side.toLowerCase()}Spec`] as object ?? voice), sound: ui[`sound${side}`] ?? 'sine' });
+  const controls = () => ({ right: spec('Right'), left: spec('Left'), [which]: ui[which], airGuitarModel: ui.airGuitarModel });
+  // The take's own frame rate (its camera's), so the engine clock matches the recorded one.
+  const fps = records.length > 1 ? (records.length - 1) / (records[records.length - 1]!.t - records[0]!.t) : FPS;
+  const events = await run(frames, controls, `${which}.notes`, fps);
+  // The app logs a port only when it changes, so two identical note lists in a row count once:
+  // a lower bound on what played live.
+  const live = recordingStream(id, 'app')
+    .filter((r) => (r as unknown as { key: string }).key === `${which}.notes` && r.t >= from && r.t < to)
+    .reduce((n, r) => n + ((r.value as unknown[]) ?? []).length, 0);
+  const width = (frames[0] as { width?: number })?.width ?? W;
+  const height = (frames[0] as { height?: number })?.height ?? H;
+  console.log(`${id} (${label}): ${events.length} notes replayed, ${live} played live (at least)`);
+  return { instrument: label, recording: id, from, fps, width, height, frames, overlay: frames.map(() => ({})), events, liveNotes: live };
+}
+
 async function main(): Promise<void> {
   let doc: Record<string, unknown>;
-  if (instrument === 'drums') {
+  const recording = arg('recording', '');
+  if (recording) {
+    doc = await recordedTake(recording);
+  } else if (instrument === 'drums') {
     const pads = starterKitPads();
     const { frames, overlay, script } = drumTake(pads);
     const events = await run(frames, () => ({ right: voice, left: voice, airDrum: { ...DEFAULT_AIR_DRUM, enabled: true, hand: 'right', pads, stickLength: TRUE_STICK_LENGTH } }), 'airDrum.hits');
@@ -106,7 +143,7 @@ async function main(): Promise<void> {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(doc));
   const ev = doc.events as { t: number; predicted?: boolean }[];
-  console.log(`${instrument}: ${(doc.frames as unknown[]).length} frames, ${ev.length} events (${ev.filter((e) => e.predicted).length} predicted) -> ${out}`);
+  console.log(`${doc.instrument as string}: ${(doc.frames as unknown[]).length} frames, ${ev.length} events (${ev.filter((e) => e.predicted).length} predicted) -> ${out}`);
 }
 
 void main();

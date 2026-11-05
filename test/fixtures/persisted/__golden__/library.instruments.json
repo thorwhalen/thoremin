@@ -199,7 +199,8 @@
         "holdChord": true,
         "minConfidence": 0.45,
         "motion": true,
-        "smoothing": 0.12
+        "smoothing": 0.12,
+        "vocabulary": "auto"
       },
       "body.enabled": false,
       "body.model": "lite",
@@ -944,7 +945,8 @@
         "holdChord": true,
         "minConfidence": 0.45,
         "motion": true,
-        "smoothing": 0.12
+        "smoothing": 0.12,
+        "vocabulary": "auto"
       },
       "body.enabled": false,
       "body.model": "lite",

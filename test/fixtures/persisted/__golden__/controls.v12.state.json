@@ -157,7 +157,8 @@
     "holdChord": true,
     "minConfidence": 0.45,
     "motion": true,
-    "smoothing": 0.12
+    "smoothing": 0.12,
+    "vocabulary": "auto"
   },
   "audioPrefs": {
     "lowLatency": false
