@@ -16,8 +16,13 @@ export interface SeedPlay {
 export const SEED_PLAY: Record<string, SeedPlay> = {
   'Air Drum': { extra: 'synthetic.strike=1', check: 'hits' },
   'Conduct the Chords': { extra: 'synthetic.conduct=1' },
-  // The pitch rod is the player's right hand; the synthetic source's one hand is their left.
+  // The pitch rod is the player's right hand, the volume loop their left: both hands.
   'Physical Theremin': { extra: 'synthetic.hands=both' },
+  // These point with the player's LEFT hand (`chordHand` / `hand`: left); the synthetic source's
+  // one hand is their right (#995: its label is the hand's own, as the live camera's).
+  ...Object.fromEntries(
+    ['Chord Map', 'Chord Map Paths', 'Chord Map + Face', 'Pentatonic Map', 'Chord Wheel', 'Tonnetz Wheel', 'Wheel Walk', 'Next-Chord Wheel'].map((name) => [name, { extra: 'synthetic.hands=left' }]),
+  ),
 };
 
 /** The sound thresholds, against the listening tap's readings (`audioTap.ts`). */

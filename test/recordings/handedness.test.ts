@@ -16,14 +16,17 @@ import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 import { physicalThereminNode, type PhysicalThereminStatus } from '@/slices/theremin/nodes/physical_theremin';
 import { DEFAULT_PHYSICAL_THEREMIN } from '@/slices/theremin/schema';
+import { THEREMIN } from '../helpers/extensions';
 import { HAS_RECORDINGS, recordingEvents, recordingIds, recordingMeta, recordingStream } from '../helpers/recordings';
 
 const ASL_TAKE = '2026-11-05T12-51-15';
 
 describe.runIf(HAS_RECORDINGS)("which hand is which, on the player's own takes (#995)", () => {
-  const frames = recordingStream(ASL_TAKE, 'hands') as unknown as { t: number; value: HandsFrame }[];
+  // Read on first use: the describe body runs at collection even when it is skipped.
+  let cached: { t: number; value: HandsFrame }[] | null = null;
+  const frames = () => (cached ??= recordingStream(ASL_TAKE, 'hands') as unknown as { t: number; value: HandsFrame }[]);
   const passes = (hand: 'left' | 'right') => recordingEvents(ASL_TAKE, 'asl-letter').filter((e) => (e as { hand?: string }).hand === hand);
-  const during = (hand: 'left' | 'right') => frames.filter((f) => passes(hand).some((e) => f.t >= e.start && f.t < e.end));
+  const during = (hand: 'left' | 'right') => frames().filter((f) => passes(hand).some((e) => f.t >= e.start && f.t < e.end));
 
   it('the live label is the hand the player names, so the default does not swap it', () => {
     for (const hand of ['right', 'left'] as const) {
@@ -56,7 +59,7 @@ describe.runIf(HAS_RECORDINGS)("which hand is which, on the player's own takes (
     expect(agree / total).toBeGreaterThan(0.99);
   });
 
-  it('the Physical Theremin plays pitch with the right hand and volume with the left', () => {
+  it.runIf(THEREMIN)('the Physical Theremin plays pitch with the right hand and volume with the left', () => {
     const play = (hand: 'left' | 'right') => {
       const node = physicalThereminNode.make(physicalThereminNode.params.parse({}));
       const config = { ...DEFAULT_PHYSICAL_THEREMIN, enabled: true };

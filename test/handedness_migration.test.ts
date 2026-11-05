@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 import { isDisplayedRight } from '@/nodes/output/overlay/view';
+import { AIR, CONDUCTOR, HARMONY, THEREMIN } from './helpers/extensions';
 import { CONTRIBUTIONS } from '@/host/contributions';
 import { HAND_LABELS_KEY, normalizeLayer } from '@/app/dials/instruments';
 import { createVocabularyStore, swapFingeringHands, useFluteFingerVocabulary, useVocabularyStore, type VocabularyRecord } from '@thoremin/ext-air/app/vocabularyStore';
@@ -24,7 +25,7 @@ describe('the old mirrorHandedness default is dropped (#995)', () => {
     expect(dropOldMirrorDefault(undefined)).toBeUndefined();
   });
 
-  it("each hand dial's chain drops it, and its schema heals to the player's true hand", () => {
+  it.runIf(AIR && HARMONY && THEREMIN && CONDUCTOR)("each hand dial's chain drops it, and its schema heals to the player's true hand", () => {
     for (const key of HAND_DIALS) {
       const slice = CONTRIBUTIONS.dialSlices.find((s) => s.key === key);
       expect(slice, key).toBeDefined();
@@ -35,7 +36,7 @@ describe('the old mirrorHandedness default is dropped (#995)', () => {
     }
   });
 
-  it("the theremin: a deliberate false (a third-person video) keeps its unmirrored antennas, now `mirrorX`", () => {
+  it.runIf(THEREMIN)("the theremin: a deliberate false (a third-person video) keeps its unmirrored antennas, now `mirrorX`", () => {
     const slice = CONTRIBUTIONS.dialSlices.find((s) => s.key === 'physicalTheremin')!;
     const step = slice.migrations![1]!;
     expect(step({ enabled: true, mirrorHandedness: false }, {})).toEqual({ enabled: true, mirrorHandedness: false, mirrorX: false });
@@ -47,7 +48,7 @@ describe('the old mirrorHandedness default is dropped (#995)', () => {
     expect(isDisplayedRight('Left')).toBe(false);
   });
 
-  it('an instrument saved before the fix loads with the true hands; one saved after keeps its choice', () => {
+  it.runIf(AIR && HARMONY)('an instrument saved before the fix loads with the true hands; one saved after keeps its choice', () => {
     const before = normalizeLayer({ airGuitar: { enabled: true, mirrorHandedness: true }, chordMap: { enabled: true, mirrorHandedness: true } } as never) as Record<string, { mirrorHandedness?: boolean }>;
     expect(before.airGuitar!.mirrorHandedness).toBe(false);
     expect(before.chordMap!.mirrorHandedness).toBe(false);
@@ -57,7 +58,7 @@ describe('the old mirrorHandedness default is dropped (#995)', () => {
   });
 });
 
-describe("the flute's enrolled fingerings are turned to the true hands once (#995)", () => {
+describe.runIf(AIR)("the flute's enrolled fingerings are turned to the true hands once (#995)", () => {
   let provider: ReturnType<typeof createInMemoryProvider<VocabularyRecord>>;
   beforeEach(() => {
     provider = createInMemoryProvider<VocabularyRecord>([], { searchFields: ['name'] });
