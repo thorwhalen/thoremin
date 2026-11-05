@@ -212,7 +212,10 @@ def extract_streams(video: Path, out_dir: Path, clip_id: str, *, python: Path, s
             continue
         cmd = [str(python), str(SCRIPTS / spec["script"]), str(video), *spec["args"]([str(o) for o in outs], p)]
         print(f"extract {clip_id} {name}", file=sys.stderr)
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        # The extractors import their siblings (`pose_crop`); with PYTHONSAFEPATH set the script's
+        # own folder is not on sys.path, so it is put there explicitly.
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(SCRIPTS), os.environ.get("PYTHONPATH")]))}
+        res = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if log:
             with log.open("a") as f:
                 f.write(f"{clip_id} {name} rc={res.returncode}\n{res.stdout}{res.stderr[-4000:]}\n")
@@ -346,6 +349,7 @@ def main() -> int:
     if not decodable(video, py):
         decode = transcode(video, data_root() / "videos" / "decoded" / f"{args.id}.mp4")
         meta["video"]["decodedVia"] = "a native-size H.264 copy (OpenCV cannot read the original), ffmpeg libx264 CRF 18"
+    out_dir.mkdir(parents=True, exist_ok=True)  # the meta is written before any stream makes it
     meta_path = out_dir / f"{args.id}.meta.json"
     write_meta(meta_path, meta)
     meta["streams"] = extract_streams(decode, out_dir, args.id, python=py, streams=args.streams,
