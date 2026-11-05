@@ -49,6 +49,7 @@ import { bassTake } from '../../test/air/synthetic_bass';
 import { DRUM_TAKE_FPS, DRUM_TAKE_HEIGHT, DRUM_TAKE_WIDTH, drumTake, starterKitPads } from '../../test/air/synthetic_drums';
 import { enrolSamples, guitarTake } from '../../test/air/synthetic_guitar';
 import { recordingMeta, recordingSegment, recordingSettings, recordingStream } from '../../test/helpers/recordings';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -94,7 +95,8 @@ async function recordedTake(id: string): Promise<Record<string, unknown>> {
   const frames = records.map((r) => r.value as HandsFrame);
   const ui = recordingSettings(id);
   const spec = (side: 'Right' | 'Left') => ({ ...(ui[`${side.toLowerCase()}Spec`] as object ?? voice), sound: ui[`sound${side}`] ?? 'sine' });
-  const controls = () => ({ right: spec('Right'), left: spec('Left'), [which]: ui[which], airGuitarModel: ui.airGuitarModel });
+  // The take's dial as today's build reads it: its stored `mirrorHandedness: true` was the old default (#995).
+  const controls = () => ({ right: spec('Right'), left: spec('Left'), [which]: dropOldMirrorDefault(ui[which]), airGuitarModel: ui.airGuitarModel });
   // The take's own frame rate (its camera's), so the engine clock matches the recorded one.
   const fps = records.length > 1 ? (records.length - 1) / (records[records.length - 1]!.t - records[0]!.t) : FPS;
   const events = await run(frames, controls, `${which}.notes`, fps);

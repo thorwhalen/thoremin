@@ -14,6 +14,7 @@ import type { NodeDef } from '@thoremin/dag';
 import { physicalThereminNode } from './nodes/physical_theremin';
 import { ANTENNAS_ELEMENT, antennasElement } from './nodes/overlay/antennas';
 import { DEFAULT_PHYSICAL_THEREMIN, PhysicalThereminSchema } from './schema';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 export const PHYSICAL_THEREMIN_EXTENSION_ID = 'physical-theremin';
 export const PHYSICAL_THEREMIN_BRANCH_ID = 'physical-theremin';
@@ -58,7 +59,10 @@ export const PHYSICAL_THEREMIN_EXTENSION = defineExtension({
   branches: [physicalTheremin],
   dials: [
     dialSlice({
-      version: 1,
+      // v2 (#995): the old `mirrorHandedness: true` default dropped (the hands were swapped); a
+      // deliberate `false` (a third-person video) also drove the antennas' geometry, now `mirrorX`.
+      version: 2,
+      migrations: { 1: (old: unknown) => (old && typeof old === 'object' && (old as { mirrorHandedness?: unknown }).mirrorHandedness === false && !('mirrorX' in old) ? { ...old, mirrorX: false } : dropOldMirrorDefault(old)) },
       key: 'physicalTheremin',
       schema: PhysicalThereminSchema.default(DEFAULT_PHYSICAL_THEREMIN),
       kind: 'physical-theremin-config',

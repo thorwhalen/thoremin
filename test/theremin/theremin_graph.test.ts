@@ -38,7 +38,7 @@ describe.runIf(THEREMIN)('the Physical Theremin seed', () => {
 
   describe('on a real held hand', () => {
     const meta = JSON.parse(readFileSync(join(FIXTURES, 'real_hands_signs', 'meta.json'), 'utf8'));
-    const perf = performance(openPalmTemplate(loadRecords, meta), thereminScript().script, { width: MAP_W, height: MAP_H, handedness: 'Left' });
+    const perf = performance(openPalmTemplate(loadRecords, meta), thereminScript().script, { width: MAP_W, height: MAP_H, handedness: 'Right' } /* the player's right as the live camera labels it (#995) */);
     const play = (level: number) =>
       runSeed(THEREMIN_SEED, perf.frames, {
         patch: { physicalTheremin: { ...D, enabled: true, assist: { ...D.assist, level } } },

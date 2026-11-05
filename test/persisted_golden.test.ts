@@ -27,6 +27,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AIR, ASL, FACES, MIDI } from './helpers/extensions';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 const DIR = join('test', 'fixtures', 'persisted');
 const VERSIONS = Array.from({ length: 26 }, (_, i) => i + 1);
@@ -312,8 +313,11 @@ describe.runIf(SHIPPED)('the edges of rehydration (#741)', () => {
     const future = { ...newest(), version: VERSIONS.length + 1 };
     // A value a step would change if one ran (step 17 sets the trainer hud's show flag), slice
     // versions ahead of this build's chains, and a field this build does not know.
+    // A newer build wrote its hand dials with the true-hand default (#995), as this build's steps
+    // turn the fixture's: drop the old `mirrorHandedness: true` the fixture's build stored.
+    const stateNow = Object.fromEntries(Object.entries(future.state).map(([k, v]) => [k, dropOldMirrorDefault(v)])) as typeof future.state;
     future.state = {
-      ...future.state,
+      ...stateNow,
       trainerHud: { ...(future.state.trainerHud ?? {}), show: !(reference.trainerHud as Record<string, unknown>).show },
       sliceVersions: Object.fromEntries(SLICE_CHAINS.map((c) => [c.key, c.version + 1])) as never,
       aFieldFromTheFuture: { on: true },

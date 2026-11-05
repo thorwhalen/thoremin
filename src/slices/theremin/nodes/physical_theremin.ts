@@ -198,9 +198,11 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
           const dt = lastT === null ? DEFAULT_FRAME_PERIOD_S : t - lastT;
           lastT = t;
           lastFrame = frame;
-          const mirror = s.mirrorHandedness;
-          const right = frame.hands.find((h) => h.handedness === labelFor('right', mirror) && h.keypoints.length >= 21);
-          const left = frame.hands.find((h) => h.handedness === labelFor('left', mirror) && h.keypoints.length >= 21);
+          // Two different mirrors (#995): the hand model's LABELS (as is for the live camera) and
+          // the DISPLAY the antennas are placed on (mirrored for the selfie view).
+          const mirror = s.mirrorX;
+          const right = frame.hands.find((h) => h.handedness === labelFor('right', s.mirrorHandedness) && h.keypoints.length >= 21);
+          const left = frame.hands.find((h) => h.handedness === labelFor('left', s.mirrorHandedness) && h.keypoints.length >= 21);
           const shift = typeof inputs.octaveShift === 'number' && Number.isFinite(inputs.octaveShift) ? Math.round(inputs.octaveShift) : 0;
           const scale = Array.isArray(inputs.scale) ? (inputs.scale as number[]).map((m) => ((Math.round(m) % 12) + 12) % 12) : [];
           let next: PhysicalThereminStatus = { ...IDLE_PHYSICAL_THEREMIN_STATUS, enabled: true };

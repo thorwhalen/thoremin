@@ -33,7 +33,7 @@ import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_event
 import { definedOnly } from '@thoremin/sdk/util/options';
 
 // The player's hands (the SDK's since #674, shared with the harmony slice), re-exported here.
-import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+import { PLAYER_HANDS, labelFor, type PlayerHand, DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 export { PLAYER_HANDS, labelFor, type PlayerHand };
 export const PLUCK_POINTS = ['indexTip', 'wrist'] as const;
 export type PluckPoint = (typeof PLUCK_POINTS)[number];
@@ -64,8 +64,9 @@ const Params = z.object({
   minSpeed: z.number().min(0).max(5).default(0.4),
   /** Note loudness, 0..1 (the pluck's own strength scales it). */
   volume: z.number().min(0).max(1).default(0.8),
-  /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
 });
 type Params = z.infer<typeof Params>;
 

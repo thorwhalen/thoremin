@@ -21,8 +21,9 @@ const Params = z.object({
   opennessPeriod: z.number().default(3),
   /** Seconds for one pinch oscillation. */
   pinchPeriod: z.number().default(2.5),
-  /** Which hand(s) to emit. `?synthetic.hands=both` (or `left`) chooses in a browser run, for an
-   *  instrument that needs the player's other hand (the physical theremin's pitch rod). */
+  /** Which hand(s) to emit, by the player's side (the label is the hand's own, as the live camera's,
+   *  #995). `?synthetic.hands=both` (or `left`) chooses in a browser run, for an instrument that
+   *  needs the player's other hand (the physical theremin's volume loop). */
   hands: z.enum(SYNTHETIC_HANDS).default(() => handsFromUrl()),
   /** Vertical position of the hand, normalized 0 (top) .. 1 (bottom). */
   yNorm: z.number().default(0.5),

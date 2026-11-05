@@ -52,7 +52,7 @@ import { isFreshFrame, type CategoryScores, type FaceFeatures, type HandsFrame, 
 import { EMPTY_CELL_GRID, type CellGrid, type GridCell } from '@thoremin/sdk/nodes/cell_grid';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { DEGREE_COLORS } from '../lib/chord_map';
-import { PLAYER_HANDS, labelFor } from '@thoremin/sdk/nodes/player_hands';
+import { PLAYER_HANDS, labelFor, DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 import { CHORD_MAP_POINTS, displayPoint } from './chord_map';
 import { definedOnly } from '@thoremin/sdk/util/options';
 
@@ -149,7 +149,9 @@ const Params = z.object({
   voicing: z.enum(VOICINGS).default('voiceLed'),
   rendering: z.enum(RENDERINGS).default('sustained'),
   bpm: z.number().min(40).max(200).default(100),
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** Who steers: the hand's push, the face's expressions (each one a move), or both. */
   steer: z.enum(WHEEL_STEER).default('hand'),
   /** The move each expression makes: a relation id, '' for the moves set's default, 'none'. */

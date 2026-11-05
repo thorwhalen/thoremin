@@ -231,10 +231,11 @@ boundaries allow.
   `currentTime !== lastVideoTime` gate freezes on a non-advancing clip),
   `await loadedmetadata`, StrictMode `disposed` guards, `onended` → `exhausted`,
   loop-boundary MediaPipe tracking-reset. Medium, not 15 lines. The hand model
-  still loads (not free). Known limitation: the instrument mirrors the video
-  (selfie assumption), so a non-mirror-image clip renders flipped with Left/Right
-  swapped — a per-source `mirror` flag is deferred to the host-side **`Source`** contract, which
-  M-C did **not** ship — it moved to M-D along with the async-iterable interface.
+  still loads (not free). The view mirrors the video; the hand model names each hand as the
+  person's own on an unmirrored clip, as on the live camera (#995), and a clip that is itself a
+  mirror image (the recorder's overlay video) takes `&mirrored=1`, which swaps the labels at the
+  source (`MIRRORED_SOURCE_RESOURCE_KEY`). The general per-source contract stays with the
+  host-side **`Source`** (M-D).
 - **M-B — Clock + speed multiplier (R5 control-rate core). ✅ shipped.**
   `packages/dag/src/clock.ts` (`Clock` / `BatchClock` / `RealtimeClock`); refit the
   **`runHeadless`** loop → `BatchClock(ticks)` (preserve the no-arg `tick()`

@@ -31,6 +31,10 @@ import { airDrumNode, magnetStanding, standing, type DrumHit, type AirDrumStatus
 import { LAG_MIN_STROKES, LAG_STROKES, type MusicalTime } from '@thoremin/ictus';
 import { FIXTURES } from '../helpers/fixtures';
 import { NO_OUTPUT_STAGE, knownOutputStage } from '../helpers/timing';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
+
+/** The player's right hand, as the live camera's model labels it (#995). */
+const RIGHT_HAND = labelFor('right', DEFAULT_MIRROR_HANDEDNESS);
 
 interface Truth {
   spec: { fps: number };
@@ -49,8 +53,8 @@ function loadFrames(name: string): { truth: Truth; frames: HandsFrame[] } {
     const rec = JSON.parse(line) as { value: { width: number; height: number; keypoints: { object: string; name: string; x: number; y: number }[] } };
     const p = rec.value.keypoints.find((k) => k.object === obj.name && k.name === obj.impact_keypoint)!;
     const keypoints = Array.from({ length: 21 }, () => ({ x: p.x, y: p.y }));
-    // The mirrored webcam labels the player's RIGHT hand 'Left'.
-    frames.push({ width: rec.value.width, height: rec.value.height, hands: [{ handedness: 'Left', keypoints }] });
+    // The player's right hand, as the live camera's model labels it (#995).
+    frames.push({ width: rec.value.width, height: rec.value.height, hands: [{ handedness: RIGHT_HAND, keypoints }] });
   }
   return { truth, frames };
 }
@@ -130,10 +134,10 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const tom = await run({ enabled: true, hand: 'right', rightSound: 'tom' });
     expect(tom.hits.length).toBe(truth.events.length);
     expect(tom.hits.every((h) => h.sound === 'tom')).toBe(true);
-    // A recorded third-person video is not mirrored: the same frames are then the LEFT hand.
-    const unmirrored = await run({ enabled: true, mirrorHandedness: false, leftSound: 'hihat' });
-    expect(unmirrored.hits.length).toBe(truth.events.length);
-    expect(unmirrored.hits.every((h) => h.hand === 'left' && h.sound === 'hihat')).toBe(true);
+    // A MIRRORED recording swaps the labels (#995): the same frames are then the LEFT hand.
+    const mirrored = await run({ enabled: true, mirrorHandedness: true, leftSound: 'hihat' });
+    expect(mirrored.hits.length).toBe(truth.events.length);
+    expect(mirrored.hits.every((h) => h.hand === 'left' && h.sound === 'hihat')).toBe(true);
   });
 
   /** A running follower whose expected beat for event `i` sits `offset(i)` after its impact,
@@ -326,7 +330,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const still: HandsFrame[] = frames.map(() => ({
       width: 1280,
       height: 720,
-      hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, (_, k) => ({ x: 600, y: k === 8 ? 300 : 400 })) }],
+      hands: [{ handedness: RIGHT_HAND, keypoints: Array.from({ length: 21 }, (_, k) => ({ x: 600, y: k === 8 ? 300 : 400 })) }],
     }));
     const h = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const config = still.map((_, i) => ({ enabled: true, point: Math.floor(i / 20) % 2 ? 'indexTip' : 'wrist' }));
@@ -340,7 +344,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
       const t = i / FPS;
       const phase = (t % 1) / 0.2;
       const dip = phase < 1 ? 0.5 * (1 - Math.cos(2 * Math.PI * phase)) : 0;
-      soft.push({ width: 1280, height: 720, hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 0.08 * 720 * dip })) }] });
+      soft.push({ width: 1280, height: 720, hands: [{ handedness: RIGHT_HAND, keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 0.08 * 720 * dip })) }] });
     }
     const h3 = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const outs3 = await replayNode(h3, { hands: soft }, { dt: 1 / FPS });
@@ -349,7 +353,7 @@ describe('air-drum node on the synthetic surface fixture', () => {
     const sway: HandsFrame[] = Array.from({ length: 600 }, (_, i) => ({
       width: 1280,
       height: 720,
-      hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 36 * Math.sin((2 * Math.PI * 0.3 * i) / FPS) + 1.5 * Math.sin(i * 7.1) })) }],
+      hands: [{ handedness: RIGHT_HAND, keypoints: Array.from({ length: 21 }, () => ({ x: 600, y: 400 + 36 * Math.sin((2 * Math.PI * 0.3 * i) / FPS) + 1.5 * Math.sin(i * 7.1) })) }],
     }));
     const h2 = airDrumNode.make(airDrumNode.params.parse({ point: 'wrist', enabled: true }));
     const outs2 = await replayNode(h2, { hands: sway }, { dt: 1 / FPS });

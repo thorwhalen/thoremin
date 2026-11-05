@@ -42,6 +42,6 @@ describe.runIf(CONDUCTOR)('conflicting hand preferences (#784)', () => {
     expect(live.liveHandPreference(probeAlone, new Set())).toEqual({ kind: 'higher' });
     const conductorAlone = { ...base(), probe: { enabled: false, freq: 100 }, conductor: conductor(true) } as never;
     expect(live.liveHandCount(conductorAlone, new Set(), null)).toBe(1);
-    expect(live.liveHandPreference(conductorAlone, new Set())).toEqual({ kind: 'label', handedness: 'Left' });
+    expect(live.liveHandPreference(conductorAlone, new Set())).toEqual({ kind: 'label', handedness: 'Right' }); // the player's right (#995)
   });
 });

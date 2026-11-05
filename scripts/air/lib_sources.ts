@@ -38,11 +38,10 @@ const NOTE_NAME = /^[A-G][#b]?-?\d$/;
  * hand is accepted only when it sits on that half of the frame, so a strumming hand
  * alone in frame is not mistaken for a fretting one.
  *
- * `handedness` uses MediaPipe's label AS EMITTED ON THIS VIDEO. MediaPipe assumes a
- * mirrored (selfie) image, so on unmirrored footage its "Left" is the physical RIGHT
- * hand (that is why `graph.ts` sets `mirrorHandedness: true` for the webcam; see
- * `resolveSide` in `packages/sdk/src/features/catalog.ts`). For a right-handed player facing the
- * camera the fretting hand therefore arrives labelled "Right".
+ * `handedness` uses MediaPipe's label AS EMITTED ON THIS VIDEO. On unmirrored footage that is
+ * the person's own hand (measured, #995: the player's spoken right hand is labelled "Right" in
+ * 1558 of 1559 frames; `DEFAULT_MIRROR_HANDEDNESS` in `packages/sdk/src/nodes/player_hands.ts`),
+ * so a right-handed player's fretting hand arrives labelled "Left"; on a mirrored video, "Right".
  */
 export const FrettingHandPick = z.discriminatedUnion('by', [
   z.object({ by: z.literal('handedness'), label: z.enum(['Left', 'Right']) }),

@@ -72,6 +72,11 @@ describe('parseSourceSpec', () => {
     expect(parseSourceSpec('?source=midi')).toEqual({ kind: 'camera' });
   });
 
+  it('marks a mirror-image clip (the recorder overlay video) with &mirrored=1 (#995)', () => {
+    expect(parseSourceSpec('?source=video&video=/overlay.webm&mirrored=1')).toEqual({ kind: 'video', url: '/overlay.webm', mirrored: true });
+    expect(parseSourceSpec('?source=video&video=/a.mp4&mirrored=0')).toEqual({ kind: 'video', url: '/a.mp4' });
+  });
+
   it('tolerates a missing leading ?', () => {
     expect(parseSourceSpec('source=video&video=/x.mp4')).toEqual({ kind: 'video', url: '/x.mp4' });
   });

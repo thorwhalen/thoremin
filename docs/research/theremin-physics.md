@@ -140,10 +140,12 @@ The real held hand is the stillest second of the signer's open-palm (B) clips in
 
 | Assistance | Held warble, cents | Note changes / held s | Sweep order | Open over fist, semitones |
 |---|---|---|---|---|
-| 0 | 12.7 | 3.63 | 97% | 4.9 |
-| 0.25 | 8.6 | 1.13 | 98% | 4.8 |
-| 0.5 | 10.8 | 1.13 | 98% | 4.9 |
-| 1 | 19.5 | 0.13 | 87% | 5.0 |
+| 0 | 13.9 | 2.00 | 93% | 6.5 |
+| 0.25 | 6.3 | 0.25 | 98% | 6.3 |
+| 0.5 | 4.6 | 0.75 | 97% | 6.7 |
+| 1 | 4.9 | 0.00 | 69% | 7.0 |
+
+Measured since #995 with the real signer's right hand as the pitch hand (the label is the hand's own; before, the instrument read the left hand, and this table was taken on the signer's right hand mirrored into a left one). With the right hand, the sweep's order at full assistance falls (87 % to 69 %); why is not yet measured.
 
 *Held warble*: the RMS of the frame-to-frame pitch change while held. *Note changes*: how often the nearest semitone changes while held. *Sweep order*: the share of the sweep's pitch steps that go up, as the hand goes. *Open over fist*: the median pitch of the open palm less the fist's.
 

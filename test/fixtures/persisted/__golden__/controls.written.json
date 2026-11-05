@@ -36,7 +36,7 @@
       "show": true
     },
     "markLevel": "beat",
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "mirrorX": true,
     "orchestra": {
       "enabled": false,

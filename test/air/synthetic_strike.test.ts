@@ -39,7 +39,7 @@ describe('synthetic-hands strike mode', () => {
     for (let k = 0; k < 8; k++) {
       const s = await hitsOver(10, true, { hz, t0: (k / 8) * (1 / hz) + k * 0.11 });
       expect(s.hits, `phase ${k}`).toBeGreaterThanOrEqual(9);
-      expect(s.ready.left, `phase ${k}: the floor is learned`).toBe(true);
+      expect(s.ready.right, `phase ${k}: the floor is learned`).toBe(true);
     }
   });
 });

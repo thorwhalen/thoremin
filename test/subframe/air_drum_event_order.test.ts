@@ -23,6 +23,7 @@ import type { ImpactEvent, ImpactPredictor, MusicalTime } from '@thoremin/ictus'
 import { LAG_MIN_STROKES } from '@thoremin/ictus';
 import type { DrumHit, AirDrumStatus } from '@thoremin/ext-air/nodes/air_drum';
 import { knownOutputStage } from '../helpers/timing';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 /** One scripted event: a prediction of impact `t`, or the confirmation of impact `t`
  *  whose prediction was `predicted` (the predictor's own `committed`). */
@@ -63,12 +64,12 @@ const { airDrumNode, SUBFRAME_DWELL_FRAMES } = await import('@thoremin/ext-air/n
 
 const FPS = 30;
 const N = 150;
-/** A still hand (the mirrored webcam labels the player's right hand 'Left'): the events
+/** A still hand (the player's right, labelled as the live camera labels it, #995): the events
  *  are the script's, and a still stick is never a carried one. */
 const frames: HandsFrame[] = Array.from({ length: N }, () => ({
   width: 640,
   height: 480,
-  hands: [{ handedness: 'Left', keypoints: Array.from({ length: 21 }, () => ({ x: 320, y: 300 })) }],
+  hands: [{ handedness: labelFor('right', DEFAULT_MIRROR_HANDEDNESS), keypoints: Array.from({ length: 21 }, () => ({ x: 320, y: 300 })) }],
 }));
 /** A running grid, a beat every 0.5 s on the whole half-seconds. */
 const PERIOD = 0.5;

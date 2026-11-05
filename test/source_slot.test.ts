@@ -165,10 +165,11 @@ describe('the payoff: the whole instrument runs with no camera', () => {
     expect(HandsFrameSchema.safeParse(hands).success).toBe(true);
     expect(hands.hands).toHaveLength(1);
 
-    // The hand really was detected and mirrored into a side (the synthetic
-    // source emits a Right hand; mirrorHandedness routes it to `left`).
+    // The hand really was detected, on its own side: the synthetic source emits a Right hand,
+    // the player's right (#995).
     const feats = engine.getOutput('feat', 'features') as HandFeatures;
-    expect(feats.left.present || feats.right.present).toBe(true);
+    expect(feats.right.present).toBe(true);
+    expect(feats.left.present).toBe(false);
 
     // And a voice is actually SOUNDING. `voices.length > 0` and `freq > 0` are
     // both true of a silent, absent voice, so asserting those would pass on a

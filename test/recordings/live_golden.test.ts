@@ -63,6 +63,8 @@ describe.runIf(HAS_RECORDINGS)('real sessions replay to what the app computed li
       const frames = recordingStream(id, 'hands');
       const ticks = frames.map((r) => (r as unknown as { appTick: number }).appTick);
       const frame = frames.map((r) => r.value);
+      // The settings the app ran with when these takes were recorded: labels swapped (#995 later made
+      // the default false, the player's true hand), so the live outputs replay only under `true`.
       const feat = handFeaturesNode.make(handFeaturesNode.params.parse({ mirrorX: true, mirrorHandedness: true }));
       const gesture = gestureClassifierNode.make(gestureClassifierNode.params.parse({}));
       const liveFeat = liveValuesAt(id, 'feat.features', ticks);

@@ -21,6 +21,13 @@ describe('resultToHandsFrame', () => {
     expect(frame.hands[0].handedness).toBe('Left');
   });
 
+  it("keeps the model's label, the person's own hand; swaps it for a mirror-image source (#995)", () => {
+    const one = [{ x: 0.5, y: 0.5, z: 0 }];
+    const res: HandLandmarkerResultLike = { landmarks: [one, one], handedness: [[{ categoryName: 'Right' }], [{ categoryName: 'Left' }]] };
+    expect(resultToHandsFrame(res, 100, 100).hands.map((h) => h.handedness)).toEqual(['Right', 'Left']);
+    expect(resultToHandsFrame(res, 100, 100, true).hands.map((h) => h.handedness)).toEqual(['Left', 'Right']);
+  });
+
   it('maps each detected hand and defaults missing handedness to Right', () => {
     const one = [{ x: 0.5, y: 0.5, z: 0 }];
     const res: HandLandmarkerResultLike = { landmarks: [one, one], handedness: [[{ categoryName: 'Right' }]] };

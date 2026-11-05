@@ -10,14 +10,14 @@
    "type": "hand-features",
    "params": {
     "mirrorX": true,
-    "mirrorHandedness": true
+    "mirrorHandedness": false
    }
   },
   {
    "id": "dwelled",
    "type": "hands-dwell",
    "params": {
-    "mirrorHandedness": true
+    "mirrorHandedness": false
    }
   },
   {

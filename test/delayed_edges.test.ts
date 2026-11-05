@@ -161,7 +161,8 @@ describe('a graph with no delayed edge is untouched', () => {
     const spec: GraphSpec = {
       nodes: [
         { id: 'src', type: 'replay-source', params: { values: hands } },
-        { id: 'feat', type: 'hand-features', params: {} },
+        // The label convention these digests were recorded under (#995 made the default false).
+      { id: 'feat', type: 'hand-features', params: { mirrorHandedness: true } },
         { id: 'map', type: 'voice-mapping', params: {} },
       ],
       edges: [

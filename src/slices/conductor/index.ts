@@ -31,6 +31,7 @@ import { CONDUCTOR_STORES } from './stores';
 import { CONDUCTOR_EXTENSION_ID } from './id';
 import { CONDUCTOR_HUD_ELEMENT, conductorHudElement } from './nodes/overlay/conductor_hud';
 import { ConductorPrefsSchema, ConductorSettingsSchema, DEFAULT_CONDUCTOR, DEFAULT_CONDUCTOR_PREFS, migrateConductorV1, migrateConductorV2, type ConductorPrefs, type ConductorSettings } from './schema';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 export const CONDUCTOR_BRANCH_ID = 'conductor';
 /** The feature groups the body conductor reads (#375): the pose stream, by what measures it. */
@@ -77,8 +78,9 @@ export const CONDUCTOR_EXTENSION = defineExtension({
       schema: ConductorSettingsSchema.default(DEFAULT_CONDUCTOR),
       kind: 'conductor-config',
       meta: { facets: ['Conductor'], title: 'Conductor', description: 'Conduct the score with your hand: on/off, which hand and point to follow, how tightly the score follows the beat' },
-      version: 3,
-      migrations: { 1: migrateConductorV1, 2: migrateConductorV2 },
+      // v4 (#995): the old `mirrorHandedness: true` default dropped (the hands were swapped).
+      version: 4,
+      migrations: { 1: migrateConductorV1, 2: migrateConductorV2, 3: dropOldMirrorDefault },
     }),
   ] as const,
   prefs: [

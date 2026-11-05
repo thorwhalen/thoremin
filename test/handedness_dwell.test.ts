@@ -135,7 +135,8 @@ function soundPathSpec(scenario: string, featParams: Record<string, unknown> = {
   return {
     nodes: [
       { id: 'src', type: 'replay-source', params: { values: hands } },
-      { id: 'feat', type: 'hand-features', params: featParams },
+      // The label convention these digests were recorded under (#995 made the default false).
+      { id: 'feat', type: 'hand-features', params: { mirrorHandedness: true, ...featParams } },
       { id: 'map', type: 'voice-mapping', params: {} },
     ],
     edges: [
@@ -165,6 +166,8 @@ describe('hand-features at dwell 0 is byte-identical to its stateless self (#148
 
 // ---- 2. a non-zero dwell on the real flicker clip ------------------------------------
 
+// The sides below are read under the label convention these were written for (`mirrorHandedness:
+// true`; #995 made the default false): the dwell's behaviour, not which hand, is under test.
 describe('hand-features with a dwell holds the measured flicker (video_hand_sweep)', () => {
   // The clip's raw labels: Left throughout, except Right on 35-42 (8 frames, a sustained
   // relabel) and 61-62 (the 1-2 frame flicker #144 measured). The trunk mirrors
@@ -173,7 +176,7 @@ describe('hand-features with a dwell holds the measured flicker (video_hand_swee
   const sideOf = (f: HandFeatures): 'left' | 'right' | 'none' => (f.right.present ? 'right' : f.left.present ? 'left' : 'none');
 
   async function sidesAt(dwell: number): Promise<string[]> {
-    const node = handFeaturesNode.make(handFeaturesNode.params.parse({ handednessDwellFrames: dwell }));
+    const node = handFeaturesNode.make(handFeaturesNode.params.parse({ handednessDwellFrames: dwell, mirrorHandedness: true }));
     const out = await replayNode(node, { hands: frames }, { dt: 1 / 30 });
     return out.map((o) => sideOf(o.features as HandFeatures));
   }
@@ -203,7 +206,7 @@ describe('hand-features with a dwell holds the measured flicker (video_hand_swee
 
   it('those eight frames are the ONLY ones where dwell 3 differs from dwell 0', async () => {
     const run = async (dwell: number) => {
-      const node = handFeaturesNode.make(handFeaturesNode.params.parse({ handednessDwellFrames: dwell }));
+      const node = handFeaturesNode.make(handFeaturesNode.params.parse({ handednessDwellFrames: dwell, mirrorHandedness: true }));
       return (await replayNode(node, { hands: frames }, { dt: 1 / 30 })).map((o) => JSON.stringify(o.features));
     };
     const [raw, held] = await Promise.all([run(0), run(3)]);
@@ -212,7 +215,7 @@ describe('hand-features with a dwell holds the measured flicker (video_hand_swee
   });
 
   it('the live port overrides the build-time param, frame by frame', async () => {
-    const node = handFeaturesNode.make(handFeaturesNode.params.parse({}));
+    const node = handFeaturesNode.make(handFeaturesNode.params.parse({ mirrorHandedness: true }));
     const dwell = frames.map(() => 3);
     const held = await replayNode(node, { hands: frames, handednessDwell: dwell }, { dt: 1 / 30 });
     expect(sideOf(held[61].features as HandFeatures)).toBe('right');

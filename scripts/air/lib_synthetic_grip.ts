@@ -24,6 +24,7 @@
  * Self-made data only (this file is the whole provenance), safe to commit.
  */
 import type { HandsFrame, Keypoint } from '@thoremin/sdk/nodes/domain';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 /** The stick's reach past the fulcrum, in grip lengths, in this synthetic grip. */
 export const TRUE_STICK_LENGTH = 4;
@@ -72,8 +73,8 @@ export interface GripOptions {
   noise?: number;
   /** Noise seed. Default 1. */
   seed?: number;
-  /** MediaPipe's label for the hand (the mirrored webcam labels the player's right hand
-   *  'Left'). Default 'Left'. */
+  /** MediaPipe's label for the hand (the live camera labels the player's own hand, #995).
+   *  Default: the player's right hand's. */
   handedness?: 'Left' | 'Right';
 }
 
@@ -92,7 +93,7 @@ function gaussian(seed: number): () => number {
 
 /** The gripping hand on every frame of a stick clip, as the air drum's input. */
 export function gripFrames(poses: readonly StickPose[], o: GripOptions = {}): HandsFrame[] {
-  const { arm = 0, noise = 0, seed = 1, handedness = 'Left' } = o;
+  const { arm = 0, noise = 0, seed = 1, handedness = labelFor('right', DEFAULT_MIRROR_HANDEDNESS) } = o;
   if (poses.length === 0) return [];
   const rest = poses[0].tip;
   const rand = gaussian(seed);

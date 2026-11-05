@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { SNAP_SCALES } from './lib/assist';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 const frac = (d: number) => z.number().min(0).max(1).default(d);
 
@@ -86,8 +87,12 @@ export const PhysicalThereminSchema = z.object({
   antennasOnVideo: z.object({ show: z.boolean().default(true) }).default({ show: true }),
   /** The note, cents and hertz beside the pitch antenna. */
   readout: z.object({ show: z.boolean().default(true) }).default({ show: true }),
-  /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** The display mirrors the camera frame (the selfie view): the antennas' positions are in the
+   *  displayed frame. Off for a third-person video shown as is. */
+  mirrorX: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
 });
 export type PhysicalThereminSettings = z.infer<typeof PhysicalThereminSchema>;
 export const DEFAULT_PHYSICAL_THEREMIN: PhysicalThereminSettings = PhysicalThereminSchema.parse({});

@@ -36,6 +36,7 @@ import { midiToFreq } from '@thoremin/sdk/music/theory';
 import { isFreshFrame, type FrameTiming, type HandsFrame, type SynthParams, type VoiceParams } from '@thoremin/sdk/nodes/domain';
 import { labelFor, type PlayerHand } from './air_bass';
 import { definedOnly } from '@thoremin/sdk/util/options';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 /** The flute's synth voice id. The hands are 0-1, the chords 2-10, and the score takes
  *  11 + its note index, unbounded (a symphony movement has thousands of notes), so the
@@ -63,8 +64,9 @@ const Params = z.object({
   /** Seconds a lost face is held before the breath stops: on a flute the hands sit by
    *  the mouth, and a moment of lost face must not cut the note. */
   faceHold: z.number().min(0).max(2).default(0.3),
-  /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
 });
 type Params = z.infer<typeof Params>;
 
