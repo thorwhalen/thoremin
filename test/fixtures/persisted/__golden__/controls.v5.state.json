@@ -307,6 +307,7 @@
     "rendering": "sustained",
     "sevenths": false,
     "signDwellS": 0.2,
+    "signEvidence": 0.02,
     "sound": "warmPad",
     "split": 0.65,
     "strumPoint": "wrist",

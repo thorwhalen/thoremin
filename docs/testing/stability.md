@@ -48,11 +48,11 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Chord Map Strum | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
 | Chord Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Chord Wheel | conducting | 13.3 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| ASL Chords | signs-gaps | 23.9 | 0.39 | 0.00 | 1 | 0 | 1 | 1300 (1667) | 1/8 | 0 |
-| ASL Chords | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 267 (333) | 0/9 | 0 |
+| ASL Chords | signs-gaps | 25.1 | 0.00 | 0.00 | 0 | 0 | 0 | 1467 (1567) | 0/8 | 0 |
+| ASL Chords | signs-flow | 28.2 | 0.07 | 0.00 | 0 | 0 | 0 | 167 (233) | 0/9 | 0 |
 | ASL Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Sign Map | signs-gaps | 41.0 | 0.23 | 0.00 | 0 | 0 | 1 | 1333 (1700) | 1/8 | 0 |
-| Sign Map | signs-flow | 28.0 | 0.30 | 0.00 | 0 | 0 | 0 | 267 (367) | 0/9 | 0 |
+| Sign Map | signs-gaps | 41.2 | 0.00 | 0.00 | 0 | 0 | 0 | 1467 (1567) | 0/8 | 0 |
+| Sign Map | signs-flow | 28.2 | 0.07 | 0.00 | 0 | 0 | 0 | 167 (233) | 0/9 | 0 |
 | Sign Map | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Sign Wheel | signs-gaps | 38.1 | 0.16 | 0.00 | 0 | 0 | 1 | 1267 (1633) | 1/8 | 0 |
 | Sign Wheel | signs-flow | 28.1 | 0.15 | 0.00 | 0 | 0 | 0 | 233 (300) | 0/9 | 0 |
@@ -104,6 +104,9 @@ The baseline as first measured on main (2026-10-26), kept as it was so each fix'
 - **Conduct the Chords** holds every chord it plays for at least 200 ms on a real conductor (no flicker), and Head Chords on the maintainer's head clip likewise.
 
 The fixes are separate pull requests, each with its before and after on these streams. Tried and not shipped: a speed gate on the Chord Map's cell choice (a new cell is taken only once the palm slows, at 1, 2 and 4 cell widths a second). It did not remove the passing chord on the scripted move between non-neighbours, and it added latency and a missed chord.
+
+
+**A letter the reader is sure of commits sooner (2026-11-05).** ASL Chords and Sign Map used to play a letter once it had been named for 0.2 s; they now commit it once its score above the reader's threshold, summed over the seconds it is named, reaches 0.02, or after the same 0.2 s (`@thoremin/sdk/util/commit_gate`, thoremin-asl#16). In flow, a chord comes a frame to four sooner (median 267 to 167 ms, p90 333 to 233 ms) and changes less while a letter is held (0.30 to 0.07 a second). With gaps, every letter's chord comes 100 to 133 ms sooner and D, which the dwell never reached, now plays; that one late letter is why the median rises (1300 to 1467 ms) while every per-letter latency falls. The choir stays at 0 s of chord.
 
 A headless run supplies what the app hands a seed off the tick: a conducted seed's score (`scoreDoc`), a categorizer-chords seed's shipped demo model and the feature groups the app claims for it, the sign reader's weights already loaded, a recorded body or face stream in place of that camera, and a capture stamp on every hand frame.
 

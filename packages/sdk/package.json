@@ -144,6 +144,7 @@
     "./timing/stamp_dejitter": "./src/timing/stamp_dejitter.ts",
     "./timing/tracker": "./src/timing/tracker.ts",
     "./status/gate": "./src/status/gate.ts",
+    "./util/commit_gate": "./src/util/commit_gate.ts",
     "./util/ids": "./src/util/ids.ts",
     "./util/json": "./src/util/json.ts",
     "./util/options": "./src/util/options.ts",
