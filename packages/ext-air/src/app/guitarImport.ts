@@ -11,7 +11,7 @@
 import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
 import { MIN_SAMPLES_PER_ENTRY } from '../lib/vocabulary';
-import { canonicalChordLabel } from '../lib/recorded_chords';
+import { canonicalChordLabel, isRecorded } from '../lib/recorded_chords';
 import { airControls } from './controls';
 import { useGuitarVocabulary, type VocabularyState } from './vocabularyStore';
 
@@ -43,7 +43,9 @@ export function guitarVocabularyImporter({ state = useGuitarVocabulary, fretting
     canonical,
     has: (label) => {
       const name = canonical(label);
-      return name !== null && state.getState().vocab.entries.some((e) => e.label === name);
+      // Only a chord the player taught is theirs to be asked about; a recorded starting chord
+      // (`recorded_chords.ts`) is replaced without asking, as teaching it would replace it.
+      return name !== null && state.getState().vocab.entries.some((e) => e.label === name && !isRecorded(e));
     },
     async import(entries, options = {}) {
       if (!state.getState().loaded) await state.getState().load();

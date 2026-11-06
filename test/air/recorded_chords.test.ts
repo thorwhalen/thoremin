@@ -158,4 +158,10 @@ describe("recorded entries and the player's own", () => {
   it('the hand-shapes importer keeps a second voicing', () => {
     expect(guitarVocabularyImporter().canonical('g (2)')).toBe('G (2)');
   });
+  it('the importer asks before replacing a chord the player taught, not a recorded one', () => {
+    const state = { getState: () => ({ vocab: withEntry(seed, 'C', enrolSamples('C', 40, 4)) }) } as never;
+    const importer = guitarVocabularyImporter({ state });
+    expect(importer.has('G')).toBe(false);
+    expect(importer.has('C')).toBe(true);
+  });
 });
