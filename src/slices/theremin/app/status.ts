@@ -17,12 +17,12 @@ export function describeThereminLive(live: PhysicalThereminStatus): string {
   if (!live.pitchHand) return 'Raise your right hand near the pitch antenna (the rod on the right).';
   const note = live.midi !== null ? noteReadout(live.midi) : '';
   if (!live.sounding) return `${note}. Lift your left hand off the loop to hear it.`;
-  return `${note}, ${live.hz?.toFixed(0)} Hz, volume ${Math.round(live.volume * 100)}%${live.vibrato > 0.5 ? ', vibrato' : ''}.`;
+  return `${note}, ${live.hz?.toFixed(0)} Hz, volume ${Math.round(live.volume * 100)}%${live.vibrato > 0.5 ? ', vibrato' : ''}${live.position ? `, hand in ${live.position.label}` : ''}.`;
 }
 
 /** Quantise what the view shows (the note to the cent, the volume to the percent). */
 const liveKey = (l: PhysicalThereminStatus): string =>
-  `${l.enabled ? 1 : 0}|${l.pitchHand ? 1 : 0}|${l.volumeHand ? 1 : 0}|${l.midi === null ? '-' : Math.round(l.midi * 100)}|${Math.round(l.volume * 100)}|${l.vibrato > 0.5 ? 1 : 0}|${l.sounding ? 1 : 0}`;
+  `${l.enabled ? 1 : 0}|${l.pitchHand ? 1 : 0}|${l.volumeHand ? 1 : 0}|${l.midi === null ? '-' : Math.round(l.midi * 100)}|${Math.round(l.volume * 100)}|${l.vibrato > 0.5 ? 1 : 0}|${l.sounding ? 1 : 0}|${l.position?.id ?? '-'}`;
 
 /** The theremin's readout store, reporter and status hook. */
 export const THEREMIN_STATUS = createStatusStore(PHYSICAL_THEREMIN_NODE_ID, { absent: IDLE_PHYSICAL_THEREMIN_STATUS, keyOf: liveKey, field: 'live' });
