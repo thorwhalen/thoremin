@@ -8,7 +8,8 @@
  *   differently, and a shared model scored 24% across players against 90 to 98% for two
  *   seconds of a player's own hand per chord. So the chords are ENROLLED: the player holds
  *   each shape they want and names it, and the `model` input is the classifier trained
- *   from those samples (`src/air/vocabulary.ts`). The live shape is the same featurizer
+ *   from those samples (`src/air/vocabulary.ts`). Until they do, it plays fifteen chord
+ *   shapes recorded from the author's hand (`../lib/recorded_chords.ts`). The live shape is the same featurizer
  *   the footage model used (`src/features/hand_shape.ts`), classified by the trainer's
  *   hysteretic tracker (`packages/sdk/src/enroll/classify.ts`): a new chord must win a few frames in a
  *   row, and a moment of doubt HOLDS the last chord rather than dropping it.
@@ -32,6 +33,7 @@ import type { NodeContext } from '@thoremin/dag';
 import { createStrumDetector, LATE_VELOCITY, strumNotes, type StrumDetector } from '@thoremin/sdk/gesture/strum';
 import { createCategoryTracker, type CategoryTracker, type FeatureVector, type TrainedModel } from '@thoremin/sdk/enroll';
 import { chordShapeVector } from '../lib/hand_shape';
+import { chordOfLabel } from '../lib/recorded_chords';
 import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { isFreshFrame, LM, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { captureTime } from '@thoremin/sdk/timing/tracker';
@@ -78,7 +80,8 @@ export interface AirGuitarStatus {
   known: number;
   /** Whether the fretting hand is in view. */
   fretting: boolean;
-  /** The chord the fretting hand is holding now (the player's name for it), or null. */
+  /** The chord the fretting hand is holding now (the player's name for it, `G (2)` for a
+   *  second voicing of G), or null. */
   chord: string | null;
   /** False when the held chord's name is not a chord the app can voice. */
   playable: boolean;
@@ -198,13 +201,13 @@ export const airGuitarNode = defineNode<Params>({
           shape = fret ? chordShapeVector(fret, frame) : null;
           let chord = status.chord;
           if (shape && tracker) chord = labelOf(model, tracker.push(shape).categoryId);
-          status = { ...status, fretting: !!fret, chord, playable: chord === null || parseChordName(chord) !== null };
+          status = { ...status, fretting: !!fret, chord, playable: chord === null || parseChordName(chordOfLabel(chord)) !== null };
           if (strum) {
             const kp = strum.keypoints[c.strumPoint === 'wrist' ? LM.wrist : LM.index_tip];
             for (const s of predictor.push({ t, x: kp.x / frame.height, y: kp.y / frame.height }, ctx.time, c.minLead)) {
               if (chord === null) continue; // no chord held: a strum of nothing
               const velocity = s.late ? s.strength * c.volume * LATE_VELOCITY : s.strength * c.volume;
-              const strummed = strumNotes(chord, s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
+              const strummed = strumNotes(chordOfLabel(chord), s.t, velocity, c.strumSpread, { predicted: s.predicted, lead: s.lead }, shift);
               if (strummed.length) {
                 notes.push(...strummed);
                 status = {

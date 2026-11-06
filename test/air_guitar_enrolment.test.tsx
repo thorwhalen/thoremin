@@ -131,3 +131,18 @@ describe.runIf(AIR)('learning a chord', () => {
     expect((screen.getByText('Learn') as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe.runIf(AIR)('the recorded chords', () => {
+  it('says where the starting chords come from, and puts them back in one click', async () => {
+    const { RecordedChords } = await import('@thoremin/ext-air/panels/airGuitar');
+    render(<RecordedChords />);
+    expect(screen.getByTestId('air-guitar-recorded').textContent).toMatch(/starts with 15 chords recorded/);
+    vi.useRealTimers();
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Use the recorded chords/));
+    });
+    expect(useGuitarVocabulary.getState().vocab.entries).toHaveLength(15);
+    expect(useControls.getState().airGuitarModel?.categories).toHaveLength(15);
+    expect(screen.queryByText(/Use the recorded chords/)).toBeNull();
+  });
+});
