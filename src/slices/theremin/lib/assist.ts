@@ -167,7 +167,9 @@ export interface AssistReading {
 
 /** A stateful assistance chain; `step` once per new hand frame, `reset` when the hand is lost. */
 export interface AssistChain {
-  step(pitch: number, dt: number, stages: Omit<AssistSettings, 'level' | 'custom'>, scalePitchClasses: readonly number[]): AssistReading;
+  /** `centre`: a stage on the vibrato-free, smoothed pitch before the correction (the pose snap,
+   *  `pose_snap.ts`), so it moves the note without flattening a vibrato. */
+  step(pitch: number, dt: number, stages: Omit<AssistSettings, 'level' | 'custom'>, scalePitchClasses: readonly number[], centre?: (pitch: number, dt: number) => number): AssistReading;
   reset(): void;
 }
 
@@ -200,7 +202,7 @@ export function createAssistChain(t = ASSIST_TUNING): AssistChain {
   };
   return {
     reset,
-    step(pitch, dtIn, stages, scale) {
+    step(pitch, dtIn, stages, scale, centreStage) {
       const dt = dtIn > 0 && Number.isFinite(dtIn) ? dtIn : 1 / 30;
       // The centre and the wobble, measured whatever the stages: switching the aid on mid-note
       // must not start from nothing.
@@ -223,6 +225,7 @@ export function createAssistChain(t = ASSIST_TUNING): AssistChain {
       // The cutoff falls geometrically from light to heavy as the smoothing rises.
       if (stages.smoothing > 0) smoothed = oneEuro(base, dt, t.lightCutoffHz * (t.heavyCutoffHz / t.lightCutoffHz) ** Math.min(1, stages.smoothing));
       else xPrev = null;
+      if (centreStage) smoothed = centreStage(smoothed, dt);
       let corrected = smoothed;
       let target: number | null = null;
       if (!(stages.correction > 0)) lastTarget = null;

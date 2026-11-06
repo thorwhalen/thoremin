@@ -33,6 +33,9 @@ import {
   type Segment,
 } from '../lib/physics';
 import { createAssistChain, effectiveAssist } from '../lib/assist';
+import { poseFeatures, poseVector } from '../lib/hand_pose';
+import { classifyPose } from '../lib/poses';
+import { createPoseSnap } from '../lib/pose_snap';
 
 /** The voice id: past the hands (0-1), the chords (2-10), any score (11 + n), the air flute (1e6),
  *  the ASL chords (2e6), the categorizer chords (3e6), the chord map (4e6), wheel (5e6) and chart
@@ -68,6 +71,11 @@ export interface PhysicalThereminStatus {
   pitchPoint: { x: number; y: number } | null;
   loopPoint: { x: number; y: number } | null;
   sounding: boolean;
+  /** The codified position the pitch hand holds (`positions.system`; taken once the classifier
+   *  has named it surely for the snap's dwell), and the pitch the pose snap pulls it toward (null
+   *  while it pulls nothing). */
+  position: { id: string; label: string } | null;
+  positionTarget: number | null;
 }
 
 export const IDLE_PHYSICAL_THEREMIN_STATUS: PhysicalThereminStatus = {
@@ -85,6 +93,8 @@ export const IDLE_PHYSICAL_THEREMIN_STATUS: PhysicalThereminStatus = {
   pitchPoint: null,
   loopPoint: null,
   sounding: false,
+  position: null,
+  positionTarget: null,
 };
 
 /** The pitch rod and the volume loop as segments. */
@@ -170,11 +180,15 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
     let lastT: number | null = null;
     let lastPitchSeen = -Infinity;
     const chain = createAssistChain();
+    const poseSnap = createPoseSnap();
+    /** The technique the snap's anchor belongs to: another one starts it over. */
+    let snapSystem = s.positions.system;
     let status: PhysicalThereminStatus = { ...IDLE_PHYSICAL_THEREMIN_STATUS };
     let voice: VoiceParams = silentVoice(s.sound);
 
     const reset = () => {
       chain.reset();
+      poseSnap.reset();
       lastFrame = undefined;
       lastT = null;
       lastPitchSeen = -Infinity;
@@ -218,7 +232,23 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
           if (right) lastPitchSeen = t;
           if (right) {
             const raw = rawPitchOf(right, frame, s, mirror);
-            const reading = chain.step(raw.midi, dt, effectiveAssist(s.assist), [...new Set(scale)]);
+            const pcs = [...new Set(scale)];
+            if (s.positions.system !== snapSystem) {
+              poseSnap.reset();
+              snapSystem = s.positions.system;
+            }
+            // The codified position the pitch hand is in, and the snap that keeps its interval.
+            const shape = s.positions.system === 'off' ? null : poseFeatures(right);
+            const read = shape && s.positions.system !== 'off' ? classifyPose(poseVector(shape), s.positions.system) : null;
+            const w = right.keypoints[0]!;
+            const palm = Math.hypot(right.keypoints[9]!.x - w.x, right.keypoints[9]!.y - w.y);
+            let snapped: { target: number | null; pose: { id: string; label: string } | null } = { target: null, pose: null };
+            const centre = (pitch: number, stepDt: number): number => {
+              const r = poseSnap.step({ pitch, dt: stepDt, pose: read?.pose ?? null, confidence: read?.confidence ?? 0, wrist: { x: w.x, y: w.y }, palm, strength: s.positions.snap, pitchClasses: pcs });
+              snapped = { target: s.positions.snap > 0 ? r.target : null, pose: r.pose };
+              return r.pitch;
+            };
+            const reading = chain.step(raw.midi, dt, effectiveAssist(s.assist), pcs, read ? centre : undefined);
             const hz = Math.min(MAX_HZ, Math.max(MIN_HZ, midiToHz(reading.pitch + 12 * shift)));
             const gain = s.volume * volume;
             next = {
@@ -232,6 +262,8 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
               target: reading.target,
               pitchPoint: nearestPoint(right, frame, pitchRod(s), mirror),
               sounding: gain > 0,
+              position: snapped.pose ? { id: snapped.pose.id, label: snapped.pose.label } : null,
+              positionTarget: snapped.target,
             };
             voice = { id: PHYSICAL_THEREMIN_VOICE_ID, present: true, freq: hz, gain, sound: s.sound, brightness: 1, vibrato: 0, pan: 0 };
           } else if (t - lastPitchSeen <= DROPOUT_HOLD_S && voice.present) {
@@ -242,6 +274,7 @@ export const physicalThereminNode = defineNode<z.infer<typeof Params>>({
             // No pitch hand: no sound (a camera has no far field to drone in), and the chain
             // starts over when the hand returns.
             chain.reset();
+            poseSnap.reset();
             voice = silentVoice(s.sound);
           }
           status = next;

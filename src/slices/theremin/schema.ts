@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { SoundSchema } from '@thoremin/sdk/music/sounds';
 import { SNAP_SCALES } from './lib/assist';
 import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
+import { POSE_SYSTEMS } from './lib/pose_systems';
 
 const frac = (d: number) => z.number().min(0).max(1).default(d);
 
@@ -72,6 +73,14 @@ export const AssistSchema = z.object({
   vibratoAid: frac(0.25),
 });
 
+/** The codified hand positions (`lib/poses.ts`): which system the guide reads the pitch hand by,
+ *  and how strongly the snap keeps the interval between two held positions to the codified one
+ *  (`lib/pose_snap.ts`; 0 = the raw physics). */
+export const PositionsSchema = z.object({
+  system: z.enum(['off', ...POSE_SYSTEMS]).default('eyck'),
+  snap: frac(0),
+});
+
 export const PhysicalThereminSchema = z.object({
   /** Off by default: a player who never chooses the physical theremin hears nothing new. */
   enabled: z.boolean().default(false),
@@ -83,6 +92,7 @@ export const PhysicalThereminSchema = z.object({
   pitch: PitchCircuitSchema.default(PitchCircuitSchema.parse({})),
   loop: VolumeCircuitSchema.default(VolumeCircuitSchema.parse({})),
   assist: AssistSchema.default(AssistSchema.parse({})),
+  positions: PositionsSchema.default(PositionsSchema.parse({})),
   /** The antennas (and the field lines to the hands) on the video. */
   antennasOnVideo: z.object({ show: z.boolean().default(true) }).default({ show: true }),
   /** The note, cents and hertz beside the pitch antenna. */

@@ -10,6 +10,7 @@ import { SOUND_IDS, SOUNDS } from '@thoremin/sdk/music/sounds';
 import { DEFAULT_PHYSICAL_THEREMIN, LEFT_ABSENT, type PhysicalThereminSettings } from '../schema';
 import { SNAP_SCALES, assistDefaults, effectiveAssist, type AssistSettings } from '../lib/assist';
 import { describeThereminLive, usePhysicalThereminStatus } from '../app/status';
+import { HandPositionsSection } from './HandPositions';
 
 const KEY = 'physicalTheremin';
 
@@ -86,6 +87,7 @@ export function PhysicalThereminControls() {
         </select>
       </label>
       <Slider label="Volume" value={c.volume} min={0} max={1} step={0.05} disabled={!enabled} onChange={(v) => dispatchDialSetIn(`${KEY}.volume`, v)} />
+      <HandPositionsSection c={c} enabled={enabled} />
       <CollapsibleSection label="Antennas and circuits" defaultOpen={false}>
         <Slider label="Linearity" value={c.pitch.linearity} min={0} max={1} step={0.05} disabled={!enabled} onChange={(v) => dispatchDialSetIn(`${KEY}.pitch.linearity`, v)} />
         <Slider label="Pitch sensitivity" value={c.pitch.sensitivity} min={0.2} max={4} step={0.1} disabled={!enabled} onChange={(v) => dispatchDialSetIn(`${KEY}.pitch.sensitivity`, v)} />

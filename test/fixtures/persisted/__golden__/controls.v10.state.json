@@ -763,6 +763,10 @@
       "top": 0.08,
       "x": 0.88
     },
+    "positions": {
+      "snap": 0,
+      "system": "eyck"
+    },
     "readout": {
       "show": true
     },

@@ -1,0 +1,347 @@
+{
+ "version": 1,
+ "note": "Written by scripts/theremin/measure_poses.ts: per-position centroids of the pitch hand measured on the sources named, frames labelled by the note sounded. Numbers only; the videos and landmarks stay local.",
+ "attribution": [
+  {
+   "id": "0iXmUrlwOOY",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 09: FP7 and FP6 - Finger Position 7 and 6 | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=0iXmUrlwOOY",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "0n-o71RUrQw",
+   "performer": "Carolina Eyck",
+   "title": "How to play a scale on the theremin | Carolina talks Theremin",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=0n-o71RUrQw",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "7hw9QDCikoQ",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 10: FP3 - Finger Position 3 | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=7hw9QDCikoQ",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "UMl2fPtjDV4",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 05: FP5 - Finger position 5 | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=UMl2fPtjDV4",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "UWYaOP0uoR4",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 08: Adjusting Finger Position 5 (FP5) | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=UWYaOP0uoR4",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "_tXD5tXTFRs",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 12: Final Lesson | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=_tXD5tXTFRs",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "iOm_5bNSRqs",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 06: FP1 - Finger position 1 | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=iOm_5bNSRqs",
+   "licence": "standard YouTube licence"
+  },
+  {
+   "id": "ifB8R0jMKZ8",
+   "performer": "Carolina Eyck",
+   "title": "Theremin Lesson 11: FP2 and FP4 - Finger Position 2 and 4 | Playing the Major Scale",
+   "channel": "Carolina Eyck",
+   "url": "https://www.youtube.com/watch?v=ifB8R0jMKZ8",
+   "licence": "standard YouTube licence"
+  }
+ ],
+ "snapMinConfidence": 0.5,
+ "heldOutAccuracy": 0.674,
+ "heldOutWithinOne": 0.904,
+ "heldOutSure": 0.555,
+ "heldOutSureAccuracy": 0.86,
+ "heldOutByPosition": {
+  "eyck.fp1": {
+   "sure": 740,
+   "right": 0.977,
+   "mostlyMistakenFor": "eyck.fp2",
+   "named": 775,
+   "precision": 0.933
+  },
+  "eyck.fp2": {
+   "sure": 96,
+   "right": 0.271,
+   "mostlyMistakenFor": "eyck.fp1",
+   "named": 96,
+   "precision": 0.271
+  },
+  "eyck.fp3": {
+   "sure": 97,
+   "right": 0.33,
+   "mostlyMistakenFor": "eyck.fp2",
+   "named": 65,
+   "precision": 0.492
+  },
+  "eyck.fp4": {
+   "sure": 170,
+   "right": 0.835,
+   "mostlyMistakenFor": "eyck.fp3",
+   "named": 168,
+   "precision": 0.845
+  },
+  "eyck.fp5": {
+   "sure": 781,
+   "right": 0.802,
+   "mostlyMistakenFor": "eyck.fp6",
+   "named": 662,
+   "precision": 0.946
+  },
+  "eyck.fp6": {
+   "sure": 191,
+   "right": 0.927,
+   "mostlyMistakenFor": "eyck.fp5",
+   "named": 358,
+   "precision": 0.494
+  },
+  "eyck.fp7": {
+   "sure": 194,
+   "right": 0.814,
+   "mostlyMistakenFor": "eyck.fp6",
+   "named": 176,
+   "precision": 0.898
+  },
+  "eyck.fp8": {
+   "sure": 845,
+   "right": 0.938,
+   "mostlyMistakenFor": "eyck.fp7",
+   "named": 814,
+   "precision": 0.974
+  }
+ },
+ "poses": {
+  "eyck.fp1": {
+   "prototype": [
+    0.3825,
+    0,
+    0,
+    0,
+    0.3779,
+    20.676
+   ],
+   "spread": [
+    0.1064,
+    0,
+    0,
+    0,
+    0.0895,
+    4.3377
+   ],
+   "frames": 1110,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "UWYaOP0uoR4",
+    "_tXD5tXTFRs",
+    "iOm_5bNSRqs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp2": {
+   "prototype": [
+    0.3646,
+    0.1779,
+    0.2179,
+    0.2792,
+    0.1728,
+    30.7527
+   ],
+   "spread": [
+    0.0795,
+    0.2351,
+    0.2644,
+    0.2372,
+    0.1086,
+    9.5967
+   ],
+   "frames": 313,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "UMl2fPtjDV4",
+    "_tXD5tXTFRs",
+    "iOm_5bNSRqs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp3": {
+   "prototype": [
+    0.3253,
+    0.1882,
+    0.2823,
+    0.3142,
+    0.1926,
+    32.0616
+   ],
+   "spread": [
+    0.0906,
+    0.1273,
+    0.1277,
+    0.1356,
+    0.0978,
+    5.2146
+   ],
+   "frames": 413,
+   "videos": [
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "_tXD5tXTFRs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp4": {
+   "prototype": [
+    0.3459,
+    0.234,
+    0.3313,
+    0.3525,
+    0.1431,
+    42.6789
+   ],
+   "spread": [
+    0.047,
+    0.0981,
+    0.0952,
+    0.1029,
+    0.0554,
+    7.973
+   ],
+   "frames": 384,
+   "videos": [
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "_tXD5tXTFRs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp5": {
+   "prototype": [
+    0.3064,
+    0.2205,
+    0.3205,
+    0.4721,
+    0.375,
+    83.3312
+   ],
+   "spread": [
+    0.0585,
+    0.1125,
+    0.1519,
+    0.2128,
+    0.1377,
+    6.1665
+   ],
+   "frames": 998,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "UWYaOP0uoR4",
+    "_tXD5tXTFRs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp6": {
+   "prototype": [
+    0.4279,
+    0.4493,
+    0.5719,
+    0.6448,
+    0.175,
+    80.0634
+   ],
+   "spread": [
+    0.0559,
+    0.1718,
+    0.1414,
+    0.0671,
+    0.0393,
+    7.352
+   ],
+   "frames": 357,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "UWYaOP0uoR4",
+    "_tXD5tXTFRs",
+    "ifB8R0jMKZ8"
+   ]
+  },
+  "eyck.fp7": {
+   "prototype": [
+    0.5676,
+    0.705,
+    0.741,
+    0.6156,
+    0.1585,
+    68.4709
+   ],
+   "spread": [
+    0.0394,
+    0.0317,
+    0.053,
+    0.0479,
+    0.0702,
+    4.7186
+   ],
+   "frames": 559,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "UWYaOP0uoR4",
+    "_tXD5tXTFRs"
+   ]
+  },
+  "eyck.fp8": {
+   "prototype": [
+    0.5288,
+    0.6796,
+    0.7441,
+    0.6767,
+    0.2167,
+    74.0312
+   ],
+   "spread": [
+    0.036,
+    0.0358,
+    0.0408,
+    0.0563,
+    0.0479,
+    2.8535
+   ],
+   "frames": 1474,
+   "videos": [
+    "0iXmUrlwOOY",
+    "0n-o71RUrQw",
+    "7hw9QDCikoQ",
+    "UMl2fPtjDV4",
+    "UWYaOP0uoR4",
+    "_tXD5tXTFRs",
+    "ifB8R0jMKZ8"
+   ]
+  }
+ }
+}
