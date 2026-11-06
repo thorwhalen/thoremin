@@ -24,10 +24,12 @@ import { resolveSide, type HandSide } from '@thoremin/sdk/features/catalog';
 import { DEFAULT_HANDEDNESS_DWELL_FRAMES, MAX_HANDEDNESS_DWELL_FRAMES, createHandednessDwell, createLabelOrder } from '@thoremin/sdk/features/handedness';
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { SOURCE_SLOT_OUTPUT } from '../sources/source_contract';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 const Params = z.object({
-  /** The camera reports the opposite hand when mirrored (the same knob `hand-features` carries). */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** Build-time dwell; the `handednessDwell` input overrides it live. */
   handednessDwellFrames: z.number().int().min(0).max(MAX_HANDEDNESS_DWELL_FRAMES).default(DEFAULT_HANDEDNESS_DWELL_FRAMES),
 });

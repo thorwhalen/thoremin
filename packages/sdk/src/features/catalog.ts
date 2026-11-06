@@ -336,8 +336,8 @@ export function buildBodyCtx(frame: BodyFrame, opts: BodyCtxOptions): BodyCtx {
   };
 }
 
-/** Resolve a raw hand's displayed side, applying the selfie handedness swap (the
- *  mirrored webcam reports the opposite hand), mirroring `hand-features`. */
+/** Resolve a raw hand's side, the player's: the label as is, or swapped for a mirrored
+ *  recording (`mirrorHandedness`, `DEFAULT_MIRROR_HANDEDNESS` in `nodes/player_hands`, #995). */
 export function resolveSide(handedness: 'Left' | 'Right', mirrorHandedness: boolean): HandSide {
   const swapped = mirrorHandedness ? (handedness === 'Left' ? 'Right' : 'Left') : handedness;
   return swapped === 'Right' ? 'right' : 'left';

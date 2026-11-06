@@ -36,13 +36,14 @@ function fullInputs() {
     height: 480,
     hands: [
       {
-        handedness: 'Left', // displayed-right
-        keypoints: makeHandKeypoints({ cx: 200, cy: 240, scale: 60, spread: 0.7, pinch: 0.2, handedness: 'Left' }),
+        // The player's right hand: labelled Right (#995), on the camera image's left, drawn on the right.
+        handedness: 'Right',
+        keypoints: makeHandKeypoints({ cx: 200, cy: 240, scale: 60, spread: 0.7, pinch: 0.2, handedness: 'Right' }),
         score: 1,
       },
       {
-        handedness: 'Right', // displayed-left
-        keypoints: makeHandKeypoints({ cx: 440, cy: 240, scale: 60, spread: 0.3, pinch: 0.8, handedness: 'Right' }),
+        handedness: 'Left', // the player's left, drawn on the left
+        keypoints: makeHandKeypoints({ cx: 440, cy: 240, scale: 60, spread: 0.3, pinch: 0.8, handedness: 'Left' }),
         score: 1,
       },
     ],

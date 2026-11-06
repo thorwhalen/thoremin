@@ -100,7 +100,7 @@ import type { MidiHeld } from '../lib/midi_held';
 import type { AudioHeard } from '../lib/audio_heard';
 import { CHROMA_QUALITIES, matchChord } from '@thoremin/sdk/harmony/chroma';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
-import { PLAYER_HANDS, labelFor, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+import { PLAYER_HANDS, labelFor, type PlayerHand, DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 import { LATE_VELOCITY, strumNotes } from '@thoremin/sdk/gesture/strum';
 import { definedOnly } from '@thoremin/sdk/util/options';
 import type { MusicChordReading } from '@thoremin/sdk/context/reading';
@@ -221,8 +221,9 @@ const Params = z.object({
   minSpeed: z.number().min(0).max(5).default(0.5),
   /** Strum mode: loudness, 0..1 (the stroke's own strength scales it). */
   volume: z.number().min(0).max(1).default(0.7),
-  /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** Where the beat comes from: the Chord sound's tempo, or the loaded song while it plays. */
   clock: z.enum(CLOCKS).default('tempo'),
   /** Hold mode: a new chord sounds at once, or on the next beat of the clock. */

@@ -33,6 +33,7 @@ import { DEFAULT_HAND_MAP, RECOMMENDED_FINGER_ROUTES, type HandMap, type FingerR
 import { OverlayDialSchema } from '@/nodes/output/canvas_overlay.schema';
 import type { FingerName } from '@thoremin/sdk/nodes/domain';
 import { dialsStore } from './settingsStore';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 // --- Hand-map builders for the feature-demo seeds ---------------------------------
 const route = (target: FingerTarget, over: Partial<FingerRoute> = {}): FingerRoute => ({
@@ -341,7 +342,7 @@ export async function ensureSeeded(): Promise<void> {
   const named = new Set(list.filter((p) => p.name !== LAST_MODIFIED).map((p) => p.name));
   if (named.size > 0 && readSeedVersion() >= SEED_VERSION) return;
   for (const s of SEED_INSTRUMENTS) {
-    if (!named.has(s.name)) await instruments.save(s.name, s.layer);
+    if (!named.has(s.name)) await instruments.save(s.name, { ...s.layer, [HAND_LABELS_KEY]: TRUE_HAND });
   }
   for (const name of named) {
     const retired = RETIRED_SEEDS[name];
@@ -431,8 +432,18 @@ function isFreshBrowser(): boolean {
  *   absence is meaningful (the legacy `octaves` span path).
  */
 export function normalizeLayer(layer: Layer): Layer {
-  return healLayer(ownKeys(layer).own);
+  return healLayer(ownKeys(layer).own, layer[HAND_LABELS_KEY] === TRUE_HAND);
 }
+
+/**
+ * A saved instrument written by a build that reads the hand model's labels as the player's own hand
+ * (#995) carries this mark (a key no dial owns, so it rides with the instrument's foreign keys). A
+ * layer without it was saved while every hand instrument defaulted `mirrorHandedness: true`, which
+ * swapped the hands: its stored `true` is that old default and is dropped on load. A marked layer's
+ * `true` is the player's own choice (a mirrored recording) and is kept.
+ */
+export const HAND_LABELS_KEY = 'handLabels';
+const TRUE_HAND = 'true-hand';
 
 /**
  * The keys a stored layer holds that this build's dials know (`own`), and the rest (`foreign`):
@@ -450,11 +461,19 @@ function ownKeys(layer: Layer): { own: Layer; foreign: Layer } {
   return { own, foreign };
 }
 
-function healLayer(layer: Layer): Layer {
+function healLayer(layer: Layer, trueHand = false): Layer {
   // The extensions' dial chains first (#600 S10): an instrument saved before a dial took over a
   // value from another (the air drum's pads from `overlay.drumPads`) gets the same move the hot
   // store gets, so its visible state is the same; the heal below then fills what is still missing.
   let out = migrateLayerSlices(layer, CONTRIBUTIONS.dialSlices);
+  // #995: an unmarked instrument's `mirrorHandedness: true` is the old default (the hands
+  // swapped), dropped; a marked one's is the player's choice, kept, though the slice chains above
+  // (replayed from v1 on a layer missing a field) dropped it too.
+  for (const [k, v] of Object.entries(out)) {
+    const stored = (layer as Record<string, unknown>)[k] as { mirrorHandedness?: unknown } | undefined;
+    const value = !trueHand ? dropOldMirrorDefault(v) : stored?.mirrorHandedness === true && v && typeof v === 'object' ? { ...(v as object), mirrorHandedness: true } : v;
+    if (value !== v) out = { ...out, [k]: value } as Layer;
+  }
   for (const key of thoreminDials.keys) {
     const dflt = thoreminDials.defaults[key];
     if (dflt === undefined || out[key] !== undefined) continue;
@@ -523,7 +542,7 @@ export async function selectInstrument(name: string): Promise<Layer | null> {
 export async function commitToInstrument(name: string): Promise<void> {
   const stored = await instruments.load(name);
   const { foreign } = stored ? ownKeys(stored) : { foreign: {} };
-  await instruments.save(name, { ...foreign, ...dialsStore.getState().layer });
+  await instruments.save(name, { ...foreign, ...dialsStore.getState().layer, [HAND_LABELS_KEY]: TRUE_HAND });
   dialsStore.markSaved();
 }
 

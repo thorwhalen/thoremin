@@ -23,6 +23,7 @@ import type { GeneralLabeling } from '../../enroll/modality';
 import type { FeatureVector } from '../../enroll/types';
 import { buildHandCtx, HAND_SIDE_FEATURES, resolveSide } from '../catalog';
 import type { HandsFrame } from '../../nodes/domain';
+import { DEFAULT_MIRROR_HANDEDNESS } from '../../nodes/player_hands';
 import { handWords } from './hand_words';
 
 /** The axes a hand-shape feature must be declared invariant to. */
@@ -198,7 +199,7 @@ export const handModality: CarveModality = {
 export interface HandsFrameVectorOptions {
   /** Mirror x (the selfie view). Default true, as the node. */
   mirrorX?: boolean;
-  /** Swap the reported handedness (the mirrored webcam reports the opposite hand). Default true. */
+  /** Swap the reported handedness: only for a mirrored recording (#995). Default `DEFAULT_MIRROR_HANDEDNESS` (false). */
   mirrorHandedness?: boolean;
 }
 
@@ -212,7 +213,7 @@ export function handsFrameVector(frame: HandsFrame, options: HandsFrameVectorOpt
   const out: FeatureVector = {};
   const seen = new Set<string>();
   for (const hand of frame.hands) {
-    const side = resolveSide(hand.handedness, options.mirrorHandedness ?? true);
+    const side = resolveSide(hand.handedness, options.mirrorHandedness ?? DEFAULT_MIRROR_HANDEDNESS);
     if (seen.has(side)) continue;
     seen.add(side);
     const ctx = buildHandCtx(hand, frame, { mirrorX, side });

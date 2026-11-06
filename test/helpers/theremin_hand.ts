@@ -66,5 +66,6 @@ export function testHand(spec: TestHandSpec): Hand {
   const oriented = world.map((p) => orient(p, spec.yaw ?? 0, spec.pitch ?? 0));
   const worldKeypoints: Keypoint[] = oriented.map(([x, y, z]) => ({ x, y, z }));
   const keypoints: Keypoint[] = oriented.map(([x, y, z]) => ({ x: spec.cx + x * spec.pxPerM, y: spec.cy + y * spec.pxPerM, z }));
-  return { handedness: spec.handedness ?? 'Left', keypoints, worldKeypoints, score: 1 };
+  // Default: the player's right hand (the pitch hand), labelled as the live camera labels it (#995).
+  return { handedness: spec.handedness ?? 'Right', keypoints, worldKeypoints, score: 1 };
 }

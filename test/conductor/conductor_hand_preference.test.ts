@@ -53,10 +53,10 @@ describe.runIf(CONDUCTOR)('the conductor prefers the hand it reads (#784)', () =
     expect(conductorReadHand(split)).toBeUndefined();
   });
 
-  it("reaches the host: the default conductor wants the player's right hand, the camera's Left", () => {
+  it("reaches the host: the default conductor wants the player's right hand, labelled Right by the live camera (#995)", () => {
     const s = useControls.getState();
     const conducting = { ...s, conductor: { ...s.conductor, enabled: true } } as typeof s;
-    expect(liveHandPreference(conducting)).toEqual({ kind: 'label', handedness: 'Left' });
+    expect(liveHandPreference(conducting)).toEqual({ kind: 'label', handedness: 'Right' });
     expect(liveHandPreference(s)).toBeUndefined();
   });
 });

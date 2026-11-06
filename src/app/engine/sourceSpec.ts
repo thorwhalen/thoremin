@@ -12,7 +12,7 @@
  *  `kind` to acquire the underlying `<video>` (camera stream vs file). */
 export type SourceSpec =
   | { kind: 'camera' }
-  | { kind: 'video'; url: string };
+  | { kind: 'video'; url: string; mirrored?: boolean };
 
 /** Default when nothing is requested: the live webcam. */
 export const DEFAULT_SOURCE: SourceSpec = { kind: 'camera' };
@@ -31,10 +31,10 @@ export const DEFAULT_SOURCE: SourceSpec = { kind: 'camera' };
  *    into a canvas + MediaPipe, which taints (and blocks) a non-CORS source.
  *  - **Percent-encode** the value if it contains `&` or its own `?query`, or
  *    `URLSearchParams` will truncate it at the first delimiter.
- *  - The instrument **mirrors** the video (selfie assumption): a clip that is
- *    not already a mirror image renders horizontally flipped with Left/Right
- *    handedness swapped. Use a mirror-friendly clip, or expect the flip. A
- *    per-source `mirror` flag is a Source-contract concern (M-C), not M-A.
+ *  - The view **mirrors** the video (the selfie view), and the hand model names
+ *    each hand as the person's own on an unmirrored clip (#995), as on the live
+ *    camera. A clip that is itself a mirror image (the recorder's overlay video)
+ *    needs `&mirrored=1`, so the source swaps the labels back.
  *
  * @param search a `location.search` string (leading `?` optional).
  */
@@ -42,7 +42,7 @@ export function parseSourceSpec(search: string): SourceSpec {
   const params = new URLSearchParams(search);
   if (params.get('source') === 'video') {
     const url = (params.get('video') ?? params.get('clip'))?.trim();
-    if (url) return { kind: 'video', url };
+    if (url) return params.get('mirrored') === '1' ? { kind: 'video', url, mirrored: true } : { kind: 'video', url };
     console.warn('[thoremin] ?source=video needs a non-empty &video=<url>; falling back to the camera');
   }
   return DEFAULT_SOURCE;

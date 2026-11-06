@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Applier, Engine, RealtimeClock } from '@thoremin/dag';
 import { pageAppRegistry } from '@/host/appRegistry';
 import { FRAME_HOLD_RESOURCE_KEY, createFrameHold, type FrameHold } from '@thoremin/sdk/view/frame_hold';
-import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY, MIRRORED_SOURCE_RESOURCE_KEY } from '@/nodes/sources/webcam_hands.schema';
 import { cameraNodes, slotSelectionKey, sourceNeedsVideo, sourceSelectionFor, NO_SLOTS, type SlotSelection } from '../graph';
 import { branchSetKey } from '@/instruments/derive';
 import { useDemandedGroups } from './useDemandedGroups';
@@ -370,6 +370,8 @@ export function useThoreminEngine(source: SourceSpec = DEFAULT_SOURCE, slots: Sl
         // Where the hand model runs (#326): `?hands.runner=main|worker|auto` overrides the
         // node's `runner` param, so both paths can be measured and compared on one machine.
         resources[HAND_RUNNER_RESOURCE_KEY] = new URLSearchParams(window.location.search).get('hands.runner') ?? undefined;
+        // A mirror-image clip (`?source=video&mirrored=1`): the hand source swaps the labels back (#995).
+        resources[MIRRORED_SOURCE_RESOURCE_KEY] = source.kind === 'video' && source.mirrored === true;
         // The held-frame backdrop (#842): `?overlay.hold=hands` keeps the frame each hand result was
         // inferred on and the overlay draws that instead of the live video, so a dot sits on the
         // fingertip it marks. Off by default; a measuring option like `?hands.runner=`, not a dial.

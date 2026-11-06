@@ -1,6 +1,6 @@
 /**
  * The Chord Map PLAYS in a real browser, with no camera (extends `chord_map.smoke.ts`, which pins
- * the grid): the synthetic right hand sweeps across the map, so the hand that points reads a
+ * the grid): the synthetic LEFT hand (the map's pointing hand, #995) sweeps across the map, so it reads a
  * chord at a time. The chord names it reads must be diatonic to C and change as the hand moves;
  * the triad in force is three pitches; the synth is handed voices for them. In Chord Map Strum the
  * strumming needs a second hand, which the synthetic source does not show: it points and reads
@@ -43,7 +43,7 @@ test('Chord Map reads changing diatonic chords as the hand moves, and voices the
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  await page.goto('?slot.source=synthetic-hands');
+  await page.goto('?slot.source=synthetic-hands&synthetic.hands=left'); // the map points with the left hand (#995)
   await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /tap to play/i }).click();
   await choose(page, 'Chord Map');
@@ -58,7 +58,7 @@ test('Chord Map reads changing diatonic chords as the hand moves, and voices the
 
 test('Chord Map Strum points and reads chords but one hand strums nothing', async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto('?slot.source=synthetic-hands');
+  await page.goto('?slot.source=synthetic-hands&synthetic.hands=left'); // the map points with the left hand (#995)
   await expect(page.getByRole('button', { name: /tap to play/i })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /tap to play/i }).click();
   await choose(page, 'Chord Map Strum');

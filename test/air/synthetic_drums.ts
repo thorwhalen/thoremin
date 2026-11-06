@@ -18,6 +18,7 @@
 import type { HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_PADS_SET, STARTER_KIT, type PadId, type Pads } from '@thoremin/sdk/nodes/music/drum_pads';
 import { gripFrames, type StickPose } from '../../scripts/air/lib_synthetic_grip';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 export const DRUM_TAKE_FPS = 30;
 export const DRUM_TAKE_WIDTH = 640;
@@ -169,8 +170,8 @@ export function drumTake(pads: Pads, options: DrumTakeOptions = {}): DrumTake {
     });
   }
   phase(TAIL_S, () => {});
-  // The mirrored webcam labels the player's right hand 'Left' (the dial's default).
-  return { frames: gripFrames(poses, { arm: 0, handedness: 'Left', noise, seed }), overlay, script };
+  // The player's right hand, as the live camera's model labels it (#995).
+  return { frames: gripFrames(poses, { arm: 0, handedness: labelFor('right', DEFAULT_MIRROR_HANDEDNESS), noise, seed }), overlay, script };
 }
 
 /** What a scored hit needs: when it sounds and the pad it struck. */

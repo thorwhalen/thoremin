@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Hand, HandsFrame } from '@thoremin/sdk/nodes/domain';
-import { PREFER_HIGHER_HAND, preferPlayerHand, preferredHand, type HandPreference } from '@thoremin/sdk/nodes/player_hands';
+import { PREFER_HIGHER_HAND, preferPlayerHand, preferredHand, type HandPreference, DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 import {
   foldHandPreferences,
   HAND_PREFERENCE_OPTIONS,
@@ -63,7 +63,8 @@ describe('preferredHand', () => {
     expect(preferredHand([low, high], PREFER_HIGHER_HAND)).toBe(high);
   });
 
-  it("states the player's hand in the frame's terms: the mirrored camera swaps the label", () => {
+  it("states the player's hand in the frame's terms: as is by default (#995), swapped for a mirrored recording", () => {
+    expect(preferPlayerHand('right', DEFAULT_MIRROR_HANDEDNESS)).toEqual({ kind: 'label', handedness: 'Right' });
     expect(preferPlayerHand('right', true)).toEqual({ kind: 'label', handedness: 'Left' });
     expect(preferPlayerHand('right', false)).toEqual({ kind: 'label', handedness: 'Right' });
   });

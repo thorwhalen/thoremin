@@ -95,7 +95,7 @@ describe('hand-feature-vector (unit)', () => {
     const handlers = handFeatureVectorNode.make(handFeatureVectorNode.params.parse({}));
     const { vector } = handlers.process({ hands: twoHandFrame() }, bareCtx()) as { vector: FeatureVector };
     expect(allFinite(vector)).toBe(true);
-    // mirrorHandedness (default) swaps Left<->Right, so both displayed sides appear.
+    // Each label is its own side (#995), so both sides appear.
     expect(Object.keys(vector).some((k) => k.startsWith('hand.left.'))).toBe(true);
     expect(Object.keys(vector).some((k) => k.startsWith('hand.right.'))).toBe(true);
     expect(vector['hand.pair.distance']).toBeDefined(); // both hands present

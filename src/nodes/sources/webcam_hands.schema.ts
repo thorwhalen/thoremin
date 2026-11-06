@@ -11,6 +11,10 @@ export const HAND_COUNT_RESOURCE_KEY = 'handCount';
 
 /** The host resource that may override where the model runs (`?hands.runner=`, #326). */
 export const HAND_RUNNER_RESOURCE_KEY = 'handRunner';
+/** `true` when the source video is a MIRROR image (the recorder's overlay video, `?source=video&mirrored=1`):
+ *  the hand model then names each hand the opposite side, so the source swaps the labels back (#995).
+ *  The live camera's frames are not mirrored (only its view is): absent, false. */
+export const MIRRORED_SOURCE_RESOURCE_KEY = 'sourceMirrored';
 
 
 interface NormalizedLandmarkLike {

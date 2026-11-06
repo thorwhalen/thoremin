@@ -7,13 +7,13 @@
 import { z } from 'zod';
 import { ARTICULATION_SOURCES, DANCE_LEAD_DEFAULTS, DEFAULT_RHYTHM_PRIOR, HAND_GESTURE_DEFAULTS, RHYTHM_PRIOR_KINDS, TEMPO_PRIORS, TRANSPORT_DEFAULTS, type LeadOffsets } from '@thoremin/ictus';
 import { CONDUCTOR_BODY_POINTS } from './conductor_body.schema';
-import { preferPlayerHand, type HandPreference, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
+import { DEFAULT_MIRROR_HANDEDNESS, preferPlayerHand, type HandPreference, type PlayerHand } from '@thoremin/sdk/nodes/player_hands';
 
 export const CONDUCTOR_HANDS = ['auto', 'right', 'left'] as const;
 export type ConductorHand = (typeof CONDUCTOR_HANDS)[number];
 
-/** The selfie camera reports the opposite hand label: on unless the input is a third-person video. */
-export const DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS = true;
+/** The conductor's hand labels as the other instruments read them (#995): as is, except for a mirrored recording. */
+export const DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS = DEFAULT_MIRROR_HANDEDNESS;
 export const CONDUCTOR_POINTS = ['wrist', 'indexTip'] as const;
 export type ConductorPoint = (typeof CONDUCTOR_POINTS)[number];
 /** What the conductor leads (#187 PR 7): the score (and the orchestra), or the song
@@ -142,8 +142,8 @@ const Params = z.object({
   /** Selfie mirror: the webcam view is mirrored, so lateral direction is flipped to the
    *  player's frame. Off for a recorded third-person video. */
   mirrorX: z.boolean().default(true),
-  /** The mirrored webcam reports the opposite hand label (the same knob `hand-features`
-   *  carries). Off for a recorded third-person video. */
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995; the same
+   *  knob `hand-features` carries). The live camera and an unmirrored video label the true hand. */
   mirrorHandedness: z.boolean().default(DEFAULT_CONDUCTOR_MIRROR_HANDEDNESS),
   /** Which level a stroke marks (#376): `beat` (default), `half` (every other beat),
    *  `bar`, or `auto` (related to the score's marked tempo, held once chosen). */

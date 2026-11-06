@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 // v1 -> v2 of a dial whose element moved out of core's overlay (#610 item 4).
 import { movedFromOverlay } from '@thoremin/sdk/overlay/moved';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 import { ChordMapDialSchema } from './nodes/chord_map';
 import { ChordWheelDialSchema } from './nodes/chord_wheel';
 import { ChordChartDialSchema } from './nodes/chord_chart';
@@ -46,9 +47,10 @@ export const HARMONY_SETTINGS_SHAPE = {
 /** The same three keys as dial slices: what `store-controls` and the dials form fold over. */
 export const HARMONY_DIAL_SLICES = [
   dialSlice({
-    version: 2,
-    // v2 (#610 item 4): the grid's show flag moved in from `overlay.cellGrid`.
-    migrations: { 1: movedFromOverlay('cellGrid', 'gridOnVideo', GridOnVideoSchema) },
+    version: 3,
+    // v2 (#610 item 4): the grid's show flag moved in from `overlay.cellGrid`. v3 (#995): the old
+    // `mirrorHandedness: true` default dropped (the hands were swapped).
+    migrations: { 1: movedFromOverlay('cellGrid', 'gridOnVideo', GridOnVideoSchema), 2: dropOldMirrorDefault },
     key: 'chordMap',
     schema: HARMONY_SETTINGS_SHAPE.chordMap,
     kind: 'chord-map-config',
@@ -59,6 +61,9 @@ export const HARMONY_DIAL_SLICES = [
     },
   }),
   dialSlice({
+    // v2 (#995): the old `mirrorHandedness: true` default dropped (the hands were swapped).
+    version: 2,
+    migrations: { 1: dropOldMirrorDefault },
     key: 'chordWheel',
     schema: HARMONY_SETTINGS_SHAPE.chordWheel,
     kind: 'chord-wheel-config',

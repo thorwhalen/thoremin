@@ -33,6 +33,7 @@ import { type HandsFrame } from '@/nodes';
 import { conductorNode } from '@/slices/conductor/nodes/conductor';
 import { airDrumNode, type AirDrumStatus, type DrumHit } from '@thoremin/ext-air/nodes/air_drum';
 import { TIMING_RESOURCE_KEY } from '@thoremin/sdk/timing/tracker';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 export const FOLLOWERS = ['none', 'trend', 'trend-sounded', 'conductor', 'ictus', 'oracle'] as const;
 export type Follower = (typeof FOLLOWERS)[number];
@@ -82,8 +83,8 @@ export function loadClip(dir: string): Clip {
     frames.push({
       width: rec.value.width,
       height: rec.value.height,
-      // The mirrored webcam labels the player's RIGHT hand 'Left'.
-      hands: [{ handedness: 'Left', keypoints }],
+      // The player's right hand, as the live camera's model labels it (#995).
+      hands: [{ handedness: labelFor('right', DEFAULT_MIRROR_HANDEDNESS), keypoints }],
       t: rec.t,
       tSource: 'capture',
       tOrigin: performance.timeOrigin,

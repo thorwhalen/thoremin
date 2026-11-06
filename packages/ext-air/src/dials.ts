@@ -23,6 +23,7 @@ import { DEFAULT_FINGERING_PRIOR, FingeringPriorSettingsSchema } from './lib/fin
 import { dialSlice } from '@thoremin/sdk/instruments/extension';
 // v1 -> v2 of a dial whose element moved out of core's overlay (#600 S10).
 import { movedFromOverlay } from '@thoremin/sdk/overlay/moved';
+import { dropOldMirrorDefault } from '@thoremin/sdk/nodes/player_hands';
 
 /** The air drum (#233): the node's params ARE the dial, plus the pattern in play (#269: the id
  *  of a trained pattern, '' for none), which the node never sees as a param (the app resolves
@@ -73,9 +74,10 @@ export const AIR_SETTINGS_SHAPE = {
 export const AIR_DIAL_SLICES = [
   dialSlice({
     // This slice's own schema version (#600 S9): a stored-shape change bumps it with a migration.
-    version: 2,
-    // v2 (#600 S10): the pads' show flag moved in from `overlay.drumPads`.
-    migrations: { 1: movedFromOverlay('drumPads', 'padsOnVideo', PadsOnVideoSchema) },
+    version: 3,
+    // v2 (#600 S10): the pads' show flag moved in from `overlay.drumPads`. v3 (#995): the old
+    // `mirrorHandedness: true` default dropped (the hands were swapped).
+    migrations: { 1: movedFromOverlay('drumPads', 'padsOnVideo', PadsOnVideoSchema), 2: dropOldMirrorDefault },
     key: 'airDrum',
     schema: AIR_SETTINGS_SHAPE.airDrum,
     kind: 'air-drum-config',
@@ -86,7 +88,9 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
-    version: 1,
+    // v2 (#995): the old `mirrorHandedness: true` default dropped (the hands were swapped).
+    version: 2,
+    migrations: { 1: dropOldMirrorDefault },
     key: 'airBass',
     schema: AIR_SETTINGS_SHAPE.airBass,
     kind: 'air-bass-config',
@@ -97,7 +101,9 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
-    version: 1,
+    // v2 (#995): the old `mirrorHandedness: true` default dropped (the hands were swapped).
+    version: 2,
+    migrations: { 1: dropOldMirrorDefault },
     key: 'airGuitar',
     schema: AIR_SETTINGS_SHAPE.airGuitar,
     kind: 'air-guitar-config',
@@ -108,9 +114,10 @@ export const AIR_DIAL_SLICES = [
     },
   }),
   dialSlice({
-    // v2 (#600 S10): the breath cue's options moved in from `overlay.mouthCue`.
-    version: 2,
-    migrations: { 1: movedFromOverlay('mouthCue', 'breathCue', BreathCueSchema) },
+    // v2 (#600 S10): the breath cue's options moved in from `overlay.mouthCue`. v3 (#995): the
+    // old `mirrorHandedness: true` default dropped (the hands were swapped).
+    version: 3,
+    migrations: { 1: movedFromOverlay('mouthCue', 'breathCue', BreathCueSchema), 2: dropOldMirrorDefault },
     key: 'airFlute',
     schema: AIR_SETTINGS_SHAPE.airFlute,
     kind: 'air-flute-config',

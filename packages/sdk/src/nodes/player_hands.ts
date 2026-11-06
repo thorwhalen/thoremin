@@ -15,6 +15,32 @@ import { LM, type Hand } from './domain';
 export const PLAYER_HANDS = ['right', 'left'] as const;
 export type PlayerHand = (typeof PLAYER_HANDS)[number];
 
+/**
+ * Whether the hand model's Left/Right labels must be swapped to name the player's hand: no, for
+ * the live camera and any unmirrored video (#995). MediaPipe labels the hand it sees on an
+ * unmirrored image as the person's own: on the player's own takes, the hand the player calls
+ * their right is labelled `Right` in every frame (1544 of 1544; the Python pipeline on the same
+ * video 1558 of 1559), and the `Right` hand is on the camera image's left, where a facing
+ * player's right hand is, in 8,639 of 8,643 two-hand frames of the 11 live takes. The selfie VIEW is mirrored (the
+ * display, `mirrorX`); the frames the model reads are not. `true` is for a mirrored RECORDING
+ * (the recorder's overlay video). Every instrument's `mirrorHandedness` defaults to this.
+ */
+export const DEFAULT_MIRROR_HANDEDNESS = false;
+
+/**
+ * A stored dial value's `mirrorHandedness: true`, dropped so the dial heals to
+ * {@link DEFAULT_MIRROR_HANDEDNESS} (#995). Until then `true` was every hand instrument's default
+ * and no panel sets it, so a stored `true` is the old default, never a player's choice: every
+ * returning player and every saved instrument had the hands swapped. A slice's persist step (the
+ * hot store, once per slice version) and the saved-instrument heal (a layer has no version, so
+ * it is applied on every load; it changes nothing the second time).
+ */
+export function dropOldMirrorDefault(old: unknown): unknown {
+  if (!old || typeof old !== 'object' || (old as { mirrorHandedness?: unknown }).mirrorHandedness !== true) return old;
+  const { mirrorHandedness: _old, ...rest } = old as Record<string, unknown>;
+  return rest;
+}
+
 /** MediaPipe's label for the player's hand, given the mirror convention. */
 export function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
   const raw = hand === 'right' ? 'Right' : 'Left';

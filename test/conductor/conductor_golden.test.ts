@@ -78,7 +78,7 @@ for (const clip of ['conducting_44', 'conducting_34', 'conducting_24']) {
   // The dial toggles live: off, on, off, on again (the core is re-created on the switch).
   add('hands/44/config-toggle', () => ({
     params: { enabled: true, ...RECORDED },
-    inputs: { hands, doc: fill(n, DOC_FERMATA), config: hands.map((_, i) => ({ enabled: Math.floor(i / 90) % 2 === 0, servoBeats: i < 200 ? 1 : 2 })) },
+    inputs: { hands, doc: fill(n, DOC_FERMATA), config: hands.map((_, i) => ({ enabled: Math.floor(i / 90) % 2 === 0, servoBeats: i < 200 ? 1 : 2, mirrorHandedness: true })) }, // the default this was recorded under (#995)
   }));
   add('hands/44/no-hand-then-hand', () => ({ params: { enabled: true, ...RECORDED }, inputs: { hands: hands.map((f, i) => (i < 60 ? { ...f, hands: [] } : f)) } }));
 }

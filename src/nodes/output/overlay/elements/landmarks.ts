@@ -5,7 +5,7 @@
  * files by #600 S19a, the drawing unchanged).
  */
 import { LM } from '@thoremin/sdk/nodes/domain';
-import { LEFT_COLOR, type OverlayElement, type OverlayView, RIGHT_COLOR } from '../view';
+import { LEFT_COLOR, type OverlayElement, type OverlayView, RIGHT_COLOR, isDisplayedRight } from '../view';
 
 /** The landmark used as the "note source" ring, per the hand map. */
 const sourceLm = (view: OverlayView): number =>
@@ -21,7 +21,7 @@ export const landmarkDots: OverlayElement = {
     if (!frame) return;
     const srcLm = sourceLm(view);
     for (const hand of frame.hands) {
-      const color = hand.handedness === 'Left' ? RIGHT_COLOR : LEFT_COLOR; // mirrored
+      const color = isDisplayedRight(hand.handedness) ? RIGHT_COLOR : LEFT_COLOR;
       g.fillStyle = color;
       for (const k of hand.keypoints) {
         const { x: sx, y: sy } = display.px(k.x, k.y, frame);

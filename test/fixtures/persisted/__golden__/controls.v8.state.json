@@ -5,7 +5,7 @@
     "minLead": 0.05,
     "minSpeed": 0.4,
     "minStroke": 0.02,
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "neckFar": 7,
     "neckNear": 2,
     "pluckHand": "right",
@@ -22,7 +22,7 @@
     "minLead": 0.05,
     "minSpeed": 0.5,
     "minStroke": 0.03,
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "offPad": "hand",
     "pads": {
       "p1": {
@@ -126,7 +126,7 @@
     "enabled": false,
     "enterFrames": 3,
     "faceHold": 0.3,
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "prior": {
       "chart": "flute",
       "enabled": true,
@@ -144,7 +144,7 @@
     "minLead": 0.05,
     "minSpeed": 0.5,
     "minStroke": 0.03,
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "strumHand": "right",
     "strumPoint": "wrist",
     "strumSpread": 0.012,
@@ -299,7 +299,7 @@
     "minLead": 0.05,
     "minSpeed": 0.5,
     "minStroke": 0.03,
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "modeDwellS": 1,
     "play": "hold",
     "point": "palm",
@@ -342,7 +342,7 @@
     },
     "gain": 0.22,
     "hand": "left",
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "moves": "diatonic",
     "order": "fixed",
     "point": "palm",
@@ -389,7 +389,7 @@
       "show": true
     },
     "markLevel": "beat",
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
     "mirrorX": true,
     "orchestra": {
       "enabled": false,
@@ -748,7 +748,8 @@
       "q": 150,
       "tankPf": 100
     },
-    "mirrorHandedness": true,
+    "mirrorHandedness": false,
+    "mirrorX": true,
     "pitch": {
       "carrierKHz": 260,
       "linearity": 0.6,

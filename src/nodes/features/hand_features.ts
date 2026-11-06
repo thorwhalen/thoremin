@@ -43,15 +43,14 @@ import {
   type Keypoint,
   type SingleHandFeatures,
 } from '@thoremin/sdk/nodes/domain';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 const Params = z.object({
   /** Mirror x so moving the hand to your right increases x (selfie view). */
   mirrorX: z.boolean().default(true),
-  /**
-   * Swap reported Left/Right handedness (the mirrored webcam reports the
-   * opposite hand). On by default to match a selfie camera.
-   */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** openRaw value mapped to openness=0 (closed fist). */
   opennessMin: z.number().default(1.3),
   /** openRaw value mapped to openness=1 (fully spread). */

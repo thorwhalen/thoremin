@@ -39,15 +39,15 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Instrument | Stream | Sounding s | Changes / held s | Flickers / min | Short chords | Entry flickers | Chords with no hand | Latency median (p90) ms | Missed | Sound blips |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Chord Map | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
-| Chord Map | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
-| Chord Map | conducting | 3.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Chord Map | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Chord Map | conducting | 13.0 | 0.00 | 44 | 11 | 10 | 0 | - | - | 0 |
 | Chord Map Paths | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
-| Chord Map Paths | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
-| Chord Map Paths | conducting | 3.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Chord Map Paths | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Chord Map Paths | conducting | 13.0 | 0.00 | 44 | 11 | 10 | 0 | - | - | 0 |
 | Chord Map Strum | map-script | 27.5 | 0.10 | 0.00 | 1 | 0 | 0 | 0.00 (33) | 0/12 | 0 |
-| Chord Map Strum | choir | 20.0 | 0.00 | 3.00 | 11 | 1 | 0 | - | - | 0 |
+| Chord Map Strum | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Chord Wheel | choir | 20.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Chord Wheel | conducting | 13.3 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Chord Wheel | conducting | 13.3 | 0.00 | 0.00 | 1 | 0 | 0 | - | - | 0 |
 | ASL Chords | signs-gaps | 25.1 | 0.00 | 0.00 | 0 | 0 | 0 | 1467 (1567) | 0/8 | 0 |
 | ASL Chords | signs-flow | 28.2 | 0.07 | 0.00 | 0 | 0 | 0 | 167 (233) | 0/9 | 0 |
 | ASL Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
@@ -57,8 +57,8 @@ The current numbers, which the test holds (rewritten by `npm run stability -- --
 | Sign Wheel | signs-gaps | 38.1 | 0.16 | 0.00 | 0 | 0 | 1 | 1267 (1633) | 1/8 | 0 |
 | Sign Wheel | signs-flow | 28.1 | 0.15 | 0.00 | 0 | 0 | 0 | 233 (300) | 0/9 | 0 |
 | Sign Wheel | choir | 19.8 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Conduct the Chords | conducting | 11.6 | 1.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
-| Conduct the Chords | choir | 14.2 | 0.54 | 0.00 | 0 | 0 | 0 | - | - | 0 |
+| Conduct the Chords | conducting | 11.6 | 1.00 | 0.00 | 0 | 0 | 1 | - | - | 0 |
+| Conduct the Chords | choir | 18.6 | 0.54 | 0.00 | 0 | 0 | 0 | - | - | 0 |
 | Hand-shape Chords | signs-gaps | 11.8 | 0.00 | 0.00 | 0 | 0 | 0 | 100 (833) | 0/12 | 0 |
 | Hand-shape Chords | signs-flow | 6.7 | 0.00 | 0.00 | 0 | 0 | 0 | 0.00 (100) | 4/11 | 0 |
 | Hand-shape Chords | choir | 0.0 | 0.00 | 0.00 | 0 | 0 | 0 | - | - | 0 |
@@ -107,6 +107,9 @@ The fixes are separate pull requests, each with its before and after on these st
 
 
 **A letter the reader is sure of commits sooner (2026-11-05).** ASL Chords and Sign Map used to play a letter once it had been named for 0.2 s; they now commit it once its score above the reader's threshold, summed over the seconds it is named, reaches 0.02, or after the same 0.2 s (`@thoremin/sdk/util/commit_gate`, thoremin-asl#16). In flow, a chord comes a frame to four sooner (median 267 to 167 ms, p90 333 to 233 ms) and changes less while a letter is held (0.30 to 0.07 a second). With gaps, every letter's chord comes 100 to 133 ms sooner and D, which the dwell never reached, now plays; that one late letter is why the median rises (1300 to 1467 ms) while every per-letter latency falls. The choir stays at 0 s of chord.
+
+
+**The hands are the player's true hands (2026-11-06, #995).** Every hand instrument used to swap the hand model's Left/Right labels (`mirrorHandedness: true`, the selfie assumption); measured on the owner's takes, the live label is the player's true hand, so the default is now `false`. Where someone plays (the scripted map, the signer), the instruments read the hand they always read in the harness, and every row is unchanged. On the streams where nobody plays the instrument, the chord hand is now the conductor's other hand: the Chord Map reads the choir conductor's left (flickers 3.0 to 0 a minute) and the orchestral conductor's left, which crosses the grid (sounding 3.0 to 13.0 s, 44 flickers a minute); Conduct the Chords follows the conductors' true right hand (choir sounding 14.2 to 18.6 s, one chord starting with no hand on `conducting`); the Chord Wheel gains one short chord. These rows say which hand of a non-player lands where, not how the instruments behave.
 
 A headless run supplies what the app hands a seed off the tick: a conducted seed's score (`scoreDoc`), a categorizer-chords seed's shipped demo model and the feature groups the app claims for it, the sign reader's weights already loaded, a recorded body or face stream in place of that camera, and a capture stamp on every hand frame.
 

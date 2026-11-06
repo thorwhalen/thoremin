@@ -98,7 +98,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       }
     ]
   },
@@ -282,7 +282,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "volume",
@@ -395,7 +395,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       }
     ]
   },
@@ -492,7 +492,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       }
     ]
   },
@@ -1572,7 +1572,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "clock",
@@ -1888,7 +1888,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "steer",
@@ -2087,7 +2087,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "markLevel",
@@ -2765,7 +2765,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "groups",
@@ -2811,7 +2811,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "opennessMin",
@@ -2878,7 +2878,7 @@
       {
         "name": "mirrorHandedness",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       {
         "name": "handednessDwellFrames",

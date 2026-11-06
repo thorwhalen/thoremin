@@ -38,6 +38,7 @@ import { captureTime } from '@thoremin/sdk/timing/tracker';
 import { NoteEventsSchema, type NoteEvent } from '@thoremin/sdk/nodes/note_events';
 import { PLAYER_HANDS, labelFor, type PlayerHand } from './air_bass';
 import { definedOnly } from '@thoremin/sdk/util/options';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 export const STRUM_POINTS = ['wrist', 'indexTip'] as const;
 
@@ -60,8 +61,9 @@ const Params = z.object({
   volume: z.number().min(0).max(1).default(0.7),
   /** Frames a new chord shape must win in a row before it takes over. */
   enterFrames: z.number().int().min(1).max(30).default(3),
-  /** The mirrored webcam reports the opposite hand label. Off for a third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
 });
 type Params = z.infer<typeof Params>;
 

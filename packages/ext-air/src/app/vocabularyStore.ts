@@ -87,6 +87,11 @@ export interface VocabularySpec {
   publish: (model: TrainedModel | null) => void;
   /** How the classifier is trained (closed-set by default). */
   train?: TrainVocabularyOptions;
+  /** The record this one replaced, read once while this one does not exist yet, through `turn`:
+   *  the flute's fingerings were saved under `flute-fingers` while every hand instrument read the
+   *  hand labels swapped (#995), and are kept, turned, under a new name, so a build that still
+   *  reads the old record (a rollback, a stale tab) keeps its own and nothing is ever turned twice. */
+  replaces?: { name: string; turn: (vocab: Vocabulary) => Vocabulary };
   /** The derivation itself, when it is more than `trainVocabulary` (the flute fuses the
    *  fingering prior in, #263). Receives the vocabulary; the default is `trainVocabulary`
    *  with `train`. */
@@ -98,7 +103,7 @@ export interface VocabularySpec {
  * entries, and on every change persist the samples and publish the classifier derived
  * from them. The guitar is one call below; the flute is another.
  */
-export function createVocabularyState({ name, features, publish, train = {}, derive }: VocabularySpec) {
+export function createVocabularyState({ name, features, publish, train = {}, derive, replaces }: VocabularySpec) {
   const model = (vocab: Vocabulary): TrainedModel | null => (derive ? derive(vocab) : trainVocabulary(vocab, train));
   return create<VocabularyState>()((set, get) => {
     const commit = async (vocab: Vocabulary): Promise<void> => {
@@ -117,9 +122,11 @@ export function createVocabularyState({ name, features, publish, train = {}, der
       error: null,
       async load() {
         const rec = await getStore().load(name);
-        const vocab = rec?.vocabulary ?? emptyVocabulary(features);
+        const old = !rec && replaces ? await getStore().load(replaces.name) : null;
+        const vocab = rec?.vocabulary ?? (old ? replaces!.turn(old.vocabulary) : emptyVocabulary(features));
         set({ vocab, loaded: true });
         publish(model(vocab));
+        if (old) await commit(vocab);
       },
       enrol: (label, samples) => commit(withEntry(get().vocab, label, samples)),
       remove: (label) => commit(withoutEntry(get().vocab, label)),
@@ -148,9 +155,22 @@ export function deriveFluteFingerModel(vocab: Vocabulary, prior: Partial<Fingeri
   return options ? fuseWithPrior(vocab, options) : trainVocabulary(vocab);
 }
 
+/** A fingering vocabulary with its hands' prefixes swapped (`l.` <-> `r.`): a fingering enrolled
+ *  before #995, when the hand labels were read swapped, so its `l.` samples are the player's right. */
+export function swapFingeringHands(vocab: Vocabulary): Vocabulary {
+  const swap = (k: string) => (k.startsWith('l.') ? `r.${k.slice(2)}` : k.startsWith('r.') ? `l.${k.slice(2)}` : k);
+  return {
+    ...vocab,
+    features: vocab.features.map(swap),
+    entries: vocab.entries.map((e) => ({ ...e, samples: e.samples.map((s) => Object.fromEntries(Object.entries(s).map(([k, v]) => [swap(k), v]))) })),
+  };
+}
+
 /** The air flute's fingerings: both hands' shapes, prefixed by the player's hand. */
 export const useFluteFingerVocabulary = createVocabularyState({
-  name: 'flute-fingers',
+  // `flute-fingers` until #995 (the hands named swapped): read once and turned, see `replaces`.
+  name: 'flute-fingers-hands',
+  replaces: { name: 'flute-fingers', turn: swapFingeringHands },
   features: FLUTE_FINGER_FEATURES,
   publish: (model) => airControls.setTransient('airFluteFingerModel', model),
   derive: (vocab) => deriveFluteFingerModel(vocab, airControls.store().getState().airFlute?.prior),

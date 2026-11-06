@@ -50,6 +50,7 @@ import {
 import type { DemandedGroups } from '@thoremin/sdk/features/demand';
 import { createHandednessDwell, MAX_HANDEDNESS_DWELL_FRAMES } from '@thoremin/sdk/features/handedness';
 import { resolveFeatureGate } from '@/features/groups';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 /** The Lab's dwell, in frames HELD: a new label is held for two frames and takes over on
  *  the third — exactly the behaviour #144 shipped (then counted as "3 frames", the switch
@@ -59,8 +60,9 @@ export const LAB_HANDEDNESS_DWELL_FRAMES = 2;
 const Params = z.object({
   /** Mirror image-x so moving right increases x (selfie view), matching hand-features. */
   mirrorX: z.boolean().default(true),
-  /** Swap reported Left/Right handedness (the mirrored webcam reports the opposite hand). */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** Which feature groups to compute (default: all hand groups). Live lab config overrides. */
   groups: z.array(z.string()).optional(),
   /** Single-hand only: DETECTED single-hand frames a NEW handedness label is held

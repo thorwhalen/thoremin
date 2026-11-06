@@ -60,7 +60,7 @@ import {
   type WorkerRunnerDeps,
 } from './hand_runner';
 import { FRAME_HOLD_RESOURCE_KEY, type FrameHold } from '@thoremin/sdk/view/frame_hold';
-import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hands.schema';
+import { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY, MIRRORED_SOURCE_RESOURCE_KEY } from './webcam_hands.schema';
 import { type HandLandmarkerResultLike } from './webcam_hands.schema';
 export type { HandLandmarkerResultLike } from './webcam_hands.schema';
 export { HAND_COUNT_RESOURCE_KEY, HAND_RUNNER_RESOURCE_KEY } from './webcam_hands.schema';
@@ -97,9 +97,11 @@ const EMPTY: HandsFrame = { width: 640, height: 480, hands: [] };
  * `kp()`/`LM` keep working downstream (the names are absent, but lookups fall back
  * to the index).
  */
-export function resultToHandsFrame(res: HandLandmarkerResultLike, w: number, h: number): HandsFrame {
+export function resultToHandsFrame(res: HandLandmarkerResultLike, w: number, h: number, mirroredSource = false): HandsFrame {
+  const swap = (l: Handedness): Handedness => (mirroredSource ? (l === 'Left' ? 'Right' : 'Left') : l);
   const hands: Hand[] = (res.landmarks ?? []).map((lms, i) => ({
-    handedness: (res.handedness?.[i]?.[0]?.categoryName as Handedness) ?? 'Right',
+    // The model names the hand it sees; on a mirror image that is the other side (#995).
+    handedness: swap((res.handedness?.[i]?.[0]?.categoryName as Handedness) ?? 'Right'),
     keypoints: lms.map((l): Keypoint => ({ x: l.x * w, y: l.y * h, z: l.z })),
     // World landmarks stay in metres (not scaled to pixels) so 3D distances between
     // them are metric + view-invariant. Absent → downstream falls back to 2D.
@@ -255,7 +257,7 @@ export const webcamHandsNode = defineNode<Params>({
     /** A runner's result, now (main thread) or when the worker answers: the latest frame,
      *  with the timing of the frame it ran on. */
     const onResult = ({ result, width, height, stamp }: HandResult): void => {
-      if (!disposed) latest = { ...resultToHandsFrame(result, width, height), ...stampToTiming(stamp) };
+      if (!disposed) latest = { ...resultToHandsFrame(result, width, height, resources[MIRRORED_SOURCE_RESOURCE_KEY] === true), ...stampToTiming(stamp) };
     };
 
     const runner = lazyResource<HandRunner>({

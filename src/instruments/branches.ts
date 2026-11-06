@@ -33,6 +33,7 @@ import { FACE_GROUP_IDS } from '@thoremin/sdk/features/sources';
 import { defineBranch, type GraphBranch } from '@thoremin/sdk/instruments/branch';
 
 import { TRUNK } from '@thoremin/sdk/instruments/trunk';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 export { TRUNK, TRUNK_ID } from '@thoremin/sdk/instruments/trunk';
 
 const ui = (port: string) => ({ node: TRUNK.ui, port });
@@ -45,8 +46,8 @@ export const trunk = defineBranch({
   description: 'What every instrument shares: hands in, the UI bridge, the merge, the synth, the overlay.',
   nodes: [
     { id: TRUNK.cam, slot: 'source', params: {}, paramsByType: { 'webcam-hands': { modelType: 'full', maxHands: 2 } } },
-    { id: TRUNK.feat, type: 'hand-features', params: { mirrorX: true, mirrorHandedness: true } },
-    { id: TRUNK.hands, type: 'hands-dwell', params: { mirrorHandedness: true } },
+    { id: TRUNK.feat, type: 'hand-features', params: { mirrorX: true, mirrorHandedness: DEFAULT_MIRROR_HANDEDNESS } },
+    { id: TRUNK.hands, type: 'hands-dwell', params: { mirrorHandedness: DEFAULT_MIRROR_HANDEDNESS } },
     { id: 'handVec', type: 'hand-feature-vector', params: {} },
     { id: 'gesture', type: 'gesture-classifier', params: {} },
     { id: TRUNK.ui, type: 'store-controls' },

@@ -22,11 +22,12 @@ import { handTrack, performance, stillestRun, type Point, type Segment } from '.
 import { MAP_H, MAP_W, openPalmTemplate, type LoadRecords } from './suite';
 import { DEFAULT_PHYSICAL_THEREMIN } from '@/slices/theremin/schema';
 import type { PhysicalThereminStatus } from '@/slices/theremin/nodes/physical_theremin';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 export const THEREMIN_SEED = 'Physical Theremin';
 export const THEREMIN_NODE = 'physTheremin';
-/** The player's right hand, as the mirrored webcam's model labels it. */
-const PITCH_HAND = 'Left' as const;
+/** The player's right hand, as the live camera's model labels it (#995). */
+const PITCH_HAND = labelFor('right', DEFAULT_MIRROR_HANDEDNESS);
 const FPS = 30;
 
 export interface ThereminMetrics {

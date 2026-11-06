@@ -95,7 +95,7 @@ import { clamp01 } from '@thoremin/stats';
 import { LAG_MIN_STROKES, LAG_STROKES, createImpactPredictor, lagGate, magnetise, nearestExpectedBeat, type ImpactConfirmation, type ImpactEvent, type ImpactPrediction, type ImpactPredictor, type LagGate, type MusicalTime } from '@thoremin/ictus';
 import { createPatternFollower, type PatternFollower, type PatternPlay } from '../lib/pattern_play';
 import { DRUM_SOUND } from '../lib/gm_drums';
-import { isFreshFrame, type Hand, type HandsFrame } from '@thoremin/sdk/nodes/domain';
+import { isFreshFrame, type HandsFrame } from '@thoremin/sdk/nodes/domain';
 import { DEFAULT_STICK_LENGTH, DRUM_ANCHOR_POINTS, STICK_MIN_SPEED_REACH, STICK_MIN_STROKE_REACH, anchorPoint, gatesInGrips, gripHeel, stickReach } from '@thoremin/sdk/nodes/music/drum_anchor';
 import { MIN_FLOOR_PADS, learnPadFloor, padFloorFor, type PadFloors } from '../lib/pad_floors';
 import { DRUM_SOUNDS, OFF_PAD_MODES, PadsSchema, DEFAULT_PADS_SET, anyPadOn, hitPad, toDisplay, type DrumSound, type PadId } from '@thoremin/sdk/nodes/music/drum_pads';
@@ -104,6 +104,7 @@ import { APPROACH_WINDOW, CARRY_SWING_FRACTION, deepestSampleTime, fallingSegmen
 import { landingAt, velocityOf, type Landing } from './air_drum_landing';
 import { DrumHitsSchema, IDLE_STATUS, SUBFRAME_DWELL_FRAMES, magnetStanding, standing, subframeStanding, type AirDrumStatus, type DrumHit, type MagnetOutcome, type PlayerHand, type SubframeStanding } from './air_drum_hit';
 import { definedOnly } from '@thoremin/sdk/util/options';
+import { DEFAULT_MIRROR_HANDEDNESS, labelFor } from '@thoremin/sdk/nodes/player_hands';
 
 export { DRUM_SOUNDS };
 export type { DrumSound };
@@ -157,9 +158,9 @@ const Params = z.object({
   /** Timing magnetism, 0..1: how far a predicted hit is pulled toward the conductor's
    *  expected beat (nothing when the conductor is off). */
   magnetism: z.number().min(0).max(1).default(0),
-  /** The mirrored webcam reports the opposite hand label (the same knob the conductor
-   *  carries). Off for a recorded third-person video. */
-  mirrorHandedness: z.boolean().default(true),
+  /** Swap the hand model's Left/Right labels: only for a MIRRORED recording (#995). The live
+   *  camera, and any unmirrored video, label the player's true hand. */
+  mirrorHandedness: z.boolean().default(DEFAULT_MIRROR_HANDEDNESS),
   /** Hit loudness, 0..1 (how hard the stroke was scales it). */
   volume: z.number().min(0).max(1).default(0.8),
   /** The smallest stroke that counts, as a fraction of the frame height: a still hand's
@@ -192,12 +193,6 @@ const GHOST_VELOCITY = 0.6;
 const FALL_JITTER = 0.25;
 /** Two samples closer than this are not two camera frames (the conductor's rule). */
 const MIN_SAMPLE_SPACING = 0.004;
-/** MediaPipe's label for the player's hand, given the mirror convention. */
-function labelFor(hand: PlayerHand, mirrorHandedness: boolean): Hand['handedness'] {
-  const raw = hand === 'right' ? 'Right' : 'Left';
-  if (!mirrorHandedness) return raw;
-  return raw === 'Right' ? 'Left' : 'Right';
-}
 
 /**
  * A point's stroke gates in frame heights (the predictor's units): the dials themselves

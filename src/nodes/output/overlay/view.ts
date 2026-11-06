@@ -11,6 +11,8 @@ import type { FrameView } from '@thoremin/sdk/view/frame_view';
 import type { HandMap } from '../../mapping/hand_map';
 import type { HandsStatus } from '../../sources/source_contract';
 import type { BodyFrame, BodyStatus, CategoryScores, FaceFrame, HandFeatures, HandsFrame, SynthParams } from '@thoremin/sdk/nodes/domain';
+import { resolveSide } from '@thoremin/sdk/features/catalog';
+import { DEFAULT_MIRROR_HANDEDNESS } from '@thoremin/sdk/nodes/player_hands';
 
 // The params schemas (the overlay's settings contract) live in `../canvas_overlay.schema`.
 export type Params = OverlayParams;
@@ -125,6 +127,10 @@ export interface OverlayElement {
   update?(view: OverlayView): void;
 }
 
+/** Whether a hand, by its label, is the player's right: the one drawn on the right of the mirrored
+ *  view. The label is the player's own hand on the live camera's frames (#995), read through the
+ *  same convention as every instrument (`resolveSide`, `DEFAULT_MIRROR_HANDEDNESS`), so the
+ *  overlay and the sound never disagree about a hand. */
 export function isDisplayedRight(handedness: string): boolean {
-  return handedness === 'Left';
+  return (handedness === 'Left' || handedness === 'Right') && resolveSide(handedness, DEFAULT_MIRROR_HANDEDNESS) === 'right';
 }
