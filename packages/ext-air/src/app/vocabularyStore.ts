@@ -23,7 +23,7 @@ import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '../lib/vocabulary';
 import { chordShapeFeatureIds } from '../lib/hand_shape';
-import { recordedChordVocabulary } from '../lib/recorded_chords';
+import { recordedChordVocabulary, withSeed } from '../lib/recorded_chords';
 import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 import { MOUTH_GROUPS } from '../nodes/air_flute';
 import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '../lib/fingering_prior';
@@ -77,8 +77,9 @@ export interface VocabularyState {
   /** Derive and publish the classifier again from the same samples: for when what the
    *  derivation depends on besides the samples (the flute's prior dial) has changed. */
   republish(): void;
-  /** Put the seed's entries in (replacing entries of the same names, keeping the player's
-   *  others): the guitar's "Use the recorded chords". A no-op without a seed. */
+  /** Put the seed's entries in: the ones missing, and fresh copies of stale ones; never over an
+   *  entry the player taught (`withSeed`). The guitar's "Use the recorded chords". A no-op
+   *  without a seed. */
   useSeed(): Promise<void>;
 }
 
@@ -141,9 +142,7 @@ export function createVocabularyState({ name, features, publish, train = {}, der
       republish: () => publish(model(get().vocab)),
       async useSeed() {
         if (!seed) return;
-        const given = seed();
-        const names = new Set(given.entries.map((e) => e.label));
-        await commit({ ...given, entries: [...given.entries, ...get().vocab.entries.filter((e) => !names.has(e.label))] });
+        await commit(withSeed(get().vocab, seed()));
       },
     };
   });

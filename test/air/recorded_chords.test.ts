@@ -11,7 +11,8 @@ import { describe, expect, it } from 'vitest';
 import { createInMemoryProvider } from '@zodal/store';
 import { classify } from '@thoremin/sdk/enroll';
 import { parseChordName } from '@thoremin/sdk/music/guitar';
-import { canonicalChordLabel, chordOfLabel, RECORDED_CHORDS, recordedChordVocabulary, SEED_SAMPLES, vocabularyFromSummary } from '@thoremin/ext-air/lib/recorded_chords';
+import { canonicalChordLabel, chordOfLabel, ownEntries, RECORDED_CHORDS, recordedChordVocabulary, SEED_SAMPLES, seedChanges, vocabularyFromSummary, withSeed } from '@thoremin/ext-air/lib/recorded_chords';
+import { guitarVocabularyImporter } from '@thoremin/ext-air/app/guitarImport';
 import { trainVocabulary, withEntry } from '@thoremin/ext-air/lib/vocabulary';
 import { chordShapeFeatureIds } from '@thoremin/ext-air/lib/hand_shape';
 import { createVocabularyState, createVocabularyStore, useVocabularyStore, type VocabularyRecord } from '@thoremin/ext-air/app/vocabularyStore';
@@ -52,7 +53,7 @@ describe('the recorded chord shapes', () => {
   });
 
   it('a summary with no spread is its centroid', () => {
-    const v = vocabularyFromSummary({ ...RECORDED_CHORDS, features: ['a'], chords: [{ label: 'C', centroid: { a: 1 }, spread: {}, frames: 1 }] });
+    const v = vocabularyFromSummary({ ...RECORDED_CHORDS, features: ['a'], chords: [{ label: 'C', centroid: { a: 1 }, spread: {}, frames: 10 }] });
     expect(v.entries[0]!.samples.every((s) => s.a === 1)).toBe(true);
   });
 });
@@ -99,9 +100,11 @@ describe('the guitar vocabulary starts from the recorded chords', () => {
     await state.getState().useSeed();
     const labels = state.getState().vocab.entries.map((e) => e.label);
     expect(labels).toHaveLength(16);
+    expect(labels.slice(0, 2)).toEqual(['G', 'B7']);
     expect(labels).toContain('B7');
-    // The recorded G replaced the player's (wrong-hand) G.
-    expect(state.getState().vocab.entries.find((e) => e.label === 'G')!.samples).toEqual(recordedChordVocabulary().entries.find((e) => e.label === 'G')!.samples);
+    // The G the player taught is theirs: kept, not replaced by the recorded one.
+    expect(state.getState().vocab.entries.find((e) => e.label === 'G')!.samples).toEqual(own.entries[0]!.samples);
+    expect(state.getState().vocab.entries.find((e) => e.label === 'G')!.source).toBeUndefined();
     expect((await createVocabularyStore(provider).load('guitar'))!.vocabulary.entries).toHaveLength(16);
     useVocabularyStore(null);
   });
@@ -120,5 +123,39 @@ describe('labels checked against a progression of fourths', async () => {
   });
   it('a name said again is the next voicing', () => {
     expect(voicingLabels(['G', 'G', 'C', 'G'])).toEqual(['G', 'G (2)', 'C', 'G (3)']);
+  });
+});
+
+describe("recorded entries and the player's own", () => {
+  const seed = recordedChordVocabulary();
+  it('every recorded entry is marked; a chord the player teaches is not, and replaces it', () => {
+    expect(seed.entries.every((e) => e.source === 'recorded')).toBe(true);
+    const taught = withEntry(seed, 'G', enrolSamples('G', 40, 3));
+    expect(taught.entries.find((e) => e.label === 'G')!.source).toBeUndefined();
+    expect(ownEntries(taught).entries.map((e) => e.label)).toEqual(['G']);
+    expect(ownEntries(seed).entries).toEqual([]);
+  });
+  it('a new take is checked against the chords the player taught only, never the recorded ones', () => {
+    // No chord taught yet: nothing to check against, so no hold is refused for not looking
+    // like the author's chord (a synthetic second player's E reads as F against them).
+    expect(trainVocabulary(ownEntries(seed))).toBeNull();
+  });
+  it('putting the seed back adds what is missing and refreshes stale recorded copies, never a taught chord', () => {
+    const taught = withEntry(seed, 'G', enrolSamples('G', 40, 3));
+    expect(seedChanges(taught, seed)).toBe(0);
+    const removed = { ...taught, entries: taught.entries.filter((e) => e.label !== 'Am') };
+    expect(seedChanges(removed, seed)).toBe(1);
+    const stale = { ...seed, entries: seed.entries.map((e) => (e.label === 'C' ? { ...e, samples: e.samples.map((x) => ({ ...x, openness: 0 })) } : e)) };
+    expect(seedChanges(stale, seed)).toBe(1);
+    const back = withSeed(stale, seed);
+    expect(back.entries.find((e) => e.label === 'C')!.samples).toEqual(seed.entries.find((e) => e.label === 'C')!.samples);
+    expect(withSeed(taught, seed).entries.find((e) => e.label === 'G')!.source).toBeUndefined();
+  });
+  it('a chord measured on too few frames is left out, as training would leave it', () => {
+    const few = { ...RECORDED_CHORDS, chords: [{ ...RECORDED_CHORDS.chords[0]!, frames: 3 }, RECORDED_CHORDS.chords[1]!] };
+    expect(vocabularyFromSummary(few).entries.map((e) => e.label)).toEqual(['A']);
+  });
+  it('the hand-shapes importer keeps a second voicing', () => {
+    expect(guitarVocabularyImporter().canonical('g (2)')).toBe('G (2)');
   });
 });

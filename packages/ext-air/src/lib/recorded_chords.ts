@@ -22,7 +22,7 @@
  * Pure and Node-safe.
  */
 import { parseChordName } from '@thoremin/sdk/music/guitar';
-import type { Vocabulary } from './vocabulary';
+import { MIN_SAMPLES_PER_ENTRY, type Vocabulary, type VocabularyEntry } from './vocabulary';
 import recorded from './recorded_chords.json';
 
 /** The shipped summary: what the derivation script writes. */
@@ -54,12 +54,14 @@ export const SEED_SAMPLES = 8;
 const STEP = Math.sqrt((SEED_SAMPLES - 1) / SEED_SAMPLES);
 const DECIMALS = 1e4;
 
-/** A summary as a vocabulary whose samples reproduce its centroids and spread exactly. */
+/** A summary as a vocabulary whose samples reproduce its centroids and spread exactly. A chord
+ *  measured on fewer frames than an enrolment needs is left out, as training would leave it. */
 export function vocabularyFromSummary(summary: RecordedChordSummary): Vocabulary {
   return {
     features: [...summary.features],
-    entries: summary.chords.map(({ label, centroid, spread }) => ({
+    entries: summary.chords.filter((c) => c.frames >= MIN_SAMPLES_PER_ENTRY).map(({ label, centroid, spread }) => ({
       label,
+      source: 'recorded' as const,
       samples: H8.map((row) => {
         const s: Record<string, number> = {};
         summary.features.forEach((f, i) => {
@@ -76,6 +78,33 @@ export function vocabularyFromSummary(summary: RecordedChordSummary): Vocabulary
 
 /** The guitar's starting vocabulary: the recorded chords. */
 export const recordedChordVocabulary = (): Vocabulary => vocabularyFromSummary(RECORDED_CHORDS);
+
+/** Whether an entry is a shipped recorded one (any version), not the player's. */
+export const isRecorded = (e: VocabularyEntry): boolean => e.source === 'recorded';
+
+/**
+ * The seed merged into a player's vocabulary: every recorded chord the player has not taught
+ * in (a stale recorded entry, from an older shipped set, is refreshed), the player's own
+ * entries untouched and first. With `refresh` false, only what is missing is counted.
+ */
+export function withSeed(vocab: Vocabulary, seed: Vocabulary): Vocabulary {
+  const own = vocab.entries.filter((e) => !isRecorded(e));
+  const taught = new Set(own.map((e) => e.label));
+  return { ...seed, entries: [...own, ...seed.entries.filter((e) => !taught.has(e.label))] };
+}
+
+/** How many recorded chords {@link withSeed} would add or refresh (0: nothing to do). */
+export function seedChanges(vocab: Vocabulary, seed: Vocabulary): number {
+  const now = new Map(vocab.entries.map((e) => [e.label, e]));
+  return seed.entries.filter((s) => {
+    const e = now.get(s.label);
+    return !e || (isRecorded(e) && JSON.stringify(e.samples) !== JSON.stringify(s.samples));
+  }).length;
+}
+
+/** The player's own entries only: what a check of a new take is made against (a hold is
+ *  never refused for not looking like another player's chord). */
+export const ownEntries = (vocab: Vocabulary): Vocabulary => ({ ...vocab, entries: vocab.entries.filter((e) => !isRecorded(e)) });
 
 const VOICING = /^(.*?)\s*\((\d+)\)\s*$/;
 

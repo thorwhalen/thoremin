@@ -161,7 +161,7 @@ export interface HeldOutScore {
  * another day.
  */
 export function heldOutScore(segments: readonly ChordSegment[]): HeldOutScore {
-  const halves = segments.map((s) => {
+  const halves = segments.filter((s) => s.frames.length > 0).map((s) => {
     const mid = (s.frames[0]!.t + s.frames[s.frames.length - 1]!.t) / 2;
     return {
       a: { ...s, frames: s.frames.filter((f) => f.t < mid - SPLIT_GAP_S / 2) },

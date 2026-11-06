@@ -49,7 +49,7 @@ function runCapture(shapes: (() => Record<string, number> | null)) {
 describe.runIf(AIR)('learning a chord', () => {
   it('captures the held shape as the named chord, saves it and trains the instrument', async () => {
     render(<ChordEnrolment enabled />);
-    expect(screen.getByText(/None yet/)).toBeTruthy();
+    expect(screen.getByText(/No chords in your list/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Chord to learn'), { target: { value: 'g' } });
     fireEvent.click(screen.getByText('Learn'));
     expect(screen.getByRole('status').textContent).toMatch(/Make your G shape/);

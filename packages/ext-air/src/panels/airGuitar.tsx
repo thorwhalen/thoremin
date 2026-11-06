@@ -26,9 +26,9 @@ import { useGuitarVocabulary } from '../app/vocabularyStore';
 import { SequenceTrainer, type SequenceTrainerWords } from '../app/SequenceTrainer';
 import { GUITAR_STARTER_SEQUENCES } from '../app/starterSequences';
 import { TRAINING_ANCHORS } from '../training';
-import { airControls } from '../app/controls';
 import { checkTake } from '../lib/fingering_prior';
-import { canonicalChordLabel, RECORDED_CHORDS, recordedChordVocabulary } from '../lib/recorded_chords';
+import { canonicalChordLabel, ownEntries, RECORDED_CHORDS, recordedChordVocabulary, seedChanges } from '../lib/recorded_chords';
+import { trainVocabulary } from '../lib/vocabulary';
 import { PLAYER_HANDS } from '../nodes/air_bass';
 import { STRUM_POINTS, type AirGuitarDialParams } from '../nodes/air_guitar';
 
@@ -67,7 +67,7 @@ const CHORD_WORDS: EnrolmentWords = {
   title: 'Your chords',
   noun: 'shape',
   intro:
-    "None yet. The guitar plays the chords you teach it: type a chord's name, press Learn, and hold its shape with your chord hand for two seconds when the countdown ends.",
+    "No chords in your list. Teach one: type a chord's name, press Learn, and hold its shape with your chord hand for two seconds when the countdown ends; or use the recorded chords below.",
   placeholder: 'Chord name, e.g. G, Em, C7, G (2)',
   inputLabel: 'Chord to learn',
   invalidHint: 'Not a chord name it can play: try G, Em, C7, Dsus4, F#m (add (2) for a second way of holding one: G (2)).',
@@ -83,27 +83,27 @@ const SEQUENCE_WORDS: SequenceTrainerWords = {
 };
 
 /**
- * Where the guitar's starting chords come from, and a button to put them back: shown while
- * any recorded chord is missing from, or differs in, the player's list (re-taught, removed,
- * or a list saved before the recorded chords shipped).
+ * Where the guitar's starting chords come from, and a button to put them back: shown while a
+ * recorded chord is missing from the player's list (removed, or a list saved before the
+ * recorded chords shipped) or is an older recorded copy. A chord the player taught is theirs
+ * and is never offered for replacement.
  */
 export function RecordedChords() {
   const vocab = useGuitarVocabulary((s) => s.vocab);
   const useSeed = useGuitarVocabulary((s) => s.useSeed);
-  const seeded = recordedChordVocabulary().entries;
-  const mine = new Map(vocab.entries.map((e) => [e.label, JSON.stringify(e.samples)]));
-  const missing = seeded.filter((e) => mine.get(e.label) !== JSON.stringify(e.samples)).length;
+  const seeded = recordedChordVocabulary();
+  const missing = seedChanges(vocab, seeded);
   const pct = Math.round(100 * RECORDED_CHORDS.heldOut.chordAccuracy);
   return (
     <div className="space-y-1 text-[10px] leading-relaxed text-white/50" data-testid="air-guitar-recorded">
       <p>
-        The guitar starts with {seeded.length} chords recorded from one player's left hand (E A D G C F, Em Am Dm Gm Cm Fm; a
+        The guitar starts with {seeded.entries.length} chords recorded from one player's left hand (E A D G C F, Em Am Dm Gm Cm Fm; a
         number in brackets is another way of holding the same chord). It named {pct}% of that player's frames right. Your hand
         holds chords its own way: teach a chord again and yours replaces it.
       </p>
       {missing > 0 && (
         <button type="button" className="rounded border border-white/15 px-2 py-0.5 text-white/80 hover:bg-white/10" onClick={() => void useSeed()}>
-          Use the recorded chords ({missing} not in your list as recorded)
+          Use the recorded chords ({missing} to add; the chords you taught are kept)
         </button>
       )}
     </div>
@@ -145,8 +145,10 @@ export function AirGuitarControls() {
         readShape={() => readShape(AIR_GUITAR_NODE_ID)}
         canonical={canonicalChordLabel}
         makeCheck={() => {
-          // Against what is enrolled so far: a G held when C was asked, once both are known.
-          const model = airControls.get().airGuitarModel;
+          // Against what the player has taught so far (a G held when C was asked, once both are
+          // known), never against the recorded chords: one player's shapes name another's
+          // chords a quarter of the time, so they would refuse right holds.
+          const model = trainVocabulary(ownEntries(useGuitarVocabulary.getState().vocab));
           return model ? (label, samples) => checkTake(model, label, samples) : undefined;
         }}
         starters={GUITAR_STARTER_SEQUENCES}
