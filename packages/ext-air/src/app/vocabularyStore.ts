@@ -23,6 +23,7 @@ import type { DataProvider } from '@zodal/store';
 import { createNamedCollectionStore, type NamedCollectionStore } from '@thoremin/sdk-ui/namedCollection';
 import { VocabularySchema, emptyVocabulary, trainVocabulary, withEntry, withoutEntry, type TrainVocabularyOptions, type Vocabulary } from '../lib/vocabulary';
 import { chordShapeFeatureIds } from '../lib/hand_shape';
+import { recordedChordVocabulary, withSeed } from '../lib/recorded_chords';
 import { ALL_FEATURES } from '@thoremin/sdk/features/catalog';
 import { MOUTH_GROUPS } from '../nodes/air_flute';
 import { fuseWithPrior, priorOptionsFrom, type FingeringPriorSettings } from '../lib/fingering_prior';
@@ -76,6 +77,10 @@ export interface VocabularyState {
   /** Derive and publish the classifier again from the same samples: for when what the
    *  derivation depends on besides the samples (the flute's prior dial) has changed. */
   republish(): void;
+  /** Put the seed's entries in: the ones missing, and fresh copies of stale ones; never over an
+   *  entry the player taught (`withSeed`). The guitar's "Use the recorded chords". A no-op
+   *  without a seed. */
+  useSeed(): Promise<void>;
 }
 
 export interface VocabularySpec {
@@ -96,6 +101,9 @@ export interface VocabularySpec {
    *  fingering prior in, #263). Receives the vocabulary; the default is `trainVocabulary`
    *  with `train`. */
   derive?: (vocab: Vocabulary) => TrainedModel | null;
+  /** The vocabulary a player starts with when nothing is saved (the guitar's recorded chords,
+   *  `recorded_chords.ts`); saved only once the player changes it. Absent: empty. */
+  seed?: () => Vocabulary;
 }
 
 /**
@@ -103,8 +111,9 @@ export interface VocabularySpec {
  * entries, and on every change persist the samples and publish the classifier derived
  * from them. The guitar is one call below; the flute is another.
  */
-export function createVocabularyState({ name, features, publish, train = {}, derive, replaces }: VocabularySpec) {
+export function createVocabularyState({ name, features, publish, train = {}, derive, replaces, seed }: VocabularySpec) {
   const model = (vocab: Vocabulary): TrainedModel | null => (derive ? derive(vocab) : trainVocabulary(vocab, train));
+  const start = (): Vocabulary => (seed ? seed() : emptyVocabulary(features));
   return create<VocabularyState>()((set, get) => {
     const commit = async (vocab: Vocabulary): Promise<void> => {
       set({ vocab });
@@ -117,13 +126,13 @@ export function createVocabularyState({ name, features, publish, train = {}, der
       }
     };
     return {
-      vocab: emptyVocabulary(features),
+      vocab: start(),
       loaded: false,
       error: null,
       async load() {
         const rec = await getStore().load(name);
         const old = !rec && replaces ? await getStore().load(replaces.name) : null;
-        const vocab = rec?.vocabulary ?? (old ? replaces!.turn(old.vocabulary) : emptyVocabulary(features));
+        const vocab = rec?.vocabulary ?? (old ? replaces!.turn(old.vocabulary) : start());
         set({ vocab, loaded: true });
         publish(model(vocab));
         if (old) await commit(vocab);
@@ -131,6 +140,10 @@ export function createVocabularyState({ name, features, publish, train = {}, der
       enrol: (label, samples) => commit(withEntry(get().vocab, label, samples)),
       remove: (label) => commit(withoutEntry(get().vocab, label)),
       republish: () => publish(model(get().vocab)),
+      async useSeed() {
+        if (!seed) return;
+        await commit(withSeed(get().vocab, seed()));
+      },
     };
   });
 }
@@ -138,10 +151,11 @@ export function createVocabularyState({ name, features, publish, train = {}, der
 /** The air guitar's record name in the collection. */
 export const GUITAR_VOCABULARY = 'guitar';
 
-/** The air guitar's chords. */
+/** The air guitar's chords: the recorded ones until the player teaches their own. */
 export const useGuitarVocabulary = createVocabularyState({
   name: GUITAR_VOCABULARY,
   features: chordShapeFeatureIds(),
+  seed: recordedChordVocabulary,
   publish: (model) => airControls.setTransient('airGuitarModel', model),
 });
 

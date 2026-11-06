@@ -1,7 +1,7 @@
 /**
  * The air guitar's chords take a carved hand-shape categorizer (#451, choice C4 of #387): the
  * importer the air extension provides through sdk-ui's seam when its UI mounts. A category named
- * as a chord (`parseChordName`: "G", "Am", "D7") becomes the vocabulary entry of that chord, under
+ * as a chord (`canonicalChordLabel`: "G", "Am", "D7", "G (2)") becomes the vocabulary entry of that chord, under
  * its CANONICAL name (as the guitar's own enrolment keeps it: "g" and "Gmaj" are "G"), its holds
  * and their supporting frames as samples; categories with one canonical name are pooled, and an
  * entry of the same name is replaced (the carve tool asks first). A COPY into the guitar's own
@@ -10,8 +10,8 @@
  */
 import type { VocabularyImporter } from '@thoremin/sdk-ui/enroll/vocabularyImport';
 import type { FeatureVector } from '@thoremin/sdk/enroll/types';
-import { parseChordName } from '@thoremin/sdk/music/guitar';
 import { MIN_SAMPLES_PER_ENTRY } from '../lib/vocabulary';
+import { canonicalChordLabel, isRecorded } from '../lib/recorded_chords';
 import { airControls } from './controls';
 import { useGuitarVocabulary, type VocabularyState } from './vocabularyStore';
 
@@ -35,7 +35,7 @@ export interface GuitarImporterDeps {
 
 /** The air guitar's importer over its vocabulary store (the app's by default). */
 export function guitarVocabularyImporter({ state = useGuitarVocabulary, frettingHand = frettingHandNow }: GuitarImporterDeps = {}): VocabularyImporter {
-  const canonical = (label: string): string | null => parseChordName(label.trim())?.name ?? null;
+  const canonical = (label: string): string | null => canonicalChordLabel(label.trim());
   return {
     id: AIR_GUITAR_IMPORTER_ID,
     modality: 'hand',
@@ -43,7 +43,9 @@ export function guitarVocabularyImporter({ state = useGuitarVocabulary, fretting
     canonical,
     has: (label) => {
       const name = canonical(label);
-      return name !== null && state.getState().vocab.entries.some((e) => e.label === name);
+      // Only a chord the player taught is theirs to be asked about; a recorded starting chord
+      // (`recorded_chords.ts`) is replaced without asking, as teaching it would replace it.
+      return name !== null && state.getState().vocab.entries.some((e) => e.label === name && !isRecorded(e));
     },
     async import(entries, options = {}) {
       if (!state.getState().loaded) await state.getState().load();

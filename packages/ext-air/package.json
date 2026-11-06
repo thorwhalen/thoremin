@@ -36,6 +36,7 @@
     "./lib/pad_floors": "./src/lib/pad_floors.ts",
     "./lib/pattern_fit": "./src/lib/pattern_fit.ts",
     "./lib/pattern_play": "./src/lib/pattern_play.ts",
+    "./lib/recorded_chords": "./src/lib/recorded_chords.ts",
     "./lib/vocabulary": "./src/lib/vocabulary.ts",
     "./nodes/air_bass": "./src/nodes/air_bass.ts",
     "./nodes/air_drum": "./src/nodes/air_drum.ts",

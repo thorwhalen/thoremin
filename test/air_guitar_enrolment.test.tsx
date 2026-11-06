@@ -49,7 +49,7 @@ function runCapture(shapes: (() => Record<string, number> | null)) {
 describe.runIf(AIR)('learning a chord', () => {
   it('captures the held shape as the named chord, saves it and trains the instrument', async () => {
     render(<ChordEnrolment enabled />);
-    expect(screen.getByText(/None yet/)).toBeTruthy();
+    expect(screen.getByText(/No chords in your list/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Chord to learn'), { target: { value: 'g' } });
     fireEvent.click(screen.getByText('Learn'));
     expect(screen.getByRole('status').textContent).toMatch(/Make your G shape/);
@@ -129,5 +129,20 @@ describe.runIf(AIR)('learning a chord', () => {
     render(<ChordEnrolment enabled={false} />);
     fireEvent.change(screen.getByLabelText('Chord to learn'), { target: { value: 'C' } });
     expect((screen.getByText('Learn') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe.runIf(AIR)('the recorded chords', () => {
+  it('says where the starting chords come from, and puts them back in one click', async () => {
+    const { RecordedChords } = await import('@thoremin/ext-air/panels/airGuitar');
+    render(<RecordedChords />);
+    expect(screen.getByTestId('air-guitar-recorded').textContent).toMatch(/starts with 15 chords recorded/);
+    vi.useRealTimers();
+    await act(async () => {
+      fireEvent.click(screen.getByText(/Use the recorded chords/));
+    });
+    expect(useGuitarVocabulary.getState().vocab.entries).toHaveLength(15);
+    expect(useControls.getState().airGuitarModel?.categories).toHaveLength(15);
+    expect(screen.queryByText(/Use the recorded chords/)).toBeNull();
   });
 });

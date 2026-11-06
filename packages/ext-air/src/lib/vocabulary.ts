@@ -31,6 +31,9 @@ import { trainModel, weightedDistance, type FeatureVector, type TrainedModel } f
 export const VocabularyEntrySchema = z.object({
   label: z.string().trim().min(1),
   samples: z.array(z.record(z.string(), z.number())),
+  /** `recorded`: a shipped starting entry (the guitar's recorded chords), not one the player
+   *  taught; absent for the player's own. Teaching the label again replaces it with theirs. */
+  source: z.literal('recorded').optional(),
 });
 export type VocabularyEntry = z.infer<typeof VocabularyEntrySchema>;
 
